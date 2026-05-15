@@ -609,14 +609,14 @@ fn source_fence_len(ctx: &Ctx<'_>, id: NodeId, fence_char: char) -> Option<usize
     let start = bytes
         .iter()
         .position(|b| !matches!(*b, b' ' | b'\t' | b'\n' | b'\r'))?;
-    if bytes[start] != fc {
+    if bytes.get(start).copied() != Some(fc) {
         return None;
     }
     let mut i = start;
-    while i < bytes.len() && bytes[i] == fc {
-        i += 1;
+    while bytes.get(i).copied() == Some(fc) {
+        i = i.saturating_add(1);
     }
-    Some(i - start)
+    Some(i.saturating_sub(start))
 }
 
 /// Longest run of `fence_char` appearing on any line of `body`.
@@ -629,17 +629,17 @@ fn longest_fence_run(body: &str, fence_char: char) -> usize {
         // Skip leading whitespace; fences only count when they are
         // the first non-space content on the line.
         let mut i = 0;
-        while i < line.len() && matches!(line[i], b' ' | b'\t') {
-            i += 1;
+        while matches!(line.get(i).copied(), Some(b' ' | b'\t')) {
+            i = i.saturating_add(1);
         }
-        if i >= line.len() || line[i] != fc {
+        if line.get(i).copied() != Some(fc) {
             continue;
         }
         let start = i;
-        while i < line.len() && line[i] == fc {
-            i += 1;
+        while line.get(i).copied() == Some(fc) {
+            i = i.saturating_add(1);
         }
-        max_run = max_run.max(i - start);
+        max_run = max_run.max(i.saturating_sub(start));
     }
     max_run
 }
@@ -1144,14 +1144,16 @@ fn update_comment_state(start: bool, line: &str) -> bool {
     let bytes = line.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if !state && i + 3 < bytes.len() && &bytes[i..i + 4] == b"<!--" {
+        let four = bytes.get(i..i.saturating_add(4));
+        let three = bytes.get(i..i.saturating_add(3));
+        if !state && four == Some(b"<!--") {
             state = true;
-            i += 4;
-        } else if state && i + 2 < bytes.len() && &bytes[i..i + 3] == b"-->" {
+            i = i.saturating_add(4);
+        } else if state && three == Some(b"-->") {
             state = false;
-            i += 3;
+            i = i.saturating_add(3);
         } else {
-            i += 1;
+            i = i.saturating_add(1);
         }
     }
     state

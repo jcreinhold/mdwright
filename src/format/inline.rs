@@ -73,7 +73,9 @@ fn comment_indented_on_own_line_in_source(ctx: &Ctx<'_>, id: NodeId) -> bool {
     let Some(nl) = prefix.rfind('\n') else {
         return false;
     };
-    let line_lead = &prefix[nl + 1..];
+    let Some(line_lead) = prefix.get(nl.saturating_add(1)..) else {
+        return false;
+    };
     line_lead.len() >= 4 && line_lead.bytes().all(|b| matches!(b, b' ' | b'\t'))
 }
 
