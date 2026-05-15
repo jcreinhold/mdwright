@@ -41,7 +41,9 @@ impl LintRule for LatexCommand {
         for chunk in doc.prose_chunks() {
             for cap in pattern().captures_iter(chunk.text) {
                 let Some(m) = cap.get(0) else { continue };
-                let Some(name_match) = cap.get(1) else { continue };
+                let Some(name_match) = cap.get(1) else {
+                    continue;
+                };
                 let abs_start = chunk.byte_offset.saturating_add(m.start());
                 let abs_end = chunk.byte_offset.saturating_add(m.end());
                 // Skip LaTeX commands inside math regions: `\alpha`

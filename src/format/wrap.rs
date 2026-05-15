@@ -76,7 +76,11 @@ fn rewrite_lines<'a>(doc: Doc<'a>, r: Replace) -> Doc<'a> {
         Doc::Text(_) | Doc::HardLine => doc,
         Doc::Atomic(inner) => Doc::Atomic(Box::new(rewrite_lines(*inner, r))),
         Doc::Concat(items) => {
-            let v: Vec<Doc<'a>> = items.into_vec().into_iter().map(|i| rewrite_lines(i, r)).collect();
+            let v: Vec<Doc<'a>> = items
+                .into_vec()
+                .into_iter()
+                .map(|i| rewrite_lines(i, r))
+                .collect();
             Doc::Concat(v.into_boxed_slice())
         }
     }
@@ -450,7 +454,9 @@ fn rebuild<'a>(boxes: Vec<Bx<'a>>, breaks: &[usize]) -> Vec<Doc<'a>> {
 #[cfg(test)]
 mod tests {
     use super::{Wrap, wrap_doc};
-    use crate::format::doc::{Doc, RenderOptions, concat, hard_line, line, render, text, unbreakable};
+    use crate::format::doc::{
+        Doc, RenderOptions, concat, hard_line, line, render, text, unbreakable,
+    };
 
     fn render_wrapped(doc: Doc<'_>, wrap: Wrap) -> String {
         let wrapped = wrap_doc(doc, wrap);
@@ -502,7 +508,13 @@ mod tests {
 
     #[test]
     fn hard_line_terminates_run() {
-        let d = concat([text("foo"), line(), text("bar"), hard_line(), text("baz qux")]);
+        let d = concat([
+            text("foo"),
+            line(),
+            text("bar"),
+            hard_line(),
+            text("baz qux"),
+        ]);
         let out = render_wrapped(d, Wrap::At(80));
         assert_eq!(out, "foo bar\nbaz qux");
     }

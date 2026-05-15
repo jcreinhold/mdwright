@@ -432,7 +432,8 @@ impl<'a> TreeBuilder<'a> {
         // pushed exactly one frame, so this pop must succeed; if it
         // ever doesn't, fall through with no Document children.
         let doc_pending_start = self.open.pop().map_or(0u32, |f| f.pending_start);
-        let mut doc_children: Vec<NodeId> = self.pending.drain(doc_pending_start as usize..).collect();
+        let mut doc_children: Vec<NodeId> =
+            self.pending.drain(doc_pending_start as usize..).collect();
 
         // Synthesise one LinkReferenceDefinition per link_def and
         // append to doc_children, then sort by raw_range.start so
@@ -452,7 +453,11 @@ impl<'a> TreeBuilder<'a> {
             self.parents.push(Some(NodeId(0)));
             doc_children.push(id);
         }
-        doc_children.sort_by_key(|id| self.arena.get(id.idx()).map_or(usize::MAX, |n| n.raw_range.start));
+        doc_children.sort_by_key(|id| {
+            self.arena
+                .get(id.idx())
+                .map_or(usize::MAX, |n| n.raw_range.start)
+        });
 
         let children_start = u32::try_from(self.child_ids.len()).unwrap_or(u32::MAX);
         self.child_ids.extend(doc_children.iter().copied());
@@ -532,7 +537,10 @@ impl<'a> TreeBuilder<'a> {
             node.children = children_start..children_end;
             node.subtree_end = subtree_end;
             node.raw_range = frame.raw_start..range.end;
-            if let NodeKind::List { tight: ref mut t, .. } = node.kind {
+            if let NodeKind::List {
+                tight: ref mut t, ..
+            } = node.kind
+            {
                 *t = tight;
             }
         }
@@ -636,14 +644,18 @@ impl<'a> TreeBuilder<'a> {
             } => link_kind(*link_type, dest_url, title, id, /* is_image= */ true),
             Tag::Superscript => NodeKind::Unknown { tag: "Superscript" },
             Tag::Subscript => NodeKind::Unknown { tag: "Subscript" },
-            Tag::DefinitionList => NodeKind::Unknown { tag: "DefinitionList" },
+            Tag::DefinitionList => NodeKind::Unknown {
+                tag: "DefinitionList",
+            },
             Tag::DefinitionListTitle => NodeKind::Unknown {
                 tag: "DefinitionListTitle",
             },
             Tag::DefinitionListDefinition => NodeKind::Unknown {
                 tag: "DefinitionListDefinition",
             },
-            Tag::MetadataBlock(_) => NodeKind::Unknown { tag: "MetadataBlock" },
+            Tag::MetadataBlock(_) => NodeKind::Unknown {
+                tag: "MetadataBlock",
+            },
         }
     }
 }
@@ -677,9 +689,15 @@ fn link_kind<'a>(
                 LinkType::Reference | LinkType::ReferenceUnknown => LinkKind::ReferenceFull,
                 LinkType::Collapsed | LinkType::CollapsedUnknown => LinkKind::ReferenceCollapsed,
                 LinkType::Shortcut | LinkType::ShortcutUnknown => LinkKind::ReferenceShortcut,
-                LinkType::Autolink | LinkType::Email | LinkType::WikiLink { .. } => LinkKind::Inline,
+                LinkType::Autolink | LinkType::Email | LinkType::WikiLink { .. } => {
+                    LinkKind::Inline
+                }
             };
-            let ref_label = if id.is_empty() { None } else { Some(cow_to_cow(id)) };
+            let ref_label = if id.is_empty() {
+                None
+            } else {
+                Some(cow_to_cow(id))
+            };
             let dest = cow_to_cow(dest_url);
             let title = cow_to_cow(title);
             if is_image {
@@ -820,7 +838,9 @@ mod tests {
         let link = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::Link { kind, ref_label, .. }) => Some((*kind, ref_label.clone())),
+                Some(NodeKind::Link {
+                    kind, ref_label, ..
+                }) => Some((*kind, ref_label.clone())),
                 _ => None,
             })
             .expect("link present");

@@ -32,7 +32,11 @@ impl LintRule for TrailingWhitespace {
             // diagnostic span.
             let (content, newline_len) = line.strip_suffix('\n').map_or((line, 0), |c| (c, 1));
             let content_end = line_start.saturating_add(content.len());
-            let trail = content.bytes().rev().take_while(|b| matches!(b, b' ' | b'\t')).count();
+            let trail = content
+                .bytes()
+                .rev()
+                .take_while(|b| matches!(b, b' ' | b'\t'))
+                .count();
             if trail == 0 {
                 line_start = line_end_incl;
                 continue;

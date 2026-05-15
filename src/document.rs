@@ -16,7 +16,8 @@ use crate::config::FmtOptions;
 use crate::diagnostic::Diagnostic;
 use crate::format;
 use crate::ir::{
-    CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup, Suppression, TextSlice,
+    CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup,
+    Suppression, TextSlice,
 };
 use crate::line_index::LineIndex;
 use crate::rule_set::RuleSet;
@@ -96,7 +97,9 @@ impl<'a> Document<'a> {
     /// recognises every byte sequence as Markdown.
     #[must_use]
     pub fn parse(source: &'a str) -> Self {
-        Self { ir: Ir::parse(source) }
+        Self {
+            ir: Ir::parse(source),
+        }
     }
 
     /// The full source string the document was parsed from.

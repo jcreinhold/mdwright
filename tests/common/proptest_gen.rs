@@ -10,7 +10,12 @@
 //! test binaries) and is pulled in via `#[path]` from the
 //! consuming test.
 
-#![allow(dead_code, unreachable_pub, clippy::format_collect, clippy::arithmetic_side_effects)]
+#![allow(
+    dead_code,
+    unreachable_pub,
+    clippy::format_collect,
+    clippy::arithmetic_side_effects
+)]
 
 use proptest::collection::vec;
 use proptest::prelude::*;
@@ -118,8 +123,10 @@ fn arb_list() -> impl Strategy<Value = String> {
         // Once back-to-back lists with different source markers no
         // longer merge after normalization, restore the
         // `prop_oneof!` over `-`, `*`, `+`.
-        vec(arb_inline_run(), 1..=4)
-            .prop_map(|items| items.into_iter().map(|it| format!("- {it}\n")).collect::<String>()),
+        vec(arb_inline_run(), 1..=4).prop_map(|items| items
+            .into_iter()
+            .map(|it| format!("- {it}\n"))
+            .collect::<String>()),
         // Ordered.
         vec(arb_inline_run(), 1..=4).prop_map(|items| items
             .into_iter()
@@ -138,7 +145,8 @@ fn arb_code_block() -> impl Strategy<Value = String> {
 }
 
 fn arb_blockquote() -> impl Strategy<Value = String> {
-    vec(arb_inline_run(), 1..=3).prop_map(|lines| lines.into_iter().map(|l| format!("> {l}\n")).collect())
+    vec(arb_inline_run(), 1..=3)
+        .prop_map(|lines| lines.into_iter().map(|l| format!("> {l}\n")).collect())
 }
 
 fn arb_thematic_break() -> impl Strategy<Value = String> {

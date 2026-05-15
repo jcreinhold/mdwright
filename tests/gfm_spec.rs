@@ -192,13 +192,21 @@ fn normalise_tag(tag: &Tag<'_>) -> String {
             dest_url,
             title,
             ..
-        } => format!("Link({link_type:?},{},{})", dest_url.as_ref(), title.as_ref()),
+        } => format!(
+            "Link({link_type:?},{},{})",
+            dest_url.as_ref(),
+            title.as_ref()
+        ),
         Tag::Image {
             link_type,
             dest_url,
             title,
             ..
-        } => format!("Image({link_type:?},{},{})", dest_url.as_ref(), title.as_ref()),
+        } => format!(
+            "Image({link_type:?},{},{})",
+            dest_url.as_ref(),
+            title.as_ref()
+        ),
         Tag::HtmlBlock => "HtmlBlock".to_owned(),
         Tag::MetadataBlock(kind) => format!("MetadataBlock({kind:?})"),
         Tag::DefinitionList => "DefinitionList".to_owned(),
@@ -284,8 +292,16 @@ fn report(fails: &[CaseFailure], total: usize) -> String {
             out,
             "\n--- case {} ({}, {}) [{}] ---\n{}\n",
             f.case,
-            if f.section.is_empty() { "?" } else { f.section.as_str() },
-            if f.class.is_empty() { "core" } else { f.class.as_str() },
+            if f.section.is_empty() {
+                "?"
+            } else {
+                f.section.as_str()
+            },
+            if f.class.is_empty() {
+                "core"
+            } else {
+                f.class.as_str()
+            },
             f.kind,
             f.detail,
         );

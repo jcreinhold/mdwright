@@ -168,7 +168,9 @@ pub(crate) fn scan_math(
             Some(close_start) => {
                 let close_len = delim.close().len();
                 let region_end = close_start.saturating_add(close_len);
-                regions.push(MathRegion { range: i..region_end });
+                regions.push(MathRegion {
+                    range: i..region_end,
+                });
                 i = region_end;
             }
             None => {
@@ -297,7 +299,12 @@ fn preceding_backslashes_even(bytes: &[u8], i: usize) -> bool {
 /// - for `\]` / `\)` closes, be a real CM backslash escape (odd
 ///   preceding-backslash parity);
 /// - for `$$` and `$` closes, simply match byte-wise.
-fn find_close(bytes: &[u8], from: usize, delim: MathDelim, exclusions: &[Range<usize>]) -> Option<usize> {
+fn find_close(
+    bytes: &[u8],
+    from: usize,
+    delim: MathDelim,
+    exclusions: &[Range<usize>],
+) -> Option<usize> {
     let mut j = from;
     while j < bytes.len() {
         if let Some(end) = excluded_end(exclusions, j) {
@@ -316,7 +323,9 @@ fn find_close(bytes: &[u8], from: usize, delim: MathDelim, exclusions: &[Range<u
                 }
             }
             MathDelim::DoubleDollar => {
-                if bytes.get(j).copied() == Some(b'$') && bytes.get(j.saturating_add(1)).copied() == Some(b'$') {
+                if bytes.get(j).copied() == Some(b'$')
+                    && bytes.get(j.saturating_add(1)).copied() == Some(b'$')
+                {
                     return Some(j);
                 }
             }

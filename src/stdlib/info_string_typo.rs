@@ -153,7 +153,10 @@ impl LintRule for InfoStringTypo {
             let language = info.split([',', ' ', '\t']).next().unwrap_or("");
             let language_lower = language.to_ascii_lowercase();
             if DEFAULT_ALLOWLIST.iter().any(|&a| a == language_lower)
-                || self.extra.iter().any(|e| e.eq_ignore_ascii_case(&language_lower))
+                || self
+                    .extra
+                    .iter()
+                    .any(|e| e.eq_ignore_ascii_case(&language_lower))
             {
                 continue;
             }
@@ -199,8 +202,10 @@ mod tests {
 
         // With extra: silenced.
         let mut rs = RuleSet::new();
-        rs.add(Box::new(InfoStringTypo::with_extra(vec!["promql".to_owned()])))
-            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        rs.add(Box::new(InfoStringTypo::with_extra(vec![
+            "promql".to_owned(),
+        ])))
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
         let extended = Document::parse(src).lint(&rs);
         assert!(
             !extended.iter().any(|d| d.rule == "info-string-typo"),

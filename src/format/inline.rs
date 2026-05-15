@@ -27,7 +27,11 @@ pub(crate) fn render_inline<'a>(ctx: &Ctx<'a>, parent: NodeId) -> Doc<'a> {
 /// table cells to set `in_table_cell = true`, by headings to set
 /// `in_heading = true`, and recursively by link text to set
 /// `in_link_text = true`).
-pub(crate) fn render_inline_in_scope<'a>(ctx: &Ctx<'a>, parent: NodeId, scope: EscapeScope) -> Doc<'a> {
+pub(crate) fn render_inline_in_scope<'a>(
+    ctx: &Ctx<'a>,
+    parent: NodeId,
+    scope: EscapeScope,
+) -> Doc<'a> {
     let ids: Vec<NodeId> = ctx.tree.children(parent).collect();
     render_inline_nodes(ctx, &ids, scope)
 }
@@ -90,7 +94,11 @@ fn comment_indented_on_own_line_in_source(ctx: &Ctx<'_>, id: NodeId) -> bool {
 /// paragraph as one flanking context. Flushing on break would
 /// hide partner asterisks across a `\n` from one another and let
 /// the formatter emit pairs that pulldown then re-parses as `<em>`.
-pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId], scope: EscapeScope) -> Doc<'a> {
+pub(crate) fn render_inline_nodes<'a>(
+    ctx: &Ctx<'a>,
+    ids: &[NodeId],
+    scope: EscapeScope,
+) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
     let mut text_run: Vec<Chunk<'a>> = Vec::new();
     let flush_text = |run: &mut Vec<Chunk<'a>>, parts: &mut Vec<Doc<'a>>| {
@@ -160,8 +168,8 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId], scope: Esca
                 // soft break to a hard break, the comment lands at
                 // column 0, and pulldown re-parses it as a block,
                 // splitting one paragraph into two.
-                let comment_on_own_line = raw.starts_with("<!--")
-                    && comment_indented_on_own_line_in_source(ctx, cid);
+                let comment_on_own_line =
+                    raw.starts_with("<!--") && comment_indented_on_own_line_in_source(ctx, cid);
                 let raw_str: Cow<'a, str> = if comment_on_own_line {
                     let mut joined = String::with_capacity(raw.len().saturating_add(4));
                     joined.push_str("    ");
@@ -419,8 +427,10 @@ fn escape_combined(buf: &str, forced: &[bool], scope: EscapeScope) -> String {
 fn render_code<'a>(content: &str, scope: EscapeScope) -> Doc<'a> {
     let longest = longest_backtick_run(content);
     let fence_len = longest.saturating_add(1);
-    let needs_pad =
-        content.starts_with('`') || content.ends_with('`') || content.starts_with(' ') || content.ends_with(' ');
+    let needs_pad = content.starts_with('`')
+        || content.ends_with('`')
+        || content.starts_with(' ')
+        || content.ends_with(' ');
     // Build the rendered span in one allocation (fence + optional
     // pad + body + pad + fence). Before: 2-4 separate allocations
     // (fence String, body_owned, optional replace(), final format!).
@@ -567,7 +577,9 @@ fn render_strikethrough<'a>(ctx: &Ctx<'a>, id: NodeId, scope: EscapeScope) -> Do
 /// point asterisk is the safer default.
 fn source_emphasis_delim(ctx: &Ctx<'_>, id: NodeId) -> u8 {
     let raw = ctx.tree.raw_text(id);
-    raw.bytes().find(|b| matches!(b, b'*' | b'_')).unwrap_or(b'*')
+    raw.bytes()
+        .find(|b| matches!(b, b'*' | b'_'))
+        .unwrap_or(b'*')
 }
 
 // ============================================================
@@ -627,7 +639,11 @@ impl<'a> LinkTarget<'a> {
             | NodeKind::TaskListMarker(_)
             | NodeKind::Unknown { .. } => return None,
         };
-        let title = if title.is_empty() { None } else { Some(title.as_ref()) };
+        let title = if title.is_empty() {
+            None
+        } else {
+            Some(title.as_ref())
+        };
         let ref_label = ref_label.as_deref();
         Some(Self {
             dest: dest.as_ref(),
@@ -646,7 +662,12 @@ fn render_image<'a>(ctx: &Ctx<'a>, id: NodeId, outer_scope: EscapeScope) -> Doc<
     render_link_or_image(ctx, id, outer_scope, true)
 }
 
-fn render_link_or_image<'a>(ctx: &Ctx<'a>, id: NodeId, outer_scope: EscapeScope, is_image: bool) -> Doc<'a> {
+fn render_link_or_image<'a>(
+    ctx: &Ctx<'a>,
+    id: NodeId,
+    outer_scope: EscapeScope,
+    is_image: bool,
+) -> Doc<'a> {
     let Some(node) = ctx.tree.node(id) else {
         return concat([]);
     };
@@ -698,7 +719,11 @@ fn render_link_or_image<'a>(ctx: &Ctx<'a>, id: NodeId, outer_scope: EscapeScope,
         }
         LinkKind::ReferenceFull => {
             let label = target.ref_label.unwrap_or("");
-            unbreakable(concat([text(prefix), text_doc, text(format!("][{label}]"))]))
+            unbreakable(concat([
+                text(prefix),
+                text_doc,
+                text(format!("][{label}]")),
+            ]))
         }
         LinkKind::ReferenceCollapsed => unbreakable(concat([text(prefix), text_doc, text("][]")])),
         LinkKind::ReferenceShortcut => unbreakable(concat([text(prefix), text_doc, text("]")])),
@@ -788,7 +813,10 @@ enum EscapedUrl<'a> {
 /// whitespace. Inside the bare form, backslash-escape unbalanced
 /// parens.
 fn escape_url(url: &str) -> EscapedUrl<'_> {
-    if url.bytes().any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r')) {
+    if url
+        .bytes()
+        .any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+    {
         // Angle form. Within `<…>`, backslash-escape `<`, `>`, and `\`.
         return EscapedUrl::Angle(escape_angle_url(url));
     }
@@ -948,7 +976,10 @@ mod tests {
     #[test]
     fn escape_url_no_special_picks_bare_borrowed() {
         let out = escape_url("https://example.com/x");
-        assert!(matches!(out, EscapedUrl::Bare(std::borrow::Cow::Borrowed(_))));
+        assert!(matches!(
+            out,
+            EscapedUrl::Bare(std::borrow::Cow::Borrowed(_))
+        ));
     }
 
     #[test]

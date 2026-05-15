@@ -33,7 +33,10 @@ impl LintRule for AdjacentCodeNoSpace {
                 .and_then(|i| bytes.get(i).copied())
                 .is_some_and(|b| b.is_ascii_alphabetic());
 
-            let after_letter = bytes.get(end).copied().is_some_and(|b| b.is_ascii_alphabetic());
+            let after_letter = bytes
+                .get(end)
+                .copied()
+                .is_some_and(|b| b.is_ascii_alphabetic());
 
             if !before_letter && !after_letter {
                 continue;
@@ -43,7 +46,8 @@ impl LintRule for AdjacentCodeNoSpace {
                  space between the code span and the surrounding word"
                 .to_owned();
 
-            if let Some(d) = Diagnostic::at(doc, start, 0..end.saturating_sub(start), message, None) {
+            if let Some(d) = Diagnostic::at(doc, start, 0..end.saturating_sub(start), message, None)
+            {
                 out.push(d);
             }
         }

@@ -31,7 +31,10 @@ impl<'a> LineIndex<'a> {
                 line_starts.push(i.saturating_add(1));
             }
         }
-        Self { source, line_starts }
+        Self {
+            source,
+            line_starts,
+        }
     }
 
     /// 1-indexed (line, column) for the codepoint starting at `byte`.
@@ -43,7 +46,10 @@ impl<'a> LineIndex<'a> {
     /// pulldown-cmark, which always satisfy both conditions.
     pub fn locate(&self, byte: usize) -> Result<(usize, usize)> {
         if byte > self.source.len() {
-            bail!("byte offset {byte} past source length {}", self.source.len());
+            bail!(
+                "byte offset {byte} past source length {}",
+                self.source.len()
+            );
         }
         // Binary search for the largest line_start ≤ byte.
         let idx = match self.line_starts.binary_search(&byte) {

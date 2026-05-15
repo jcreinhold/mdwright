@@ -79,7 +79,9 @@ impl LintRule for UnicodeableSubscript {
                         }
                     }
                 };
-                let message = format!("`{matched}` has a Unicode equivalent `{replacement}` — clearer to read");
+                let message = format!(
+                    "`{matched}` has a Unicode equivalent `{replacement}` — clearer to read"
+                );
                 if let Some(d) = Diagnostic::at(
                     doc,
                     chunk.byte_offset,

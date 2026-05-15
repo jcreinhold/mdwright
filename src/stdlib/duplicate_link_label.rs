@@ -32,7 +32,8 @@ impl LintRule for DuplicateLinkLabel {
                         def.label
                     );
                     let local = 0..(def.raw_range.end.saturating_sub(def.raw_range.start));
-                    if let Some(d) = Diagnostic::at(doc, def.raw_range.start, local, message, None) {
+                    if let Some(d) = Diagnostic::at(doc, def.raw_range.start, local, message, None)
+                    {
                         out.push(d);
                     }
                 }

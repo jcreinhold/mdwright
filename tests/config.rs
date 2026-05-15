@@ -97,13 +97,21 @@ fn cli_honours_config_exclude_globs() -> Result<()> {
 
     let (_ok, out) = run_check(&[
         "check",
-        dir.path().to_str().ok_or_else(|| anyhow!("non-utf8 path"))?,
+        dir.path()
+            .to_str()
+            .ok_or_else(|| anyhow!("non-utf8 path"))?,
         "--config",
         toml.to_str().ok_or_else(|| anyhow!("non-utf8 path"))?,
         "--format",
         "compact",
     ])?;
-    assert!(out.contains("keep.md"), "non-excluded file should appear: {out}");
-    assert!(!out.contains("drop.md"), "excluded file must not appear: {out}");
+    assert!(
+        out.contains("keep.md"),
+        "non-excluded file should appear: {out}"
+    );
+    assert!(
+        !out.contains("drop.md"),
+        "excluded file must not appear: {out}"
+    );
     Ok(())
 }

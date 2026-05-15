@@ -82,7 +82,10 @@ impl SuppressionMap {
                     };
                     let Some(span) = span else { continue };
                     for name in &sup.rules {
-                        by_rule.entry((*name).to_owned()).or_default().push(span.clone());
+                        by_rule
+                            .entry((*name).to_owned())
+                            .or_default()
+                            .push(span.clone());
                     }
                 }
                 SuppressionKind::Disable => {
@@ -106,7 +109,10 @@ impl SuppressionMap {
                     } else {
                         for name in &sup.rules {
                             if let Some(start) = open_per_rule.remove(*name) {
-                                by_rule.entry((*name).to_owned()).or_default().push(start..end);
+                                by_rule
+                                    .entry((*name).to_owned())
+                                    .or_default()
+                                    .push(start..end);
                             }
                         }
                     }
@@ -185,7 +191,8 @@ fn next_line_span(source: &str, after: usize) -> Option<Range<usize>> {
         if line_start >= bytes.len() {
             return None;
         }
-        let at_line_start = line_start == 0 || bytes.get(line_start.saturating_sub(1)).copied() == Some(b'\n');
+        let at_line_start =
+            line_start == 0 || bytes.get(line_start.saturating_sub(1)).copied() == Some(b'\n');
         if at_line_start {
             break;
         }

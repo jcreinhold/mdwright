@@ -26,7 +26,10 @@ pub fn discover_markdown(root: &Path) -> Vec<PathBuf> {
             // Skip a handful of directories that are never source.
             // `ignore` will already skip these if a `.gitignore`
             // mentions them, but we also catch fresh checkouts.
-            entry.file_name().to_str().is_none_or(|name| !is_skip_dir(name))
+            entry
+                .file_name()
+                .to_str()
+                .is_none_or(|name| !is_skip_dir(name))
         });
 
     let mut out = Vec::new();
@@ -42,7 +45,10 @@ pub fn discover_markdown(root: &Path) -> Vec<PathBuf> {
 }
 
 fn is_markdown(p: &Path) -> bool {
-    matches!(p.extension().and_then(|s| s.to_str()), Some("md" | "markdown"))
+    matches!(
+        p.extension().and_then(|s| s.to_str()),
+        Some("md" | "markdown")
+    )
 }
 
 fn is_skip_dir(name: &str) -> bool {

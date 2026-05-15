@@ -28,13 +28,17 @@ fn corpus_root() -> Option<PathBuf> {
         return p.join("docs").join("books").is_dir().then_some(p);
     }
     let sibling = manifest_dir().parent()?.join("kan");
-    sibling.join("docs").join("books").is_dir().then_some(sibling)
+    sibling
+        .join("docs")
+        .join("books")
+        .is_dir()
+        .then_some(sibling)
 }
 
 fn corpus_files(root: &Path) -> Vec<PathBuf> {
     let list_path = manifest_dir().join("benches").join("corpus.list");
-    let list =
-        fs::read_to_string(&list_path).unwrap_or_else(|e| panic!("corpus list {} missing: {e}", list_path.display()));
+    let list = fs::read_to_string(&list_path)
+        .unwrap_or_else(|e| panic!("corpus list {} missing: {e}", list_path.display()));
     list.lines()
         .filter(|l| !l.trim().is_empty())
         .map(|rel| root.join(rel))
@@ -58,13 +62,16 @@ fn idempotent_over_corpus() {
     let opts = FmtOptions::default();
     let mut failures: Vec<PathBuf> = Vec::new();
     for path in corpus_files(&root) {
-        let src =
-            fs::read_to_string(&path).unwrap_or_else(|e| panic!("corpus file {} unreadable: {e}", path.display()));
+        let src = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("corpus file {} unreadable: {e}", path.display()));
         let once = Document::parse(&src).format(&opts);
         let twice = Document::parse(&once).format(&opts);
         if once != twice {
             failures.push(path);
         }
     }
-    assert!(failures.is_empty(), "non-idempotent corpus files: {failures:#?}");
+    assert!(
+        failures.is_empty(),
+        "non-idempotent corpus files: {failures:#?}"
+    );
 }

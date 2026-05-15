@@ -366,7 +366,8 @@ impl<'a> Builder<'a> {
                 });
             }
             Tag::Item => {
-                let marker_byte = first_non_whitespace_byte(self.source, range.start).unwrap_or(b'-');
+                let marker_byte =
+                    first_non_whitespace_byte(self.source, range.start).unwrap_or(b'-');
                 if let Some(open) = self.list_stack.last_mut() {
                     open.items.push(ListItem {
                         raw_range: range,
@@ -451,11 +452,15 @@ impl<'a> Builder<'a> {
         let raw = self.source.get(range.clone()).unwrap_or("");
         let lead = raw.bytes().take_while(|&b| b == b'`').count();
         let trail = raw.bytes().rev().take_while(|&b| b == b'`').count();
-        let (content_start, content_end) = if lead == 0 || trail == 0 || lead.saturating_add(trail) >= raw.len() {
-            (range.start, range.end)
-        } else {
-            (range.start.saturating_add(lead), range.end.saturating_sub(trail))
-        };
+        let (content_start, content_end) =
+            if lead == 0 || trail == 0 || lead.saturating_add(trail) >= raw.len() {
+                (range.start, range.end)
+            } else {
+                (
+                    range.start.saturating_add(lead),
+                    range.end.saturating_sub(trail),
+                )
+            };
         let Some(text) = self.source.get(content_start..content_end) else {
             return;
         };
@@ -511,10 +516,17 @@ fn trim_heading(raw: &str) -> (&str, usize) {
     let body = body.split_once('\n').map_or(body, |(first, _)| first);
     let lead_hashes = body.bytes().take_while(|&b| b == b'#').count();
     let after_hashes = body.get(lead_hashes..).unwrap_or("");
-    let lead_ws = after_hashes.bytes().take_while(|&b| b == b' ' || b == b'\t').count();
+    let lead_ws = after_hashes
+        .bytes()
+        .take_while(|&b| b == b' ' || b == b'\t')
+        .count();
     let inner_start = lead_hashes.saturating_add(lead_ws);
     let inner = body.get(inner_start..).unwrap_or("");
-    let trail_ws = inner.bytes().rev().take_while(|&b| b == b' ' || b == b'\t').count();
+    let trail_ws = inner
+        .bytes()
+        .rev()
+        .take_while(|&b| b == b' ' || b == b'\t')
+        .count();
     let after_trail_ws = inner.len().saturating_sub(trail_ws);
     let no_trail_ws = inner.get(..after_trail_ws).unwrap_or("");
     let trail_hashes = no_trail_ws.bytes().rev().take_while(|&b| b == b'#').count();
@@ -565,7 +577,10 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter<'_>>) {
             FrontmatterDelimiter::Toml => trimmed == "+++",
         };
         if is_close {
-            let total = body_start.saturating_add(end_excl).saturating_add(1).min(source.len());
+            let total = body_start
+                .saturating_add(end_excl)
+                .saturating_add(1)
+                .min(source.len());
             let text = source.get(0..total).unwrap_or("");
             return (
                 total,
@@ -608,7 +623,10 @@ fn admonition_header_regex() -> &'static Regex {
 ///
 /// Headers inside a code block (`!!! note` appearing in a code
 /// sample) are skipped via the `code_blocks` exclusion list.
-fn scan_admonitions<'a>(source: &'a str, code_blocks: &[CodeBlock<'a>]) -> Vec<AdmonitionRegion<'a>> {
+fn scan_admonitions<'a>(
+    source: &'a str,
+    code_blocks: &[CodeBlock<'a>],
+) -> Vec<AdmonitionRegion<'a>> {
     let mut out = Vec::new();
     let line_starts: Vec<usize> = std::iter::once(0)
         .chain(
@@ -618,7 +636,12 @@ fn scan_admonitions<'a>(source: &'a str, code_blocks: &[CodeBlock<'a>]) -> Vec<A
                 .filter_map(|(i, b)| if b == b'\n' { i.checked_add(1) } else { None }),
         )
         .collect();
-    let line_end = |idx: usize| line_starts.get(idx.saturating_add(1)).copied().unwrap_or(source.len());
+    let line_end = |idx: usize| {
+        line_starts
+            .get(idx.saturating_add(1))
+            .copied()
+            .unwrap_or(source.len())
+    };
     let is_indented_or_blank = |s: &str| {
         let trimmed = s.trim_end_matches('\n');
         trimmed.is_empty() || trimmed.starts_with("    ") || trimmed.starts_with('\t')
@@ -781,7 +804,10 @@ fn scan_link_defs<'a>(source: &'a str, code_blocks: &[CodeBlock<'a>]) -> Vec<Lin
                     let e = line_start.saturating_add(m.end());
                     source.get(s..e)
                 });
-            if let (Some(label), Some(dest)) = (source.get(lab_start..lab_end), source.get(dest_start..dest_end)) {
+            if let (Some(label), Some(dest)) = (
+                source.get(lab_start..lab_end),
+                source.get(dest_start..dest_end),
+            ) {
                 defs.push(LinkDef {
                     label,
                     dest,
@@ -817,14 +843,21 @@ mod tests {
         let ir = Ir::parse(src);
         // No chunk should contain the code-block body.
         for c in &ir.prose_chunks {
-            assert!(!c.text.contains("\\_y"), "prose chunk leaked code body: {:?}", c.text);
+            assert!(
+                !c.text.contains("\\_y"),
+                "prose chunk leaked code body: {:?}",
+                c.text
+            );
         }
         // The escapes outside the fence ARE visible: at least one
         // chunk must contain `\_` and at least one must contain
         // `outside`. (Text events split at escape boundaries, so the
         // full literal `\_outside\_` is spread across multiple chunks.)
         let texts: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text).collect();
-        assert!(texts.iter().any(|t| t.contains("\\_")), "no chunk has `\\_`: {texts:?}");
+        assert!(
+            texts.iter().any(|t| t.contains("\\_")),
+            "no chunk has `\\_`: {texts:?}"
+        );
         assert!(
             texts.iter().any(|t| t.contains("outside")),
             "no chunk has `outside`: {texts:?}"
@@ -845,7 +878,10 @@ mod tests {
     fn frontmatter_split() -> Result<()> {
         let src = "---\ntitle: T\n---\nbody text\n";
         let ir = Ir::parse(src);
-        let fm = ir.frontmatter.as_ref().ok_or_else(|| anyhow!("frontmatter"))?;
+        let fm = ir
+            .frontmatter
+            .as_ref()
+            .ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Yaml);
         let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text).collect();
         assert!(body_chunks.iter().any(|t| t == &"body text"));
@@ -856,7 +892,10 @@ mod tests {
     fn frontmatter_toml_split() -> Result<()> {
         let src = "+++\ntitle = \"T\"\n+++\nbody text\n";
         let ir = Ir::parse(src);
-        let fm = ir.frontmatter.as_ref().ok_or_else(|| anyhow!("frontmatter"))?;
+        let fm = ir
+            .frontmatter
+            .as_ref()
+            .ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Toml);
         let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text).collect();
         assert!(body_chunks.iter().any(|t| t == &"body text"));
@@ -900,11 +939,17 @@ mod tests {
         let src = "- one\n- two\n* three\n";
         let ir = Ir::parse(src);
         assert_eq!(ir.list_groups.len(), 2);
-        let g1 = ir.list_groups.first().ok_or_else(|| anyhow!("first list"))?;
+        let g1 = ir
+            .list_groups
+            .first()
+            .ok_or_else(|| anyhow!("first list"))?;
         assert!(!g1.ordered);
         let markers: Vec<u8> = g1.items.iter().map(|i| i.marker_byte).collect();
         assert_eq!(markers, vec![b'-', b'-']);
-        let g2 = ir.list_groups.get(1).ok_or_else(|| anyhow!("second list"))?;
+        let g2 = ir
+            .list_groups
+            .get(1)
+            .ok_or_else(|| anyhow!("second list"))?;
         let item = g2.items.first().ok_or_else(|| anyhow!("item"))?;
         assert_eq!(item.marker_byte, b'*');
         Ok(())
@@ -990,7 +1035,8 @@ mod tests {
 
     #[test]
     fn suppression_disable_enable_parse() -> Result<()> {
-        let src = "<!-- mdwright: disable bare-url -->\n\nfoo\n\n<!-- mdwright: enable bare-url -->\n";
+        let src =
+            "<!-- mdwright: disable bare-url -->\n\nfoo\n\n<!-- mdwright: enable bare-url -->\n";
         let ir = Ir::parse(src);
         assert_eq!(ir.suppressions.len(), 2);
         let first = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;

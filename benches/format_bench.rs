@@ -171,5 +171,10 @@ fn bench_format_corpus(c: &mut Criterion) {
     g.finish();
 }
 
-criterion_group!(benches, bench_format, bench_format_wrap, bench_format_corpus);
+criterion_group!(
+    benches,
+    bench_format,
+    bench_format_wrap,
+    bench_format_corpus
+);
 criterion_main!(benches);

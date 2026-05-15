@@ -90,7 +90,10 @@ impl RuleSet {
 impl fmt::Debug for RuleSet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RuleSet")
-            .field("rules", &self.rules.iter().map(|r| r.name()).collect::<Vec<_>>())
+            .field(
+                "rules",
+                &self.rules.iter().map(|r| r.name()).collect::<Vec<_>>(),
+            )
             .finish()
     }
 }
@@ -131,7 +134,8 @@ mod tests {
     #[test]
     fn add_and_contains() -> anyhow::Result<()> {
         let mut rs = RuleSet::new();
-        rs.add(Box::new(Noop("a"))).map_err(|e| anyhow::anyhow!("{e}"))?;
+        rs.add(Box::new(Noop("a")))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         assert!(rs.contains("a"));
         assert!(!rs.contains("b"));
         Ok(())
@@ -140,7 +144,8 @@ mod tests {
     #[test]
     fn duplicate_add_errors() -> anyhow::Result<()> {
         let mut rs = RuleSet::new();
-        rs.add(Box::new(Noop("a"))).map_err(|e| anyhow::anyhow!("{e}"))?;
+        rs.add(Box::new(Noop("a")))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         let err = rs.add(Box::new(Noop("a")));
         assert!(matches!(err, Err(DuplicateRuleName { ref name }) if name == "a"));
         Ok(())
@@ -149,7 +154,8 @@ mod tests {
     #[test]
     fn remove_works() -> anyhow::Result<()> {
         let mut rs = RuleSet::new();
-        rs.add(Box::new(Noop("a"))).map_err(|e| anyhow::anyhow!("{e}"))?;
+        rs.add(Box::new(Noop("a")))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         assert!(rs.remove("a"));
         assert!(!rs.remove("a"));
         assert!(!rs.contains("a"));

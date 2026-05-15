@@ -643,7 +643,10 @@ mod tests {
         // `<c>` is a valid one-letter HTML tag opener, so the `<`
         // escapes; the entity `&amp;` escapes; the paired `*`s
         // both escape.
-        assert_eq!(escape_text("a*b<c>*&amp;", default_scope()), r"a\*b\<c>\*\&amp;");
+        assert_eq!(
+            escape_text("a*b<c>*&amp;", default_scope()),
+            r"a\*b\<c>\*\&amp;"
+        );
     }
 
     #[test]

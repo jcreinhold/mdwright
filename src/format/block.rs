@@ -85,7 +85,8 @@ pub(crate) fn render_block_sequence<'a>(ctx: &Ctx<'a>, parent: NodeId) -> Doc<'a
         // text, emitted exactly once.
         if let Some(node) = ctx.tree.node(child) {
             let cr = node.raw_range.clone();
-            while adm_idx < ctx.admonitions.len() && ctx.admonitions.get(adm_idx).map_or(0, |a| a.range.end) <= cr.start
+            while adm_idx < ctx.admonitions.len()
+                && ctx.admonitions.get(adm_idx).map_or(0, |a| a.range.end) <= cr.start
             {
                 adm_idx = adm_idx.saturating_add(1);
             }
@@ -330,7 +331,8 @@ fn escape_paragraph_line_starts<'a>(ctx: &Ctx<'a>, doc: Doc<'a>) -> Doc<'a> {
             Doc::Text(s) => {
                 if at_line_start
                     && !s.is_empty()
-                    && let Some(escaped) = escape_for_block_start(s.as_ref(), ctx.source, next_on_same_line(&parts, i))
+                    && let Some(escaped) =
+                        escape_for_block_start(s.as_ref(), ctx.source, next_on_same_line(&parts, i))
                 {
                     out.push(text(escaped));
                     at_line_start = false;
@@ -444,7 +446,8 @@ fn escape_for_block_start(s: &str, _source: &str, next: LineContext) -> Option<S
             if fragment_continues_inline {
                 false
             } else {
-                matches!(two, Some(b' ' | b'\t') | None) || (two == Some(first) && bytes.get(2).copied() == Some(first))
+                matches!(two, Some(b' ' | b'\t') | None)
+                    || (two == Some(first) && bytes.get(2).copied() == Some(first))
             }
         }
         b'=' => {
@@ -517,7 +520,11 @@ fn render_heading<'a>(ctx: &Ctx<'a>, id: NodeId, level: u32, setext: bool) -> Do
         // Setext underlines: H1 uses `=`, H2 uses `-`. Width matches
         // the inline content's display width, minimum 3.
         let rendered = render_to_string(&inline);
-        let width = rendered.lines().next().map_or(3, |l| l.chars().count()).max(3);
+        let width = rendered
+            .lines()
+            .next()
+            .map_or(3, |l| l.chars().count())
+            .max(3);
         let underline_char = if level == 1 { '=' } else { '-' };
         let underline: String = std::iter::repeat_n(underline_char, width).collect();
         return concat([inline, hard_line(), text(underline), hard_line()]);
@@ -551,7 +558,11 @@ fn render_code_block<'a>(ctx: &Ctx<'a>, id: NodeId, fenced: bool, info: &str) ->
     open.push_str(info);
     if body.is_empty() {
         return concat([
-            unbreakable(concat([text(open), hard_line(), text(fence_string.clone())])),
+            unbreakable(concat([
+                text(open),
+                hard_line(),
+                text(fence_string.clone()),
+            ])),
             hard_line(),
         ]);
     }
@@ -559,13 +570,17 @@ fn render_code_block<'a>(ctx: &Ctx<'a>, id: NodeId, fenced: bool, info: &str) ->
     // Wrap the whole sequence in `unbreakable` so wrap.rs treats it
     // as one atomic box — code-block lines must keep their indent
     // even when the surrounding wrap is `At(n)`.
-    let mut tail = String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
+    let mut tail =
+        String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
     tail.push_str(&body);
     if !tail.ends_with('\n') {
         tail.push('\n');
     }
     tail.push_str(fence_str);
-    concat([unbreakable(concat([text(open), hard_line(), text(tail)])), hard_line()])
+    concat([
+        unbreakable(concat([text(open), hard_line(), text(tail)])),
+        hard_line(),
+    ])
 }
 
 /// Extract the body of a code block. Concatenates the `Text` event
@@ -720,7 +735,14 @@ fn render_html_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
 // Lists
 // ============================================================
 
-fn render_list<'a>(ctx: &Ctx<'a>, id: NodeId, ordered: bool, start: u64, tight: bool, marker_byte: u8) -> Doc<'a> {
+fn render_list<'a>(
+    ctx: &Ctx<'a>,
+    id: NodeId,
+    ordered: bool,
+    start: u64,
+    tight: bool,
+    marker_byte: u8,
+) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::new();
     let items: Vec<NodeId> = ctx.tree.children(id).collect();
     for (idx, item_id) in items.iter().copied().enumerate() {
@@ -743,13 +765,19 @@ fn render_list<'a>(ctx: &Ctx<'a>, id: NodeId, ordered: bool, start: u64, tight: 
     concat(parts)
 }
 
-fn marker_for_item(ctx: &Ctx<'_>, ordered: bool, start: u64, marker_byte: u8, idx: usize, item_id: NodeId) -> String {
+fn marker_for_item(
+    ctx: &Ctx<'_>,
+    ordered: bool,
+    start: u64,
+    marker_byte: u8,
+    idx: usize,
+    item_id: NodeId,
+) -> String {
     if ordered {
         let n = match ctx.opts.ordered_list() {
             OrderedListStyle::Consistent => start.saturating_add(idx as u64),
-            OrderedListStyle::Preserve => {
-                source_ordered_marker_number(ctx, item_id).unwrap_or_else(|| start.saturating_add(idx as u64))
-            }
+            OrderedListStyle::Preserve => source_ordered_marker_number(ctx, item_id)
+                .unwrap_or_else(|| start.saturating_add(idx as u64)),
         };
         let punct = source_ordered_punct(ctx, item_id).unwrap_or('.');
         format!("{n}{punct} ")
@@ -934,7 +962,12 @@ fn render_table<'a>(ctx: &Ctx<'a>, id: NodeId, alignments: &[TableAlign]) -> Doc
         rows.push(cells);
     }
 
-    let n_cols = rows.iter().map(Vec::len).max().unwrap_or(0).max(alignments.len());
+    let n_cols = rows
+        .iter()
+        .map(Vec::len)
+        .max()
+        .unwrap_or(0)
+        .max(alignments.len());
     if n_cols == 0 {
         return concat(Vec::new());
     }
@@ -974,7 +1007,12 @@ fn normalize_table_cell(s: &str) -> String {
 /// [`Wrap::columns`]; if it would exceed, every cell falls back to
 /// content width (one-space padding), matching the pre-padding
 /// behaviour.
-fn compute_column_widths(rows: &[Vec<String>], alignments: &[TableAlign], n_cols: usize, wrap: Wrap) -> Vec<usize> {
+fn compute_column_widths(
+    rows: &[Vec<String>],
+    alignments: &[TableAlign],
+    n_cols: usize,
+    wrap: Wrap,
+) -> Vec<usize> {
     use unicode_width::UnicodeWidthStr;
 
     let mut widths = vec![0usize; n_cols];
@@ -1159,7 +1197,12 @@ fn update_comment_state(start: bool, line: &str) -> bool {
     state
 }
 
-fn render_link_ref_def<'a>(label: &str, dest: &str, title: Option<&str>, style: LinkDefStyle) -> Doc<'a> {
+fn render_link_ref_def<'a>(
+    label: &str,
+    dest: &str,
+    title: Option<&str>,
+    style: LinkDefStyle,
+) -> Doc<'a> {
     let dest_rendered = render_link_dest(dest, style);
     let line = match title {
         Some(t) => format!("[{label}]: {dest_rendered} \"{t}\""),
@@ -1173,7 +1216,9 @@ fn render_link_ref_def<'a>(label: &str, dest: &str, title: Option<&str>, style: 
 /// [`LinkDefStyle::Bare`] the URL is emitted unwrapped; `CommonMark`
 /// requires `(`, `)`, and whitespace to be backslash-escaped.
 pub(crate) fn render_link_dest(dest: &str, style: LinkDefStyle) -> String {
-    let has_ws = dest.bytes().any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'));
+    let has_ws = dest
+        .bytes()
+        .any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'));
     if matches!(style, LinkDefStyle::Angle) || has_ws {
         let mut s = String::with_capacity(dest.len().saturating_add(2));
         s.push('<');

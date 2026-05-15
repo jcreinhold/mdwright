@@ -37,7 +37,8 @@ fn corpus_files_parse_to_non_empty_trees() {
         if path.extension().and_then(|s| s.to_str()) != Some("md") {
             continue;
         }
-        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let src =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
         let doc = Document::parse(&src);
         let tree = doc.tree();
         let count = tree.descendants(tree.root()).count();

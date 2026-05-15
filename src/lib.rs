@@ -68,15 +68,15 @@ mod tree;
 mod util;
 
 pub use config::{
-    Config, ConfigError, EndOfLine, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, OrderedListStyle,
-    Placement, Wrap,
+    Config, ConfigError, EndOfLine, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle,
+    OrderedListStyle, Placement, Wrap,
 };
 pub use diagnostic::{Diagnostic, Fix};
 pub use discover::discover_markdown;
 pub use document::{Document, FormatError, LintOptions, render_html};
 pub use ir::{
-    AllowScope, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode, InlineHtml, LinkDef,
-    ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,
+    AllowScope, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode,
+    InlineHtml, LinkDef, ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,
 };
 pub use line_index::LineIndex;
 pub use rule::LintRule;
@@ -167,7 +167,8 @@ mod tests {
             }
         }
         let mut rs = RuleSet::new();
-        rs.add(Box::new(Counter)).map_err(|e| anyhow::anyhow!("{e}"))?;
+        rs.add(Box::new(Counter))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         let d = Document::parse("hello foo world").lint(&rs);
         assert!(d.iter().any(|d| d.rule == "user-counter"));
         Ok(())

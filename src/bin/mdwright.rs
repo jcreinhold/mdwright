@@ -40,7 +40,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use mdwright::{
-    Config, Diagnostic, Document, FmtOptions, FormatError, LintOptions, RuleSet, discover_markdown, stdlib,
+    Config, Diagnostic, Document, FmtOptions, FormatError, LintOptions, RuleSet, discover_markdown,
+    stdlib,
 };
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -189,7 +190,11 @@ fn run() -> Result<ExitCode> {
     }
 }
 
-fn run_fmt(args: &FmtArgs, force_check: bool, config_path: Option<&std::path::Path>) -> Result<ExitCode> {
+fn run_fmt(
+    args: &FmtArgs,
+    force_check: bool,
+    config_path: Option<&std::path::Path>,
+) -> Result<ExitCode> {
     let cfg = Config::load(config_path).map_err(|e| anyhow!("{e}"))?;
     let opts = cfg.fmt_options().clone();
     let check = args.check || force_check;
@@ -347,7 +352,11 @@ fn write_unified_diff<W: Write>(out: &mut W, path: &str, old: &str, new: &str) -
     Ok(())
 }
 
-fn run_lint(args: &LintArgs, apply_fixes: bool, config_path: Option<&std::path::Path>) -> Result<ExitCode> {
+fn run_lint(
+    args: &LintArgs,
+    apply_fixes: bool,
+    config_path: Option<&std::path::Path>,
+) -> Result<ExitCode> {
     if args.jobs > 0 {
         rayon::ThreadPoolBuilder::new()
             .num_threads(args.jobs)
@@ -366,7 +375,14 @@ fn run_lint(args: &LintArgs, apply_fixes: bool, config_path: Option<&std::path::
     };
 
     if args.paths.is_empty() {
-        return run_stdin(&rules, lint_opts, apply_fixes, args.check, args.format, use_color);
+        return run_stdin(
+            &rules,
+            lint_opts,
+            apply_fixes,
+            args.check,
+            args.format,
+            use_color,
+        );
     }
 
     let mut files: Vec<PathBuf> = Vec::new();
@@ -391,7 +407,8 @@ fn run_lint(args: &LintArgs, apply_fixes: bool, config_path: Option<&std::path::
     let results: Vec<Result<()>> = files
         .par_iter()
         .map(|path| -> Result<()> {
-            let source = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+            let source =
+                fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
             let doc = Document::parse(&source);
             let diags = doc.lint_with(&rules, lint_opts);
             let count = diags.len();
@@ -400,7 +417,8 @@ fn run_lint(args: &LintArgs, apply_fixes: bool, config_path: Option<&std::path::
             let (final_diags, applied) = if apply_fixes && !diags.is_empty() {
                 let (new_src, n) = Document::apply_safe_fixes(&source, &diags);
                 if n > 0 && new_src != source {
-                    fs::write(path, &new_src).with_context(|| format!("write {}", path.display()))?;
+                    fs::write(path, &new_src)
+                        .with_context(|| format!("write {}", path.display()))?;
                 }
                 let post_doc = Document::parse(&new_src);
                 (post_doc.lint_with(&rules, lint_opts), n)
@@ -422,7 +440,14 @@ fn run_lint(args: &LintArgs, apply_fixes: bool, config_path: Option<&std::path::
                 .map_err(|_| anyhow::anyhow!("stdout lock poisoned"))?;
             let stdout = io::stdout();
             let mut out = stdout.lock();
-            emit(&mut out, &path_display, &final_diags, args.format, use_color, applied)?;
+            emit(
+                &mut out,
+                &path_display,
+                &final_diags,
+                args.format,
+                use_color,
+                applied,
+            )?;
             drop(guard);
             Ok(())
         })
@@ -545,14 +570,19 @@ fn run_stdin(
 /// `--rules unbalanced-backtick,adjacent-code-no-space` for
 /// convenience.
 fn parse_rules_spec(spec: &str) -> Result<RuleSet> {
-    let tokens: Vec<&str> = spec.split(',').map(str::trim).filter(|t| !t.is_empty()).collect();
+    let tokens: Vec<&str> = spec
+        .split(',')
+        .map(str::trim)
+        .filter(|t| !t.is_empty())
+        .collect();
     if tokens.is_empty() {
         return Ok(RuleSet::stdlib_defaults());
     }
     let mut rs: Option<RuleSet> = None;
     for tok in tokens {
         if let Some(name) = tok.strip_prefix('+') {
-            let rule = stdlib::by_name(name).ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {name}"))?;
+            let rule = stdlib::by_name(name)
+                .ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {name}"))?;
             let target = rs.get_or_insert_with(RuleSet::new);
             if !target.contains(name) {
                 target.add(rule).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -567,7 +597,8 @@ fn parse_rules_spec(spec: &str) -> Result<RuleSet> {
         } else {
             // Bare name: union into the working set, starting from
             // empty if this is the first token.
-            let rule = stdlib::by_name(tok).ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {tok}"))?;
+            let rule = stdlib::by_name(tok)
+                .ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {tok}"))?;
             let target = rs.get_or_insert_with(RuleSet::new);
             if !target.contains(tok) {
                 target.add(rule).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -592,7 +623,13 @@ fn emit<W: Write>(
     }
 }
 
-fn emit_pretty<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic], color: bool, fixed: usize) -> Result<()> {
+fn emit_pretty<W: Write>(
+    out: &mut W,
+    path: &str,
+    diags: &[Diagnostic],
+    color: bool,
+    fixed: usize,
+) -> Result<()> {
     let banner = if color {
         format!("{}", path.bold().underline())
     } else {
@@ -625,7 +662,11 @@ fn emit_pretty<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic], color: b
 
 fn emit_compact<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic]) -> Result<()> {
     for d in diags {
-        writeln!(out, "{path}:{}:{}: {}: {}", d.line, d.column, d.rule, d.message)?;
+        writeln!(
+            out,
+            "{path}:{}:{}: {}: {}",
+            d.line, d.column, d.rule, d.message
+        )?;
     }
     Ok(())
 }
@@ -673,7 +714,10 @@ fn json_escape(s: &str) -> String {
 fn print_rule_catalogue() -> Result<()> {
     let stdout = io::stdout();
     let mut out = stdout.lock();
-    writeln!(out, "Rules (use with `--rules`; advisory rules do not fail `--check`):")?;
+    writeln!(
+        out,
+        "Rules (use with `--rules`; advisory rules do not fail `--check`):"
+    )?;
     let all = RuleSet::stdlib_all();
     for rule in all.iter() {
         let mut tags = Vec::new();
