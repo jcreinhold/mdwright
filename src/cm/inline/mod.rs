@@ -5,6 +5,7 @@
 //! through the `CommonMark` tokenizer under the scope it was built for.
 
 pub(crate) mod code;
+pub(crate) mod emphasis;
 pub(crate) mod escape_policy;
 pub(crate) mod html;
 pub(crate) mod run;

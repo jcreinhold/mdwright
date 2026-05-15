@@ -13,6 +13,7 @@
 
 use std::borrow::Cow;
 
+use crate::cm::inline::emphasis::{EmphasisDelim, EmphasisRun, ResolveCtx, StrongRun};
 use crate::cm::inline::run::{InlineRun, RunPart};
 use crate::format::ctx::Ctx;
 use crate::format::doc::{Doc, concat, hard_line, line, text, unbreakable};
@@ -28,11 +29,11 @@ pub(crate) fn render_inline<'a>(ctx: &Ctx<'a>, parent: NodeId) -> Doc<'a> {
 /// items whose children mix inline leaves with no enclosing Paragraph.
 pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId]) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
-    // Resolved emphasis-delimiter of the most recent sibling Emphasis,
-    // or `None` if the previous sibling is not Emphasis. Used by
-    // `render_emphasis` to flip a `_↔*` collision against an abutting
-    // emphasis sibling without an O(N²) parent walk.
-    let mut prev_emphasis_delim: Option<u8> = None;
+    // Resolved delimiter of the most recent sibling Emphasis, or
+    // `None` if the previous sibling is not Emphasis. Threaded into
+    // `EmphasisRun::resolve` as `left_sibling_delim` so the next
+    // emphasis flips its delimiter when two abut.
+    let mut left_emphasis_delim: Option<EmphasisDelim> = None;
     for &cid in ids {
         let Some(node) = ctx.tree.node(cid) else {
             continue;
@@ -41,13 +42,13 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId]) -> Doc<'a> 
             NodeKind::Run(run) => parts.push(emit_run(run)),
             NodeKind::CodeRun(code) => parts.push(unbreakable(text(code.as_str().to_owned()))),
             NodeKind::HtmlSpan(span) => parts.push(unbreakable(text(span.as_str().to_owned()))),
-            NodeKind::Emphasis => {
-                let (doc, delim) = render_emphasis(ctx, cid, prev_emphasis_delim);
+            NodeKind::Emphasis(run) => {
+                let (doc, delim) = render_emphasis(ctx, cid, *run, left_emphasis_delim);
                 parts.push(doc);
-                prev_emphasis_delim = Some(delim);
+                left_emphasis_delim = Some(delim);
                 continue;
             }
-            NodeKind::Strong => parts.push(render_strong(ctx, cid)),
+            NodeKind::Strong(run) => parts.push(render_strong(ctx, cid, *run)),
             NodeKind::Strikethrough => parts.push(render_strikethrough(ctx, cid)),
             NodeKind::Link { .. } => parts.push(render_link(ctx, cid)),
             NodeKind::Image { .. } => parts.push(render_image(ctx, cid)),
@@ -88,7 +89,7 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId]) -> Doc<'a> 
                 parts.push(text(ctx.tree.raw_text(cid)));
             }
         }
-        prev_emphasis_delim = None;
+        left_emphasis_delim = None;
     }
     concat(parts)
 }
@@ -116,61 +117,64 @@ fn emit_run<'a>(run: &InlineRun<'a>) -> Doc<'a> {
 fn render_emphasis<'a>(
     ctx: &Ctx<'a>,
     id: NodeId,
-    prev_sibling_emphasis_delim: Option<u8>,
-) -> (Doc<'a>, u8) {
-    let source_delim = source_emphasis_delim(ctx, id);
-    let mut delim = ctx.opts.resolve_italic(source_delim);
-    if first_child_is_strong(ctx, id) {
-        delim = if delim == b'_' { b'*' } else { b'_' };
-    }
-    if prev_sibling_emphasis_delim == Some(delim) {
-        delim = if delim == b'_' { b'*' } else { b'_' };
-    }
-    let d: &'static str = if delim == b'_' { "_" } else { "*" };
+    run: EmphasisRun,
+    left_sibling_delim: Option<EmphasisDelim>,
+) -> (Doc<'a>, EmphasisDelim) {
+    let delim = run.resolve(ResolveCtx {
+        style: ctx.opts.italic(),
+        left_sibling_delim,
+        first_child_delim: first_child_strong_delim(ctx, id),
+    });
+    let d = delim.as_str();
     let inner = render_inline(ctx, id);
     (concat([text(d), inner, text(d)]), delim)
 }
 
-fn first_child_is_strong(ctx: &Ctx<'_>, id: NodeId) -> bool {
-    ctx.tree
-        .children(id)
-        .next()
-        .and_then(|i| ctx.tree.node(i))
-        .is_some_and(|n| matches!(n.kind, NodeKind::Strong))
-}
-
-fn render_strong<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
-    let source_delim = source_emphasis_delim(ctx, id);
-    let mut delim = ctx.opts.resolve_italic(source_delim);
-    if first_child_is_emphasis(ctx, id) {
-        delim = if delim == b'_' { b'*' } else { b'_' };
-    }
-    let d: &'static str = if delim == b'_' { "__" } else { "**" };
+fn render_strong<'a>(ctx: &Ctx<'a>, id: NodeId, run: StrongRun) -> Doc<'a> {
+    let delim = run.resolve(ResolveCtx {
+        style: ctx.opts.italic(),
+        left_sibling_delim: None,
+        first_child_delim: first_child_emphasis_delim(ctx, id),
+    });
+    let d: &'static str = match delim {
+        EmphasisDelim::Asterisk => "**",
+        EmphasisDelim::Underscore => "__",
+    };
     let inner = render_inline(ctx, id);
     concat([text(d), inner, text(d)])
 }
 
-fn first_child_is_emphasis(ctx: &Ctx<'_>, id: NodeId) -> bool {
-    ctx.tree
-        .children(id)
-        .next()
-        .and_then(|i| ctx.tree.node(i))
-        .is_some_and(|n| matches!(n.kind, NodeKind::Emphasis))
+/// `Some(d)` if the first child of `id` is a Strong run that will
+/// resolve to delimiter `d`. Used by `render_emphasis` to flip the
+/// outer delimiter so nested `*` / `**` do not fuse into `***`.
+fn first_child_strong_delim(ctx: &Ctx<'_>, id: NodeId) -> Option<EmphasisDelim> {
+    let first = ctx.tree.children(id).next()?;
+    let node = ctx.tree.node(first)?;
+    let NodeKind::Strong(run) = &node.kind else { return None };
+    Some(run.resolve(ResolveCtx {
+        style: ctx.opts.italic(),
+        left_sibling_delim: None,
+        first_child_delim: None,
+    }))
+}
+
+/// Symmetric peer of [`first_child_strong_delim`] for the Strong
+/// renderer: flips `**` to `__` when the first child is an Emphasis
+/// that resolves to the same byte family.
+fn first_child_emphasis_delim(ctx: &Ctx<'_>, id: NodeId) -> Option<EmphasisDelim> {
+    let first = ctx.tree.children(id).next()?;
+    let node = ctx.tree.node(first)?;
+    let NodeKind::Emphasis(run) = &node.kind else { return None };
+    Some(run.resolve(ResolveCtx {
+        style: ctx.opts.italic(),
+        left_sibling_delim: None,
+        first_child_delim: None,
+    }))
 }
 
 fn render_strikethrough<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
     let inner = render_inline(ctx, id);
     concat([text("~~"), inner, text("~~")])
-}
-
-/// First `*` or `_` byte inside the node's raw source range — the
-/// opening delimiter for an Emphasis / Strong node. Falls back to
-/// `b'*'` when the range is empty or starts with an unexpected byte.
-fn source_emphasis_delim(ctx: &Ctx<'_>, id: NodeId) -> u8 {
-    let raw = ctx.tree.raw_text(id);
-    raw.bytes()
-        .find(|b| matches!(b, b'*' | b'_'))
-        .unwrap_or(b'*')
 }
 
 // ============================================================
@@ -216,8 +220,8 @@ impl<'a> LinkTarget<'a> {
             | NodeKind::LinkReferenceDefinition { .. }
             | NodeKind::Run(_)
             | NodeKind::CodeRun(_)
-            | NodeKind::Emphasis
-            | NodeKind::Strong
+            | NodeKind::Emphasis(_)
+            | NodeKind::Strong(_)
             | NodeKind::Strikethrough
             | NodeKind::Autolink { .. }
             | NodeKind::HtmlSpan(_)

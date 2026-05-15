@@ -345,8 +345,8 @@ pub(crate) fn render_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
         | NodeKind::TableCell
         | NodeKind::Run(_)
         | NodeKind::CodeRun(_)
-        | NodeKind::Emphasis
-        | NodeKind::Strong
+        | NodeKind::Emphasis(_)
+        | NodeKind::Strong(_)
         | NodeKind::Strikethrough
         | NodeKind::Link { .. }
         | NodeKind::Image { .. }

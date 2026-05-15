@@ -35,6 +35,7 @@ use std::ops::Range;
 use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
 
 use crate::cm::inline::code::InlineCodeRun;
+use crate::cm::inline::emphasis::{EmphasisRun, StrongRun};
 use crate::cm::inline::escape_policy::EscapeScope;
 use crate::cm::inline::html::InlineHtmlSpan;
 use crate::cm::inline::run::{InlineRun, RunInput};
@@ -145,8 +146,8 @@ pub enum NodeKind<'a> {
     Run(InlineRun<'a>),
     /// One inline code span.
     CodeRun(InlineCodeRun<'a>),
-    Emphasis,
-    Strong,
+    Emphasis(EmphasisRun),
+    Strong(StrongRun),
     Strikethrough,
     Link {
         dest: Cow<'a, str>,
@@ -824,8 +825,14 @@ impl<'a> TreeBuilder<'a> {
             Tag::TableHead => NodeKind::TableHead,
             Tag::TableRow => NodeKind::TableRow,
             Tag::TableCell => NodeKind::TableCell,
-            Tag::Emphasis => NodeKind::Emphasis,
-            Tag::Strong => NodeKind::Strong,
+            Tag::Emphasis => {
+                let source_delim = emphasis_open_byte(self.source, range);
+                NodeKind::Emphasis(EmphasisRun::from_source(source_delim))
+            }
+            Tag::Strong => {
+                let source_delim = emphasis_open_byte(self.source, range);
+                NodeKind::Strong(StrongRun::from_source(source_delim))
+            }
             Tag::Strikethrough => NodeKind::Strikethrough,
             Tag::Link {
                 link_type,
@@ -924,6 +931,21 @@ fn cow_to_cow<'a>(s: &CowStr<'a>) -> Cow<'a, str> {
         CowStr::Boxed(b) => Cow::Owned(b.to_string()),
         CowStr::Inlined(i) => Cow::Owned(i.to_string()),
     }
+}
+
+/// First `*` or `_` byte inside `range` — the opening delimiter of an
+/// Emphasis / Strong node. Falls back to `b'*'` if the range is empty
+/// or contains no delimiter byte (defensive; pulldown should always
+/// open such an event on one of the two).
+fn emphasis_open_byte(source: &str, range: &Range<usize>) -> u8 {
+    source
+        .as_bytes()
+        .get(range.clone())
+        .into_iter()
+        .flatten()
+        .copied()
+        .find(|b| *b == b'*' || *b == b'_')
+        .unwrap_or(b'*')
 }
 
 fn first_non_whitespace_byte(source: &str, start: usize) -> Option<u8> {
