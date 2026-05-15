@@ -1,0 +1,5 @@
+Body with footnote.[^x]
+
+[^x]: First line. <!-- start
+    second line
+    third line -->

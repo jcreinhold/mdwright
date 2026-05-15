@@ -1101,6 +1101,17 @@ fn render_footnote_def<'a>(ctx: &Ctx<'a>, id: NodeId, label: &str) -> Doc<'a> {
     let trimmed = rendered.trim_end_matches('\n');
     let indent = "    ";
     let mut out = String::new();
+    // Track open HTML-comment state across lines. Pulldown's
+    // InlineHtml event for a multi-line `<!-- … -->` carries the
+    // source slice verbatim, so continuation lines arrive here with
+    // the footnote's 4-space continuation prefix already baked in.
+    // Without compensation, our own 4-space indent stacks on top and
+    // pulldown re-parses the formatted output with an 8-space
+    // continuation, diverging from the source HTML. A fenced code
+    // block whose body happens to start with 4 spaces (ASCII art)
+    // must *not* be touched, so the compensation is gated on being
+    // inside an open `<!-- … -->` span.
+    let mut in_comment = false;
     for (i, line) in trimmed.split('\n').enumerate() {
         if i > 0 {
             out.push('\n');
@@ -1110,13 +1121,40 @@ fn render_footnote_def<'a>(ctx: &Ctx<'a>, id: NodeId, label: &str) -> Doc<'a> {
             let _ = write!(out, "[^{label}]: {line}");
         } else if line.is_empty() {
             // blank line stays blank
+        } else if in_comment {
+            let stripped = line.strip_prefix(indent).unwrap_or(line);
+            out.push_str(indent);
+            out.push_str(stripped);
         } else {
             out.push_str(indent);
             out.push_str(line);
         }
+        in_comment = update_comment_state(in_comment, line);
     }
     // Single Doc::Text containing newlines; see `render_blockquote`.
     concat([unbreakable(text(out)), hard_line()])
+}
+
+/// Track whether the running line scan is inside an unclosed
+/// `<!-- … -->` span. Only the last unmatched marker on the line
+/// determines the next state — nested or overlapping comments
+/// aren't representable in HTML, so this is sufficient.
+fn update_comment_state(start: bool, line: &str) -> bool {
+    let mut state = start;
+    let bytes = line.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if !state && i + 3 < bytes.len() && &bytes[i..i + 4] == b"<!--" {
+            state = true;
+            i += 4;
+        } else if state && i + 2 < bytes.len() && &bytes[i..i + 3] == b"-->" {
+            state = false;
+            i += 3;
+        } else {
+            i += 1;
+        }
+    }
+    state
 }
 
 fn render_link_ref_def<'a>(label: &str, dest: &str, title: Option<&str>, style: LinkDefStyle) -> Doc<'a> {
