@@ -58,6 +58,25 @@ enum Chunk<'a> {
     HardBreak,
 }
 
+/// True when the source placed this inline-HTML node at the start of
+/// its source line with at least 4 columns of leading whitespace —
+/// the canonical CM §4.6 paragraph-continuation pattern for a comment.
+fn comment_indented_on_own_line_in_source(ctx: &Ctx<'_>, id: NodeId) -> bool {
+    let Some(node) = ctx.tree.node(id) else {
+        return false;
+    };
+    let start = node.raw_range.start;
+    if start == 0 {
+        return false;
+    }
+    let prefix = ctx.source.get(..start).unwrap_or("");
+    let Some(nl) = prefix.rfind('\n') else {
+        return false;
+    };
+    let line_lead = &prefix[nl + 1..];
+    line_lead.len() >= 4 && line_lead.bytes().all(|b| matches!(b, b' ' | b'\t'))
+}
+
 /// Render an arbitrary slice of sibling inline nodes. Used for list
 /// items whose children mix inline leaves with no enclosing Paragraph.
 ///
@@ -120,11 +139,28 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId], scope: Esca
             }
             NodeKind::InlineHtml(raw) => {
                 flush_text(&mut text_run, &mut parts);
-                // `raw` is the source slice (Cow::Borrowed in the
-                // common case); cloning the Cow preserves the borrow
-                // and avoids the `.into_owned()` allocation per
-                // inline-HTML node.
-                parts.push(text(raw.clone()));
+                // CM §4.6 type-2: a paragraph line whose first
+                // non-space character is `<!--` within columns 1–3
+                // starts an HTML block, ending the paragraph. With 4+
+                // leading spaces the line stays paragraph continuation
+                // and the `<!-- … -->` is inline. So when the source
+                // placed an inline-HTML comment on its own line with
+                // ≥4 spaces of indent, the formatted output must do
+                // the same — otherwise wrap promotes the preceding
+                // soft break to a hard break, the comment lands at
+                // column 0, and pulldown re-parses it as a block,
+                // splitting one paragraph into two.
+                let comment_on_own_line = raw.starts_with("<!--")
+                    && comment_indented_on_own_line_in_source(ctx, cid);
+                let raw_str: Cow<'a, str> = if comment_on_own_line {
+                    let mut joined = String::with_capacity(raw.len().saturating_add(4));
+                    joined.push_str("    ");
+                    joined.push_str(raw.as_ref());
+                    Cow::Owned(joined)
+                } else {
+                    raw.clone()
+                };
+                parts.push(unbreakable(text(raw_str)));
             }
             NodeKind::FootnoteReference(label) => {
                 flush_text(&mut text_run, &mut parts);
