@@ -13,11 +13,15 @@
 
 use std::borrow::Cow;
 
+use crate::cm::inline::autolink::AutolinkRun;
 use crate::cm::inline::emphasis::{EmphasisDelim, EmphasisRun, ResolveCtx, StrongRun};
+use crate::cm::inline::link::{
+    EmitLinkStyle, ImageRun, LinkResolveCtx, LinkRun, flatten_body_doc,
+};
 use crate::cm::inline::run::{InlineRun, RunPart};
 use crate::format::ctx::Ctx;
 use crate::format::doc::{Doc, concat, hard_line, line, text, unbreakable};
-use crate::tree::{LinkKind, NodeId, NodeKind};
+use crate::tree::{NodeId, NodeKind};
 
 /// Concatenate the inline children of `parent` into one `Doc`.
 pub(crate) fn render_inline<'a>(ctx: &Ctx<'a>, parent: NodeId) -> Doc<'a> {
@@ -50,11 +54,9 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId]) -> Doc<'a> 
             }
             NodeKind::Strong(run) => parts.push(render_strong(ctx, cid, *run)),
             NodeKind::Strikethrough => parts.push(render_strikethrough(ctx, cid)),
-            NodeKind::Link { .. } => parts.push(render_link(ctx, cid)),
-            NodeKind::Image { .. } => parts.push(render_image(ctx, cid)),
-            NodeKind::Autolink { url, kind } => {
-                parts.push(render_autolink(url.as_ref(), *kind));
-            }
+            NodeKind::Link(run) => parts.push(render_link(ctx, cid, run)),
+            NodeKind::Image(run) => parts.push(render_image(ctx, cid, run)),
+            NodeKind::Autolink(run) => parts.push(render_autolink(run)),
             NodeKind::FootnoteReference(label) => {
                 parts.push(text(format!("[^{label}]")));
             }
@@ -181,184 +183,67 @@ fn render_strikethrough<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
 // Links and images
 // ============================================================
 
-struct LinkTarget<'a> {
-    dest: &'a str,
-    title: Option<&'a str>,
-    ref_label: Option<&'a str>,
-    kind: LinkKind,
-}
-
-impl<'a> LinkTarget<'a> {
-    fn from_node(kind: &'a NodeKind<'a>) -> Option<Self> {
-        let (dest, title, ref_label, link_kind) = match kind {
-            NodeKind::Link {
-                dest,
-                title,
-                ref_label,
-                kind,
-            }
-            | NodeKind::Image {
-                dest,
-                title,
-                ref_label,
-                kind,
-            } => (dest, title, ref_label, *kind),
-            NodeKind::Document
-            | NodeKind::Paragraph
-            | NodeKind::Heading { .. }
-            | NodeKind::BlockQuote
-            | NodeKind::List { .. }
-            | NodeKind::Item { .. }
-            | NodeKind::CodeBlock { .. }
-            | NodeKind::HtmlBlock { .. }
-            | NodeKind::ThematicBreak
-            | NodeKind::Table { .. }
-            | NodeKind::TableHead
-            | NodeKind::TableRow
-            | NodeKind::TableCell
-            | NodeKind::FootnoteDefinition { .. }
-            | NodeKind::LinkReferenceDefinition { .. }
-            | NodeKind::Run(_)
-            | NodeKind::CodeRun(_)
-            | NodeKind::Emphasis(_)
-            | NodeKind::Strong(_)
-            | NodeKind::Strikethrough
-            | NodeKind::Autolink { .. }
-            | NodeKind::HtmlSpan(_)
-            | NodeKind::FootnoteReference(_)
-            | NodeKind::TaskListMarker(_)
-            | NodeKind::Unknown { .. } => return None,
-        };
-        let title = if title.is_empty() {
-            None
-        } else {
-            Some(title.as_ref())
-        };
-        let ref_label = ref_label.as_deref();
-        Some(Self {
-            dest: dest.as_ref(),
-            title,
-            ref_label,
-            kind: link_kind,
-        })
-    }
-}
-
-fn render_link<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
-    render_link_or_image(ctx, id, false)
-}
-
-fn render_image<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
-    render_link_or_image(ctx, id, true)
-}
-
-fn render_link_or_image<'a>(ctx: &Ctx<'a>, id: NodeId, is_image: bool) -> Doc<'a> {
-    let Some(node) = ctx.tree.node(id) else {
-        return concat([]);
-    };
-    let Some(target) = LinkTarget::from_node(&node.kind) else {
-        return text(ctx.tree.raw_text(id));
-    };
-
+fn render_link<'a>(ctx: &Ctx<'a>, id: NodeId, run: &LinkRun<'a>) -> Doc<'a> {
     let text_doc = render_inline(ctx, id);
+    let flat = flatten_body_doc(&text_doc);
+    let style = run.emit_style(&LinkResolveCtx { body_text: &flat });
+    assemble_link(ctx, text_doc, run.dest(), run.title(), &style, /*is_image=*/ false)
+}
 
-    // For collapsed/shortcut forms, fall back to the explicit-label
-    // form when the rendered text no longer matches the original
-    // ref_label under CommonMark label normalisation.
-    let effective_kind = match (target.kind, target.ref_label) {
-        (LinkKind::ReferenceCollapsed | LinkKind::ReferenceShortcut, Some(label)) => {
-            let rendered = render_doc_to_label_string(&text_doc);
-            if cm_normalise_label(&rendered) == cm_normalise_label(label) {
-                target.kind
-            } else {
-                LinkKind::ReferenceFull
-            }
-        }
-        (k, _) => k,
-    };
+fn render_image<'a>(ctx: &Ctx<'a>, id: NodeId, run: &ImageRun<'a>) -> Doc<'a> {
+    let text_doc = render_inline(ctx, id);
+    let flat = flatten_body_doc(&text_doc);
+    let style = run.emit_style(&LinkResolveCtx { body_text: &flat });
+    assemble_link(ctx, text_doc, run.dest(), run.title(), &style, /*is_image=*/ true)
+}
 
+fn assemble_link<'a>(
+    ctx: &Ctx<'a>,
+    body_doc: Doc<'a>,
+    dest: &str,
+    title: &str,
+    style: &EmitLinkStyle<'_>,
+    is_image: bool,
+) -> Doc<'a> {
     let prefix = if is_image { "![" } else { "[" };
-
-    match effective_kind {
-        LinkKind::Inline => {
-            let dest_doc = render_url_destination(target.dest, ctx.opts.link_def_style());
+    match style {
+        EmitLinkStyle::Inline => {
+            let dest_str = render_url_destination_owned(dest, ctx.opts.link_def_style());
             let mut parts: Vec<Doc<'a>> = Vec::with_capacity(6);
             parts.push(text(prefix));
-            parts.push(text_doc);
+            parts.push(body_doc);
             parts.push(text("]("));
-            parts.push(dest_doc);
-            if let Some(t) = target.title {
-                parts.push(text(format!(" \"{}\"", escape_title(t))));
+            parts.push(text(dest_str));
+            if !title.is_empty() {
+                parts.push(text(format!(" \"{}\"", escape_title(title))));
             }
             parts.push(text(")"));
             unbreakable(concat(parts))
         }
-        LinkKind::ReferenceFull => {
-            let label = target.ref_label.unwrap_or("");
-            unbreakable(concat([
-                text(prefix),
-                text_doc,
-                text(format!("][{label}]")),
-            ]))
+        EmitLinkStyle::ReferenceFull { label } => unbreakable(concat([
+            text(prefix),
+            body_doc,
+            text(format!("][{label}]")),
+        ])),
+        EmitLinkStyle::ReferenceCollapsed => {
+            unbreakable(concat([text(prefix), body_doc, text("][]")]))
         }
-        LinkKind::ReferenceCollapsed => unbreakable(concat([text(prefix), text_doc, text("][]")])),
-        LinkKind::ReferenceShortcut => unbreakable(concat([text(prefix), text_doc, text("]")])),
-    }
-}
-
-/// Flatten a `Doc` to a string for the collapsed/shortcut identity
-/// check. Soft breaks (`Doc::Line`) become a single space — that is
-/// what CM normalisation does to internal whitespace anyway.
-fn render_doc_to_label_string(doc: &Doc<'_>) -> String {
-    let mut out = String::new();
-    fn walk(doc: &Doc<'_>, out: &mut String) {
-        match doc {
-            Doc::Text(s) => out.push_str(s),
-            Doc::Line | Doc::HardLine => out.push(' '),
-            Doc::Atomic(inner) => walk(inner, out),
-            Doc::Concat(items) => {
-                for item in items {
-                    walk(item, out);
-                }
-            }
+        EmitLinkStyle::ReferenceShortcut => {
+            unbreakable(concat([text(prefix), body_doc, text("]")]))
         }
     }
-    walk(doc, &mut out);
-    out
-}
-
-/// `CommonMark` label normalisation (`cmark::Util::normalize_label`):
-/// trim leading/trailing whitespace, collapse internal whitespace
-/// runs to a single ASCII space, then ASCII-lowercase.
-fn cm_normalise_label(s: &str) -> String {
-    let trimmed = s.trim();
-    let mut out = String::with_capacity(trimmed.len());
-    let mut prev_was_ws = false;
-    for ch in trimmed.chars() {
-        if ch.is_whitespace() {
-            if !prev_was_ws {
-                out.push(' ');
-                prev_was_ws = true;
-            }
-        } else {
-            for low in ch.to_lowercase() {
-                out.push(low);
-            }
-            prev_was_ws = false;
-        }
-    }
-    out
 }
 
 /// Render a URL destination, choosing between the bare and angle
-/// forms. Returns a `Doc::Text` ready to splice into the link.
-fn render_url_destination(url: &str, style: crate::config::LinkDefStyle) -> Doc<'_> {
+/// forms. Returns an owned string so the caller can splice it into a
+/// `Doc<'a>` without lifetime gymnastics.
+fn render_url_destination_owned(url: &str, style: crate::config::LinkDefStyle) -> String {
     if matches!(style, crate::config::LinkDefStyle::Angle) {
-        return text(format!("<{}>", escape_angle_url(url)));
+        return format!("<{}>", escape_angle_url(url));
     }
     match escape_url(url) {
-        EscapedUrl::Bare(s) => text(s),
-        EscapedUrl::Angle(s) => text(format!("<{s}>")),
+        EscapedUrl::Bare(s) => s.into_owned(),
+        EscapedUrl::Angle(s) => format!("<{s}>"),
     }
 }
 
@@ -454,28 +339,13 @@ fn escape_title(title: &str) -> Cow<'_, str> {
 // Autolinks
 // ============================================================
 
-fn render_autolink<'a>(url: &str, _kind: crate::tree::AutolinkKind) -> Doc<'a> {
-    unbreakable(text(format!("<{url}>")))
+fn render_autolink<'a>(run: &AutolinkRun<'_>) -> Doc<'a> {
+    unbreakable(text(format!("<{}>", run.url())))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{EscapedUrl, cm_normalise_label, escape_bare_url, escape_title, escape_url};
-
-    #[test]
-    fn cm_normalise_collapses_internal_ws() {
-        assert_eq!(cm_normalise_label("Foo  Bar\tBaz"), "foo bar baz");
-    }
-
-    #[test]
-    fn cm_normalise_trims_edges() {
-        assert_eq!(cm_normalise_label("  hello  "), "hello");
-    }
-
-    #[test]
-    fn cm_normalise_lowercases_ascii() {
-        assert_eq!(cm_normalise_label("XYZ"), "xyz");
-    }
+    use super::{EscapedUrl, escape_bare_url, escape_title, escape_url};
 
     #[test]
     fn escape_bare_url_balanced_parens_pass_through() {

@@ -4,8 +4,10 @@
 //! builder. Existence of a value is evidence that its bytes round-trip
 //! through the `CommonMark` tokenizer under the scope it was built for.
 
+pub(crate) mod autolink;
 pub(crate) mod code;
 pub(crate) mod emphasis;
 pub(crate) mod escape_policy;
 pub(crate) mod html;
+pub(crate) mod link;
 pub(crate) mod run;

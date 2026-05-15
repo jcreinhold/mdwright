@@ -34,10 +34,12 @@ use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
 
+use crate::cm::inline::autolink::AutolinkRun;
 use crate::cm::inline::code::InlineCodeRun;
 use crate::cm::inline::emphasis::{EmphasisRun, StrongRun};
 use crate::cm::inline::escape_policy::EscapeScope;
 use crate::cm::inline::html::InlineHtmlSpan;
+use crate::cm::inline::link::{ImageRun, LinkRun, LinkSourceKind};
 use crate::cm::inline::run::{InlineRun, RunInput};
 use crate::ir::LinkDef;
 
@@ -149,22 +151,9 @@ pub enum NodeKind<'a> {
     Emphasis(EmphasisRun),
     Strong(StrongRun),
     Strikethrough,
-    Link {
-        dest: Cow<'a, str>,
-        title: Cow<'a, str>,
-        ref_label: Option<Cow<'a, str>>,
-        kind: LinkKind,
-    },
-    Image {
-        dest: Cow<'a, str>,
-        title: Cow<'a, str>,
-        ref_label: Option<Cow<'a, str>>,
-        kind: LinkKind,
-    },
-    Autolink {
-        url: Cow<'a, str>,
-        kind: AutolinkKind,
-    },
+    Link(LinkRun<'a>),
+    Image(ImageRun<'a>),
+    Autolink(AutolinkRun<'a>),
     /// One inline HTML span.
     HtmlSpan(InlineHtmlSpan<'a>),
     FootnoteReference(Cow<'a, str>),
@@ -178,29 +167,6 @@ pub enum NodeKind<'a> {
     Unknown {
         tag: &'static str,
     },
-}
-
-/// Classification of a [`Link`](NodeKind::Link) or
-/// [`Image`](NodeKind::Image).
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum LinkKind {
-    /// `[text](url)`
-    Inline,
-    /// `[text][label]`
-    ReferenceFull,
-    /// `[label][]`
-    ReferenceCollapsed,
-    /// `[label]`
-    ReferenceShortcut,
-}
-
-/// Classification of an [`Autolink`](NodeKind::Autolink).
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum AutolinkKind {
-    /// `<https://example.com>`
-    Uri,
-    /// `<user@example.com>`
-    Email,
 }
 
 /// Column alignment for a [`Table`](NodeKind::Table).
@@ -871,53 +837,37 @@ fn link_kind<'a>(
     id: &CowStr<'a>,
     is_image: bool,
 ) -> NodeKind<'a> {
-    match lt {
-        LinkType::Autolink => NodeKind::Autolink {
-            url: cow_to_cow(dest_url),
-            kind: AutolinkKind::Uri,
-        },
-        LinkType::Email => NodeKind::Autolink {
-            url: cow_to_cow(dest_url),
-            kind: AutolinkKind::Email,
-        },
-        LinkType::WikiLink { .. } => NodeKind::Unknown { tag: "WikiLink" },
-        LinkType::Inline
-        | LinkType::Reference
-        | LinkType::ReferenceUnknown
-        | LinkType::Collapsed
-        | LinkType::CollapsedUnknown
-        | LinkType::Shortcut
-        | LinkType::ShortcutUnknown => {
-            let kind = match lt {
-                LinkType::Inline => LinkKind::Inline,
-                LinkType::Reference | LinkType::ReferenceUnknown => LinkKind::ReferenceFull,
-                LinkType::Collapsed | LinkType::CollapsedUnknown => LinkKind::ReferenceCollapsed,
-                LinkType::Shortcut | LinkType::ShortcutUnknown => LinkKind::ReferenceShortcut,
-                LinkType::Autolink | LinkType::Email | LinkType::WikiLink { .. } => {
-                    LinkKind::Inline
-                }
-            };
-            let ref_label = if id.is_empty() {
-                None
-            } else {
-                Some(cow_to_cow(id))
-            };
-            let dest = cow_to_cow(dest_url);
-            let title = cow_to_cow(title);
+    let ref_kind = match lt {
+        LinkType::Autolink => {
+            return NodeKind::Autolink(AutolinkRun::from_cmark_uri(cow_to_cow(dest_url)));
+        }
+        LinkType::Email => {
+            return NodeKind::Autolink(AutolinkRun::from_cmark_email(cow_to_cow(dest_url)));
+        }
+        LinkType::WikiLink { .. } => return NodeKind::Unknown { tag: "WikiLink" },
+        LinkType::Inline => None,
+        LinkType::Reference | LinkType::ReferenceUnknown => Some(LinkSourceKind::ReferenceFull),
+        LinkType::Collapsed | LinkType::CollapsedUnknown => {
+            Some(LinkSourceKind::ReferenceCollapsed)
+        }
+        LinkType::Shortcut | LinkType::ShortcutUnknown => Some(LinkSourceKind::ReferenceShortcut),
+    };
+    let dest = cow_to_cow(dest_url);
+    let title = cow_to_cow(title);
+    match ref_kind {
+        None => {
             if is_image {
-                NodeKind::Image {
-                    dest,
-                    title,
-                    ref_label,
-                    kind,
-                }
+                NodeKind::Image(ImageRun::from_pulldown_inline(dest, title))
             } else {
-                NodeKind::Link {
-                    dest,
-                    title,
-                    ref_label,
-                    kind,
-                }
+                NodeKind::Link(LinkRun::from_pulldown_inline(dest, title))
+            }
+        }
+        Some(kind) => {
+            let label = cow_to_cow(id);
+            if is_image {
+                NodeKind::Image(ImageRun::from_pulldown_reference(kind, dest, title, label))
+            } else {
+                NodeKind::Link(LinkRun::from_pulldown_reference(kind, dest, title, label))
             }
         }
     }
@@ -975,6 +925,7 @@ fn widen_to_line_start(source: &str, range: Range<usize>) -> Range<usize> {
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::cm::inline::autolink::AutolinkKind;
     use crate::ir::Ir;
 
     #[test]
@@ -1172,13 +1123,13 @@ let x = 1;
         let link = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::Link {
-                    kind, ref_label, ..
-                }) => Some((*kind, ref_label.clone())),
+                Some(NodeKind::Link(run)) => {
+                    Some((run.source().kind(), run.label().map(str::to_owned)))
+                }
                 _ => None,
             })
             .expect("link present");
-        assert_eq!(link.0, LinkKind::ReferenceFull);
+        assert_eq!(link.0, LinkSourceKind::ReferenceFull);
         assert_eq!(link.1.as_deref(), Some("bar"));
     }
 
@@ -1190,11 +1141,11 @@ let x = 1;
         let kind = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::Link { kind, .. }) => Some(*kind),
+                Some(NodeKind::Link(run)) => Some(run.source().kind()),
                 _ => None,
             })
             .expect("link present");
-        assert_eq!(kind, LinkKind::ReferenceCollapsed);
+        assert_eq!(kind, LinkSourceKind::ReferenceCollapsed);
     }
 
     #[test]
@@ -1205,11 +1156,11 @@ let x = 1;
         let kind = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::Link { kind, .. }) => Some(*kind),
+                Some(NodeKind::Link(run)) => Some(run.source().kind()),
                 _ => None,
             })
             .expect("link present");
-        assert_eq!(kind, LinkKind::ReferenceShortcut);
+        assert_eq!(kind, LinkSourceKind::ReferenceShortcut);
     }
 
     #[test]
@@ -1234,10 +1185,9 @@ let x = 1;
         let url = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::Autolink {
-                    url,
-                    kind: AutolinkKind::Uri,
-                }) => Some(url.to_string()),
+                Some(NodeKind::Autolink(run)) if run.kind() == AutolinkKind::Uri => {
+                    Some(run.url().to_owned())
+                }
                 _ => None,
             })
             .expect("autolink present");

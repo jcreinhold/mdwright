@@ -5,3 +5,6 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc f4d9cc68b02c1f483cbef8d4e4ea832b8e4bddc844a0d90e78192d40e970efa9 # shrinks to src = "> *a*\n> *a*\n"
+cc 00657d4453902de69aeef02460688fb889153361aca7d93983d4536b85ba5b46 # shrinks to src = "- [a][a]\n\n[a]: https://example.com/\n- a\n"
+cc fa114694fcb241e82814005eb028e63dcf57da215bc143ad447cb248a7611c26 # shrinks to src = "- [a][a]\n\n[a]: https://example.com/ a\n"
+cc 98277ea09548598f8239b9ec98c1cec664b28e0972b4f5256b150be9de2b42d0 # shrinks to src = "a\n\n1. [a][a]\n\n[a]: https://example.com/\n2. [a][b]\n\n[b]: https://example.com/ a\n"

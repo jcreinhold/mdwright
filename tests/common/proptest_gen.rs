@@ -67,10 +67,15 @@ pub fn arb_math_inline() -> impl Strategy<Value = String> {
 // ---------------------------------------------------------------------------
 
 /// Weighted inline. Total weight 100:
-/// 50 text / 10 em / 10 strong / 5 code / 10 link / 5 strike / 10 math.
+/// 45 text / 10 em / 10 strong / 5 code / 10 link / 5 strike /
+/// 10 math / 5 autolink.
+///
+/// The autolink branch exercises [`AutolinkRun`]'s round-trip through
+/// the typed inline IR — pulldown classifies, the typed value carries,
+/// the format walker re-emits as `<url>`.
 pub fn arb_inline() -> impl Strategy<Value = String> {
     prop_oneof![
-        50 => arb_text(),
+        45 => arb_text(),
         10 => arb_text().prop_map(|t| format!("*{t}*")),
         10 => arb_text().prop_map(|t| format!("**{t}**")),
         5  => arb_word().prop_map(|w| format!("`{w}`")),
@@ -79,6 +84,7 @@ pub fn arb_inline() -> impl Strategy<Value = String> {
         }),
         5  => arb_text().prop_map(|t| format!("~~{t}~~")),
         10 => arb_math_inline().prop_map(|m| format!("${m}$")),
+        5  => arb_word().prop_map(|w| format!("<https://example.com/{w}>")),
     ]
 }
 
