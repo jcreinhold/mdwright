@@ -96,6 +96,11 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId], scope: Esca
     let flush_text = |run: &mut Vec<Chunk<'a>>, parts: &mut Vec<Doc<'a>>| {
         flush_run(run, parts, scope);
     };
+    // The resolved emphasis-delimiter of the most recent sibling
+    // Emphasis (or `None` if the previous sibling is not Emphasis).
+    // Used by `render_emphasis` to flip a `_↔*` collision against
+    // an abutting emphasis sibling without an O(N²) parent walk.
+    let mut prev_emphasis_delim: Option<u8> = None;
     for &cid in ids {
         let Some(node) = ctx.tree.node(cid) else {
             continue;
@@ -117,7 +122,10 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId], scope: Esca
             }
             NodeKind::Emphasis => {
                 flush_text(&mut text_run, &mut parts);
-                parts.push(render_emphasis(ctx, cid, scope));
+                let (doc, delim) = render_emphasis(ctx, cid, scope, prev_emphasis_delim);
+                parts.push(doc);
+                prev_emphasis_delim = Some(delim);
+                continue;
             }
             NodeKind::Strong => {
                 flush_text(&mut text_run, &mut parts);
@@ -206,6 +214,9 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId], scope: Esca
                 parts.push(text(ctx.tree.raw_text(cid)));
             }
         }
+        // Reset the adjacent-emphasis tracker on every non-Emphasis
+        // child; the Emphasis arm already `continue`d past this.
+        prev_emphasis_delim = None;
     }
     flush_text(&mut text_run, &mut parts);
     concat(parts)
@@ -473,7 +484,12 @@ fn longest_backtick_run(s: &str) -> usize {
     longest
 }
 
-fn render_emphasis<'a>(ctx: &Ctx<'a>, id: NodeId, scope: EscapeScope) -> Doc<'a> {
+fn render_emphasis<'a>(
+    ctx: &Ctx<'a>,
+    id: NodeId,
+    scope: EscapeScope,
+    prev_sibling_emphasis_delim: Option<u8>,
+) -> (Doc<'a>, u8) {
     let source_delim = source_emphasis_delim(ctx, id);
     let mut delim = ctx.opts.resolve_italic(source_delim);
     // Avoid the `***foo` (or `___foo`) open-side merge case: when
@@ -488,44 +504,23 @@ fn render_emphasis<'a>(ctx: &Ctx<'a>, id: NodeId, scope: EscapeScope) -> Doc<'a>
     if first_child_is_strong(ctx, id) {
         delim = if delim == b'_' { b'*' } else { b'_' };
     }
-    // CM §6.2 rule 9: two `*` emphasis ranges that abut with no
-    // intervening byte share a single length-2 delimiter run on
-    // round-trip, so `<em>a</em><em>b</em>` written naïvely as
-    // `*a**b*` re-pairs as a non-emphasis literal `**` plus stray
-    // `*`s. The same hazard exists in source like
-    // `…R¹f*_G(T)…` where pulldown emitted two adjacent emphasis
-    // siblings whose original delimiters differed; normalising both
-    // sides to `*` collapses the boundary. Flip this emphasis's
-    // delimiter when the previous sibling is also an Emphasis and
-    // our resolved delimiter matches what that sibling will emit.
-    if let Some(prev) = previous_sibling(ctx, id)
-        && let Some(prev_node) = ctx.tree.node(prev)
-        && matches!(prev_node.kind, NodeKind::Emphasis)
-    {
-        let prev_source = source_emphasis_delim(ctx, prev);
-        let mut prev_delim = ctx.opts.resolve_italic(prev_source);
-        if first_child_is_strong(ctx, prev) {
-            prev_delim = if prev_delim == b'_' { b'*' } else { b'_' };
-        }
-        if prev_delim == delim {
-            delim = if delim == b'_' { b'*' } else { b'_' };
-        }
+    // CM §6.2 rule 9: two emphasis siblings that abut with no
+    // intervening byte share a delimiter run on round-trip. So
+    // `<em>a</em><em>b</em>` written naïvely as `*a**b*` re-pairs
+    // as a literal `**` plus stray `*`s, and source like
+    // `…R¹f*_G(T)…` (where pulldown emitted adjacent emphases with
+    // different source delimiters) collapses when both are
+    // normalised to the same byte. Flip this emphasis's delimiter
+    // when the previous sibling is also an Emphasis whose resolved
+    // delimiter would collide. The hint is threaded in from the
+    // sibling walk in `render_inline_nodes`, avoiding an O(N²)
+    // parent-children scan on emphasis-heavy paragraphs.
+    if prev_sibling_emphasis_delim == Some(delim) {
+        delim = if delim == b'_' { b'*' } else { b'_' };
     }
     let d: &'static str = if delim == b'_' { "_" } else { "*" };
     let inner = render_inline_in_scope(ctx, id, scope);
-    concat([text(d), inner, text(d)])
-}
-
-fn previous_sibling(ctx: &Ctx<'_>, id: NodeId) -> Option<NodeId> {
-    let parent = ctx.tree.parent(id)?;
-    let mut prev: Option<NodeId> = None;
-    for child in ctx.tree.children(parent) {
-        if child == id {
-            return prev;
-        }
-        prev = Some(child);
-    }
-    None
+    (concat([text(d), inner, text(d)]), delim)
 }
 
 fn first_child_is_strong(ctx: &Ctx<'_>, id: NodeId) -> bool {
