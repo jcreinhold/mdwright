@@ -1,0 +1,18 @@
+<!-- proptest::idempotent + html_preserving shrunk 2026-05-14 -->
+<!-- PENDING: deferred to session 13b. -->
+<!-- root cause: default ListMarkerStyle::Dash normalizes the `*`
+     markers below to `-`. The source has two distinct lists
+     separated by a blank line; after normalization both lists use
+     `-`, and on re-parse pulldown-cmark sees a single 3-item loose
+     list. HTML semantics change (two <ul> become one) and the
+     second format pass therefore emits all three items with the
+     loose-list blank-line discipline.
+
+     Fix sketch: when emitting a list whose normalized marker
+     matches the prior block's marker (also a list), choose a
+     fallback marker (e.g. `+` if the chosen style is `-`) for one
+     of the two lists, or skip normalization for the second. -->
+- a
+
+* a
+* a

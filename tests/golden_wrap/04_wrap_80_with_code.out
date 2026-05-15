@@ -1,0 +1,2 @@
+Math-resilient prose uses `inline_code_token` inline and
+never breaks inside the span even when wrapping is tight.

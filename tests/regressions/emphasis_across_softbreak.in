@@ -1,0 +1,4 @@
+Source `\Delta.s^\*A ;\cong;
+\Delta\times\*{\Gamma}` line wraps; the two `*` characters live in
+separate text events split by a soft break, but CM still pairs them
+across the break.

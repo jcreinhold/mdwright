@@ -1,0 +1,144 @@
+[package]
+authors = ["Jacob Reinhold"]
+categories = ["command-line-utilities", "text-processing"]
+description = "Math-resilient Markdown linter and formatter for Kan documentation"
+edition = "2024"
+keywords = ["documentation", "linter", "markdown", "math"]
+license = "MIT OR Apache-2.0"
+name = "mdwright"
+readme = "README.md"
+repository = "https://github.com/jcreinhold/mdwright"
+version = "0.1.0"
+
+[[bin]]
+name = "mdwright"
+path = "src/bin/mdwright.rs"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["color", "derive"] }
+ignore = "0.4"
+owo-colors = "4"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
+rayon = "1"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+unicode-width = "0.2"
+
+[dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1"
+tempfile = "3"
+
+[[bench]]
+harness = false
+name = "lint_bench"
+
+[[bench]]
+harness = false
+name = "format_bench"
+
+[workspace]
+
+[lints.rust]
+future-incompatible = "warn"
+let-underscore = "warn"
+nonstandard-style = "warn"
+redundant_lifetimes = "warn"
+rust-2018-idioms = "warn"
+rust-2024-compatibility = "deny"
+single_use_lifetimes = "warn"
+trivial_casts = "warn"
+unreachable_pub = "warn"
+unsafe-code = "forbid"
+unused = { level = "warn", priority = -1 }
+
+[lints.clippy]
+# --- correctness & bug prevention ---
+all = { level = "warn", priority = -10 }
+complexity = { level = "warn", priority = -9 }
+correctness = { level = "warn", priority = -8 }
+suspicious = { level = "warn", priority = -7 }
+
+# --- performance ---
+clone_on_ref_ptr = "warn"
+inefficient_to_string = "warn"
+large_stack_arrays = "warn"
+manual_memcpy = "warn"
+perf = { level = "warn", priority = -6 }
+redundant_clone = "warn"
+
+# --- style ---
+nursery = { level = "warn", priority = -5 }
+pedantic = { level = "warn", priority = -4 }
+style = { level = "warn", priority = -3 }
+
+# --- safety & reliability ---
+arithmetic_side_effects = "warn"
+exit = "warn"
+expect_used = "deny"
+get_unwrap = "warn"
+indexing_slicing = "deny"
+mem_forget = "deny"
+mutex_integer = "warn"
+panic = "warn"
+ptr_as_ptr = "warn"
+rc_mutex = "warn"
+todo = "warn"
+unimplemented = "warn"
+unreachable = "warn"
+unwrap_in_result = "warn"
+unwrap_used = "deny"
+wildcard_enum_match_arm = "warn"
+
+# --- documentation ---
+blanket_clippy_restriction_lints = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+missing_safety_doc = "warn"
+
+# --- cargo ---
+cargo = { level = "warn", priority = -1 }
+lint_groups_priority = "warn"
+
+# --- allowable exceptions (mirror workspace) ---
+items_after_statements = "allow"
+match_same_arms = "allow"
+missing_const_for_fn = "allow"
+missing_docs_in_private_items = "allow"
+module_name_repetitions = "allow"
+multiple_crate_versions = "allow"
+must_use_candidate = "allow"
+option_if_let_else = "allow"
+redundant_closure_for_method_calls = "allow"
+# Trait-method impls return `&str` even when the body is a literal,
+# because the trait signature is `&str` (not `&'static str`) so
+# user rules can return borrows from `self`. The lint fires on every
+# rule impl; suppress at crate level.
+redundant_pub_crate = "allow"
+similar_names = "allow"
+single_match_else = "allow"
+too_many_arguments = "allow"
+too_many_lines = "allow"
+type_complexity = "allow"
+unnecessary_literal_bound = "allow"
+unnecessary_wraps = "allow"
+
+# --- numerical reasons ---
+cast_possible_truncation = "allow"
+cast_possible_wrap = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+float_arithmetic = "allow"
+
+# --- additional safety ---
+disallowed_methods = "deny"
+disallowed_types = "deny"
+implicit_clone = "warn"
+map_flatten = "warn"
+map_unwrap_or = "warn"
+needless_collect = "warn"

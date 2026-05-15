@@ -1,0 +1,3 @@
+\_Lemma note for the venue with `inline code` and [`a link`](path.md). Second
+sentence wraps and ends with a deliberately literal underscore so emphasis
+should not fire.\_

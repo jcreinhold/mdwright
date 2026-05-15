@@ -1,0 +1,7 @@
+First ref[^b]. Second ref[^a]. Third ref[^c].
+
+[^b]: bee body.
+
+[^a]: aye body.
+
+[^c]: cee body.

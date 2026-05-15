@@ -1,0 +1,5 @@
+<!-- proptest::idempotent + html_preserving shrunk 2026-05-14 -->
+<!-- same root cause as list_then_paragraph_ordered.md. -->
+- a
+
+a

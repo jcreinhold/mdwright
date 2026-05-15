@@ -1,0 +1,3 @@
+The functor \( F : \mathcal{C}_{a,b} \to \mathcal{D}^{*} \) preserves the
+relevant structure. Subscripts `_{a,b}` and stars `^{*}` inside the inline
+math span must not pair with emphasis delimiters in the surrounding prose.

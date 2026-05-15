@@ -1,0 +1,3 @@
+In the categorical setting, the operation \[ A \text{ over } \Gamma ;\longmapsto;
+\pi_A:\Gamma.A\to \Gamma \] is stable under pullback. The subscripts inside
+the display math (`_A`, `_a`) must not become CM emphasis on round-trip.

@@ -1,0 +1,3 @@
+When the literal characters `\[ x \]` appear inside an inline code span,
+they are not a math region. The scanner must defer to pulldown's code-span
+boundaries and leave the code content alone.

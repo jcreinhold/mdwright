@@ -1,0 +1,6 @@
+For each cocycle the diagram \[
+A \xrightarrow{f_1} B
+\xrightarrow{f_2} C
+\xrightarrow{f_3} D
+\] consisting only of admissible morphisms commutes, and the composite
+descends to the quotient.

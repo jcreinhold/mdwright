@@ -1,0 +1,3 @@
+**_Elements of Theory_ (Author, 2022).** Trailing text after italic-in-strong
+that would otherwise produce `***Elements*...**` on emission and collapse on
+re-parse.

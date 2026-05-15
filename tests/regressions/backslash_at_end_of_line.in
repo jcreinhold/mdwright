@@ -1,0 +1,5 @@
+A line ending with a literal backslash \\
+should not become a CM `<br/>` hard line break on round-trip.
+
+Another paragraph with the same shape \\
+on the second logical line.

@@ -1,0 +1,8 @@
+<!-- proptest::idempotent + html_preserving shrunk 2026-05-14 -->
+<!-- root cause: render_list omitted its trailing HardLine, so a list
+     followed by a paragraph emitted "1. a\na\n" instead of
+     "1. a\n\na\n", absorbing the paragraph into the list item on
+     re-parse. -->
+1. a
+
+a
