@@ -62,6 +62,11 @@ struct Cli {
     #[arg(long, global = true)]
     config: Option<PathBuf>,
 
+    /// Increase log verbosity. `-v` = info, `-vv` = debug, `-vvv` = trace.
+    /// `RUST_LOG` overrides this when set.
+    #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, global = true)]
+    verbose: u8,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -174,6 +179,7 @@ fn main() -> ExitCode {
 
 fn run() -> Result<ExitCode> {
     let cli = Cli::parse();
+    init_tracing(cli.verbose);
     let config_path = cli.config;
     match cli.command {
         Command::ListRules => {
@@ -709,6 +715,39 @@ fn json_escape(s: &str) -> String {
         }
     }
     out
+}
+
+/// Install the `tracing` subscriber. `RUST_LOG` wins if set; otherwise
+/// the `-v` count maps to warn (0) / info (1) / debug (2) / trace (≥ 3),
+/// scoped to the `mdwright` crate so transitive dependencies stay quiet.
+/// Idempotent: a second call (e.g. in tests) is a no-op.
+fn init_tracing(verbose: u8) {
+    use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::fmt;
+    use tracing_subscriber::fmt::format::FmtSpan;
+    use tracing_subscriber::prelude::*;
+
+    let filter = if std::env::var_os("RUST_LOG").is_some() {
+        EnvFilter::from_default_env()
+    } else {
+        let level = match verbose {
+            0 => "warn",
+            1 => "info",
+            2 => "debug",
+            _ => "trace",
+        };
+        EnvFilter::new(format!("mdwright={level},warn"))
+    };
+    let ansi = io::stderr().is_terminal();
+    let fmt_layer = fmt::layer()
+        .with_ansi(ansi)
+        .with_writer(io::stderr)
+        .with_span_events(FmtSpan::CLOSE)
+        .compact();
+    let _init = tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt_layer)
+        .try_init();
 }
 
 fn print_rule_catalogue() -> Result<()> {

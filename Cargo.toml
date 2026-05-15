@@ -27,6 +27,8 @@ rayon = "1"
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "smallvec", "tracing-log"] }
 unicode-width = "0.2"
 
 [dev-dependencies]

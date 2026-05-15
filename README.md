@@ -78,6 +78,21 @@ Numbers vary by hardware and corpus shape; re-measure before quoting.
 | 1    | `--check` and at least one non-advisory diagnostic was reported. |
 | 2    | I/O, argument, or other operational error (details on stderr).   |
 
+## Debugging
+
+`mdwright check`, `fmt`, etc. accept `-v` (repeated to increase verbosity):
+
+| Flag   | Level | Use case                                  |
+| ------ | ----- | ----------------------------------------- |
+| (none) | warn  | normal operation (silent on success)      |
+| `-v`   | info  | high-level pipeline stages                |
+| `-vv`  | debug | per-block / per-construct decisions       |
+| `-vvv` | trace | per-byte escape decisions, delimiter runs |
+
+`RUST_LOG` overrides the flag when set, e.g.
+`RUST_LOG=mdwright::format::inline=trace mdwright fmt foo.md`. The default filter is scoped to the `mdwright` crate, so
+transitive dependencies stay quiet at every level.
+
 ## Library
 
 `mdwright` is also a Rust library. The surface is small:

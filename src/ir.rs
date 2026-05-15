@@ -221,6 +221,7 @@ pub(crate) struct AdmonitionRegion<'a> {
 use crate::format::math::{MathConfig, MathRegion, UnclosedOpen, scan_math};
 
 impl<'a> Ir<'a> {
+    #[tracing::instrument(level = "info", name = "Ir::parse", skip(source), fields(len = source.len()))]
     pub(crate) fn parse(source: &'a str) -> Self {
         let line_index = LineIndex::new(source);
         let (fm_end, frontmatter) = split_frontmatter(source);
@@ -252,11 +253,14 @@ impl<'a> Ir<'a> {
         // [`crate::format::block::render_block_sequence`]), not the
         // event level, so the tree builder doesn't need to know.
         let mut tree_builder = TreeBuilder::new(source);
+        let mut event_count: usize = 0;
         for (event, range) in Parser::new_ext(body, opts).into_offset_iter() {
             let abs = range.start.saturating_add(fm_end)..range.end.saturating_add(fm_end);
             tree_builder.handle(&event, abs.clone());
             builder.handle(event, abs);
+            event_count = event_count.saturating_add(1);
         }
+        tracing::debug!(events = event_count, "pulldown walk complete");
 
         // Math regions are computed after pulldown's structure pass
         // so the scanner can exclude code spans / blocks / HTML

@@ -171,10 +171,48 @@ fn bench_format_corpus(c: &mut Criterion) {
     g.finish();
 }
 
+/// Verifies that installing a `tracing` subscriber with a level that
+/// rejects everything (`RUST_LOG=off`) costs less than the 2 % regression
+/// budget versus the pre-tracing baseline. This is the realistic
+/// "release binary with no `-v`" path.
+fn bench_tracing_disabled(c: &mut Criterion) {
+    use tracing_subscriber::EnvFilter;
+    use tracing_subscriber::fmt;
+    use tracing_subscriber::prelude::*;
+
+    // Install once; `try_init` is a no-op if a subscriber is already set.
+    let _init = tracing_subscriber::registry()
+        .with(EnvFilter::new("off"))
+        .with(fmt::layer())
+        .try_init();
+
+    let small = load_fixture("small.md");
+    let medium = load_fixture("medium.md");
+    let opts = FmtOptions::default();
+    let small_doc = Document::parse(&small);
+    let medium_doc = Document::parse(&medium);
+
+    let mut g = c.benchmark_group("tracing_disabled");
+    g.bench_function("format/small", |b| {
+        b.iter(|| black_box(&small_doc).format(black_box(&opts)));
+    });
+    g.bench_function("format/medium", |b| {
+        b.iter(|| black_box(&medium_doc).format(black_box(&opts)));
+    });
+    g.bench_function("parse_plus_format/medium", |b| {
+        b.iter(|| {
+            let d = Document::parse(black_box(&medium));
+            black_box(d.format(black_box(&opts)))
+        });
+    });
+    g.finish();
+}
+
 criterion_group!(
     benches,
     bench_format,
     bench_format_wrap,
-    bench_format_corpus
+    bench_format_corpus,
+    bench_tracing_disabled,
 );
 criterion_main!(benches);

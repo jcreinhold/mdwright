@@ -96,6 +96,7 @@ impl<'a> Document<'a> {
     /// Parse `source` into the IR. Infallible — pulldown-cmark
     /// recognises every byte sequence as Markdown.
     #[must_use]
+    #[tracing::instrument(level = "info", name = "Document::parse", skip(source), fields(len = source.len()))]
     pub fn parse(source: &'a str) -> Self {
         Self {
             ir: Ir::parse(source),
@@ -268,15 +269,18 @@ impl<'a> Document<'a> {
     /// stub in this session). Output trailing newline and line-ending
     /// style are taken from `opts`.
     #[must_use]
+    #[tracing::instrument(level = "info", name = "Document::format", skip_all, fields(out_len = tracing::field::Empty))]
     pub fn format(&self, opts: &FmtOptions) -> String {
-        format::format_document(
+        let out = format::format_document(
             self.source(),
             opts,
             self.tree(),
             self.ir.frontmatter.as_ref(),
             &self.ir.admonitions,
             &self.ir.math_regions,
-        )
+        );
+        tracing::Span::current().record("out_len", out.len());
+        out
     }
 
     /// Reformat the document and verify the result renders to the same

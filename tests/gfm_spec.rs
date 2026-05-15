@@ -230,6 +230,7 @@ struct CaseFailure {
     detail: String,
 }
 
+#[tracing::instrument(level = "info", name = "run_case", skip(case), fields(case = case.number, section = %case.section))]
 fn run_case(case: &SpecCase) -> Vec<CaseFailure> {
     let mut fails = Vec::new();
     let opts = FmtOptions::default();
@@ -238,6 +239,7 @@ fn run_case(case: &SpecCase) -> Vec<CaseFailure> {
     // Idempotence.
     let refmt = Document::parse(&formatted).format(&opts);
     if refmt != formatted {
+        tracing::debug!(case = case.number, kind = "idempotence", "spec case fail");
         fails.push(CaseFailure {
             case: case.number,
             section: case.section.clone(),
@@ -256,6 +258,7 @@ fn run_case(case: &SpecCase) -> Vec<CaseFailure> {
     let src_html = render_html(&case.source);
     let fmt_html = render_html(&formatted);
     if src_html != fmt_html {
+        tracing::debug!(case = case.number, kind = "html", "spec case fail");
         fails.push(CaseFailure {
             case: case.number,
             section: case.section.clone(),
@@ -271,6 +274,7 @@ fn run_case(case: &SpecCase) -> Vec<CaseFailure> {
     let src_ast = ast_events(&case.source);
     let fmt_ast = ast_events(&formatted);
     if src_ast != fmt_ast {
+        tracing::debug!(case = case.number, kind = "ast", "spec case fail");
         fails.push(CaseFailure {
             case: case.number,
             section: case.section.clone(),
