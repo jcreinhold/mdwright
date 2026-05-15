@@ -377,13 +377,7 @@ impl<'a> TreeBuilder<'a> {
                 // / tab prefix). Walk back to the start of the line
                 // so `raw_text` includes the indent — the block's
                 // identity depends on it.
-                let range = if matches!(
-                    kind,
-                    NodeKind::CodeBlock {
-                        fenced: false,
-                        ..
-                    }
-                ) {
+                let range = if matches!(kind, NodeKind::CodeBlock { fenced: false, .. }) {
                     widen_to_line_start(self.source, range)
                 } else {
                     range
