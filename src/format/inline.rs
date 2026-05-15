@@ -486,9 +486,44 @@ fn render_emphasis<'a>(ctx: &Ctx<'a>, id: NodeId, scope: EscapeScope) -> Doc<'a>
     if first_child_is_strong(ctx, id) {
         delim = if delim == b'_' { b'*' } else { b'_' };
     }
+    // CM §6.2 rule 9: two `*` emphasis ranges that abut with no
+    // intervening byte share a single length-2 delimiter run on
+    // round-trip, so `<em>a</em><em>b</em>` written naïvely as
+    // `*a**b*` re-pairs as a non-emphasis literal `**` plus stray
+    // `*`s. The same hazard exists in source like
+    // `…R¹f*_G(T)…` where pulldown emitted two adjacent emphasis
+    // siblings whose original delimiters differed; normalising both
+    // sides to `*` collapses the boundary. Flip this emphasis's
+    // delimiter when the previous sibling is also an Emphasis and
+    // our resolved delimiter matches what that sibling will emit.
+    if let Some(prev) = previous_sibling(ctx, id)
+        && let Some(prev_node) = ctx.tree.node(prev)
+        && matches!(prev_node.kind, NodeKind::Emphasis)
+    {
+        let prev_source = source_emphasis_delim(ctx, prev);
+        let mut prev_delim = ctx.opts.resolve_italic(prev_source);
+        if first_child_is_strong(ctx, prev) {
+            prev_delim = if prev_delim == b'_' { b'*' } else { b'_' };
+        }
+        if prev_delim == delim {
+            delim = if delim == b'_' { b'*' } else { b'_' };
+        }
+    }
     let d: &'static str = if delim == b'_' { "_" } else { "*" };
     let inner = render_inline_in_scope(ctx, id, scope);
     concat([text(d), inner, text(d)])
+}
+
+fn previous_sibling(ctx: &Ctx<'_>, id: NodeId) -> Option<NodeId> {
+    let parent = ctx.tree.parent(id)?;
+    let mut prev: Option<NodeId> = None;
+    for child in ctx.tree.children(parent) {
+        if child == id {
+            return prev;
+        }
+        prev = Some(child);
+    }
+    None
 }
 
 fn first_child_is_strong(ctx: &Ctx<'_>, id: NodeId) -> bool {

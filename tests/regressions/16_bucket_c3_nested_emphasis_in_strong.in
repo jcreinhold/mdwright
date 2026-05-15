@@ -1,0 +1,3 @@
+A run with nested emphasis: __*iff*__ stays nested, not collapsed.
+
+Plus the compound case `**\`code\` text *em* more**` keeps its boundaries.
