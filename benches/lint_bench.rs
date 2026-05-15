@@ -22,12 +22,28 @@ fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-fn repo_root() -> PathBuf {
-    // tools/mdwright/ -> tools/ -> repo root
-    let mut p = manifest_dir();
-    p.pop();
-    p.pop();
-    p
+/// Resolve the root of the documentation corpus referenced by `corpus.list`.
+///
+/// Order: `MDWRIGHT_CORPUS_ROOT` env var, then a sibling `kan` checkout
+/// next to this crate (the common local layout: `~/Code/mdwright` next to
+/// `~/Code/kan`). Panics with a setup hint if neither is found.
+fn corpus_root() -> PathBuf {
+    if let Some(v) = std::env::var_os("MDWRIGHT_CORPUS_ROOT") {
+        return PathBuf::from(v);
+    }
+    if let Some(parent) = manifest_dir().parent() {
+        let sibling = parent.join("kan");
+        if sibling.join("docs").join("books").is_dir() {
+            return sibling;
+        }
+    }
+    #[allow(clippy::panic)]
+    {
+        panic!(
+            "cannot locate corpus root; set MDWRIGHT_CORPUS_ROOT to a directory \
+             containing the corpus paths listed in benches/corpus.list",
+        )
+    }
 }
 
 fn read_to_string(path: &Path) -> io::Result<String> {
@@ -55,7 +71,7 @@ fn load_corpus() -> Vec<String> {
             panic!("corpus list {} missing: {e}", list_path.display())
         }
     });
-    let root = repo_root();
+    let root = corpus_root();
     list.lines()
         .filter(|l| !l.trim().is_empty())
         .map(|rel| {

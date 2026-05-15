@@ -9,7 +9,7 @@
 #![allow(clippy::panic)]
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use mdwright::{Document, FmtOptions};
 
@@ -17,19 +17,24 @@ fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-fn repo_root() -> PathBuf {
-    // tools/mdwright/ -> tools/ -> repo root
-    let mut p = manifest_dir();
-    p.pop();
-    p.pop();
-    p
+/// Resolve the root of the documentation corpus referenced by `corpus.list`.
+///
+/// Order: `MDWRIGHT_CORPUS_ROOT` env var, then a sibling `kan` checkout
+/// next to this crate. Returns `None` when no candidate is usable so the
+/// opt-in test can skip with a clear message rather than panic.
+fn corpus_root() -> Option<PathBuf> {
+    if let Some(v) = std::env::var_os("MDWRIGHT_CORPUS_ROOT") {
+        let p = PathBuf::from(v);
+        return p.join("docs").join("books").is_dir().then_some(p);
+    }
+    let sibling = manifest_dir().parent()?.join("kan");
+    sibling.join("docs").join("books").is_dir().then_some(sibling)
 }
 
-fn corpus_files() -> Vec<PathBuf> {
+fn corpus_files(root: &Path) -> Vec<PathBuf> {
     let list_path = manifest_dir().join("benches").join("corpus.list");
     let list =
         fs::read_to_string(&list_path).unwrap_or_else(|e| panic!("corpus list {} missing: {e}", list_path.display()));
-    let root = repo_root();
     list.lines()
         .filter(|l| !l.trim().is_empty())
         .map(|rel| root.join(rel))
@@ -42,9 +47,17 @@ fn idempotent_over_corpus() {
         eprintln!("skipping; set MDWRIGHT_CORPUS_TEST=1 to enable");
         return;
     }
+    let Some(root) = corpus_root() else {
+        eprintln!(
+            "skipping; set MDWRIGHT_CORPUS_ROOT to a directory containing the \
+             corpus paths listed in benches/corpus.list (or place a `kan` \
+             checkout next to this crate)",
+        );
+        return;
+    };
     let opts = FmtOptions::default();
     let mut failures: Vec<PathBuf> = Vec::new();
-    for path in corpus_files() {
+    for path in corpus_files(&root) {
         let src =
             fs::read_to_string(&path).unwrap_or_else(|e| panic!("corpus file {} unreadable: {e}", path.display()));
         let once = Document::parse(&src).format(&opts);
