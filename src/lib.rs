@@ -53,6 +53,7 @@
 //! let _ = Document::parse("hello<br>world").lint(&rs);
 //! ```
 
+mod cm;
 mod config;
 mod diagnostic;
 mod discover;
@@ -81,7 +82,6 @@ pub use ir::{
 pub use line_index::LineIndex;
 pub use rule::LintRule;
 pub use rule_set::{DuplicateRuleName, RuleSet};
-pub use tree::{AutolinkKind, LinkKind, Node, NodeId, NodeKind, TableAlign, Tree};
 
 #[cfg(test)]
 mod tests {

@@ -34,6 +34,10 @@ use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
 
+use crate::cm::inline::code::InlineCodeRun;
+use crate::cm::inline::escape_policy::EscapeScope;
+use crate::cm::inline::html::InlineHtmlSpan;
+use crate::cm::inline::run::{InlineRun, RunInput};
 use crate::ir::LinkDef;
 
 /// Index into [`Tree`]'s arena. Stable for the life of the tree;
@@ -104,8 +108,18 @@ pub enum NodeKind<'a> {
     CodeBlock {
         fenced: bool,
         info: Cow<'a, str>,
+        /// Body bytes the parser emitted inside this block. Pulldown
+        /// has already stripped any enclosing container's prefix
+        /// (list-continuation indent, blockquote `>` markers,
+        /// indented-code-block 4-space prefix), so this is the
+        /// minimum representation that survives re-nesting.
+        body: Cow<'a, str>,
     },
-    HtmlBlock,
+    HtmlBlock {
+        /// Body bytes the parser emitted inside this block. Same
+        /// prefix-stripped form as [`CodeBlock::body`].
+        body: Cow<'a, str>,
+    },
     ThematicBreak,
     Table {
         alignments: Vec<TableAlign>,
@@ -126,8 +140,11 @@ pub enum NodeKind<'a> {
     },
 
     // Inline:
-    Text(Cow<'a, str>),
-    Code(Cow<'a, str>),
+    /// A coalesced run of text + soft/hard breaks, with the
+    /// `CommonMark` escape policy applied at construction.
+    Run(InlineRun<'a>),
+    /// One inline code span.
+    CodeRun(InlineCodeRun<'a>),
     Emphasis,
     Strong,
     Strikethrough,
@@ -147,10 +164,9 @@ pub enum NodeKind<'a> {
         url: Cow<'a, str>,
         kind: AutolinkKind,
     },
-    InlineHtml(Cow<'a, str>),
+    /// One inline HTML span.
+    HtmlSpan(InlineHtmlSpan<'a>),
     FootnoteReference(Cow<'a, str>),
-    SoftBreak,
-    HardBreak,
     TaskListMarker(bool),
 
     /// Forward-compatibility fallback. Pulldown-cmark may emit tags
@@ -224,6 +240,7 @@ impl<'a> Tree<'a> {
 
     /// The Document root. Always present.
     #[must_use]
+    #[allow(clippy::unused_self)]
     pub fn root(&self) -> NodeId {
         NodeId(0)
     }
@@ -325,6 +342,15 @@ impl Iterator for Descendants<'_, '_> {
 /// Walks the pulldown-cmark event stream and accumulates an arena
 /// tree. Lives inside [`crate::ir::Ir::parse`] alongside the flat-IR
 /// builder.
+///
+/// The builder is the deep module that produces typed inline values:
+/// it buffers `Event::Text` / `Event::SoftBreak` / `Event::HardBreak`
+/// into an [`InlineRun`] until a non-text event ends the run, then
+/// flushes the buffered events through [`InlineRun::new`] with the
+/// current escape scope. Code spans and inline HTML are similarly
+/// pushed as typed leaves at their event boundaries. Block code and
+/// block HTML accumulate their bodies on the open frame so the
+/// closing event can stamp the container with a `body` field.
 pub(crate) struct TreeBuilder<'a> {
     source: &'a str,
     arena: Vec<Node<'a>>,
@@ -334,6 +360,17 @@ pub(crate) struct TreeBuilder<'a> {
     /// the current open frame's accumulated children.
     pending: Vec<NodeId>,
     open: Vec<OpenFrame>,
+    /// Active escape scope for inline children of the currently-open
+    /// container. The stack mirrors `open`: push on every `Start`,
+    /// pop on every matching `End`. The bottom-most entry is the
+    /// document's default scope.
+    scope_stack: Vec<EscapeScope>,
+    /// Pulldown text/break events buffered for the next [`InlineRun`]
+    /// flush.
+    inline_buf: Vec<RunInput<'a>>,
+    /// Source byte range covered by the buffered inline events;
+    /// `None` when `inline_buf` is empty.
+    inline_range: Option<Range<usize>>,
 }
 
 #[derive(Debug)]
@@ -341,6 +378,11 @@ struct OpenFrame {
     arena_id: NodeId,
     pending_start: u32,
     raw_start: usize,
+    /// `Some` for `CodeBlock` and `HtmlBlock`: the parser's text /
+    /// html payloads inside these containers append to this buffer
+    /// instead of going through the inline accumulator. The closing
+    /// event stamps the buffer onto the container's `body` field.
+    body_accum: Option<String>,
 }
 
 impl<'a> TreeBuilder<'a> {
@@ -363,7 +405,11 @@ impl<'a> TreeBuilder<'a> {
                 arena_id: NodeId(0),
                 pending_start: 0,
                 raw_start: 0,
+                body_accum: None,
             }],
+            scope_stack: vec![EscapeScope::default()],
+            inline_buf: Vec::new(),
+            inline_range: None,
         }
     }
 
@@ -371,6 +417,7 @@ impl<'a> TreeBuilder<'a> {
     pub(crate) fn handle(&mut self, event: &Event<'a>, range: Range<usize>) {
         match event {
             Event::Start(tag) => {
+                self.flush_inline_run();
                 let kind = self.kind_for_start(tag, &range);
                 // Pulldown's event range for an indented code block
                 // starts at the first content byte (after the 4-space
@@ -382,42 +429,72 @@ impl<'a> TreeBuilder<'a> {
                 } else {
                     range
                 };
-                self.open_container(kind, range);
+                let body_accum = matches!(
+                    &kind,
+                    NodeKind::CodeBlock { .. } | NodeKind::HtmlBlock { .. }
+                )
+                .then(String::new);
+                let scope = self.current_scope_after_start(tag);
+                self.open_container(kind, range, body_accum);
+                self.scope_stack.push(scope);
             }
-            Event::End(_) => {
+            Event::End(end) => {
+                self.flush_inline_run();
                 self.close_container(range);
+                // The scope_stack push in Start matches an End here,
+                // even for tags we did not adjust the scope for.
+                let _ = end;
+                if self.scope_stack.len() > 1 {
+                    let _ = self.scope_stack.pop();
+                }
             }
             Event::Text(cow) => {
+                if let Some(buf) = self.body_accum_mut() {
+                    buf.push_str(cow);
+                    return;
+                }
                 let raw_range = self.extend_for_backslash(range);
-                self.push_leaf(NodeKind::Text(cow_to_cow(cow)), raw_range);
+                let src = self.source.get(raw_range.clone());
+                self.push_inline_text(cow_to_cow(cow), src, raw_range);
             }
             Event::Code(cow) => {
-                self.push_leaf(NodeKind::Code(cow_to_cow(cow)), range);
+                self.flush_inline_run();
+                let code = InlineCodeRun::new(cow_to_cow(cow), self.current_scope());
+                self.push_leaf(NodeKind::CodeRun(code), range);
             }
-            Event::Html(cow) | Event::InlineHtml(cow) => {
-                // Distinguish at the kind: HTML blocks are not wrapped
-                // by a container event, so we just store them as a
-                // leaf carrying the raw text.
-                let is_block = matches!(event, Event::Html(_));
-                let kind = if is_block {
-                    // An HtmlBlock event is itself a leaf in pulldown's
-                    // stream (multiple Event::Html lines may appear
-                    // inside a Tag::HtmlBlock, which is a container).
-                    NodeKind::Text(cow_to_cow(cow))
-                } else {
-                    NodeKind::InlineHtml(cow_to_cow(cow))
-                };
-                self.push_leaf(kind, range);
+            Event::Html(cow) => {
+                if let Some(buf) = self.body_accum_mut() {
+                    buf.push_str(cow);
+                    return;
+                }
+                // Defensive: a block-level Html event outside an
+                // HtmlBlock container. Treat it as inline HTML so the
+                // bytes survive verbatim.
+                self.flush_inline_run();
+                let span = InlineHtmlSpan::from_parser(cow_to_cow(cow), range.start, self.source);
+                self.push_leaf(NodeKind::HtmlSpan(span), range);
+            }
+            Event::InlineHtml(cow) => {
+                self.flush_inline_run();
+                let span = InlineHtmlSpan::from_parser(cow_to_cow(cow), range.start, self.source);
+                self.push_leaf(NodeKind::HtmlSpan(span), range);
             }
             Event::FootnoteReference(label) => {
+                self.flush_inline_run();
                 self.push_leaf(NodeKind::FootnoteReference(cow_to_cow(label)), range);
             }
-            Event::SoftBreak => self.push_leaf(NodeKind::SoftBreak, range),
-            Event::HardBreak => self.push_leaf(NodeKind::HardBreak, range),
-            Event::Rule => self.push_leaf(NodeKind::ThematicBreak, range),
+            Event::SoftBreak => {
+                self.push_inline_break(RunInput::SoftBreak, range);
+            }
+            Event::HardBreak => {
+                self.push_inline_break(RunInput::HardBreak, range);
+            }
+            Event::Rule => {
+                self.flush_inline_run();
+                self.push_leaf(NodeKind::ThematicBreak, range);
+            }
             Event::TaskListMarker(checked) => {
-                // Also annotate the enclosing Item so consumers can
-                // read `Item.task` without walking children.
+                self.flush_inline_run();
                 if let Some(frame) = self.open.last()
                     && let Some(node) = self.arena.get_mut(frame.arena_id.idx())
                     && let NodeKind::Item { ref mut task } = node.kind
@@ -427,17 +504,105 @@ impl<'a> TreeBuilder<'a> {
                 self.push_leaf(NodeKind::TaskListMarker(*checked), range);
             }
             // Math is not enabled in Options; if it ever appears,
-            // record it as Unknown leaves so we don't panic.
+            // record the bytes inline as text.
             Event::InlineMath(cow) | Event::DisplayMath(cow) => {
-                self.push_leaf(NodeKind::Text(cow_to_cow(cow)), range);
+                let raw_range = range.clone();
+                let src = self.source.get(raw_range.clone());
+                self.push_inline_text(cow_to_cow(cow), src, raw_range);
             }
         }
+    }
+
+    /// Push a decoded text payload into the inline accumulator.
+    fn push_inline_text(
+        &mut self,
+        payload: Cow<'a, str>,
+        source: Option<&'a str>,
+        range: Range<usize>,
+    ) {
+        self.extend_inline_range(&range);
+        self.inline_buf.push(RunInput::Text { payload, source });
+    }
+
+    /// Push a break event into the inline accumulator.
+    fn push_inline_break(&mut self, brk: RunInput<'a>, range: Range<usize>) {
+        self.extend_inline_range(&range);
+        self.inline_buf.push(brk);
+    }
+
+    fn extend_inline_range(&mut self, range: &Range<usize>) {
+        match &mut self.inline_range {
+            Some(r) => {
+                if range.start < r.start {
+                    r.start = range.start;
+                }
+                if range.end > r.end {
+                    r.end = range.end;
+                }
+            }
+            None => self.inline_range = Some(range.clone()),
+        }
+    }
+
+    /// Flush any buffered inline events into an [`InlineRun`] leaf
+    /// under the current open frame. No-op when the buffer is empty.
+    fn flush_inline_run(&mut self) {
+        if self.inline_buf.is_empty() {
+            self.inline_range = None;
+            return;
+        }
+        let inputs = std::mem::take(&mut self.inline_buf);
+        let range = self.inline_range.take().unwrap_or(0..0);
+        let scope = self.current_scope();
+        let run = InlineRun::new(inputs, scope);
+        if !run.is_empty() {
+            self.push_leaf(NodeKind::Run(run), range);
+        }
+    }
+
+    fn current_scope(&self) -> EscapeScope {
+        self.scope_stack
+            .last()
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Scope active for inline children of the container opened by
+    /// `tag`. Defaults to the parent scope; specific tags layer their
+    /// flag on top.
+    #[allow(clippy::wildcard_enum_match_arm)]
+    fn current_scope_after_start(&self, tag: &Tag<'a>) -> EscapeScope {
+        let parent = self.current_scope();
+        match tag {
+            Tag::Heading { .. } => EscapeScope {
+                in_heading: true,
+                ..parent
+            },
+            Tag::Link { .. } | Tag::Image { .. } => EscapeScope {
+                in_link_text: true,
+                ..parent
+            },
+            Tag::TableCell => EscapeScope {
+                in_table_cell: true,
+                ..parent
+            },
+            _ => parent,
+        }
+    }
+
+    /// `Some(&mut String)` when the current open frame is a
+    /// `CodeBlock` or `HtmlBlock` accumulating body bytes.
+    fn body_accum_mut(&mut self) -> Option<&mut String> {
+        self.open.last_mut().and_then(|f| f.body_accum.as_mut())
     }
 
     /// Synthesise `LinkReferenceDefinition` nodes from the flat IR's
     /// link-defs vector (pulldown does not emit events for them) and
     /// seal the Document root.
     pub(crate) fn finalize(mut self, link_defs: &[LinkDef<'a>]) -> Tree<'a> {
+        // Flush any inline events left in the buffer (the document's
+        // trailing run before the parser exhausted its events).
+        self.flush_inline_run();
         // The Document frame is still open. Close it. `new` always
         // pushed exactly one frame, so this pop must succeed; if it
         // ever doesn't, fall through with no Document children.
@@ -504,7 +669,12 @@ impl<'a> TreeBuilder<'a> {
         id
     }
 
-    fn open_container(&mut self, kind: NodeKind<'a>, range: Range<usize>) {
+    fn open_container(
+        &mut self,
+        kind: NodeKind<'a>,
+        range: Range<usize>,
+        body_accum: Option<String>,
+    ) {
         let raw_start = range.start;
         let id = self.alloc_node(kind, range);
         let pending_start = u32::try_from(self.pending.len()).unwrap_or(u32::MAX);
@@ -512,6 +682,7 @@ impl<'a> TreeBuilder<'a> {
             arena_id: id,
             pending_start,
             raw_start,
+            body_accum,
         });
     }
 
@@ -552,6 +723,16 @@ impl<'a> TreeBuilder<'a> {
             } = node.kind
             {
                 *t = tight;
+            }
+            // Stamp the accumulated body onto CodeBlock / HtmlBlock.
+            #[allow(clippy::wildcard_enum_match_arm)]
+            if let Some(body) = frame.body_accum {
+                let body_cow: Cow<'a, str> = Cow::Owned(body);
+                match &mut node.kind {
+                    NodeKind::CodeBlock { body: dst, .. } => *dst = body_cow,
+                    NodeKind::HtmlBlock { body: dst } => *dst = body_cow,
+                    _ => {}
+                }
             }
         }
     }
@@ -618,9 +799,15 @@ impl<'a> TreeBuilder<'a> {
                     CodeBlockKind::Fenced(s) => (true, cow_to_cow(s)),
                     CodeBlockKind::Indented => (false, Cow::Borrowed("")),
                 };
-                NodeKind::CodeBlock { fenced, info }
+                NodeKind::CodeBlock {
+                    fenced,
+                    info,
+                    body: Cow::Borrowed(""),
+                }
             }
-            Tag::HtmlBlock => NodeKind::HtmlBlock,
+            Tag::HtmlBlock => NodeKind::HtmlBlock {
+                body: Cow::Borrowed(""),
+            },
             Tag::List(start) => NodeKind::List {
                 ordered: start.is_some(),
                 start: start.unwrap_or(0),
@@ -792,7 +979,7 @@ mod tests {
         assert!(
             kinds
                 .iter()
-                .any(|k| matches!(k, NodeKind::Text(s) if s.contains("Hello")))
+                .any(|k| matches!(k, NodeKind::Run(_)))
         );
     }
 
@@ -863,7 +1050,7 @@ let x = 1;
                         "indented code block missing 4-space prefix: {raw:?}",
                     );
                 }
-                NodeKind::HtmlBlock => {
+                NodeKind::HtmlBlock { .. } => {
                     assert!(raw.starts_with('<'), "HTML block missing `<`: {raw:?}");
                 }
                 NodeKind::ThematicBreak => {
@@ -1056,7 +1243,7 @@ let x = 1;
         let info = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::CodeBlock { fenced: true, info }) => Some(info.to_string()),
+                Some(NodeKind::CodeBlock { fenced: true, info, .. }) => Some(info.to_string()),
                 _ => None,
             })
             .expect("fenced code block");

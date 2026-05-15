@@ -11,7 +11,6 @@
 pub(crate) mod block;
 pub(crate) mod ctx;
 pub(crate) mod doc;
-pub(crate) mod escape;
 pub(crate) mod inline;
 pub(crate) mod math;
 pub(crate) mod verbatim;

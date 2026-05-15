@@ -13,8 +13,7 @@ use std::ops::Range;
 use crate::config::{LinkDefStyle, OrderedListStyle, Placement, Wrap};
 use crate::format::ctx::Ctx;
 use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text, unbreakable};
-use crate::format::escape::EscapeScope;
-use crate::format::inline::{render_inline, render_inline_in_scope, render_inline_nodes};
+use crate::format::inline::{render_inline, render_inline_nodes};
 use crate::format::verbatim::emit_verbatim;
 use crate::format::wrap::wrap_doc;
 use crate::tree::{NodeId, NodeKind, TableAlign};
@@ -158,23 +157,41 @@ fn verbatim_lines(raw: &str) -> Doc<'_> {
 /// Decide whether a paragraph can round-trip through verbatim
 /// emission without losing any normalisation.
 ///
-/// Two requirements: (a) every inline child is a plain `Text` (no
-/// emphasis, strong, link, image, code, strikethrough, autolink,
-/// inline HTML, footnote reference, hard/soft break) — anything else
-/// means the per-byte escape sieve and delimiter normalisation must
-/// still run; (b) wrap is inactive (`Keep` or `No`), because `At(n)`
-/// would otherwise be silently bypassed for verbatim-routed
-/// paragraphs.
+/// Requirements: (a) every inline child is a single-text-segment
+/// [`InlineRun`] (no soft/hard breaks, no structural inlines like
+/// emphasis/code/links), so source-byte emission cannot drop a break
+/// the IR would otherwise have flattened or rewrapped; (b) the wrap
+/// policy is [`Wrap::Keep`] — both [`Wrap::No`] (collapse soft
+/// breaks) and [`Wrap::At(_)`] (re-wrap) require an IR-driven pass.
 fn paragraph_is_verbatim_eligible(ctx: &Ctx<'_>, id: NodeId) -> bool {
-    if matches!(ctx.opts.wrap(), Wrap::At(_)) {
+    if !matches!(ctx.opts.wrap(), Wrap::Keep) {
         return false;
     }
     for child in ctx.tree.children(id) {
         let Some(node) = ctx.tree.node(child) else {
             continue;
         };
-        if !matches!(node.kind, NodeKind::Text(_)) {
+        let NodeKind::Run(run) = &node.kind else {
             return false;
+        };
+        // A run with breaks must go through IR-driven emission so
+        // wrap can decide line layout. A run with multiple text
+        // segments (which would imply breaks between them) is also
+        // disqualified for the same reason.
+        use crate::cm::inline::run::RunPart;
+        let mut text_count = 0usize;
+        for part in run.parts() {
+            match part {
+                RunPart::Text(_) => {
+                    text_count = text_count.saturating_add(1);
+                    if text_count > 1 {
+                        return false;
+                    }
+                }
+                RunPart::SoftBreak | RunPart::HardLineBreak | RunPart::HardBreakTag => {
+                    return false;
+                }
+            }
         }
     }
     true
@@ -272,7 +289,7 @@ pub(crate) fn render_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
     if ctx.tree.parent(id) == Some(ctx.tree.root()) {
         #[allow(clippy::wildcard_enum_match_arm)]
         match &node.kind {
-            NodeKind::HtmlBlock => return emit_verbatim(ctx.tree, id),
+            NodeKind::HtmlBlock { .. } => return emit_verbatim(ctx.tree, id),
             NodeKind::CodeBlock { fenced: false, .. } => return emit_verbatim(ctx.tree, id),
             NodeKind::Paragraph if paragraph_is_verbatim_eligible(ctx, id) => {
                 return emit_verbatim(ctx.tree, id);
@@ -284,8 +301,10 @@ pub(crate) fn render_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
         NodeKind::Paragraph => render_paragraph(ctx, id),
         NodeKind::Heading { level, setext } => render_heading(ctx, id, *level, *setext),
         NodeKind::BlockQuote => render_blockquote(ctx, id),
-        NodeKind::CodeBlock { fenced, info } => render_code_block(ctx, id, *fenced, info.as_ref()),
-        NodeKind::HtmlBlock => render_html_block(ctx, id),
+        NodeKind::CodeBlock { fenced, info, .. } => {
+            render_code_block(ctx, id, *fenced, info.as_ref())
+        }
+        NodeKind::HtmlBlock { .. } => render_html_block(ctx, id),
         NodeKind::ThematicBreak => render_thematic_break(),
         NodeKind::List {
             ordered,
@@ -324,18 +343,16 @@ pub(crate) fn render_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
         | NodeKind::TableHead
         | NodeKind::TableRow
         | NodeKind::TableCell
-        | NodeKind::Text(_)
-        | NodeKind::Code(_)
+        | NodeKind::Run(_)
+        | NodeKind::CodeRun(_)
         | NodeKind::Emphasis
         | NodeKind::Strong
         | NodeKind::Strikethrough
         | NodeKind::Link { .. }
         | NodeKind::Image { .. }
         | NodeKind::Autolink { .. }
-        | NodeKind::InlineHtml(_)
+        | NodeKind::HtmlSpan(_)
         | NodeKind::FootnoteReference(_)
-        | NodeKind::SoftBreak
-        | NodeKind::HardBreak
         | NodeKind::TaskListMarker(_)
         | NodeKind::Unknown { .. } => concat([text(ctx.tree.raw_text(id)), hard_line()]),
     }
@@ -554,11 +571,7 @@ fn escape_for_block_start(s: &str, _source: &str, next: LineContext) -> Option<S
 // ============================================================
 
 fn render_heading<'a>(ctx: &Ctx<'a>, id: NodeId, level: u32, setext: bool) -> Doc<'a> {
-    let scope = EscapeScope {
-        in_heading: true,
-        ..EscapeScope::default()
-    };
-    let inline = render_inline_in_scope(ctx, id, scope);
+    let inline = render_inline(ctx, id);
     if setext && level <= 2 {
         // Setext underlines: H1 uses `=`, H2 uses `-`. Width matches
         // the inline content's display width, minimum 3.
@@ -626,23 +639,15 @@ fn render_code_block<'a>(ctx: &Ctx<'a>, id: NodeId, fenced: bool, info: &str) ->
     ])
 }
 
-/// Extract the body of a code block. Concatenates the `Text` event
-/// payloads pulldown emitted inside the block — pulldown has already
-/// stripped any container-block prefix (list-continuation indent,
-/// blockquote `>` markers, indented-code-block 4-space prefix), so
-/// using the event bytes preserves the body verbatim regardless of
-/// nesting. Reading `raw_text(id)` would include the surrounding
-/// container's prefix and re-emit it inside the code block on every
-/// round-trip.
+/// Extract the body of a code block. The builder already collected
+/// the parser's text payloads onto the [`NodeKind::CodeBlock::body`]
+/// field; this returns that body with trailing newlines trimmed.
 fn code_block_body(ctx: &Ctx<'_>, id: NodeId, _fenced: bool) -> String {
-    let mut out = String::new();
-    for child in ctx.tree.children(id) {
-        if let Some(node) = ctx.tree.node(child)
-            && let NodeKind::Text(s) = &node.kind
-        {
-            out.push_str(s.as_ref());
-        }
-    }
+    let body = match ctx.tree.node(id).map(|n| &n.kind) {
+        Some(NodeKind::CodeBlock { body, .. }) => body.as_ref(),
+        _ => "",
+    };
+    let mut out = body.to_owned();
     while out.ends_with('\n') {
         let _ = out.pop();
     }
@@ -752,21 +757,10 @@ fn render_thematic_break<'a>() -> Doc<'a> {
 }
 
 fn render_html_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
-    // Concatenate the pulldown Text-event payloads stored as children
-    // of this HtmlBlock node. Pulldown has already stripped any
-    // container-block prefix (list-continuation indent, blockquote
-    // `>` markers), so the event bytes preserve the block content
-    // verbatim. Using `raw_text(id)` would include the surrounding
-    // container's prefix and re-emit it inside the HTML block on
-    // every round-trip, changing whitespace inside `<!-- … -->`.
-    let mut body = String::new();
-    for child in ctx.tree.children(id) {
-        if let Some(node) = ctx.tree.node(child)
-            && let NodeKind::Text(s) = &node.kind
-        {
-            body.push_str(s.as_ref());
-        }
-    }
+    let body = match ctx.tree.node(id).map(|n| &n.kind) {
+        Some(NodeKind::HtmlBlock { body }) => body.as_ref(),
+        _ => "",
+    };
     let trimmed = body.trim_end_matches('\n');
     if trimmed.is_empty() {
         return hard_line();
@@ -960,7 +954,7 @@ fn render_item_body<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
 /// (used when an Item has direct inline children — there is no
 /// Paragraph wrapper to call [`render_inline`] on directly).
 fn inline_for_children<'a>(ctx: &Ctx<'a>, ids: &[NodeId]) -> Doc<'a> {
-    render_inline_nodes(ctx, ids, EscapeScope::default())
+    render_inline_nodes(ctx, ids)
 }
 
 fn is_block_kind(kind: Option<&NodeKind<'_>>) -> bool {
@@ -971,7 +965,7 @@ fn is_block_kind(kind: Option<&NodeKind<'_>>) -> bool {
                 | NodeKind::Heading { .. }
                 | NodeKind::BlockQuote
                 | NodeKind::CodeBlock { .. }
-                | NodeKind::HtmlBlock
+                | NodeKind::HtmlBlock { .. }
                 | NodeKind::ThematicBreak
                 | NodeKind::List { .. }
                 | NodeKind::Table { .. }
@@ -993,12 +987,8 @@ fn render_table<'a>(ctx: &Ctx<'a>, id: NodeId, alignments: &[TableAlign]) -> Doc
             continue;
         }
         let mut cells: Vec<String> = Vec::new();
-        let cell_scope = EscapeScope {
-            in_table_cell: true,
-            ..EscapeScope::default()
-        };
         for cell_id in ctx.tree.children(row_id) {
-            let cell_doc = render_inline_in_scope(ctx, cell_id, cell_scope);
+            let cell_doc = render_inline(ctx, cell_id);
             let raw = render_to_string(&cell_doc);
             cells.push(normalize_table_cell(&raw));
         }
