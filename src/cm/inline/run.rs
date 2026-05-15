@@ -129,34 +129,41 @@ impl<'a> InlineRun<'a> {
 
         let escaped = escape_buffer(&buf, &forced, scope);
 
-        // Walk the escaped buffer one byte at a time; each `\n` it
-        // contains corresponds to one entry in `newline_tags` (the
-        // policy never inserts before `\n` and never removes one, so
-        // the count is preserved).
+        // Walk the escaped buffer, splitting at `\n` byte boundaries.
+        // `\n` is ASCII so byte indices are also char boundaries; the
+        // segments between are proper UTF-8 slices. Each `\n` byte
+        // corresponds to one entry in `newline_tags` (the policy
+        // never inserts before `\n` and never removes one, so the
+        // count is preserved).
         let mut parts: Vec<RunPart<'a>> = Vec::new();
-        let mut segment = String::new();
         let mut tag_iter = newline_tags.into_iter();
-        for byte in escaped.bytes() {
-            if byte == b'\n' {
-                match tag_iter.next().unwrap_or(None) {
-                    Some(BreakKind::Soft) => {
-                        if !segment.is_empty() {
-                            parts.push(RunPart::Text(Cow::Owned(std::mem::take(&mut segment))));
-                        }
-                        parts.push(RunPart::SoftBreak);
+        let bytes = escaped.as_bytes();
+        let mut segment_start = 0usize;
+        let mut segment = String::new();
+        for (i, &b) in bytes.iter().enumerate() {
+            if b != b'\n' {
+                continue;
+            }
+            // Flush bytes [segment_start..i) into `segment`.
+            segment.push_str(&escaped[segment_start..i]);
+            segment_start = i.saturating_add(1);
+            match tag_iter.next().unwrap_or(None) {
+                Some(BreakKind::Soft) => {
+                    if !segment.is_empty() {
+                        parts.push(RunPart::Text(Cow::Owned(std::mem::take(&mut segment))));
                     }
-                    Some(BreakKind::Hard) => {
-                        if !segment.is_empty() {
-                            parts.push(RunPart::Text(Cow::Owned(std::mem::take(&mut segment))));
-                        }
-                        parts.push(hard_break_part(scope));
-                    }
-                    None => segment.push('\n'),
+                    parts.push(RunPart::SoftBreak);
                 }
-            } else {
-                segment.push(char::from(byte));
+                Some(BreakKind::Hard) => {
+                    if !segment.is_empty() {
+                        parts.push(RunPart::Text(Cow::Owned(std::mem::take(&mut segment))));
+                    }
+                    parts.push(hard_break_part(scope));
+                }
+                None => segment.push('\n'),
             }
         }
+        segment.push_str(&escaped[segment_start..]);
         if !segment.is_empty() {
             parts.push(RunPart::Text(Cow::Owned(segment)));
         }
