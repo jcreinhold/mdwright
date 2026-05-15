@@ -1,0 +1,9 @@
+Outer fence must be longer than the longest backtick run inside the body.
+
+````
+```text
+nested fence
+```
+````
+
+Trailing text.

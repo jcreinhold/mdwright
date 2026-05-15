@@ -538,19 +538,20 @@ fn render_code_block<'a>(ctx: &Ctx<'a>, id: NodeId, fenced: bool, info: &str) ->
     } else {
         '`'
     };
-    // Build the fenced block in two Doc::Text payloads (open line
-    // and body+close); the renderer push_str's them. Before: one
-    // `to_owned()` per body line, plus separate fence/open Strings.
-    let fence_str: &'static str = match fence_char {
-        '~' => "~~~",
-        _ => "```",
-    };
+    // CM §4.5: the opening fence must contain at least one more
+    // fence character than any run in the body, otherwise the body's
+    // inner fence closes the outer block. Pick max(source_len, body+1, 3).
+    let body_max_run = longest_fence_run(&body, fence_char);
+    let source_len = source_fence_len(ctx, id, fence_char).unwrap_or(3);
+    let fence_len = source_len.max(body_max_run.saturating_add(1)).max(3);
+    let fence_string: String = std::iter::repeat_n(fence_char, fence_len).collect();
+    let fence_str: &str = fence_string.as_str();
     let mut open = String::with_capacity(fence_str.len().saturating_add(info.len()));
     open.push_str(fence_str);
     open.push_str(info);
     if body.is_empty() {
         return concat([
-            unbreakable(concat([text(open), hard_line(), text(fence_str)])),
+            unbreakable(concat([text(open), hard_line(), text(fence_string.clone())])),
             hard_line(),
         ]);
     }
@@ -596,6 +597,51 @@ fn source_fence_char(ctx: &Ctx<'_>, id: NodeId) -> Option<char> {
         .find(|b| !matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
         .map(char::from)
         .filter(|c| *c == '`' || *c == '~')
+}
+
+/// Length of the opening fence run in the source for this code block,
+/// when it matches `fence_char`. Returns `None` for indented code blocks
+/// or if the source could not be inspected.
+fn source_fence_len(ctx: &Ctx<'_>, id: NodeId, fence_char: char) -> Option<usize> {
+    let fc = fence_char as u8;
+    let raw = ctx.tree.raw_text(id);
+    let bytes = raw.as_bytes();
+    let start = bytes
+        .iter()
+        .position(|b| !matches!(*b, b' ' | b'\t' | b'\n' | b'\r'))?;
+    if bytes[start] != fc {
+        return None;
+    }
+    let mut i = start;
+    while i < bytes.len() && bytes[i] == fc {
+        i += 1;
+    }
+    Some(i - start)
+}
+
+/// Longest run of `fence_char` appearing on any line of `body`.
+/// CM §4.5: the opening fence must be strictly longer than the
+/// longest such run for the body to be emitted verbatim.
+fn longest_fence_run(body: &str, fence_char: char) -> usize {
+    let fc = fence_char as u8;
+    let mut max_run = 0usize;
+    for line in body.as_bytes().split(|b| *b == b'\n') {
+        // Skip leading whitespace; fences only count when they are
+        // the first non-space content on the line.
+        let mut i = 0;
+        while i < line.len() && matches!(line[i], b' ' | b'\t') {
+            i += 1;
+        }
+        if i >= line.len() || line[i] != fc {
+            continue;
+        }
+        let start = i;
+        while i < line.len() && line[i] == fc {
+            i += 1;
+        }
+        max_run = max_run.max(i - start);
+    }
+    max_run
 }
 
 // ============================================================
