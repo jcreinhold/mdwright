@@ -68,8 +68,8 @@ mod tree;
 mod util;
 
 pub use config::{
-    Config, ConfigError, EndOfLine, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle,
-    OrderedListStyle, Placement, Wrap,
+    Config, ConfigError, EndOfLine, FmtOptions, FormatMode, ItalicStyle, LinkDefStyle,
+    ListMarkerStyle, OrderedListStyle, Placement, Wrap,
 };
 pub use diagnostic::{Diagnostic, Fix};
 pub use discover::discover_markdown;

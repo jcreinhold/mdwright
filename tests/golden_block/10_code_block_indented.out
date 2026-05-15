@@ -1,8 +1,6 @@
 paragraph
 
-```
-indented code
-second line
-```
+    indented code
+    second line
 
 after

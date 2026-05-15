@@ -15,6 +15,7 @@ use crate::format::ctx::Ctx;
 use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text, unbreakable};
 use crate::format::escape::EscapeScope;
 use crate::format::inline::{render_inline, render_inline_in_scope, render_inline_nodes};
+use crate::format::verbatim::emit_verbatim;
 use crate::format::wrap::wrap_doc;
 use crate::tree::{NodeId, NodeKind, TableAlign};
 
@@ -154,6 +155,31 @@ fn verbatim_lines(raw: &str) -> Doc<'_> {
     concat([text(trimmed), hard_line()])
 }
 
+/// Decide whether a paragraph can round-trip through verbatim
+/// emission without losing any normalisation.
+///
+/// Two requirements: (a) every inline child is a plain `Text` (no
+/// emphasis, strong, link, image, code, strikethrough, autolink,
+/// inline HTML, footnote reference, hard/soft break) — anything else
+/// means the per-byte escape sieve and delimiter normalisation must
+/// still run; (b) wrap is inactive (`Keep` or `No`), because `At(n)`
+/// would otherwise be silently bypassed for verbatim-routed
+/// paragraphs.
+fn paragraph_is_verbatim_eligible(ctx: &Ctx<'_>, id: NodeId) -> bool {
+    if matches!(ctx.opts.wrap(), Wrap::At(_)) {
+        return false;
+    }
+    for child in ctx.tree.children(id) {
+        let Some(node) = ctx.tree.node(child) else {
+            continue;
+        };
+        if !matches!(node.kind, NodeKind::Text(_)) {
+            return false;
+        }
+    }
+    true
+}
+
 /// At the document root under [`Placement::End`], emit a tail block
 /// containing every footnote definition collected in the tree,
 /// sorted case-insensitively by label (stable on ties).
@@ -237,6 +263,23 @@ pub(crate) fn render_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
     let Some(node) = ctx.tree.node(id) else {
         return concat([]);
     };
+    // At the document root, route block kinds whose only divergence
+    // from the source is pulldown's re-tokenisation through
+    // `emit_verbatim`. Restricted to direct children of the root:
+    // nested-container blocks have continuation prefixes (`>`, list
+    // indent) embedded inside their `raw_range`, which would double-
+    // emit under the surrounding blockquote/list serializer.
+    if ctx.tree.parent(id) == Some(ctx.tree.root()) {
+        #[allow(clippy::wildcard_enum_match_arm)]
+        match &node.kind {
+            NodeKind::HtmlBlock => return emit_verbatim(ctx.tree, id),
+            NodeKind::CodeBlock { fenced: false, .. } => return emit_verbatim(ctx.tree, id),
+            NodeKind::Paragraph if paragraph_is_verbatim_eligible(ctx, id) => {
+                return emit_verbatim(ctx.tree, id);
+            }
+            _ => {}
+        }
+    }
     match &node.kind {
         NodeKind::Paragraph => render_paragraph(ctx, id),
         NodeKind::Heading { level, setext } => render_heading(ctx, id, *level, *setext),

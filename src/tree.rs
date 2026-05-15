@@ -372,6 +372,22 @@ impl<'a> TreeBuilder<'a> {
         match event {
             Event::Start(tag) => {
                 let kind = self.kind_for_start(tag, &range);
+                // Pulldown's event range for an indented code block
+                // starts at the first content byte (after the 4-space
+                // / tab prefix). Walk back to the start of the line
+                // so `raw_text` includes the indent — the block's
+                // identity depends on it.
+                let range = if matches!(
+                    kind,
+                    NodeKind::CodeBlock {
+                        fenced: false,
+                        ..
+                    }
+                ) {
+                    widen_to_line_start(self.source, range)
+                } else {
+                    range
+                };
                 self.open_container(kind, range);
             }
             Event::End(_) => {
@@ -738,6 +754,20 @@ fn first_non_whitespace_byte(source: &str, start: usize) -> Option<u8> {
         .find(|b| !matches!(b, b' ' | b'\t'))
 }
 
+/// Widen `range` so its start sits at the beginning of the line that
+/// contains `range.start`. Used by [`Builder::handle`] for indented
+/// code blocks: pulldown's event range starts at the first content
+/// byte, which loses the 4-space / tab prefix the block's identity
+/// depends on.
+fn widen_to_line_start(source: &str, range: Range<usize>) -> Range<usize> {
+    let bytes = source.as_bytes();
+    let mut start = range.start.min(bytes.len());
+    while start > 0 && bytes.get(start.saturating_sub(1)).copied() != Some(b'\n') {
+        start = start.saturating_sub(1);
+    }
+    start..range.end
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
@@ -781,6 +811,107 @@ mod tests {
             let n = tree.node(id).expect("descendants only yields valid ids");
             assert!(n.raw_range.start <= n.raw_range.end);
             assert!(n.raw_range.end <= src.len());
+        }
+    }
+
+    #[test]
+    fn raw_range_covers_leading_sigil_per_block_kind() {
+        // Verbatim emission relies on `raw_text(id)` containing every
+        // block's full lexical extent — including the opening sigil
+        // (`#`, `>`, `-`, fence markers, indented-code prefix). A
+        // regression that drops the sigil would cause verbatim
+        // emission to silently lose information.
+        let src = "\
+# Heading
+> quote
+- list item
+```rust
+let x = 1;
+```
+    indented
+---
+<!-- html block -->
+";
+        let ir = Ir::parse(src);
+        let tree = &ir.tree;
+        for id in tree.descendants(tree.root()) {
+            let n = tree.node(id).expect("descendants yields valid ids");
+            let raw = tree.raw_text(id);
+            #[allow(clippy::wildcard_enum_match_arm)]
+            match &n.kind {
+                NodeKind::Heading { setext: false, .. } => {
+                    assert!(raw.starts_with('#'), "ATX heading missing `#`: {raw:?}");
+                }
+                NodeKind::BlockQuote => {
+                    assert!(raw.starts_with('>'), "blockquote missing `>`: {raw:?}");
+                }
+                NodeKind::List { .. } => {
+                    let first = raw.bytes().next().expect("non-empty list raw_text");
+                    assert!(
+                        matches!(first, b'-' | b'*' | b'+' | b'0'..=b'9'),
+                        "list missing bullet: {raw:?}",
+                    );
+                }
+                NodeKind::CodeBlock { fenced: true, .. } => {
+                    assert!(
+                        raw.starts_with("```") || raw.starts_with("~~~"),
+                        "fenced code block missing opening fence: {raw:?}",
+                    );
+                    assert!(
+                        raw.trim_end_matches('\n').ends_with("```")
+                            || raw.trim_end_matches('\n').ends_with("~~~"),
+                        "fenced code block missing closing fence: {raw:?}",
+                    );
+                }
+                NodeKind::CodeBlock { fenced: false, .. } => {
+                    assert!(
+                        raw.starts_with("    ") || raw.starts_with('\t'),
+                        "indented code block missing 4-space prefix: {raw:?}",
+                    );
+                }
+                NodeKind::HtmlBlock => {
+                    assert!(raw.starts_with('<'), "HTML block missing `<`: {raw:?}");
+                }
+                NodeKind::ThematicBreak => {
+                    let first = raw.bytes().next().expect("non-empty thematic break");
+                    assert!(
+                        matches!(first, b'-' | b'*' | b'_'),
+                        "thematic break missing marker: {raw:?}",
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn child_raw_range_is_contained_in_parent() {
+        // Containment is the structural form of "every node's source
+        // bytes lie inside its parent's source bytes". Required for
+        // verbatim emission to compose: a parent emitted verbatim
+        // wholly covers all of its children, so nested re-emission
+        // would double-print but never lose information.
+        let src = "# H\n\n> quote with *em*\n\n- item one\n- item two\n";
+        let ir = Ir::parse(src);
+        let tree = &ir.tree;
+        for id in tree.descendants(tree.root()) {
+            if id == tree.root() {
+                continue;
+            }
+            let Some(parent_id) = tree.parent(id) else {
+                continue;
+            };
+            let child = tree.node(id).expect("valid child id");
+            let parent = tree.node(parent_id).expect("valid parent id");
+            assert!(
+                parent.raw_range.start <= child.raw_range.start
+                    && child.raw_range.end <= parent.raw_range.end,
+                "child {:?} {:?} outside parent {:?} {:?}",
+                child.kind,
+                child.raw_range,
+                parent.kind,
+                parent.raw_range,
+            );
         }
     }
 

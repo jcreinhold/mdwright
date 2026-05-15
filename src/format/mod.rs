@@ -14,9 +14,10 @@ pub(crate) mod doc;
 pub(crate) mod escape;
 pub(crate) mod inline;
 pub(crate) mod math;
+pub(crate) mod verbatim;
 pub(crate) mod wrap;
 
-use crate::config::{EndOfLine, FmtOptions};
+use crate::config::{EndOfLine, FmtOptions, FormatMode};
 
 /// Ensure the rendered output ends in exactly one `\n` when
 /// `trailing_newline` is true, or no trailing newline when it is
@@ -70,7 +71,14 @@ pub(crate) fn format_document<'a>(
         admonitions,
         math_regions,
     };
-    let doc = block::render_block_sequence(&ctx, tree.root());
+    let doc = if opts.mode() == FormatMode::Verbatim {
+        // Emit the entire document source as one borrowed slice.
+        // Trailing-newline and end-of-line policies still apply at
+        // the document boundary; no block-level rewrite runs.
+        doc::unbreakable(doc::text(source))
+    } else {
+        block::render_block_sequence(&ctx, tree.root())
+    };
     let wrapped = wrap::wrap_doc(doc, opts.wrap());
     let mut out = doc::render(&wrapped, &doc::RenderOptions);
     normalize_trailing_newline(&mut out, opts.trailing_newline());

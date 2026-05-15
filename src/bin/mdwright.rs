@@ -1,10 +1,10 @@
-//! `mdwright` — math-resilient Markdown linter and (eventually)
-//! formatter. Subcommands:
+//! `mdwright` — math-resilient Markdown linter and formatter.
+//! Subcommands:
 //!
 //! - `check`     — lint files; non-zero exit if any non-advisory diag
 //! - `fix`       — apply safe autofixes in place
-//! - `fmt`       — reformat Markdown (Phase 3, not yet implemented)
-//! - `fmt-check` — verify formatting without writing (Phase 3)
+//! - `fmt`       — reformat Markdown
+//! - `fmt-check` — verify formatting without writing
 //! - `list-rules` — print the rule catalogue
 //!
 //! Output formats: `pretty` (default, coloured when tty),
@@ -40,8 +40,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use mdwright::{
-    Config, Diagnostic, Document, FmtOptions, FormatError, LintOptions, RuleSet, discover_markdown,
-    stdlib,
+    Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LintOptions, RuleSet,
+    discover_markdown, stdlib,
 };
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -77,9 +77,9 @@ enum Command {
     Check(LintArgs),
     /// Lint and apply safe autofixes in place.
     Fix(LintArgs),
-    /// Reformat Markdown files (Phase 3 — not yet implemented).
+    /// Reformat Markdown files.
     Fmt(FmtArgs),
-    /// Verify formatting without writing (Phase 3).
+    /// Verify formatting without writing.
     FmtCheck(FmtArgs),
     /// Print the rule catalogue.
     ListRules,
@@ -154,6 +154,26 @@ struct FmtArgs {
     /// not change the gate's pass/fail decision.
     #[arg(long)]
     explain_divergence: bool,
+
+    /// Formatter mode. `normalise` (default) applies every enabled
+    /// rewrite; `verbatim` emits source bytes 1-to-1.
+    #[arg(long, value_enum, default_value_t = ModeArg::Normalise)]
+    mode: ModeArg,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+enum ModeArg {
+    Normalise,
+    Verbatim,
+}
+
+impl From<ModeArg> for FormatMode {
+    fn from(m: ModeArg) -> Self {
+        match m {
+            ModeArg::Normalise => Self::Normalise,
+            ModeArg::Verbatim => Self::Verbatim,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -202,7 +222,7 @@ fn run_fmt(
     config_path: Option<&std::path::Path>,
 ) -> Result<ExitCode> {
     let cfg = Config::load(config_path).map_err(|e| anyhow!("{e}"))?;
-    let opts = cfg.fmt_options().clone();
+    let opts = cfg.fmt_options().clone().with_mode(args.mode.into());
     let check = args.check || force_check;
 
     if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {

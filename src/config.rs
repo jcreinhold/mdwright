@@ -152,6 +152,7 @@ pub struct FmtOptions {
     link_def_style: LinkDefStyle,
     footnote_placement: Placement,
     preserve_frontmatter: bool,
+    mode: FormatMode,
 }
 
 impl FmtOptions {
@@ -227,6 +228,22 @@ impl FmtOptions {
         self.preserve_frontmatter
     }
 
+    /// Formatter mode: [`FormatMode::Normalise`] applies enabled
+    /// rewrites; [`FormatMode::Verbatim`] emits source bytes 1-to-1.
+    #[must_use]
+    pub fn mode(&self) -> FormatMode {
+        self.mode
+    }
+
+    /// Override the formatter mode. Used by the CLI's `--mode` flag
+    /// and by callers (benches, tests) that need to opt into verbatim
+    /// emission programmatically.
+    #[must_use]
+    pub fn with_mode(mut self, mode: FormatMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
     /// Resolve the italic delimiter to emit, given the byte the
     /// source originally used (`b'*'` or `b'_'`). `Preserve` returns
     /// `source_delim`; fixed styles return their own byte. Keeps the
@@ -290,6 +307,7 @@ impl FmtOptions {
                 .placement
                 .map_or(default.footnote_placement, Placement::from),
             preserve_frontmatter: frontmatter.preserve.unwrap_or(default.preserve_frontmatter),
+            mode: default.mode,
         }
     }
 }
@@ -314,8 +332,28 @@ impl Default for FmtOptions {
             // [`crate::Document::format_validated`].
             footnote_placement: Placement::Preserve,
             preserve_frontmatter: true,
+            mode: FormatMode::Normalise,
         }
     }
+}
+
+/// Formatter operating mode.
+///
+/// [`Normalise`] (default) applies every enabled rewrite — italic
+/// delimiter normalisation, list-marker style, fence canonicalisation,
+/// wrap, escape sieve, and so on. [`Verbatim`] emits every block byte-
+/// for-byte from the source; only document-boundary normalisations
+/// (trailing newline, end-of-line policy) still apply.
+///
+/// [`Normalise`]: FormatMode::Normalise
+/// [`Verbatim`]: FormatMode::Verbatim
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum FormatMode {
+    /// Apply all enabled normalisations.
+    #[default]
+    Normalise,
+    /// Emit source bytes verbatim for every node.
+    Verbatim,
 }
 
 /// Emission position for collected items (link reference definitions,
