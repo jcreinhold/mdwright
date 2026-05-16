@@ -40,9 +40,7 @@ impl MathSpan {
             unbreakable(text(slice.to_owned()))
         };
 
-        if ctx.opts.mode() == crate::config::FormatMode::Verbatim
-            || !ctx.opts.math().normalise
-        {
+        if ctx.opts.mode() == crate::config::FormatMode::Verbatim || !ctx.opts.math().normalise {
             return verbatim();
         }
 
@@ -195,7 +193,12 @@ fn align_env_body(body: &str) -> String {
     }
     let rows: Vec<Vec<String>> = raw_rows
         .iter()
-        .map(|row| split_cells(row).into_iter().map(|c| c.trim().to_owned()).collect())
+        .map(|row| {
+            split_cells(row)
+                .into_iter()
+                .map(|c| c.trim().to_owned())
+                .collect()
+        })
         .collect();
 
     let n_cols = rows.iter().map(Vec::len).max().unwrap_or(0);

@@ -93,7 +93,8 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
                 if emitted > 0 {
                     parts.push(hard_line());
                 }
-                let doc = if let Some(region) = whole_block_math(&hits, &node.raw_range, ctx.source) {
+                let doc = if let Some(region) = whole_block_math(&hits, &node.raw_range, ctx.source)
+                {
                     let mut pieces: Vec<Doc<'a>> = Vec::with_capacity(3);
                     pieces.push(region.span.pretty(ctx, &region.range));
                     pieces.push(hard_line());
@@ -175,10 +176,7 @@ fn root_verbatim_safe(ctx: &PrettyCtx<'_>, id: NodeId) -> bool {
 /// Math regions overlapping `block` in source order. The returned
 /// references point into `ctx.math_regions`; their `range` fields are
 /// source-absolute.
-fn math_regions_in<'b>(
-    ctx: &'b PrettyCtx<'_>,
-    block: &Range<usize>,
-) -> Vec<&'b MathRegion> {
+fn math_regions_in<'b>(ctx: &'b PrettyCtx<'_>, block: &Range<usize>) -> Vec<&'b MathRegion> {
     ctx.math_regions
         .iter()
         .filter(|r| r.range.start < block.end && block.start < r.range.end)
@@ -202,8 +200,12 @@ fn whole_block_math<'b>(
     let region = hits.first().copied()?;
     let head = source.get(block.start..region.range.start)?;
     let tail = source.get(region.range.end..block.end)?;
-    if head.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
-        && tail.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+    if head
+        .bytes()
+        .all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+        && tail
+            .bytes()
+            .all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
     {
         Some(region)
     } else {

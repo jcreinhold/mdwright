@@ -98,9 +98,15 @@ pub(crate) fn scan_math_regions(
                         Some(k) => EnvKind::Known(k),
                         None => EnvKind::Custom(name_range),
                     };
-                    let span = MathSpan::Environment { env, body: body.clone() };
+                    let span = MathSpan::Environment {
+                        env,
+                        body: body.clone(),
+                    };
                     record_brace_errors(source, &region, &body, &mut errors);
-                    regions.push(MathRegion { range: region.clone(), span });
+                    regions.push(MathRegion {
+                        range: region.clone(),
+                        span,
+                    });
                     tracing::debug!(env = env_name, range = ?region, "env region");
                     i = end_after;
                     continue;
@@ -127,13 +133,28 @@ pub(crate) fn scan_math_regions(
                 let region = i..region_end;
                 let body = content_start..close_start;
                 let span = match delim {
-                    AnyDelim::Paren => MathSpan::Inline { delim: InlineDelim::Paren, body: body.clone() },
-                    AnyDelim::Dollar => MathSpan::Inline { delim: InlineDelim::Dollar, body: body.clone() },
-                    AnyDelim::Bracket => MathSpan::Display { delim: DisplayDelim::Bracket, body: body.clone() },
-                    AnyDelim::Dollar2 => MathSpan::Display { delim: DisplayDelim::Dollar2, body: body.clone() },
+                    AnyDelim::Paren => MathSpan::Inline {
+                        delim: InlineDelim::Paren,
+                        body: body.clone(),
+                    },
+                    AnyDelim::Dollar => MathSpan::Inline {
+                        delim: InlineDelim::Dollar,
+                        body: body.clone(),
+                    },
+                    AnyDelim::Bracket => MathSpan::Display {
+                        delim: DisplayDelim::Bracket,
+                        body: body.clone(),
+                    },
+                    AnyDelim::Dollar2 => MathSpan::Display {
+                        delim: DisplayDelim::Dollar2,
+                        body: body.clone(),
+                    },
                 };
                 record_brace_errors(source, &region, &body, &mut errors);
-                regions.push(MathRegion { range: region.clone(), span });
+                regions.push(MathRegion {
+                    range: region.clone(),
+                    span,
+                });
                 tracing::debug!(delim = delim.open(), range = ?region, "delim region");
                 i = region_end;
             }
@@ -159,7 +180,9 @@ fn record_brace_errors(
     body: &Range<usize>,
     errors: &mut Vec<MathError>,
 ) {
-    let Some(slice) = source.get(body.clone()) else { return };
+    let Some(slice) = source.get(body.clone()) else {
+        return;
+    };
     if let Err(local_offset) = super::pretty::body_braces_balanced(slice) {
         errors.push(MathError::UnbalancedBraces {
             offset: body.start.saturating_add(local_offset),
@@ -450,7 +473,10 @@ mod tests {
         assert_eq!(&s[regs[0].range.clone()], r"\[ A \]");
         assert!(matches!(
             regs[0].span,
-            MathSpan::Display { delim: DisplayDelim::Bracket, .. }
+            MathSpan::Display {
+                delim: DisplayDelim::Bracket,
+                ..
+            }
         ));
     }
 
@@ -472,7 +498,10 @@ mod tests {
         assert_eq!(&s[regs[0].range.clone()], r"\( a + b \)");
         assert!(matches!(
             regs[0].span,
-            MathSpan::Inline { delim: InlineDelim::Paren, .. }
+            MathSpan::Inline {
+                delim: InlineDelim::Paren,
+                ..
+            }
         ));
     }
 
@@ -582,7 +611,10 @@ mod tests {
         assert_eq!(&s[regs[0].range.clone()], "$$ x = 5 $$");
         assert!(matches!(
             regs[0].span,
-            MathSpan::Display { delim: DisplayDelim::Dollar2, .. }
+            MathSpan::Display {
+                delim: DisplayDelim::Dollar2,
+                ..
+            }
         ));
     }
 
@@ -598,7 +630,10 @@ mod tests {
         assert_eq!(&s[regs[0].range.clone()], "$a + b$");
         assert!(matches!(
             regs[0].span,
-            MathSpan::Inline { delim: InlineDelim::Dollar, .. }
+            MathSpan::Inline {
+                delim: InlineDelim::Dollar,
+                ..
+            }
         ));
     }
 
@@ -659,7 +694,10 @@ mod tests {
         assert_eq!(regs.len(), 1);
         assert!(matches!(
             &regs[0].span,
-            MathSpan::Environment { env: EnvKind::Known(KnownEnv::AlignStar), .. }
+            MathSpan::Environment {
+                env: EnvKind::Known(KnownEnv::AlignStar),
+                ..
+            }
         ));
     }
 
@@ -669,12 +707,18 @@ mod tests {
         let regs = regions(s);
         assert_eq!(regs.len(), 1);
         match &regs[0].span {
-            MathSpan::Environment { env: EnvKind::Custom(name_range), .. } => {
+            MathSpan::Environment {
+                env: EnvKind::Custom(name_range),
+                ..
+            } => {
                 assert_eq!(&s[name_range.clone()], "widget");
             }
             MathSpan::Inline { .. }
             | MathSpan::Display { .. }
-            | MathSpan::Environment { env: EnvKind::Known(_), .. } => {
+            | MathSpan::Environment {
+                env: EnvKind::Known(_),
+                ..
+            } => {
                 panic!("expected custom env")
             }
         }
@@ -698,7 +742,10 @@ mod tests {
         // is part of the body, not its own top-level region.
         assert!(matches!(
             &regs[0].span,
-            MathSpan::Display { delim: DisplayDelim::Bracket, .. }
+            MathSpan::Display {
+                delim: DisplayDelim::Bracket,
+                ..
+            }
         ));
     }
 
@@ -707,7 +754,10 @@ mod tests {
         let s = r"\[ \frac{a}{b \]";
         let (regs, errs) = scan(s);
         assert_eq!(regs.len(), 1);
-        assert!(errs.iter().any(|e| matches!(e, MathError::UnbalancedBraces { .. })));
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, MathError::UnbalancedBraces { .. }))
+        );
     }
 
     #[test]
@@ -715,7 +765,8 @@ mod tests {
         let s = r"\[ \{ a \} \]";
         let (_, errs) = scan(s);
         assert!(
-            errs.iter().all(|e| !matches!(e, MathError::UnbalancedBraces { .. })),
+            errs.iter()
+                .all(|e| !matches!(e, MathError::UnbalancedBraces { .. })),
             "escaped braces should not count: {errs:?}"
         );
     }

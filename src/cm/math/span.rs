@@ -133,7 +133,9 @@ impl MathSpan {
     /// to destructure the enum just to read the body span.
     pub(crate) fn body(&self) -> &Range<usize> {
         match self {
-            Self::Inline { body, .. } | Self::Display { body, .. } | Self::Environment { body, .. } => body,
+            Self::Inline { body, .. }
+            | Self::Display { body, .. }
+            | Self::Environment { body, .. } => body,
         }
     }
 }

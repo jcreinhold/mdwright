@@ -6,11 +6,11 @@
 //! `pretty()` method), and post-processes the rendered string for the
 //! configured trailing-newline + EOL policies.
 
+use crate::cm::math::MathRegion;
 use crate::cm::refs::ReferenceTable;
 use crate::config::{FmtOptions, FormatMode};
 use crate::format::block;
 use crate::format::doc::{self, RenderOptions};
-use crate::cm::math::MathRegion;
 use crate::format::pretty::PrettyCtx;
 use crate::format::wrap::wrap_doc;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
