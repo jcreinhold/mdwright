@@ -22,12 +22,15 @@ pub(crate) mod code;
 #[allow(dead_code)]
 pub(crate) mod heading;
 #[allow(dead_code)]
+pub(crate) mod list;
+#[allow(dead_code)]
 pub(crate) mod quote;
 #[allow(dead_code)]
 pub(crate) mod thematic;
 
 use code::{FencedCodeBlock, IndentedCodeBlock};
 use heading::Heading;
+use list::ListBlock;
 use quote::BlockQuote;
 use thematic::ThematicBreak;
 
@@ -45,4 +48,5 @@ pub(crate) enum TypedBlock<'a> {
     IndentedCodeBlock(IndentedCodeBlock<'a>),
     BlockQuote(BlockQuote),
     ThematicBreak(ThematicBreak),
+    ListBlock(ListBlock),
 }

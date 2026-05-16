@@ -17,6 +17,7 @@
 //! | `bare-url`                 | yes | no  |
 //! | `trailing-whitespace`      | yes | no  |
 //! | `inconsistent-list-marker` | yes | no  |
+//! | `list-tightness-flipped`   | no  | yes |
 //! | `duplicate-heading`        | yes | no  |
 //! | `unicodeable-subscript`    | yes | yes |
 //! | `info-string-typo`         | yes | yes |
@@ -34,6 +35,7 @@ mod heading_punctuation;
 mod inconsistent_list_marker;
 mod info_string_typo;
 mod latex_command;
+mod list_tightness_flipped;
 pub mod latex_unicode;
 mod orphan_reference_link;
 mod stray_dollar;
@@ -55,6 +57,7 @@ pub use heading_punctuation::HeadingPunctuation;
 pub use inconsistent_list_marker::InconsistentListMarker;
 pub use info_string_typo::InfoStringTypo;
 pub use latex_command::LatexCommand;
+pub use list_tightness_flipped::ListTightnessFlipped;
 pub use orphan_reference_link::OrphanReferenceLink;
 pub use stray_dollar::StrayDollar;
 pub use subscript_damage::SubscriptDamage;
@@ -81,6 +84,7 @@ pub const NAMES: &[&str] = &[
     "bare-url",
     "trailing-whitespace",
     "inconsistent-list-marker",
+    "list-tightness-flipped",
     "duplicate-heading",
     "unicodeable-subscript",
     "info-string-typo",
@@ -110,6 +114,7 @@ fn all_boxed() -> Vec<Box<dyn LintRule>> {
         Box::new(BareUrl),
         Box::new(TrailingWhitespace),
         Box::new(InconsistentListMarker),
+        Box::new(ListTightnessFlipped),
         Box::new(DuplicateHeading),
         Box::new(UnicodeableSubscript),
         Box::new(InfoStringTypo::new()),
@@ -178,7 +183,7 @@ mod tests {
         assert!(rs.contains("stray-dollar"));
         assert!(rs.contains("subscript-damage"));
         assert!(rs.contains("unbalanced-math-delim"));
-        assert!(rs.len() == 16);
+        assert!(rs.len() == 17);
     }
 
     #[test]

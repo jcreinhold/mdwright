@@ -37,6 +37,9 @@ use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
 use crate::cm::block::TypedBlock;
 use crate::cm::block::code::{CodeFenceChar, FencedCodeBlock, IndentedCodeBlock};
 use crate::cm::block::heading::{Heading, HeadingLevel, HeadingStyle};
+use crate::cm::block::list::{
+    ListBlock, ListItem, ListItemKind, ListMarker, TaskItem, Tightness, item_indent,
+};
 use crate::cm::block::quote::BlockQuote;
 use crate::cm::block::thematic::ThematicBreak;
 use crate::cm::inline::autolink::AutolinkRun;
@@ -688,31 +691,20 @@ impl<'a> TreeBuilder<'a> {
         let children_end = u32::try_from(self.child_ids.len()).unwrap_or(u32::MAX);
         let subtree_end = u32::try_from(self.arena.len()).unwrap_or(u32::MAX);
 
-        // Compute list tightness now that we know our children.
-        let tight = if drained_len == 0 {
-            true
-        } else {
-            let kind_is_list = matches!(
-                self.arena.get(frame.arena_id.idx()).map(|n| &n.kind),
-                Some(NodeKind::List { .. })
-            );
-            if kind_is_list {
-                self.compute_list_tight(children_start..children_end)
-            } else {
-                true
-            }
-        };
+        let _ = drained_len;
+        let raw_range = frame.raw_start..range.end;
+        let node_is_list = matches!(
+            self.arena.get(frame.arena_id.idx()).map(|n| &n.kind),
+            Some(NodeKind::List { .. })
+        );
 
+        // Stamp children / subtree_end / raw_range / body first so
+        // the arena reflects the final structure before we build the
+        // typed view (which reads the arena immutably).
         if let Some(node) = self.arena.get_mut(frame.arena_id.idx()) {
             node.children = children_start..children_end;
             node.subtree_end = subtree_end;
-            node.raw_range = frame.raw_start..range.end;
-            if let NodeKind::List {
-                tight: ref mut t, ..
-            } = node.kind
-            {
-                *t = tight;
-            }
+            node.raw_range = raw_range;
             // Stamp the accumulated body onto CodeBlock / HtmlBlock.
             #[allow(clippy::wildcard_enum_match_arm)]
             if let Some(body) = frame.body_accum {
@@ -723,44 +715,35 @@ impl<'a> TreeBuilder<'a> {
                     _ => {}
                 }
             }
-            // Stamp the typed-block view alongside the legacy `kind`
-            // for the block kinds Phase R has lifted into types. The
-            // typed value's constructor encodes CM well-formedness
-            // (level ∈ 1..=6, fence > longest body run, etc.); a
-            // `None` here means either the kind is not yet typed or
-            // the source-derived data violated an invariant — in
-            // which case the legacy `kind` still drives emission.
-            node.typed = build_typed_block(&node.kind, self.source, node.raw_range.clone());
         }
-    }
 
-    /// A list is loose iff any direct `Item` child has a direct
-    /// `Paragraph` child. Pulldown elides the Paragraph wrapper inside
-    /// tight items, so this is a purely structural test.
-    fn compute_list_tight(&self, item_range: Range<u32>) -> bool {
-        for i in item_range {
-            let Some(&item_id) = self.child_ids.get(i as usize) else {
-                continue;
-            };
-            let Some(item_node) = self.arena.get(item_id.idx()) else {
-                continue;
-            };
-            if !matches!(item_node.kind, NodeKind::Item { .. }) {
-                continue;
+        // Build the typed-block view. Lists need a structural walk of
+        // their item children so they go through a dedicated builder;
+        // other kinds project from `NodeKind` alone. A `None` typed
+        // value means either the kind is not yet typed or the
+        // source-derived data violated an invariant — in which case
+        // the legacy `kind` still drives emission.
+        let typed = if node_is_list {
+            build_list_block(&self.arena, &self.child_ids, self.source, frame.arena_id)
+                .map(TypedBlock::ListBlock)
+        } else {
+            self.arena
+                .get(frame.arena_id.idx())
+                .and_then(|n| build_typed_block(&n.kind, self.source, n.raw_range.clone()))
+        };
+
+        if let Some(node) = self.arena.get_mut(frame.arena_id.idx()) {
+            // Mirror derived tightness into the legacy `NodeKind::List`
+            // field so the legacy formatter (block.rs:794) keeps
+            // working unchanged. This mirror retires alongside the
+            // formatter swap in prompt 27.
+            if let (NodeKind::List { tight: t, .. }, Some(TypedBlock::ListBlock(lb))) =
+                (&mut node.kind, &typed)
+            {
+                *t = matches!(lb.tightness(), Tightness::Tight);
             }
-            for j in item_node.children.clone() {
-                let Some(&child_id) = self.child_ids.get(j as usize) else {
-                    continue;
-                };
-                if matches!(
-                    self.arena.get(child_id.idx()).map(|n| &n.kind),
-                    Some(NodeKind::Paragraph)
-                ) {
-                    return false;
-                }
-            }
+            node.typed = typed;
         }
-        true
     }
 
     /// Handle the tail portion of an event whose source range
@@ -1041,6 +1024,113 @@ fn build_typed_block<'a>(
         }
         _ => None,
     }
+}
+
+/// Build the typed [`ListBlock`] view from a list `Node`'s arena
+/// state. Returns `None` for degenerate shapes (no items, marker byte
+/// outside `-*+0..9`); the IR falls back to legacy `NodeKind::List`
+/// emission in that case.
+fn build_list_block<'a>(
+    arena: &[Node<'a>],
+    child_ids: &[NodeId],
+    source: &'a str,
+    list_id: NodeId,
+) -> Option<ListBlock> {
+    let list_node = arena.get(list_id.idx())?;
+    let NodeKind::List {
+        ordered,
+        start,
+        marker_byte,
+        ..
+    } = &list_node.kind
+    else {
+        return None;
+    };
+    let marker = ListMarker::from_legacy(
+        *ordered,
+        *start,
+        *marker_byte,
+        source,
+        list_node.raw_range.clone(),
+    )?;
+
+    let mut items: Vec<ListItemKind> = Vec::new();
+    for i in list_node.children.clone() {
+        let Some(&item_id) = child_ids.get(i as usize) else {
+            continue;
+        };
+        let Some(item_node) = arena.get(item_id.idx()) else {
+            continue;
+        };
+        let NodeKind::Item { task: task_state } = item_node.kind else {
+            continue;
+        };
+        let indent = item_indent(source, item_node.raw_range.clone());
+        let has_para = item_has_direct_paragraph(arena, child_ids, item_node);
+        items.push(match task_state {
+            Some(checked) => {
+                let body_empty = task_item_body_empty(arena, child_ids, item_node);
+                ListItemKind::Task(TaskItem::new(
+                    item_id, indent, has_para, checked, body_empty,
+                ))
+            }
+            None => ListItemKind::Plain(ListItem::new(item_id, indent, has_para)),
+        });
+    }
+    ListBlock::try_new(marker, items).ok()
+}
+
+fn item_has_direct_paragraph(arena: &[Node<'_>], child_ids: &[NodeId], item: &Node<'_>) -> bool {
+    for j in item.children.clone() {
+        let Some(&cid) = child_ids.get(j as usize) else {
+            continue;
+        };
+        if matches!(
+            arena.get(cid.idx()).map(|n| &n.kind),
+            Some(NodeKind::Paragraph)
+        ) {
+            return true;
+        }
+    }
+    false
+}
+
+/// A task item's body is empty when its only inline content is the
+/// `TaskListMarker` leaf. Pulldown nests the marker inside the item's
+/// first paragraph, so we inspect both the item's direct children and
+/// the grandchildren of any direct `Paragraph`.
+fn task_item_body_empty(
+    arena: &[Node<'_>],
+    child_ids: &[NodeId],
+    item: &Node<'_>,
+) -> bool {
+    for j in item.children.clone() {
+        let Some(&cid) = child_ids.get(j as usize) else {
+            continue;
+        };
+        let Some(child) = arena.get(cid.idx()) else {
+            continue;
+        };
+        if matches!(child.kind, NodeKind::TaskListMarker(_)) {
+            continue;
+        }
+        if matches!(child.kind, NodeKind::Paragraph) {
+            for k in child.children.clone() {
+                let Some(&gcid) = child_ids.get(k as usize) else {
+                    continue;
+                };
+                let Some(gchild) = arena.get(gcid.idx()) else {
+                    continue;
+                };
+                if !matches!(gchild.kind, NodeKind::TaskListMarker(_)) {
+                    return false;
+                }
+            }
+        } else {
+            return false;
+        }
+    }
+    true
 }
 
 /// First fence character (`` ` `` or `~`) inside `raw_range`. Used to

@@ -23,6 +23,8 @@ use crate::line_index::LineIndex;
 use crate::rule_set::RuleSet;
 use crate::stdlib;
 use crate::suppression::SuppressionMap;
+use crate::cm::block::TypedBlock;
+use crate::cm::block::list::ListBlock;
 use crate::tree::Tree;
 
 /// Errors returned by [`Document::format_validated`].
@@ -179,6 +181,27 @@ impl<'a> Document<'a> {
     #[must_use]
     pub fn list_groups(&self) -> &[ListGroup] {
         &self.ir.list_groups
+    }
+
+    /// Each [`ListGroup`] paired with its typed [`ListBlock`] view,
+    /// when one was constructed (degenerate lists carry no typed
+    /// view). Pairing is by `raw_range.start`, which is unique across
+    /// lists in source order.
+    pub(crate) fn typed_list_blocks(&self) -> Vec<(&ListGroup, &ListBlock)> {
+        let mut typed_by_start: std::collections::HashMap<usize, &ListBlock> =
+            std::collections::HashMap::new();
+        let tree = self.tree();
+        for id in tree.descendants(tree.root()) {
+            let Some(node) = tree.node(id) else { continue };
+            if let Some(TypedBlock::ListBlock(lb)) = &node.typed {
+                typed_by_start.insert(node.raw_range.start, lb);
+            }
+        }
+        self.ir
+            .list_groups
+            .iter()
+            .filter_map(|g| typed_by_start.get(&g.raw_range.start).map(|lb| (g, *lb)))
+            .collect()
     }
 
     /// Link reference definitions. Materialised on demand from the
