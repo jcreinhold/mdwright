@@ -1,3 +1,0 @@
-# GFM spec cases skipped by the runner.
-# Format: `<case-number> <reason>` (one entry per line; `#` comments allowed).
-# Keep this list short. ≤ 5 entries at landing.

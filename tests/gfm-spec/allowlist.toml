@@ -1,0 +1,19 @@
+# GFM spec editorial-deviation index.
+#
+# Each entry is a per-case TOML record documenting why mdwright's
+# formatter intentionally diverges from the spec example. Entries here
+# are *not* tracked as regressions in `snapshot.txt`; they are choices.
+#
+# Required fields per entry:
+#   number — spec example number (1-based, as parsed by gfm_spec.rs)
+#   bucket — short tag grouping similar deviations
+#   reason — one-line justification
+#   docs   — pointer to authoritative explanation
+#
+# Keep entries short. Adding here moves a failure out of `snapshot.txt`;
+# the snapshot test asserts every non-allowlisted failure is recorded.
+#
+# This file starts empty. Phase R's job is not to categorise the 243
+# current sieve failures — it is to establish the *mechanism* for
+# categorising them. Subsequent prompts (29-r-perf-and-release.md and
+# beyond) populate this file as fixes land or deviations are accepted.

@@ -128,6 +128,167 @@ proptest! {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Per-construct laws.
+//
+// Each `arb_*_src` generator from `tests/common/proptest_gen.rs` emits
+// a Markdown fragment shaped like one CM/GFM construct, biased toward
+// boundary cases for that construct. The contract is the same one the
+// whole-document laws above check (idempotence + html-preservation
+// through `Document::parse + format`); per-construct laws shrink
+// failures to a single-construct fragment instead of a tangled
+// multi-block document.
+//
+// Per-construct laws live at the same layer as the document laws on
+// purpose: the user-visible contract is "formatted Markdown reparses
+// to the same meaning", which only exists at the public surface.
+// Coupling tests to internal IR types (`cm::inline::EmphasisRun`, etc.)
+// would bake an implementation choice into the test suite — see
+// `/Users/jcreinhold/.claude/plans/phase-r-per-construct-keen-firefly.md`.
+// ---------------------------------------------------------------------------
+
+fn check_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
+    let opts = FmtOptions::default();
+    let once = Document::parse(src).format(&opts);
+    let twice = Document::parse(&once).format(&opts);
+    if once != twice {
+        dump_counterexample(label, src);
+    }
+    prop_assert_eq!(once, twice);
+    Ok(())
+}
+
+fn check_html_preserving(label: &str, src: &str) -> Result<(), TestCaseError> {
+    let opts = FmtOptions::default();
+    let formatted = Document::parse(src).format(&opts);
+    let before = render_html(src);
+    let after = render_html(&formatted);
+    if before != after {
+        dump_counterexample(label, src);
+    }
+    prop_assert_eq!(before, after);
+    Ok(())
+}
+
+proptest! {
+    #[test]
+    fn emphasis_fragments_idempotent(s in generators::arb_emphasis_src()) {
+        check_idempotent("emphasis_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn emphasis_fragments_html_preserving(s in generators::arb_emphasis_src()) {
+        check_html_preserving("emphasis_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn strong_fragments_idempotent(s in generators::arb_strong_src()) {
+        check_idempotent("strong_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn strong_fragments_html_preserving(s in generators::arb_strong_src()) {
+        check_html_preserving("strong_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn link_inline_fragments_idempotent(s in generators::arb_link_inline_src()) {
+        check_idempotent("link_inline_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn link_inline_fragments_html_preserving(s in generators::arb_link_inline_src()) {
+        check_html_preserving("link_inline_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn link_reference_fragments_idempotent(s in generators::arb_link_reference_src()) {
+        check_idempotent("link_reference_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn link_reference_fragments_html_preserving(s in generators::arb_link_reference_src()) {
+        check_html_preserving("link_reference_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn autolink_fragments_idempotent(s in generators::arb_autolink_src()) {
+        check_idempotent("autolink_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn autolink_fragments_html_preserving(s in generators::arb_autolink_src()) {
+        check_html_preserving("autolink_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn code_span_fragments_idempotent(s in generators::arb_code_span_src()) {
+        check_idempotent("code_span_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn code_span_fragments_html_preserving(s in generators::arb_code_span_src()) {
+        check_html_preserving("code_span_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn heading_fragments_idempotent(s in generators::arb_heading_src()) {
+        check_idempotent("heading_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn heading_fragments_html_preserving(s in generators::arb_heading_src()) {
+        check_html_preserving("heading_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn fenced_code_fragments_idempotent(s in generators::arb_fenced_code_src()) {
+        check_idempotent("fenced_code_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn fenced_code_fragments_html_preserving(s in generators::arb_fenced_code_src()) {
+        check_html_preserving("fenced_code_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn quote_fragments_idempotent(s in generators::arb_quote_src()) {
+        check_idempotent("quote_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn quote_fragments_html_preserving(s in generators::arb_quote_src()) {
+        check_html_preserving("quote_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn list_fragments_idempotent(s in generators::arb_list_src()) {
+        check_idempotent("list_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn list_fragments_html_preserving(s in generators::arb_list_src()) {
+        check_html_preserving("list_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn table_fragments_idempotent(s in generators::arb_table_src()) {
+        check_idempotent("table_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn table_fragments_html_preserving(s in generators::arb_table_src()) {
+        check_html_preserving("table_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn thematic_fragments_idempotent(s in generators::arb_thematic_src()) {
+        check_idempotent("thematic_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn thematic_fragments_html_preserving(s in generators::arb_thematic_src()) {
+        check_html_preserving("thematic_fragments_html_preserving", &s)?;
+    }
+
+    #[test]
+    fn footnote_fragments_idempotent(s in generators::arb_footnote_src()) {
+        check_idempotent("footnote_fragments_idempotent", &s)?;
+    }
+    #[test]
+    fn footnote_fragments_html_preserving(s in generators::arb_footnote_src()) {
+        check_html_preserving("footnote_fragments_html_preserving", &s)?;
+    }
+}
+
 // ----- 4096-case sweep, run with `--ignored`. -----
 
 proptest! {

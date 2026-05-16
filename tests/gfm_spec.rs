@@ -4,42 +4,54 @@
     reason = "test harness; failure modes are aggregated assertions, not panics for users"
 )]
 
-//! GFM spec compliance.
+//! GFM spec conformance, as a snapshot.
 //!
-//! Vendored cmark-gfm `spec.txt` under `tests/gfm-spec/`. Each example
-//! is `parse → format → parse → format → compare`; the runner asserts
-//! the formatter is a fixed point of GFM-compliant parsing, and that
-//! source and formatted output share both HTML rendering (cheap
-//! invariant) and a normalised pulldown-cmark event stream (the
-//! stronger invariant that catches silent raw-HTML insertion).
+//! Vendored cmark-gfm `spec.txt` lives under `tests/gfm-spec/`. Each
+//! example is run through `parse → format → parse → format` and
+//! compared against the source's HTML and normalised event stream.
+//! Phase R retired the ratchet:
 //!
-//! [`gfm_spec_full`] runs every case behind `#[ignore]`. The
-//! allowlist at `tests/gfm-spec/known-mismatches.txt` curates the
-//! known divergences; per-construct round-trip proptests in later
-//! prompts will retire the ratchet.
+//! * [`gfm_spec_snapshot`] runs every case, collects the residual
+//!   `(case, kind)` failures *not* covered by the editorial
+//!   allowlist, and asserts they match `tests/gfm-spec/snapshot.txt`
+//!   byte-for-byte. Any drift — regression *or* improvement — fails
+//!   the test with a diff-friendly message. Regenerate with
+//!   `MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot`.
+//! * [`gfm_spec_coverage`] prints a three-line coverage report and
+//!   asserts that every spec case is accounted for as either
+//!   `matching`, `intentional deviation` (allowlist), or `tracked
+//!   regression` (snapshot).
+//!
+//! The user-visible contract is exercised at proptest scale in
+//! `tests/properties.rs`; this file is the *index* of where the
+//! formatter still drifts from the spec, not the contract itself.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fmt::Write as _;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use mdwright::{Document, FmtOptions, render_html};
 use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use serde::Deserialize;
 
 #[derive(Debug)]
 struct SpecCase {
     number: u32,
     section: String,
-    class: String,
     source: String,
 }
 
-fn spec_path() -> std::path::PathBuf {
+fn spec_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/gfm-spec/spec.txt")
 }
 
-fn allowlist_path() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/gfm-spec/known-mismatches.txt")
+fn allowlist_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/gfm-spec/allowlist.toml")
+}
+
+fn snapshot_path() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/gfm-spec/snapshot.txt")
 }
 
 fn load_spec() -> Vec<SpecCase> {
@@ -47,20 +59,35 @@ fn load_spec() -> Vec<SpecCase> {
     parse_spec(&text)
 }
 
-fn load_allowlist() -> HashSet<u32> {
+/// Per-case structured editorial deviation. The allowlist is the
+/// curated list of spec cases whose divergence we accept as a
+/// formatting choice, not as a bug; each entry documents *why* and
+/// where to read more.
+#[derive(Debug, Deserialize)]
+struct AllowEntry {
+    number: u32,
+    #[allow(dead_code)]
+    bucket: String,
+    #[allow(dead_code)]
+    reason: String,
+    #[allow(dead_code)]
+    docs: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct AllowFile {
+    #[serde(default, rename = "case")]
+    cases: Vec<AllowEntry>,
+}
+
+fn load_allowlist() -> Vec<AllowEntry> {
     let text = fs::read_to_string(allowlist_path()).unwrap_or_default();
-    let mut out = HashSet::new();
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-        let token = trimmed.split_whitespace().next().unwrap_or("");
-        if let Ok(n) = token.parse::<u32>() {
-            out.insert(n);
-        }
+    if text.trim().is_empty() {
+        return Vec::new();
     }
-    out
+    let parsed: AllowFile =
+        toml::from_str(&text).unwrap_or_else(|e| panic!("parse allowlist.toml: {e}"));
+    parsed.cases
 }
 
 /// Spec-example block syntax: a 32-backtick fence opens with the
@@ -91,10 +118,9 @@ fn parse_spec(text: &str) -> Vec<SpecCase> {
             continue;
         };
         let header_rest = header_rest.trim_start();
-        let Some(class_part) = header_rest.strip_prefix("example") else {
+        if header_rest.strip_prefix("example").is_none() {
             continue;
-        };
-        let class = class_part.trim().to_owned();
+        }
         number = number.saturating_add(1);
 
         let mut source = String::new();
@@ -118,7 +144,6 @@ fn parse_spec(text: &str) -> Vec<SpecCase> {
         out.push(SpecCase {
             number,
             section: section.clone(),
-            class,
             source,
         });
     }
@@ -140,10 +165,7 @@ fn parser_options() -> Options {
 
 /// Strings-only normalisation of a pulldown-cmark event stream. Drops
 /// byte ranges and `CowStr` provenance so structurally-equivalent
-/// streams from different sources compare equal. The level of detail
-/// is deliberately coarse — we want to catch *meaning* changes
-/// (insertion of HTML, dropped emphasis, structural divergence), not
-/// punish cosmetic differences in how text is chunked.
+/// streams from different sources compare equal.
 fn ast_events(source: &str) -> Vec<String> {
     let parser = Parser::new_ext(source, parser_options());
     let mut out = Vec::new();
@@ -221,140 +243,79 @@ fn normalise_tag_end(tag: TagEnd) -> String {
     format!("{tag:?}")
 }
 
-#[derive(Debug, Default, Clone)]
-struct CaseFailure {
-    case: u32,
-    section: String,
-    class: String,
-    kind: &'static str,
-    detail: String,
-}
+/// Kind labels are part of the snapshot file's stable surface; the
+/// order here doubles as the sort order when multiple kinds fail for
+/// one case.
+const KIND_IDEMPOTENCE: &str = "idempotence";
+const KIND_HTML: &str = "html";
+const KIND_AST: &str = "ast";
 
 #[tracing::instrument(level = "info", name = "run_case", skip(case), fields(case = case.number, section = %case.section))]
-fn run_case(case: &SpecCase) -> Vec<CaseFailure> {
-    let mut fails = Vec::new();
+fn run_case(case: &SpecCase) -> Vec<&'static str> {
+    let mut kinds = Vec::new();
     let opts = FmtOptions::default();
     let formatted = Document::parse(&case.source).format(&opts);
 
-    // Idempotence.
     let refmt = Document::parse(&formatted).format(&opts);
     if refmt != formatted {
-        tracing::debug!(case = case.number, kind = "idempotence", "spec case fail");
-        fails.push(CaseFailure {
-            case: case.number,
-            section: case.section.clone(),
-            class: case.class.clone(),
-            kind: "idempotence",
-            detail: format!(
-                "format(format(x)) != format(x)\nsource:\n{}---\nformatted:\n{formatted}---\nrefmt:\n{refmt}---",
-                case.source
-            ),
-        });
+        kinds.push(KIND_IDEMPOTENCE);
         // If the formatter is not idempotent on this case, the HTML /
         // AST comparisons are noise — bail.
-        return fails;
+        return kinds;
     }
 
     let src_html = render_html(&case.source);
     let fmt_html = render_html(&formatted);
     if src_html != fmt_html {
-        tracing::debug!(case = case.number, kind = "html", "spec case fail");
-        fails.push(CaseFailure {
-            case: case.number,
-            section: case.section.clone(),
-            class: case.class.clone(),
-            kind: "html",
-            detail: format!(
-                "HTML differs:\nsource:\n{}---\nformatted:\n{formatted}---\nsource_html:\n{src_html}\nformatted_html:\n{fmt_html}",
-                case.source
-            ),
-        });
+        kinds.push(KIND_HTML);
     }
 
     let src_ast = ast_events(&case.source);
     let fmt_ast = ast_events(&formatted);
     if src_ast != fmt_ast {
-        tracing::debug!(case = case.number, kind = "ast", "spec case fail");
-        fails.push(CaseFailure {
-            case: case.number,
-            section: case.section.clone(),
-            class: case.class.clone(),
-            kind: "ast",
-            detail: format!(
-                "AST event streams differ:\nsource:\n{}---\nformatted:\n{formatted}---\nsource_events:\n{src_ast:#?}\nformatted_events:\n{fmt_ast:#?}",
-                case.source
-            ),
-        });
+        kinds.push(KIND_AST);
     }
-    fails
+    kinds
 }
 
-fn report(fails: &[CaseFailure], total: usize) -> String {
-    let mut out = format!("{} failure(s) across {total} case(s):\n", fails.len());
-    for f in fails {
-        let _ = write!(
-            out,
-            "\n--- case {} ({}, {}) [{}] ---\n{}\n",
-            f.case,
-            if f.section.is_empty() {
-                "?"
-            } else {
-                f.section.as_str()
-            },
-            if f.class.is_empty() {
-                "core"
-            } else {
-                f.class.as_str()
-            },
-            f.kind,
-            f.detail,
-        );
+/// Collected per-case results: `case_number → (section, [failing kinds])`.
+/// `BTreeMap` for deterministic snapshot order.
+fn collect_failures(cases: &[SpecCase]) -> BTreeMap<u32, (String, Vec<&'static str>)> {
+    let mut out = BTreeMap::new();
+    for case in cases {
+        let kinds = run_case(case);
+        if !kinds.is_empty() {
+            out.insert(case.number, (case.section.clone(), kinds));
+        }
     }
     out
 }
 
-/// Baseline failure count for the full spec sweep. The exhaustive
-/// sweep asserts `failures ≤ FULL_BASELINE_FAILURES`: regressions
-/// fail the test, improvements pass with room to lower the baseline
-/// on the next commit. The current value reflects mdwright's
-/// formatter as of Phase 3 landing — substantial gaps remain (notably
-/// raw-HTML round-tripping, list-item idempotence, and edge cases in
-/// emphasis nesting). Future sessions tighten this number toward zero.
-const FULL_BASELINE_FAILURES: usize = 243;
-
-fn run_subset(cases: &[SpecCase], allow: &HashSet<u32>) -> (Vec<CaseFailure>, usize) {
-    let mut fails = Vec::new();
-    let mut count = 0usize;
-    for case in cases {
-        if allow.contains(&case.number) {
+/// One-line-per-failing-kind format. Stable, sortable, diff-friendly.
+fn render_snapshot(
+    failures: &BTreeMap<u32, (String, Vec<&'static str>)>,
+    allowlist: &BTreeSet<u32>,
+) -> String {
+    let mut out = String::from(
+        "# GFM spec snapshot. Auto-generated; one line per (case, kind) failure.\n\
+         # Regenerate after a deliberate fix with:\n\
+         #   MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot\n\
+         # Allowlisted (editorial deviation) cases are filtered out — see allowlist.toml.\n",
+    );
+    for (num, (section, kinds)) in failures {
+        if allowlist.contains(num) {
             continue;
         }
-        count = count.saturating_add(1);
-        fails.extend(run_case(case));
+        let section = if section.is_empty() {
+            "?"
+        } else {
+            section.as_str()
+        };
+        for kind in kinds {
+            let _ = writeln!(out, "{num:<5} {kind:<11} {section}");
+        }
     }
-    (fails, count)
-}
-
-/// Exhaustive sweep. Asserts the failure count does not exceed
-/// [`FULL_BASELINE_FAILURES`]; the absolute count is informational.
-/// `#[ignore]`d by default — run with
-/// `cargo test --release -- --ignored gfm_spec_full`.
-#[test]
-#[ignore = "full GFM spec sweep; run with `cargo test --release -- --ignored gfm_spec_full`"]
-fn gfm_spec_full() {
-    let cases = load_spec();
-    let allow = load_allowlist();
-    let (fails, count) = run_subset(&cases, &allow);
-    assert!(count > 0, "spec parse produced no cases");
-    let unique_cases: HashSet<u32> = fails.iter().map(|f| f.case).collect();
-    let n = unique_cases.len();
-    eprintln!("gfm_spec_full: {n} cases failed across {count} total");
-    assert!(
-        n <= FULL_BASELINE_FAILURES,
-        "{n} failing cases; baseline is {FULL_BASELINE_FAILURES}. \
-         A regression has been introduced. Sample failures:\n{}",
-        report(&fails.iter().take(10).cloned().collect::<Vec<_>>(), count)
-    );
+    out
 }
 
 #[test]
@@ -365,4 +326,143 @@ fn spec_parses_to_nonempty() {
         "spec parse produced only {} cases; expected ~670",
         cases.len()
     );
+}
+
+#[test]
+fn allowlist_is_well_formed() {
+    let cases = load_spec();
+    let valid: HashSet<u32> = cases.iter().map(|c| c.number).collect();
+    let entries = load_allowlist();
+    let mut seen = HashSet::new();
+    for entry in &entries {
+        assert!(
+            valid.contains(&entry.number),
+            "allowlist references case {} which is not in the spec",
+            entry.number
+        );
+        assert!(
+            seen.insert(entry.number),
+            "allowlist has a duplicate entry for case {}",
+            entry.number
+        );
+        assert!(
+            !entry.bucket.is_empty(),
+            "allowlist entry for case {} has empty bucket",
+            entry.number
+        );
+        assert!(
+            !entry.reason.is_empty(),
+            "allowlist entry for case {} has empty reason",
+            entry.number
+        );
+        assert!(
+            !entry.docs.is_empty(),
+            "allowlist entry for case {} has empty docs",
+            entry.number
+        );
+    }
+}
+
+/// Snapshot of all currently-failing non-allowlisted spec cases. Any
+/// drift — regression *or* improvement — fails the test. To rebaseline
+/// after a deliberate change, set `MDWRIGHT_UPDATE_SNAPSHOT=1`.
+#[test]
+fn gfm_spec_snapshot() {
+    let cases = load_spec();
+    let allowlist: BTreeSet<u32> = load_allowlist().iter().map(|e| e.number).collect();
+    let failures = collect_failures(&cases);
+    let actual = render_snapshot(&failures, &allowlist);
+    let path = snapshot_path();
+
+    if std::env::var_os("MDWRIGHT_UPDATE_SNAPSHOT").is_some() {
+        fs::write(&path, &actual).unwrap_or_else(|e| panic!("write snapshot: {e}"));
+        eprintln!("snapshot rewritten at {}", path.display());
+        return;
+    }
+
+    let expected = fs::read_to_string(&path).unwrap_or_default();
+    if actual != expected {
+        let diff = unified_diff(&expected, &actual);
+        panic!(
+            "GFM spec snapshot drift at {}.\n\
+             Rebaseline with: MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot\n\
+             \n--- expected (snapshot.txt)\n+++ actual (current run)\n{diff}",
+            path.display(),
+        );
+    }
+}
+
+/// Three-line coverage report. Asserts that every spec case is
+/// accounted for as one of: matches the formatter exactly,
+/// intentionally deviates (allowlist), or is a tracked regression
+/// (snapshot). `unexpected == 0` is the live invariant.
+#[test]
+fn gfm_spec_coverage() {
+    let cases = load_spec();
+    let allowlist: BTreeSet<u32> = load_allowlist().iter().map(|e| e.number).collect();
+    let failing_cases: BTreeSet<u32> = collect_failures(&cases).keys().copied().collect();
+    let total = cases.len();
+    let intentional = allowlist.len();
+    let tracked = failing_cases.difference(&allowlist).count();
+    let matching = total
+        .saturating_sub(intentional)
+        .saturating_sub(tracked);
+    let unexpected = failing_cases
+        .iter()
+        .filter(|n| !allowlist.contains(n))
+        .filter(|n| {
+            // A case is "unexpected" only if it isn't already recorded
+            // in the snapshot. The snapshot is the ratchet on
+            // *known* regressions; `unexpected` is reserved for
+            // cases that escape both lists.
+            !snapshot_records(**n)
+        })
+        .count();
+
+    eprintln!(
+        "GFM spec coverage:\n  total cases:        {total}\n  fully matching:     {matching}\n  intentional dev:    {intentional}\n  tracked regression: {tracked}\n  unexpected:         {unexpected}"
+    );
+    assert_eq!(unexpected, 0, "{unexpected} cases failed without being in the snapshot or allowlist");
+}
+
+/// True if the snapshot file contains a failure line for `case`.
+/// Reads the snapshot from disk once per call; coverage runs in
+/// `O(snapshot_size)` which is fine for a few hundred lines.
+fn snapshot_records(case: u32) -> bool {
+    let Ok(text) = fs::read_to_string(snapshot_path()) else {
+        return false;
+    };
+    let prefix = format!("{case} ");
+    text.lines().any(|l| {
+        let trimmed = l.trim_start();
+        trimmed.starts_with(&prefix) || trimmed.starts_with(&format!("{case:<5}"))
+    })
+}
+
+/// Bare-bones line-by-line diff for the snapshot drift message; we
+/// keep this in-crate to avoid pulling in a diff dep just for tests.
+fn unified_diff(old: &str, new: &str) -> String {
+    let old_lines: Vec<&str> = old.lines().collect();
+    let new_lines: Vec<&str> = new.lines().collect();
+    let mut out = String::new();
+    let max = old_lines.len().max(new_lines.len());
+    for i in 0..max {
+        match (old_lines.get(i), new_lines.get(i)) {
+            (Some(a), Some(b)) if a == b => {
+                let _ = writeln!(out, " {a}");
+            }
+            (Some(a), Some(b)) => {
+                let _ = writeln!(out, "-{a}");
+                let _ = writeln!(out, "+{b}");
+            }
+            (Some(a), None) => {
+                let _ = writeln!(out, "-{a}");
+            }
+            (None, Some(b)) => {
+                let _ = writeln!(out, "+{b}");
+            }
+            (None, None) => {}
+        }
+    }
+    out
 }

@@ -1,0 +1,90 @@
+# GFM spec snapshot. Auto-generated; one line per (case, kind) failure.
+# Regenerate after a deliberate fix with:
+#   MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot
+# Allowlisted (editorial deviation) cases are filtered out — see allowlist.toml.
+5     ast         Tabs
+6     ast         Tabs
+7     ast         Tabs
+16    ast         Thematic breaks
+19    ast         Thematic breaks
+31    idempotence Thematic breaks
+40    idempotence ATX headings
+57    html        Setext headings
+57    ast         Setext headings
+61    ast         Setext headings
+63    idempotence Setext headings
+102   ast         Fenced code blocks
+103   ast         Fenced code blocks
+108   idempotence Fenced code blocks
+120   html        HTML blocks
+120   ast         HTML blocks
+152   html        HTML blocks
+152   ast         HTML blocks
+153   html        HTML blocks
+153   ast         HTML blocks
+160   html        HTML blocks
+160   ast         HTML blocks
+169   html        Link reference definitions
+169   ast         Link reference definitions
+171   html        Link reference definitions
+171   ast         Link reference definitions
+214   ast         Block quotes
+216   idempotence Block quotes
+230   ast         Block quotes
+232   ast         List items
+235   idempotence List items
+242   ast         List items
+248   ast         List items
+249   ast         List items
+251   ast         List items
+252   ast         List items
+256   ast         List items
+259   html        List items
+259   ast         List items
+260   html        List items
+260   ast         List items
+261   html        List items
+261   ast         List items
+264   ast         List items
+265   ast         List items
+266   ast         List items
+268   ast         List items
+280   html        Task list items (extension)
+280   ast         Task list items (extension)
+281   idempotence Lists
+292   html        Lists
+292   ast         Lists
+293   idempotence Lists
+298   html        Lists
+298   ast         Lists
+320   ast         Backslash escapes
+321   ast         Entity and numeric character references
+324   ast         Entity and numeric character references
+330   ast         Entity and numeric character references
+333   ast         Entity and numeric character references
+344   idempotence Code spans
+393   ast         Emphasis and strong emphasis
+411   ast         Emphasis and strong emphasis
+425   html        Emphasis and strong emphasis
+425   ast         Emphasis and strong emphasis
+435   idempotence Emphasis and strong emphasis
+459   html        Emphasis and strong emphasis
+459   ast         Emphasis and strong emphasis
+462   html        Emphasis and strong emphasis
+462   ast         Emphasis and strong emphasis
+470   html        Emphasis and strong emphasis
+470   ast         Emphasis and strong emphasis
+472   html        Emphasis and strong emphasis
+472   ast         Emphasis and strong emphasis
+473   idempotence Emphasis and strong emphasis
+474   idempotence Emphasis and strong emphasis
+475   idempotence Emphasis and strong emphasis
+479   html        Emphasis and strong emphasis
+479   ast         Emphasis and strong emphasis
+499   ast         Links
+500   ast         Links
+503   ast         Links
+520   ast         Links
+528   ast         Links
+536   ast         Links
+640   ast         Raw HTML
