@@ -162,11 +162,31 @@ fn apply_paragraph_safety<'a>(doc: Doc<'a>) -> Doc<'a> {
             Doc::Text(s) => {
                 if !s.is_empty() {
                     let next = next_on_same_line(&parts, i);
+                    // Exhaustive over the three line-start contexts the
+                    // emitted output can present to the re-parser:
+                    //   1. Hard break before this text → line-start.
+                    //      Use the full block-start escape set.
+                    //   2. Soft break before this text AND previous line
+                    //      had text → mid-paragraph continuation. CM §5
+                    //      paragraph-interrupt set is strictly narrower
+                    //      than block-start (e.g. indented code never
+                    //      interrupts).
+                    //   3. Soft break before this text AND previous line
+                    //      was blank → the emitted output presents this
+                    //      line as line-start-after-blank, which pulldown
+                    //      tokenises as a fresh block context. Same
+                    //      escape set as case 1. (Previously a missing
+                    //      branch — fuzz-found "formfeed paragraph
+                    //      resplit".)
+                    // The else branch (`!after_break`) is genuine
+                    // mid-line text, no escape needed.
                     let escaped = if at_line_start {
                         escape_for_block_start(s.as_ref(), next)
                     } else if after_break && prev_line_had_text {
                         escape_for_paragraph_interrupt(s.as_ref(), next)
                             .or_else(|| escape_setext_underline(s.as_ref(), next))
+                    } else if after_break {
+                        escape_for_block_start(s.as_ref(), next)
                     } else {
                         None
                     };
