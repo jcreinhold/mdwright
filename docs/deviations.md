@@ -48,23 +48,23 @@ ongoing work (see prompt 30 in `~/Code/prompts/`).
 Counts below are `(case, kind)` failures from
 `tests/gfm-spec/snapshot.txt`.
 
-| Section                                  | Failures |
-| ---------------------------------------- | -------- |
-| Emphasis and strong emphasis             | 18       |
-| List items                               | 12       |
-| HTML blocks                              | 8        |
-| Links                                    | 6        |
-| Link reference definitions               | 4        |
-| Entity and numeric character references  | 4        |
-| Lists                                    | 4        |
-| Tabs                                     | 3        |
-| Thematic breaks                          | 3        |
-| Block quotes                             | 2        |
-| Fenced code blocks                       | 2        |
-| Setext headings                          | 1        |
-| Task list items (extension)              | 1        |
-| Backslash escapes                        | 1        |
-| Raw HTML                                 | 1        |
+| Section                                  | Spec ref       | Failures |
+| ---------------------------------------- | -------------- | -------- |
+| Emphasis and strong emphasis             | CM 0.30 §6.2   | 18       |
+| List items                               | CM 0.30 §5.2   | 12       |
+| HTML blocks                              | CM 0.30 §4.6   | 8        |
+| Links                                    | CM 0.30 §6.3   | 6        |
+| Link reference definitions               | CM 0.30 §4.7   | 4        |
+| Entity and numeric character references  | CM 0.30 §2.5   | 4        |
+| Lists                                    | CM 0.30 §5.3   | 4        |
+| Tabs                                     | CM 0.30 §2.2   | 3        |
+| Thematic breaks                          | CM 0.30 §4.1   | 3        |
+| Block quotes                             | CM 0.30 §5.1   | 2        |
+| Fenced code blocks                       | CM 0.30 §4.5   | 2        |
+| Setext headings                          | CM 0.30 §4.3   | 1        |
+| Task list items (extension)              | GFM §5.3       | 1        |
+| Backslash escapes                        | CM 0.30 §2.4   | 1        |
+| Raw HTML                                 | CM 0.30 §6.8   | 1        |
 
 By comparison kind: 48 AST mismatches, 13 HTML mismatches,
 9 idempotence failures.
