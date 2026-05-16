@@ -114,11 +114,7 @@ fn linearize<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
                 linearize(item, out);
             }
         }
-        leaf @ (Doc::Text(_)
-        | Doc::Line
-        | Doc::HardLine
-        | Doc::Atomic(_)
-        | Doc::Prefix(_, _)) => {
+        leaf @ (Doc::Text(_) | Doc::Line | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
             out.push(leaf);
         }
     }
@@ -137,10 +133,9 @@ fn process_stream<'a>(stream: Vec<Doc<'a>>, target: u32) -> Vec<Doc<'a>> {
                 // budget so continuation-line wrapping accounts for
                 // the prefix's column cost.
                 Doc::Prefix(p, inner) => {
-                    let shrink = u32::try_from(unicode_width::UnicodeWidthStr::width(
-                        p.content.as_ref(),
-                    ))
-                    .unwrap_or(u32::MAX);
+                    let shrink =
+                        u32::try_from(unicode_width::UnicodeWidthStr::width(p.content.as_ref()))
+                            .unwrap_or(u32::MAX);
                     let new_target = target.saturating_sub(shrink).max(1);
                     let wrapped = wrap_at(*inner, new_target);
                     out.push(Doc::Prefix(p, Box::new(wrapped)));

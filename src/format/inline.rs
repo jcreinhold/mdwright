@@ -25,10 +25,7 @@ pub(crate) fn pretty_inline_children<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) ->
 /// Render an arbitrary slice of sibling inline nodes. Used by the
 /// list-item renderer where a virtual paragraph's children must be
 /// emitted without a real `Paragraph` parent in the tree.
-pub(crate) fn pretty_inline_children_for_ids<'a>(
-    ctx: &PrettyCtx<'a>,
-    ids: &[NodeId],
-) -> Doc<'a> {
+pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
     let mut left_emphasis_delim: Option<EmphasisDelim> = None;
     for &cid in ids {

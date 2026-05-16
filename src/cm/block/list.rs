@@ -318,9 +318,7 @@ impl ListBlock {
         match self.marker {
             ListMarker::Ordered { start, delim } => {
                 let n = match ctx.opts.ordered_list() {
-                    OrderedListStyle::Consistent => {
-                        u64::from(start).saturating_add(idx as u64)
-                    }
+                    OrderedListStyle::Consistent => u64::from(start).saturating_add(idx as u64),
                     OrderedListStyle::Preserve => {
                         source_ordered_marker_number(ctx, item_kind.item_id())
                             .unwrap_or_else(|| u64::from(start).saturating_add(idx as u64))
@@ -407,8 +405,7 @@ fn render_item<'a>(
 /// otherwise. List-item indent widths rarely exceed a single-digit
 /// ordered marker + `[x] `, so the static path is the common case.
 fn indent_cow(n: usize) -> Cow<'static, str> {
-    const SPACES: &str =
-        "                                "; // 32 spaces
+    const SPACES: &str = "                                "; // 32 spaces
     if n <= SPACES.len() {
         Cow::Borrowed(&SPACES[..n])
     } else {
@@ -439,16 +436,15 @@ fn render_item_body<'a>(
     let mut emitted = 0usize;
 
     let flush_inline = |run: &mut Vec<NodeId>,
-                            parts: &mut Vec<crate::format::doc::Doc<'a>>,
-                            emitted: &mut usize| {
+                        parts: &mut Vec<crate::format::doc::Doc<'a>>,
+                        emitted: &mut usize| {
         if run.is_empty() {
             return;
         }
         if *emitted > 0 && parent_loose {
             parts.push(hard_line());
         }
-        let inline =
-            crate::format::inline::pretty_inline_children_for_ids(ctx, run);
+        let inline = crate::format::inline::pretty_inline_children_for_ids(ctx, run);
         let body = escape_paragraph_line_starts(ctx, inline);
         parts.push(concat([body, hard_line()]));
         *emitted = emitted.saturating_add(1);

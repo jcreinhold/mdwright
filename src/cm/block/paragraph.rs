@@ -83,10 +83,7 @@ impl Paragraph {
 // rendering.
 // ============================================================
 
-pub(crate) fn escape_paragraph_line_starts<'a>(
-    _ctx: &PrettyCtx<'a>,
-    doc: Doc<'a>,
-) -> Doc<'a> {
+pub(crate) fn escape_paragraph_line_starts<'a>(_ctx: &PrettyCtx<'a>, doc: Doc<'a>) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::new();
     flatten(doc, &mut parts);
     coalesce_adjacent_text(&mut parts);
@@ -158,11 +155,7 @@ fn flatten<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
                 flatten(item, out);
             }
         }
-        leaf @ (Doc::Text(_)
-        | Doc::Line
-        | Doc::HardLine
-        | Doc::Atomic(_)
-        | Doc::Prefix(_, _)) => {
+        leaf @ (Doc::Text(_) | Doc::Line | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
             out.push(leaf);
         }
     }
