@@ -117,13 +117,31 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   parked `tests/regressions/fuzz_66c5d21c.in` and the downstream
   `*`-escape drift it produced.
 
+- `src/format/mod.rs` gains `normalize_line_endings_lf`, called once
+  in `format_document` immediately after `doc::render`. The function
+  strips every `\r\n` and lone `\r` in the rendered string to `\n`,
+  enforcing the invariant the existing `apply_end_of_line`
+  doc-comment had always claimed but the verbatim-source-passthrough
+  emitters quietly violated. The CRLF and Keep end-of-line policies
+  now operate on a uniformly-LF input, so mixed line endings can no
+  longer appear in mdwright output.
+- `src/cm/block/paragraph.rs::Paragraph::is_verbatim_eligible` now
+  also refuses paragraphs whose source contains `\r`. Pulldown's
+  block-starter detection (fence opener, ATX heading, etc.) is
+  line-ending-sensitive — CR-only line endings parse differently
+  from LF/CRLF on certain inputs — so emitting CR source verbatim
+  could let mdwright's output reparse to a different block
+  structure than the input. Forcing such paragraphs through the
+  IR-driven `ParagraphBody` path runs the line-start escape, which
+  prevents the divergence. Resolves the parked
+  `tests/regressions/fuzz_20c5c865.in`.
+
 ### Known issues
-- One new (different-class) fuzz find: a fenced code block opener
-  with no source-side closer emits without a closing fence on the
-  first format pass but with one on the second, breaking
-  idempotence. Outside the strikethrough invariants this PR
-  enforces; reproducer at
-  [`fuzz/known-issues/idempotence-unclosed-fenced-code-block.in`](./fuzz/known-issues/README.md).
+- One new (different-class) fuzz find: an indented code block whose
+  first line is whitespace-only (just `\t`) loses that line on
+  reformat, breaking idempotence. Outside the line-ending and
+  paragraph-verbatim invariants this PR enforces; reproducer at
+  [`fuzz/known-issues/idempotence-indented-code-line-drop.in`](./fuzz/known-issues/README.md).
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 

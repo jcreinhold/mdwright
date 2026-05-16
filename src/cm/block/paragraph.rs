@@ -43,16 +43,33 @@ impl Paragraph {
     /// document-root overlay to short-circuit IR-driven emission for
     /// paragraphs whose source bytes already match the canonical form.
     ///
-    /// Requirements: (a) every inline child is a single-text-segment
-    /// [`InlineRun`](crate::cm::inline::run::InlineRun) (no soft/hard
-    /// breaks, no structural inlines like emphasis/code/links), so
-    /// source-byte emission cannot drop a break the IR would
-    /// otherwise have flattened or rewrapped; (b) the wrap policy is
-    /// [`Wrap::Keep`] — both [`Wrap::No`] and [`Wrap::At(_)`] require
-    /// an IR-driven pass.
+    /// Requirements:
+    /// - (a) every inline child is a single-text-segment
+    ///   [`InlineRun`](crate::cm::inline::run::InlineRun) (no soft/hard
+    ///   breaks, no structural inlines like emphasis/code/links), so
+    ///   source-byte emission cannot drop a break the IR would
+    ///   otherwise have flattened or rewrapped;
+    /// - (b) the wrap policy is [`Wrap::Keep`] — both [`Wrap::No`] and
+    ///   [`Wrap::At(_)`] require an IR-driven pass;
+    /// - (c) the source has no `\r` byte. Pulldown treats `\r` (alone)
+    ///   and `\n`/`\r\n` differently when scanning for block-starter
+    ///   lines (fence opener, ATX heading, etc.). The format pipeline
+    ///   normalises rendered bytes to LF only
+    ///   (`format/mod.rs::normalize_line_endings_lf`), so emitting CR
+    ///   source bytes verbatim could let mdwright's output reparse to
+    ///   a different block structure than the input. Forcing the
+    ///   IR-driven path runs the
+    ///   [`ParagraphBody`] line-start escape, which prevents the
+    ///   reparse divergence.
     pub(crate) fn is_verbatim_eligible(ctx: &PrettyCtx<'_>, id: NodeId) -> bool {
         if !matches!(ctx.opts.wrap(), Wrap::Keep) {
             return false;
+        }
+        if let Some(node) = ctx.tree.node(id) {
+            let raw = ctx.source.get(node.raw_range.clone()).unwrap_or("");
+            if raw.contains('\r') {
+                return false;
+            }
         }
         for child in ctx.tree.children(id) {
             let Some(node) = ctx.tree.node(child) else {

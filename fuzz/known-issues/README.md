@@ -12,26 +12,25 @@ When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 `tests/regressions.rs`) and delete the matching entry from this
 README.
 
-## idempotence-unclosed-fenced-code-block.in
+## idempotence-indented-code-line-drop.in
 
-Bytes: `` ```` `` + control bytes + `\r#\t,` + `` ` `` (14 bytes).
+Bytes: `\t\r\t\0\0[\x07` (7 bytes).
 
-Source starts with `` ```` `` — a fenced code block opener with no
-matching closer in the input. mdwright's first format does NOT emit
-a closing fence; the second format DOES. The two outputs differ at
-the trailing line:
+Two consecutive tab-prefixed lines (separated by `\r`) form an
+indented code block in CM. Once preserves both lines; twice drops
+one:
 
 ```
-once:  …# ,\`\n
-twice: …# ,\`\n````\n
+once:  \t\n\t\0\0[\x07\n
+twice: \t\0\0[\x07\n        (first \t-line gone)
 ```
 
-Bug lives in the fenced-code-block emitter
-(`src/cm/block/code_block.rs`-ish), which decides whether to write
-a closing fence based on source structure rather than always
-emitting one. Like the strikethrough escape and code-span padding
-bugs already fixed, the right shape is a typed-construct invariant:
-"emitted bytes round-trip to one `Event::Start(CodeBlock(Fenced))`
-followed by content followed by `Event::End`." A constructor that
-always emits the closer + a debug-time self-check would make this
-class unrepresentable.
+Lives in the indented-code-block emitter
+(`src/cm/block/code.rs::IndentedCodeBlock::pretty`) or the
+document-root verbatim path for indented-code blocks. The bug
+class: an indented code block with a "trivial" first line (only
+whitespace) loses that line on re-parse / re-emit. Fix shape: as
+with the other typed-construct invariants, the indented-code
+emitter must preserve every line of body content, including
+blank-looking ones whose `\t` prefix carries the only structural
+signal.

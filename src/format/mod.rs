@@ -31,10 +31,25 @@ pub(crate) fn normalize_trailing_newline(out: &mut String, trailing: bool) {
     }
 }
 
+/// Normalise every `\r\n` and lone `\r` in `out` to `\n`. After
+/// this runs the string contains only LF line terminators, so the
+/// end-of-line policy step can transform line endings uniformly
+/// without worrying about CR bytes that leaked in from
+/// source-verbatim emitters (e.g. `format/block.rs::verbatim_lines`,
+/// admonition raw passthrough). Zero-cost when `out` has no `\r`.
+pub(crate) fn normalize_line_endings_lf(out: &mut String) {
+    if !out.contains('\r') {
+        return;
+    }
+    let normalized = out.replace("\r\n", "\n").replace('\r', "\n");
+    *out = normalized;
+}
+
 /// Apply the end-of-line policy to a freshly-rendered `String`.
-/// The renderer always emits `\n`, so converting to CRLF is a
-/// straightforward replace; `Keep` adopts the source's first
-/// newline style.
+/// Caller invariant: `out` contains only `\n` line terminators
+/// (enforced by [`normalize_line_endings_lf`] inside
+/// `format_document`). Converting to CRLF is then a straightforward
+/// replace; `Keep` adopts the source's first newline style.
 pub(crate) fn apply_end_of_line(out: &mut String, policy: EndOfLine, source: &str) {
     let target = match policy {
         EndOfLine::Lf => "\n",

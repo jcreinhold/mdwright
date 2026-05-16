@@ -13,7 +13,7 @@ use crate::format::doc::{self, RenderOptions};
 use crate::format::math::MathRegion;
 use crate::format::pretty::PrettyCtx;
 use crate::format::wrap::wrap_doc;
-use crate::format::{apply_end_of_line, normalize_trailing_newline};
+use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
 use crate::ir::{AdmonitionRegion, Frontmatter};
 use crate::tree::Tree;
 
@@ -47,6 +47,14 @@ pub(crate) fn format_document<'a>(
     };
     let wrapped = wrap_doc(doc, opts.wrap());
     let mut out = doc::render(&wrapped, &RenderOptions);
+    // Verbatim source-passthrough emitters can leak `\r` bytes from
+    // CR-containing source into the rendered string. Pulldown's
+    // block detection is line-ending-sensitive (a lone CR is not the
+    // same as a CRLF or LF for fence-opener detection), so leaving
+    // those bytes in would let mdwright's output reparse to a
+    // different structure on the next format pass. Normalise here,
+    // once, at the document chokepoint.
+    normalize_line_endings_lf(&mut out);
     normalize_trailing_newline(&mut out, opts.trailing_newline());
     apply_end_of_line(&mut out, opts.end_of_line(), source);
     out
