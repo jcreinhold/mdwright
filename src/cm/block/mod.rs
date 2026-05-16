@@ -20,9 +20,15 @@
 #[allow(dead_code)]
 pub(crate) mod code;
 #[allow(dead_code)]
+pub(crate) mod footnote;
+#[allow(dead_code)]
 pub(crate) mod heading;
 #[allow(dead_code)]
+pub(crate) mod html;
+#[allow(dead_code)]
 pub(crate) mod list;
+#[allow(dead_code)]
+pub(crate) mod paragraph;
 #[allow(dead_code)]
 pub(crate) mod quote;
 #[allow(dead_code)]
@@ -31,26 +37,32 @@ pub(crate) mod table;
 pub(crate) mod thematic;
 
 use code::{FencedCodeBlock, IndentedCodeBlock};
+use footnote::FootnoteDef;
 use heading::Heading;
+use html::HtmlBlock;
 use list::ListBlock;
+use paragraph::Paragraph;
 use quote::BlockQuote;
 use table::TableBlock;
 use thematic::ThematicBreak;
 
 /// One typed block value attached to a [`crate::tree::Node`]. The
-/// variants mirror the `CommonMark` §4 and GFM §4.10 block kinds
-/// whose well-formedness invariants Phase R prompts 24–26 lifted
-/// into types. Paragraphs, HTML blocks, footnote definitions, and
-/// link-reference definitions remain typed only by their `NodeKind`
-/// variant until later prompts.
+/// variants mirror the `CommonMark` §4 and GFM §4.10 / extension
+/// block kinds whose well-formedness invariants Phase R has lifted
+/// into types. Post-prompt-26b every printable block kind has a
+/// variant here; the legacy `NodeKind` data still drives emission
+/// until prompt 27 swaps the renderer.
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub(crate) enum TypedBlock<'a> {
+    Paragraph(Paragraph),
     Heading(Heading),
     FencedCodeBlock(FencedCodeBlock<'a>),
     IndentedCodeBlock(IndentedCodeBlock<'a>),
+    HtmlBlock(HtmlBlock<'a>),
     BlockQuote(BlockQuote),
     ThematicBreak(ThematicBreak),
     ListBlock(ListBlock),
     Table(TableBlock<'a>),
+    FootnoteDef(FootnoteDef<'a>),
 }

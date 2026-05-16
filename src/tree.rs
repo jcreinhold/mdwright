@@ -36,10 +36,13 @@ use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
 
 use crate::cm::block::TypedBlock;
 use crate::cm::block::code::{CodeFenceChar, FencedCodeBlock, IndentedCodeBlock};
+use crate::cm::block::footnote::FootnoteDef;
 use crate::cm::block::heading::{Heading, HeadingLevel, HeadingStyle};
+use crate::cm::block::html::HtmlBlock;
 use crate::cm::block::list::{
     ListBlock, ListItem, ListItemKind, ListMarker, TaskItem, Tightness, item_indent,
 };
+use crate::cm::block::paragraph::Paragraph;
 use crate::cm::block::quote::BlockQuote;
 use crate::cm::block::table::{TableBlock, TableCell, TableRow};
 use crate::cm::block::thematic::ThematicBreak;
@@ -1038,6 +1041,11 @@ fn build_typed_block<'a>(
             Some(TypedBlock::ThematicBreak(ThematicBreak::new(
                 ThematicStyle::Dash,
             )))
+        }
+        NodeKind::Paragraph => Some(TypedBlock::Paragraph(Paragraph::new())),
+        NodeKind::HtmlBlock { body } => Some(TypedBlock::HtmlBlock(HtmlBlock::new(body.clone()))),
+        NodeKind::FootnoteDefinition { label } => {
+            Some(TypedBlock::FootnoteDef(FootnoteDef::new(label.clone())))
         }
         _ => None,
     }
