@@ -20,7 +20,7 @@ classes of bug qualify as security issues:
 - **Out-of-tree filesystem access** — `mdwright fmt` writing to or reading
   from files outside the user-supplied roots.
 
-Please report privately via email to **jcreinhold@gmail.com** with:
+Please report privately via email to **5241441+jcreinhold@users.noreply.github.com** with:
 
 - A minimal reproducing input (bytes, hex, or attached file).
 - The command line invoked.
