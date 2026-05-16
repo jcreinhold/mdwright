@@ -77,15 +77,24 @@ impl Heading {
         let body = crate::format::inline::pretty_inline_children(ctx, id);
         let level = self.level.as_u8();
         if matches!(self.style, HeadingStyle::Setext) && level <= 2 {
-            let rendered = render(&body, &RenderOptions);
-            let width = rendered
-                .lines()
-                .next()
-                .map_or(3, |l| l.chars().count())
-                .max(3);
-            let underline_char = if level == 1 { '=' } else { '-' };
-            let underline: String = std::iter::repeat_n(underline_char, width).collect();
-            return concat([body, hard_line(), text(underline), hard_line()]);
+            // Setext re-parses correctly only when the body's first
+            // line does not look like a different block-starter to
+            // pulldown. A body of `*`, for example, would re-parse as
+            // a list bullet — the `===` underline then becomes a
+            // bare paragraph, breaking idempotence. Walk the body Doc
+            // directly so soft breaks (which render as spaces) still
+            // count as line breaks for the multi-line check.
+            if setext_body_safe(&body) {
+                let rendered = render(&body, &RenderOptions);
+                let width = rendered
+                    .lines()
+                    .next()
+                    .map_or(3, |l| l.chars().count())
+                    .max(3);
+                let underline_char = if level == 1 { '=' } else { '-' };
+                let underline: String = std::iter::repeat_n(underline_char, width).collect();
+                return concat([body, hard_line(), text(underline), hard_line()]);
+            }
         }
         let lvl = level.clamp(1, 6) as usize;
         let prefix: String = std::iter::repeat_n('#', lvl).collect::<String>() + " ";
@@ -97,6 +106,67 @@ impl Heading {
 pub(crate) enum HeadingError {
     InvalidLevel(u8),
     SetextLevelTooHigh { level: u8 },
+}
+
+/// Conservative gate for emitting setext form. Walks `body` directly
+/// so soft breaks (which render as spaces in isolation but become
+/// hard newlines during the wrap pass) still count as line breaks
+/// for the multi-line detection.
+///
+/// Decision matrix:
+/// - empty body → ATX (setext requires non-blank content).
+/// - multi-line body → setext (ATX cannot carry multi-line content;
+///   the wrap pass would split it into a heading + a paragraph).
+/// - single-line body whose first non-empty byte is a block-leader
+///   (`*`, `-`, `+`, `#`, `>`, `=`, `~`, backtick, `<`, tab, digit)
+///   → ATX (setext would re-parse as a different block).
+/// - otherwise → setext.
+fn setext_body_safe(body: &Doc<'_>) -> bool {
+    let mut first_byte: Option<u8> = None;
+    let mut has_break = false;
+    walk_body(body, &mut first_byte, &mut has_break);
+    let Some(first) = first_byte else {
+        return false; // empty body
+    };
+    if has_break {
+        // Multi-line body — keep setext; ATX cannot represent it.
+        return true;
+    }
+    match first {
+        // ATX heading, blockquote, list bullets, setext underline,
+        // fenced code, indented code (tab counts), HTML start.
+        b'#' | b'>' | b'-' | b'+' | b'*' | b'=' | b'~' | b'`' | b'<' | b'\t' => false,
+        // Digit could be an ordered-list marker if `.` or `)` follows.
+        b'0'..=b'9' => false,
+        _ => true,
+    }
+}
+
+/// Iterative pre-order walk: capture the first text byte and note
+/// whether any `Doc::Line` or `Doc::HardLine` appears.
+fn walk_body(body: &Doc<'_>, first_byte: &mut Option<u8>, has_break: &mut bool) {
+    let mut stack: Vec<&Doc<'_>> = vec![body];
+    while let Some(node) = stack.pop() {
+        if first_byte.is_some() && *has_break {
+            return;
+        }
+        match node {
+            Doc::Text(s) => {
+                if first_byte.is_none()
+                    && let Some(b) = s.as_bytes().iter().find(|&&b| b != b' ' && b != b'\t')
+                {
+                    *first_byte = Some(*b);
+                }
+            }
+            Doc::Line | Doc::HardLine => *has_break = true,
+            Doc::Atomic(inner) | Doc::Prefix(_, inner) => stack.push(inner),
+            Doc::Concat(items) => {
+                for item in items.iter().rev() {
+                    stack.push(item);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

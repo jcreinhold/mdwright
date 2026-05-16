@@ -10,6 +10,12 @@ use std::path::{Path, PathBuf};
 
 use ignore::WalkBuilder;
 
+// Safety policy: we do **not** follow symlinks. mdwright is run over
+// repositories that may include developer-created or attacker-supplied
+// symlinks; following them risks descending into infinite loops or
+// out-of-tree files. Users with intentional symlinked directory layouts
+// can `find -L | xargs mdwright`. See `tests/discover_symlink_loop.rs`.
+
 /// Collect every Markdown file (`*.md`, `*.markdown`) under `root`,
 /// or `root` itself if it is already a Markdown file. The result is
 /// sorted for stable output and deduplicated.

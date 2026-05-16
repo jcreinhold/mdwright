@@ -1,5 +1,12 @@
-/target/
+**/target/
 
 # macOS metadata.
 .DS_Store
 **/.DS_Store
+
+# cargo-fuzz: keep `fuzz/Cargo.toml`, `fuzz_targets/`, and
+# `known-issues/` (under version control); ignore generated corpora
+# and crash artifacts (the regression suite owns minimised inputs).
+/fuzz/corpus/
+/fuzz/artifacts/
+/fuzz/Cargo.lock

@@ -148,15 +148,27 @@ fn coalesce_adjacent_text<'a>(parts: &mut Vec<Doc<'a>>) {
     *parts = merged;
 }
 
+// Iterative: a naive recursive walk blows the stack on adversarial
+// inputs with deeply nested `Doc::Concat`. `Atomic` and `Prefix` stay
+// opaque (matching the previous behaviour); only `Concat` is splayed.
 fn flatten<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
-    match doc {
-        Doc::Concat(items) => {
-            for item in items.into_vec() {
-                flatten(item, out);
+    let mut stack: Vec<Doc<'a>> = vec![doc];
+    while let Some(node) = stack.pop() {
+        match node {
+            Doc::Concat(items) => {
+                // Push children in reverse so the leftmost pops first
+                // and the visit order matches the recursive version.
+                for item in items.into_vec().into_iter().rev() {
+                    stack.push(item);
+                }
             }
-        }
-        leaf @ (Doc::Text(_) | Doc::Line | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
-            out.push(leaf);
+            leaf @ (Doc::Text(_)
+            | Doc::Line
+            | Doc::HardLine
+            | Doc::Atomic(_)
+            | Doc::Prefix(_, _)) => {
+                out.push(leaf);
+            }
         }
     }
 }

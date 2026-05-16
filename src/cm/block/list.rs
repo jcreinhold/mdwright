@@ -465,6 +465,14 @@ fn render_item_body<'a>(
         }
     }
     flush_inline(&mut inline_run, &mut parts, &mut emitted);
+    // Empty list items (`*\n*\n*`) have no children, so `parts` would
+    // be empty and the item would render as just the marker with no
+    // trailing newline. Adjacent items then concatenate on one line,
+    // turning into a thematic break (`- - -`) on re-parse. Emit a
+    // single hard-line so each item owns its source line.
+    if emitted == 0 {
+        parts.push(hard_line());
+    }
     concat(parts)
 }
 

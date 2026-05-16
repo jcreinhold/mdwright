@@ -67,6 +67,14 @@ struct Cli {
     #[arg(short = 'v', long = "verbose", action = clap::ArgAction::Count, global = true)]
     verbose: u8,
 
+    /// Refuse to read any single file (or stdin payload) larger than
+    /// this many bytes. mdwright treats its input as untrusted; this
+    /// cap bounds memory use against pathological inputs. Default
+    /// 10 MB is generous enough that no real Markdown document trips
+    /// it. Pass `0` to disable the cap entirely.
+    #[arg(long, value_name = "BYTES", default_value_t = 10_000_000, global = true)]
+    max_input_bytes: usize,
+
     #[command(subcommand)]
     command: Command,
 }
@@ -201,32 +209,70 @@ fn run() -> Result<ExitCode> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
     let config_path = cli.config;
+    let cap = cli.max_input_bytes;
     match cli.command {
         Command::ListRules => {
             print_rule_catalogue()?;
             Ok(ExitCode::SUCCESS)
         }
-        Command::Check(args) => run_lint(&args, false, config_path.as_deref()),
-        Command::Fix(args) => run_lint(&args, true, config_path.as_deref()),
-        Command::Fmt(args) => run_fmt(&args, false, config_path.as_deref()),
+        Command::Check(args) => run_lint(&args, false, config_path.as_deref(), cap),
+        Command::Fix(args) => run_lint(&args, true, config_path.as_deref(), cap),
+        Command::Fmt(args) => run_fmt(&args, false, config_path.as_deref(), cap),
         Command::FmtCheck(mut args) => {
             args.check = true;
-            run_fmt(&args, true, config_path.as_deref())
+            run_fmt(&args, true, config_path.as_deref(), cap)
         }
     }
+}
+
+/// Return an error if `len` exceeds the configured cap. `cap == 0`
+/// means "no cap" — matches the `--max-input-bytes 0` escape hatch.
+fn enforce_input_cap(label: &str, len: usize, cap: usize) -> Result<()> {
+    if cap > 0 && len > cap {
+        bail!(
+            "{label}: input is {len} bytes; exceeds --max-input-bytes cap of {cap}. \
+             Raise the cap with `--max-input-bytes <BYTES>` (or `0` to disable)."
+        );
+    }
+    Ok(())
+}
+
+/// Read stdin into `buf` with a hard byte cap. Reads via `take(cap+1)`
+/// so we can distinguish "exactly at cap" from "more than cap" without
+/// pulling the rest of the stream into memory.
+// Sequential stdin read; the lock guard is released as soon as the
+// I/O chain ends. Suppress the nursery hint that wants the guard
+// dropped a statement earlier — doing so would force splitting the
+// `take` chain across blocks for no actual contention.
+#[allow(clippy::significant_drop_tightening)]
+fn read_stdin_capped(buf: &mut String, cap: usize, label: &str) -> Result<()> {
+    use std::io::Read as _;
+    let stdin = io::stdin();
+    let mut handle = stdin.lock();
+    if cap == 0 {
+        handle.read_to_string(buf).context("read stdin")?;
+        return Ok(());
+    }
+    let limit = u64::try_from(cap).unwrap_or(u64::MAX).saturating_add(1);
+    handle
+        .take(limit)
+        .read_to_string(buf)
+        .context("read stdin")?;
+    enforce_input_cap(label, buf.len(), cap)
 }
 
 fn run_fmt(
     args: &FmtArgs,
     force_check: bool,
     config_path: Option<&std::path::Path>,
+    max_input_bytes: usize,
 ) -> Result<ExitCode> {
     let cfg = Config::load(config_path).map_err(|e| anyhow!("{e}"))?;
     let opts = cfg.fmt_options().clone().with_mode(args.mode.into());
     let check = args.check || force_check;
 
     if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
-        return run_fmt_stdin(&opts, args, check);
+        return run_fmt_stdin(&opts, args, check, max_input_bytes);
     }
 
     let mut files: Vec<PathBuf> = Vec::new();
@@ -253,6 +299,7 @@ fn run_fmt(
         .par_iter()
         .map(|path| -> Result<()> {
             let source = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+            enforce_input_cap(&path.display().to_string(), source.len(), max_input_bytes)?;
             let doc = Document::parse(&source);
             let formatted = match (validate, doc.format_validated(&opts)) {
                 (true, Ok(s)) => s,
@@ -310,13 +357,18 @@ fn run_fmt(
     }
 }
 
-fn run_fmt_stdin(opts: &FmtOptions, args: &FmtArgs, check: bool) -> Result<ExitCode> {
+fn run_fmt_stdin(
+    opts: &FmtOptions,
+    args: &FmtArgs,
+    check: bool,
+    max_input_bytes: usize,
+) -> Result<ExitCode> {
     let name = args
         .stdin_filename
         .as_deref()
         .map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
     let mut buf = String::new();
-    io::Read::read_to_string(&mut io::stdin().lock(), &mut buf).context("read stdin")?;
+    read_stdin_capped(&mut buf, max_input_bytes, &name)?;
     let doc = Document::parse(&buf);
     let formatted = if args.no_validate {
         doc.format(opts)
@@ -382,6 +434,7 @@ fn run_lint(
     args: &LintArgs,
     apply_fixes: bool,
     config_path: Option<&std::path::Path>,
+    max_input_bytes: usize,
 ) -> Result<ExitCode> {
     if args.jobs > 0 {
         rayon::ThreadPoolBuilder::new()
@@ -408,6 +461,7 @@ fn run_lint(
             args.check,
             args.format,
             use_color,
+            max_input_bytes,
         );
     }
 
@@ -435,6 +489,7 @@ fn run_lint(
         .map(|path| -> Result<()> {
             let source =
                 fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+            enforce_input_cap(&path.display().to_string(), source.len(), max_input_bytes)?;
             let doc = Document::parse(&source);
             let diags = doc.lint_with(&rules, lint_opts);
             let count = diags.len();
@@ -560,9 +615,10 @@ fn run_stdin(
     check: bool,
     format: OutputFormat,
     use_color: bool,
+    max_input_bytes: usize,
 ) -> Result<ExitCode> {
     let mut buf = String::new();
-    io::Read::read_to_string(&mut io::stdin().lock(), &mut buf).context("read stdin")?;
+    read_stdin_capped(&mut buf, max_input_bytes, "<stdin>")?;
 
     let doc = Document::parse(&buf);
     let diags = doc.lint_with(rules, lint_opts);

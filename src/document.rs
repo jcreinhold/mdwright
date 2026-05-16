@@ -97,6 +97,11 @@ pub struct Document<'a> {
 impl<'a> Document<'a> {
     /// Parse `source` into the IR. Infallible — pulldown-cmark
     /// recognises every byte sequence as Markdown.
+    ///
+    /// The library imposes **no** size cap; callers feeding untrusted
+    /// input are responsible for bounding `source.len()` themselves.
+    /// The `mdwright` CLI does this via `--max-input-bytes` (default
+    /// 10 MB).
     #[must_use]
     #[tracing::instrument(level = "info", name = "Document::parse", skip(source), fields(len = source.len()))]
     pub fn parse(source: &'a str) -> Self {

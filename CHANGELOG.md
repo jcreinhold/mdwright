@@ -10,6 +10,44 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 > the spec-alignment redesign ships as 0.3.0 to keep the released
 > sequence in step with the in-repo Phase-R prompt block.
 
+## Unreleased
+
+### Added
+- Coverage-guided fuzz harness at [`fuzz/`](./fuzz) with three
+  targets: `fuzz_parse_format`, `fuzz_idempotence`, `fuzz_lint`.
+  See [README §Safety](./README.md#safety).
+- `--max-input-bytes` global CLI flag (default 10 MB) caps the size
+  of any single file or stdin payload. Pass `0` to disable.
+- `tests/discover_symlink_loop.rs` pins the symlink-handling
+  contract; `discover_markdown` does not follow symlinks and so is
+  immune to symlink loops.
+- `SECURITY.md` disclosure template.
+
+### Changed
+- `src/format/wrap.rs` bounds the Knuth-Plass-lite DP: paragraphs
+  exceeding 100 000 boxes skip the DP and emit verbatim; a 100 ms
+  time budget guards against generators we did not anticipate.
+- `src/cm/block/heading.rs` falls back to ATX form when a setext
+  body would re-parse as a different block (e.g. `*`, `>`, `#`,
+  digits, fenced-code leaders) and keeps setext for multi-line
+  bodies (which ATX cannot represent). Fixes two fuzz-found
+  idempotence regressions.
+- `src/cm/block/list.rs` emits a hard-line for an empty list item
+  so adjacent empty items do not collapse into a thematic-break
+  shape on re-parse. Fixes one fuzz-found idempotence regression
+  and resolves six GFM-spec list-item snapshot cases.
+
+### Known issues
+- One fuzz-found idempotence regression remains (paragraph
+  continuation lines containing only `=` re-parse as a setext H1
+  underline). Minimised reproducer at
+  [`fuzz/known-issues/idempotence-setext-underline-on-soft-break.in`](./fuzz/known-issues/README.md);
+  a first-attempt fix introduced GFM-spec regressions and was reverted
+  pending design.
+- `src/cm/block/paragraph.rs::flatten` and
+  `src/cm/inline/link.rs::flatten_body_doc` are now iterative —
+  no stack risk on deeply nested `Doc::Concat`.
+
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 
 ### Changed

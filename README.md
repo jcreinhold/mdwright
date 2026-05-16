@@ -124,6 +124,45 @@ Numbers vary by hardware and corpus shape; re-measure before quoting.
 `RUST_LOG=mdwright::format::inline=trace mdwright fmt foo.md`. The default filter is scoped to the `mdwright` crate, so
 transitive dependencies stay quiet at every level.
 
+## Safety
+
+`mdwright` is built to be safe on untrusted input — pipelines that
+feed it `.md` files from contributors, web forms, or third-party
+repositories should not be able to crash it, exhaust memory, or hang
+it.
+
+The CLI imposes four bounds:
+
+| Bound                | Default       | Override                  |
+| -------------------- | ------------- | ------------------------- |
+| Single-file size cap | 10 MB         | `--max-input-bytes BYTES` |
+| Symlink following    | off (no loop) | (compile-time)            |
+| Paragraph token cap  | 100 000 boxes | (compile-time)            |
+| Wrap-DP time budget  | 100 ms        | (compile-time)            |
+
+When a bound trips the formatter degrades gracefully — paragraphs
+past the token / time cap are emitted without re-wrapping, and files
+past the size cap are refused with a clear non-zero exit. The library
+(`Document::parse`) imposes no size cap; callers feeding untrusted
+bytes from non-CLI front-ends are responsible for bounding input
+themselves.
+
+Three coverage-guided fuzz targets live under [`fuzz/`](./fuzz):
+
+- `fuzz_parse_format` — parse and format, must not panic.
+- `fuzz_idempotence` — `format(parse(format(parse(s))))` ≡
+  `format(parse(s))`.
+- `fuzz_lint` — every standard-library lint rule on every input,
+  must not panic.
+
+Run a target with `cd fuzz && cargo +nightly fuzz run <target> --
+-max_total_time=300`. Reproducer inputs that surface real bugs are
+checked in under [`tests/regressions/fuzz_*.in`](./tests/regressions)
+and gated by the suite in `tests/regressions.rs`.
+
+Reports of panics on any input are security bugs; see
+[SECURITY.md](./SECURITY.md) for disclosure.
+
 ## Library
 
 `mdwright` is also a Rust library. The surface is small:

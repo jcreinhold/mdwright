@@ -1,0 +1,33 @@
+[package]
+name = "mdwright-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+mdwright = { path = ".." }
+
+[[bin]]
+name = "fuzz_parse_format"
+path = "fuzz_targets/fuzz_parse_format.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_idempotence"
+path = "fuzz_targets/fuzz_idempotence.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_lint"
+path = "fuzz_targets/fuzz_lint.rs"
+test = false
+doc = false
+bench = false

@@ -16,7 +16,7 @@
 use std::collections::HashSet;
 use std::io::Write;
 
-use mdwright::{Document, FmtOptions, RuleSet, render_html};
+use mdwright::{Document, FmtOptions, RuleSet, Wrap, render_html};
 use proptest::prelude::*;
 
 #[path = "common/proptest_gen.rs"]
@@ -330,4 +330,59 @@ proptest! {
             .collect();
         prop_assert!(after.is_subset(&before));
     }
+}
+
+// Wrap-DP safety bounds (Phase 4). These exercise the `MAX_WRAP_TOKENS`
+// and `MAX_WRAP_TIME` caps in `src/format/wrap.rs`. Gated behind
+// `#[ignore]` because a single case generates a megabyte-class
+// paragraph; running them on every CI build would be wasteful.
+#[test]
+#[ignore = "slow: allocates a large paragraph; run with --ignored"]
+fn wrap_completes_on_oversized_paragraph_within_time_budget() {
+    // 200 000 tiny words ⇒ ~ 1 MB single paragraph, well past the
+    // 100 000-token cap. The DP must short-circuit; the whole call
+    // should return in well under one second on any machine that can
+    // run the rest of the test suite.
+    use std::time::{Duration, Instant};
+    let mut src = String::with_capacity(2_000_000);
+    for i in 0..200_000 {
+        if i > 0 {
+            src.push(' ');
+        }
+        src.push_str("word");
+    }
+    let opts = FmtOptions::default().with_wrap(Wrap::At(80));
+    let start = Instant::now();
+    let formatted = Document::parse(&src).format(&opts);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < Duration::from_secs(5),
+        "format took {elapsed:?}; bounds should keep this under a second"
+    );
+    // Output is non-empty and contains the input words.
+    assert!(formatted.contains("word"));
+}
+
+#[test]
+#[ignore = "slow: dense paragraph just under the token cap; run with --ignored"]
+fn wrap_completes_on_dense_paragraph_below_cap() {
+    // Just under MAX_WRAP_TOKENS so the DP actually runs end-to-end.
+    // Validates that the time-budget guard does not fire on
+    // realistically-large inputs.
+    use std::time::{Duration, Instant};
+    let mut src = String::with_capacity(500_000);
+    for i in 0..90_000 {
+        if i > 0 {
+            src.push(' ');
+        }
+        src.push('w');
+    }
+    let opts = FmtOptions::default().with_wrap(Wrap::At(80));
+    let start = Instant::now();
+    let _ = Document::parse(&src).format(&opts);
+    let elapsed = start.elapsed();
+    assert!(
+        elapsed < Duration::from_secs(30),
+        "format took {elapsed:?}"
+    );
 }

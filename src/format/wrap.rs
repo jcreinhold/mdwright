@@ -37,11 +37,37 @@
 //! streams.
 
 use std::borrow::Cow;
+use std::time::{Duration, Instant};
 
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::Wrap;
 use crate::format::doc::Doc;
+
+// ============================================================
+// Safety bounds
+// ============================================================
+//
+// Wrap is `O(n²)` in box count and called on every paragraph. Real
+// Markdown has paragraphs of a few dozen to a few hundred tokens;
+// pathological / adversarial input can be much larger. Two defences:
+//
+// 1. `MAX_WRAP_TOKENS`: any paragraph with more boxes than this skips
+//    the DP entirely and emits the boxes as-is (one space between
+//    each). 100 000 boxes ≈ a 1 MB single paragraph of typical
+//    English; well past any natural document.
+// 2. `MAX_WRAP_TIME`: belt-and-suspenders. The DP itself bails out if
+//    it runs longer than this and the caller falls back to the same
+//    no-wrap emission. Guards against generators that produce inputs
+//    we did not anticipate.
+
+const MAX_WRAP_TOKENS: usize = 100_000;
+const MAX_WRAP_TIME: Duration = Duration::from_millis(100);
+/// How often (in inner-loop iterations) `solve_breaks` checks the
+/// wall-clock budget. Cheap-but-not-free: `Instant::now()` is one
+/// syscall on macOS; once per 1 024 inner iterations is invisible in
+/// benchmarks.
+const TIME_CHECK_STRIDE: usize = 1 << 10;
 
 // ============================================================
 // Public entry
@@ -193,8 +219,42 @@ fn wrap_run(run: Vec<Doc<'_>>, target: u32) -> Vec<Doc<'_>> {
     if boxes.len() == 1 {
         return boxes.into_iter().next().map_or_else(Vec::new, |b| b.parts);
     }
-    let breaks = solve_breaks(&boxes, target);
-    rebuild(boxes, &breaks)
+    if boxes.len() > MAX_WRAP_TOKENS {
+        tracing::warn!(
+            tokens = boxes.len(),
+            cap = MAX_WRAP_TOKENS,
+            "wrap: paragraph exceeds token cap; emitting verbatim without re-wrap"
+        );
+        return rebuild_unwrapped(boxes);
+    }
+    match solve_breaks(&boxes, target) {
+        Some(breaks) => rebuild(boxes, &breaks),
+        None => {
+            tracing::warn!(
+                tokens = boxes.len(),
+                budget_ms = MAX_WRAP_TIME.as_millis(),
+                "wrap: DP time budget exceeded; emitting verbatim without re-wrap"
+            );
+            rebuild_unwrapped(boxes)
+        }
+    }
+}
+
+/// Emit boxes with one space between each, no breaks. Used as the
+/// degraded path when the DP is skipped (`MAX_WRAP_TOKENS`) or bailed
+/// (`MAX_WRAP_TIME`). The output is a valid `Vec<Doc>` for the caller
+/// to splice in.
+fn rebuild_unwrapped<'a>(boxes: Vec<Bx<'a>>) -> Vec<Doc<'a>> {
+    let mut out: Vec<Doc<'a>> = Vec::with_capacity(boxes.len().saturating_mul(2));
+    let mut first = true;
+    for b in boxes {
+        if !first {
+            out.push(Doc::Text(Cow::Borrowed(" ")));
+        }
+        first = false;
+        out.extend(b.parts);
+    }
+    out
 }
 
 /// Split a run into boxes with implicit glue between them.
@@ -370,10 +430,10 @@ const OVERFLOW_PENALTY: u64 = 1_000_000;
 /// Returns the indices `[i₁, i₂, …, n]` such that lines are
 /// `boxes[0..i₁]`, `boxes[i₁..i₂]`, …, `boxes[iₖ..n]`. The terminal
 /// index is always `n = boxes.len()`.
-fn solve_breaks(boxes: &[Bx<'_>], target: u32) -> Vec<usize> {
+fn solve_breaks(boxes: &[Bx<'_>], target: u32) -> Option<Vec<usize>> {
     let n = boxes.len();
     if n == 0 {
-        return Vec::new();
+        return Some(Vec::new());
     }
     // cost[j] = min total badness for boxes[0..j]; prev[j] = best i.
     let mut cost = vec![u64::MAX; n.saturating_add(1)];
@@ -381,8 +441,14 @@ fn solve_breaks(boxes: &[Bx<'_>], target: u32) -> Vec<usize> {
     if let Some(slot) = cost.get_mut(0) {
         *slot = 0;
     }
+    let start = Instant::now();
+    let mut tick: usize = 0;
     for j in 1..=n {
         for i in 0..j {
+            tick = tick.saturating_add(1);
+            if tick.is_multiple_of(TIME_CHECK_STRIDE) && start.elapsed() >= MAX_WRAP_TIME {
+                return None;
+            }
             let base = cost.get(i).copied().unwrap_or(u64::MAX);
             if base == u64::MAX {
                 continue;
@@ -408,7 +474,7 @@ fn solve_breaks(boxes: &[Bx<'_>], target: u32) -> Vec<usize> {
         j = prev.get(j).copied().unwrap_or(0);
     }
     breaks.reverse();
-    breaks
+    Some(breaks)
 }
 
 fn line_width(boxes: &[Bx<'_>], i: usize, j: usize) -> u32 {
@@ -608,7 +674,7 @@ mod tests {
                 width: 3,
             },
         ];
-        let breaks = super::solve_breaks(&boxes, 7);
+        let breaks = super::solve_breaks(&boxes, 7).unwrap_or_default();
         assert_eq!(breaks, vec![2, 4]);
     }
 }

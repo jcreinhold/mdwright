@@ -393,14 +393,19 @@ pub(crate) fn flatten_body_doc(doc: &Doc<'_>) -> String {
     out
 }
 
+// Iterative to bound stack usage on adversarial inputs with deeply
+// nested `Doc::Concat` / `Doc::Atomic` chains.
 fn walk(doc: &Doc<'_>, out: &mut String) {
-    match doc {
-        Doc::Text(s) => out.push_str(s),
-        Doc::Line | Doc::HardLine => out.push(' '),
-        Doc::Atomic(inner) | Doc::Prefix(_, inner) => walk(inner, out),
-        Doc::Concat(items) => {
-            for item in items {
-                walk(item, out);
+    let mut stack: Vec<&Doc<'_>> = vec![doc];
+    while let Some(node) = stack.pop() {
+        match node {
+            Doc::Text(s) => out.push_str(s),
+            Doc::Line | Doc::HardLine => out.push(' '),
+            Doc::Atomic(inner) | Doc::Prefix(_, inner) => stack.push(inner),
+            Doc::Concat(items) => {
+                for item in items.iter().rev() {
+                    stack.push(item);
+                }
             }
         }
     }

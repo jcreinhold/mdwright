@@ -48,6 +48,7 @@ harness = false
 name = "format_bench"
 
 [workspace]
+exclude = ["fuzz"]
 
 [lints.rust]
 future-incompatible = "warn"
