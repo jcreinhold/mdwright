@@ -744,8 +744,7 @@ impl<'a> TreeBuilder<'a> {
             build_list_block(&self.arena, &self.child_ids, self.source, frame.arena_id)
                 .map(TypedBlock::ListBlock)
         } else if node_is_table {
-            build_table_block(&self.arena, &self.child_ids, frame.arena_id)
-                .map(TypedBlock::Table)
+            build_table_block(&self.arena, &self.child_ids, frame.arena_id).map(TypedBlock::Table)
         } else {
             self.arena
                 .get(frame.arena_id.idx())
@@ -1154,11 +1153,7 @@ fn build_table_block<'a>(
     TableBlock::try_new(alignments.clone(), head, body).ok()
 }
 
-fn collect_row_cells(
-    arena: &[Node<'_>],
-    child_ids: &[NodeId],
-    row: &Node<'_>,
-) -> Vec<TableCell> {
+fn collect_row_cells(arena: &[Node<'_>], child_ids: &[NodeId], row: &Node<'_>) -> Vec<TableCell> {
     let mut cells = Vec::new();
     for j in row.children.clone() {
         let Some(&cid) = child_ids.get(j as usize) else {
@@ -1193,11 +1188,7 @@ fn item_has_direct_paragraph(arena: &[Node<'_>], child_ids: &[NodeId], item: &No
 /// `TaskListMarker` leaf. Pulldown nests the marker inside the item's
 /// first paragraph, so we inspect both the item's direct children and
 /// the grandchildren of any direct `Paragraph`.
-fn task_item_body_empty(
-    arena: &[Node<'_>],
-    child_ids: &[NodeId],
-    item: &Node<'_>,
-) -> bool {
+fn task_item_body_empty(arena: &[Node<'_>], child_ids: &[NodeId], item: &Node<'_>) -> bool {
     for j in item.children.clone() {
         let Some(&cid) = child_ids.get(j as usize) else {
             continue;

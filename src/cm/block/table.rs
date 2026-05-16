@@ -255,15 +255,14 @@ mod tests {
     fn try_new_rejects_head_mismatch() {
         // Hand-built row to defeat from_raw's reconciliation.
         let head = TableRow::from_raw(nid(1), vec![TableCell::new(nid(2))], 1);
-        let err = TableBlock::try_new(
-            vec![TableAlign::None, TableAlign::None],
-            head,
-            vec![],
-        )
-        .unwrap_err();
+        let err = TableBlock::try_new(vec![TableAlign::None, TableAlign::None], head, vec![])
+            .unwrap_err();
         assert!(matches!(
             err,
-            TableError::HeadColumnCountMismatch { expected: 2, got: 1 }
+            TableError::HeadColumnCountMismatch {
+                expected: 2,
+                got: 1
+            }
         ));
     }
 
@@ -283,7 +282,11 @@ mod tests {
         .unwrap_err();
         assert!(matches!(
             err,
-            TableError::BodyColumnCountMismatch { row: 0, expected: 2, got: 1 }
+            TableError::BodyColumnCountMismatch {
+                row: 0,
+                expected: 2,
+                got: 1
+            }
         ));
     }
 
@@ -356,8 +359,7 @@ mod tests {
             vec![TableCell::new(nid(5)), TableCell::new(nid(6))],
             2,
         )];
-        let t =
-            TableBlock::try_new(vec![TableAlign::Left, TableAlign::Right], head, body).unwrap();
+        let t = TableBlock::try_new(vec![TableAlign::Left, TableAlign::Right], head, body).unwrap();
         assert_eq!(t.align().len(), 2);
         assert_eq!(t.head().cells().len(), 2);
         assert_eq!(t.body().len(), 1);

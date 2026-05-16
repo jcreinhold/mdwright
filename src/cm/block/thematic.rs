@@ -39,5 +39,4 @@ mod tests {
             assert_eq!(ThematicBreak::new(s).style(), s);
         }
     }
-
 }

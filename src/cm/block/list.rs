@@ -38,10 +38,7 @@ impl Tightness {
     /// Pure derivation: tight iff every item's
     /// `has_direct_paragraph` flag is false.
     pub(crate) fn from_items(items: &[ListItemKind]) -> Self {
-        if items
-            .iter()
-            .any(ListItemKind::body_has_direct_paragraph)
-        {
+        if items.iter().any(ListItemKind::body_has_direct_paragraph) {
             Self::Loose
         } else {
             Self::Tight
@@ -403,10 +400,7 @@ mod tests {
             ListMarker::from_legacy(false, 0, b'+', "+ a\n", 0..4),
             Some(ListMarker::Plus),
         );
-        assert_eq!(
-            ListMarker::from_legacy(false, 0, b'!', "! a\n", 0..4),
-            None,
-        );
+        assert_eq!(ListMarker::from_legacy(false, 0, b'!', "! a\n", 0..4), None,);
     }
 
     #[test]

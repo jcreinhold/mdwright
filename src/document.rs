@@ -12,6 +12,8 @@ use std::ops::Range;
 
 use pulldown_cmark::{Options, Parser, html};
 
+use crate::cm::block::TypedBlock;
+use crate::cm::block::list::ListBlock;
 use crate::config::FmtOptions;
 use crate::diagnostic::Diagnostic;
 use crate::format;
@@ -23,8 +25,6 @@ use crate::line_index::LineIndex;
 use crate::rule_set::RuleSet;
 use crate::stdlib;
 use crate::suppression::SuppressionMap;
-use crate::cm::block::TypedBlock;
-use crate::cm::block::list::ListBlock;
 use crate::tree::Tree;
 
 /// Errors returned by [`Document::format_validated`].

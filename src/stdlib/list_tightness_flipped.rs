@@ -96,11 +96,7 @@ fn has_blank_line(bytes: &[u8]) -> bool {
         // Skip the very first partial line (everything before the
         // first '\n') — that's the trailing content of the previous
         // item, not a blank gap.
-        if line_start > 0
-            && line
-                .iter()
-                .all(|b| matches!(*b, b' ' | b'\t' | b'\r'))
-        {
+        if line_start > 0 && line.iter().all(|b| matches!(*b, b' ' | b'\t' | b'\r')) {
             return true;
         }
         i = i.saturating_add(1);
