@@ -413,10 +413,23 @@ impl<'a> TreeBuilder<'a> {
                 // / tab prefix). Walk back to the start of the line
                 // so `raw_text` includes the indent — the block's
                 // identity depends on it.
-                let range = if matches!(kind, NodeKind::CodeBlock { fenced: false, .. }) {
-                    widen_to_line_start(self.source, range)
-                } else {
-                    range
+                //
+                // HtmlBlock gets the same widening (limited to
+                // space/tab so we don't engulf preceding content)
+                // because pulldown's HTML render of `  <?` includes
+                // the leading whitespace as text inside the block
+                // container; emitting only the post-whitespace bytes
+                // drops content that pulldown re-renders identically
+                // when present. Fuzz-found
+                // `html-pi-leading-whitespace.in`.
+                let range = match &kind {
+                    NodeKind::CodeBlock { fenced: false, .. } => {
+                        widen_to_line_start(self.source, range)
+                    }
+                    NodeKind::HtmlBlock { .. } => {
+                        widen_to_line_start_through_ws(self.source, range)
+                    }
+                    _ => range,
                 };
                 let body_accum = matches!(
                     &kind,
@@ -949,6 +962,25 @@ fn widen_to_line_start(source: &str, range: Range<usize>) -> Range<usize> {
     let mut start = range.start.min(bytes.len());
     while start > 0 && bytes.get(start.saturating_sub(1)).copied() != Some(b'\n') {
         start = start.saturating_sub(1);
+    }
+    start..range.end
+}
+
+/// Like [`widen_to_line_start`] but only consumes ASCII space / tab
+/// bytes. Stops at any other content (a non-whitespace byte before
+/// the line start means the range is genuinely mid-line and should
+/// not be extended). Used for `HtmlBlock` whose CM §4.6 opener allows
+/// 0–3 spaces of leading indent that pulldown's HTML render includes
+/// as part of the block.
+fn widen_to_line_start_through_ws(source: &str, range: Range<usize>) -> Range<usize> {
+    let bytes = source.as_bytes();
+    let mut start = range.start.min(bytes.len());
+    while start > 0 {
+        match bytes.get(start.saturating_sub(1)).copied() {
+            Some(b' ' | b'\t') => start = start.saturating_sub(1),
+            Some(b'\n') | None => break,
+            Some(_) => return range, // non-whitespace before line start: don't widen
+        }
     }
     start..range.end
 }

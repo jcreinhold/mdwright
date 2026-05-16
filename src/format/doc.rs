@@ -69,6 +69,16 @@ pub(crate) struct RenderOptions;
 /// downstream width calculations and the rendered byte stream agree,
 /// and the post-render line-ending normaliser becomes redundant.
 ///
+/// NUL is **not** canonicalised here despite CM §2.3 nominally
+/// requiring NUL → U+FFFD. The reason is that pulldown does not
+/// perform that substitution in event payloads, and its emphasis
+/// resolution treats NUL and FFFD differently (NUL participates in
+/// emphasis runs as a normal character; FFFD's 3-byte UTF-8 sequence
+/// changes the byte distance the emphasis-flanking rule consults).
+/// Substituting at emit time would change pulldown's re-parse
+/// structure relative to the source. See
+/// `fuzz/known-issues/idempotence-nul-emphasis-escape.in`.
+///
 /// Cost: `.contains('\r')` early-out; zero allocation for the common
 /// case (synthesised prefixes like `# `, escape `\`, and any source
 /// slice without `\r`).
