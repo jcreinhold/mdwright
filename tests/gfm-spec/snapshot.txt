@@ -2,15 +2,7 @@
 # Regenerate after a deliberate fix with:
 #   MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot
 # Allowlisted (editorial deviation) cases are filtered out — see allowlist.toml.
-5     ast         Tabs
-6     ast         Tabs
-7     ast         Tabs
-16    ast         Thematic breaks
-19    ast         Thematic breaks
 31    idempotence Thematic breaks
-61    ast         Setext headings
-102   ast         Fenced code blocks
-103   ast         Fenced code blocks
 120   html        HTML blocks
 120   ast         HTML blocks
 152   html        HTML blocks
@@ -23,32 +15,12 @@
 169   ast         Link reference definitions
 171   html        Link reference definitions
 171   ast         Link reference definitions
-214   ast         Block quotes
-230   ast         Block quotes
-232   ast         List items
 235   idempotence List items
-242   ast         List items
-248   ast         List items
-249   ast         List items
-251   ast         List items
-252   ast         List items
-256   ast         List items
-264   ast         List items
-265   ast         List items
-266   ast         List items
-268   ast         List items
 280   idempotence Task list items (extension)
 281   idempotence Lists
 293   idempotence Lists
 298   html        Lists
 298   ast         Lists
-320   ast         Backslash escapes
-321   ast         Entity and numeric character references
-324   ast         Entity and numeric character references
-330   ast         Entity and numeric character references
-333   ast         Entity and numeric character references
-393   ast         Emphasis and strong emphasis
-411   ast         Emphasis and strong emphasis
 425   html        Emphasis and strong emphasis
 425   ast         Emphasis and strong emphasis
 435   idempotence Emphasis and strong emphasis
@@ -65,10 +37,3 @@
 475   idempotence Emphasis and strong emphasis
 479   html        Emphasis and strong emphasis
 479   ast         Emphasis and strong emphasis
-499   ast         Links
-500   ast         Links
-503   ast         Links
-520   ast         Links
-528   ast         Links
-536   ast         Links
-640   ast         Raw HTML

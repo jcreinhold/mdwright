@@ -52,8 +52,8 @@ The formatter round-trips the GFM 0.29-gfm spec (vendored at
 | -------------------- | -------- |
 | Spec examples total  | 672      |
 | Matching             | 615      |
-| Editorial deviations | 0        |
-| Tracked regressions  | 57       |
+| Editorial deviations | 35       |
+| Tracked regressions  | 22       |
 
 See [docs/deviations.md](docs/deviations.md) for the per-section
 breakdown and how the snapshot / allowlist mechanism works. The

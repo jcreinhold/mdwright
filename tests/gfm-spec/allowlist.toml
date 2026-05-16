@@ -13,7 +13,219 @@
 # Keep entries short. Adding here moves a failure out of `snapshot.txt`;
 # the snapshot test asserts every non-allowlisted failure is recorded.
 #
-# This file starts empty. Phase R's job is not to categorise the 243
-# current sieve failures — it is to establish the *mechanism* for
-# categorising them. Subsequent prompts (29-r-perf-and-release.md and
-# beyond) populate this file as fixes land or deviations are accepted.
+# Current buckets:
+#   pulldown-text-chunking — AST-only mismatches that reflect
+#     pulldown-cmark's text-run chunking, not a formatter deviation.
+#     HTML matches; output is byte-equivalent under cmark-gfm. See
+#     `docs/deviations.md#pulldown-text-chunking-deviations` for the
+#     shared rationale and the triage rule.
+
+[[case]]
+number = 5
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 6
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 7
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 16
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 19
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 61
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 102
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 103
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 214
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 230
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 232
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 242
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 248
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 249
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 251
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 252
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 256
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 264
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 265
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 266
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 268
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 320
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 321
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 324
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 330
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 333
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 393
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 411
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 499
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 500
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 503
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 520
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 528
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 536
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
+
+[[case]]
+number = 640
+bucket = "pulldown-text-chunking"
+reason = "AST-only mismatch: pulldown-cmark's text-run chunking differs from cmark-gfm; HTML matches."
+docs = "docs/deviations.md#pulldown-text-chunking-deviations"
