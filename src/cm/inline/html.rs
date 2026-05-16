@@ -38,6 +38,13 @@ impl<'a> InlineHtmlSpan<'a> {
     pub(crate) fn as_str(&self) -> &str {
         &self.bytes
     }
+
+    /// Emit the raw HTML span as an `unbreakable` doc.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
+        use crate::format::doc::{text, unbreakable};
+        unbreakable(text(self.bytes.as_ref().to_owned()))
+    }
 }
 
 /// True when the source placed `start` at the beginning of a line

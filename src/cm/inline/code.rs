@@ -73,6 +73,14 @@ impl<'a> InlineCodeRun<'a> {
     pub(crate) fn as_str(&self) -> &str {
         &self.bytes
     }
+
+    /// Wrap the canonicalised bytes in an `unbreakable` doc so the
+    /// wrap pass keeps the span on one line.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
+        use crate::format::doc::{text, unbreakable};
+        unbreakable(text(self.bytes.as_ref().to_owned()))
+    }
 }
 
 fn longest_backtick_run(s: &str) -> usize {

@@ -174,6 +174,26 @@ impl<'a> InlineRun<'a> {
         &self.parts
     }
 
+    /// Emit the run's parts as a `Doc`. Text segments map to
+    /// [`crate::format::doc::Doc::Text`]; soft breaks to
+    /// [`crate::format::doc::Doc::Line`]; hard breaks to either
+    /// `"\\" + HardLine` or `<br/>` depending on the form the run
+    /// committed to at construction.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty(&self) -> crate::format::doc::Doc<'a> {
+        use crate::format::doc::{Doc, concat, hard_line, line, text};
+        let mut parts: Vec<Doc<'a>> = Vec::with_capacity(self.parts.len());
+        for part in &self.parts {
+            match part {
+                RunPart::Text(s) => parts.push(text(s.clone())),
+                RunPart::SoftBreak => parts.push(line()),
+                RunPart::HardLineBreak => parts.push(concat([text("\\"), hard_line()])),
+                RunPart::HardBreakTag => parts.push(text("<br/>")),
+            }
+        }
+        concat(parts)
+    }
+
     /// `true` iff the run has no parts. The IR builder uses this to
     /// avoid materialising empty `NodeKind::Run` leaves.
     pub(crate) fn is_empty(&self) -> bool {

@@ -196,6 +196,57 @@ impl TableBlock<'_> {
     /// Per-column maximum display width (Unicode East-Asian-Width
     /// aware) of cells' source slices. Computed lazily on first call;
     /// subsequent calls return the cached vector.
+    /// Emit a GFM §4.10 table: head row, alignment row, body rows.
+    /// Cells are rendered via the inline pretty-printer, line breaks
+    /// inside cells collapsed to spaces. Per-column width is sized to
+    /// the widest cell content (and the alignment marker minimum);
+    /// rows that would otherwise exceed [`Wrap::columns`] fall back to
+    /// content-width-only padding.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(
+        &self,
+        ctx: &crate::format::pretty::PrettyCtx<'b>,
+        _id: NodeId,
+    ) -> crate::format::doc::Doc<'b> {
+        use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text};
+
+        let rows: Vec<Vec<String>> = core::iter::once(&self.head)
+            .chain(self.body.iter())
+            .map(|row| {
+                row.cells
+                    .iter()
+                    .map(|cell| {
+                        if row.is_pad(*cell) {
+                            String::new()
+                        } else {
+                            let inline =
+                                crate::format::inline::pretty_inline_children(ctx, cell.cell_id);
+                            let raw = render(&inline, &RenderOptions);
+                            normalize_table_cell(&raw)
+                        }
+                    })
+                    .collect()
+            })
+            .collect();
+
+        let n_cols = self.align.len();
+        let widths = compute_column_widths(&rows, &self.align, n_cols, ctx.opts.wrap());
+
+        let mut parts: Vec<Doc<'b>> =
+            Vec::with_capacity(rows.len().saturating_mul(2).saturating_add(1));
+        if let Some(head) = rows.first() {
+            parts.push(text(format_table_row(head, &widths)));
+            parts.push(hard_line());
+            parts.push(text(format_alignment_row(&self.align, &widths)));
+            parts.push(hard_line());
+        }
+        for row in rows.iter().skip(1) {
+            parts.push(text(format_table_row(row, &widths)));
+            parts.push(hard_line());
+        }
+        concat(parts)
+    }
+
     pub(crate) fn column_widths(&self, source: &str, arena: &[Node<'_>]) -> &[usize] {
         self.column_widths.get_or_init(|| {
             let mut widths = vec![0_usize; self.align.len()];
@@ -217,6 +268,117 @@ impl TableBlock<'_> {
             widths
         })
     }
+}
+
+fn normalize_table_cell(s: &str) -> String {
+    s.replace('\n', " ")
+}
+
+fn compute_column_widths(
+    rows: &[Vec<String>],
+    alignments: &[TableAlign],
+    n_cols: usize,
+    wrap: crate::config::Wrap,
+) -> Vec<usize> {
+    let mut widths = vec![0usize; n_cols];
+    for row in rows {
+        for (i, cell) in row.iter().enumerate() {
+            let w = UnicodeWidthStr::width(cell.as_str());
+            if let Some(slot) = widths.get_mut(i)
+                && w > *slot
+            {
+                *slot = w;
+            }
+        }
+    }
+    for (i, slot) in widths.iter_mut().enumerate() {
+        let a = alignments.get(i).copied().unwrap_or(TableAlign::None);
+        let min = alignment_min_width(a);
+        if min > *slot {
+            *slot = min;
+        }
+    }
+    let row_width: usize = widths
+        .iter()
+        .map(|w| w.saturating_add(3))
+        .sum::<usize>()
+        .saturating_add(1);
+    let target = wrap.columns() as usize;
+    if row_width > target {
+        let mut acc = vec![0usize; n_cols];
+        for row in rows {
+            for (i, cell) in row.iter().enumerate() {
+                let w = UnicodeWidthStr::width(cell.as_str());
+                if let Some(slot) = acc.get_mut(i)
+                    && w > *slot
+                {
+                    *slot = w;
+                }
+            }
+        }
+        return acc;
+    }
+    widths
+}
+
+const fn alignment_min_width(a: TableAlign) -> usize {
+    match a {
+        TableAlign::None => 3,
+        TableAlign::Left | TableAlign::Right => 4,
+        TableAlign::Center => 5,
+    }
+}
+
+fn format_table_row(cells: &[String], widths: &[usize]) -> String {
+    let mut out = String::from("|");
+    for (i, c) in cells.iter().enumerate() {
+        let w = widths.get(i).copied().unwrap_or(0);
+        let pad = w.saturating_sub(UnicodeWidthStr::width(c.as_str()));
+        out.push(' ');
+        out.push_str(c);
+        for _ in 0..pad {
+            out.push(' ');
+        }
+        out.push_str(" |");
+    }
+    out
+}
+
+fn format_alignment_row(alignments: &[TableAlign], widths: &[usize]) -> String {
+    let mut out = String::from("|");
+    for (i, &w) in widths.iter().enumerate() {
+        let a = alignments.get(i).copied().unwrap_or(TableAlign::None);
+        out.push(' ');
+        match a {
+            TableAlign::None => {
+                for _ in 0..w {
+                    out.push('-');
+                }
+            }
+            TableAlign::Left => {
+                out.push(':');
+                for _ in 0..w.saturating_sub(1) {
+                    out.push('-');
+                }
+            }
+            TableAlign::Right => {
+                for _ in 0..w.saturating_sub(1) {
+                    out.push('-');
+                }
+                out.push(':');
+            }
+            TableAlign::Center => {
+                out.push(':');
+                for _ in 0..w.saturating_sub(2) {
+                    out.push('-');
+                }
+                out.push(':');
+            }
+        }
+        out.push(' ');
+        out.push('|');
+    }
+    out
 }
 
 /// Display width of a cell from its arena source range.

@@ -13,6 +13,13 @@ impl Strikethrough {
     pub(crate) fn new() -> Self {
         Self
     }
+
+    /// Wrap `body` in `~~…~~`.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'a>(body: crate::format::doc::Doc<'a>) -> crate::format::doc::Doc<'a> {
+        use crate::format::doc::{concat, text};
+        concat([text("~~"), body, text("~~")])
+    }
 }
 
 #[cfg(test)]

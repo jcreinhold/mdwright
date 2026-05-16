@@ -9,6 +9,9 @@
 
 use std::borrow::Cow;
 
+use crate::format::doc::{Doc, concat, hard_line, text};
+use crate::format::pretty::PrettyCtx;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HtmlBlock<'a> {
     body: Cow<'a, str>,
@@ -22,6 +25,19 @@ impl<'a> HtmlBlock<'a> {
 
     pub(crate) fn body(&self) -> &str {
         &self.body
+    }
+
+    /// Emit the HTML body verbatim, trimming any trailing newlines
+    /// before reattaching exactly one as the block terminator. Empty
+    /// bodies still emit one hard line so adjacent blocks stay
+    /// separated.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(&self, _ctx: &PrettyCtx<'b>, _id: crate::tree::NodeId) -> Doc<'b> {
+        let trimmed = self.body.trim_end_matches('\n');
+        if trimmed.is_empty() {
+            return hard_line();
+        }
+        concat([text(trimmed.to_owned()), hard_line()])
     }
 }
 

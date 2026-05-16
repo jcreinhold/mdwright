@@ -83,6 +83,19 @@ impl EmphasisRun {
     pub(crate) fn resolve(self, ctx: ResolveCtx) -> EmphasisDelim {
         resolve(self.source_delim, ctx)
     }
+
+    /// Wrap `body` in the resolved single-byte delimiter (`*…*` or
+    /// `_…_`). Resolution is the caller's responsibility because it
+    /// depends on sibling context the run itself does not hold.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'a>(
+        body: crate::format::doc::Doc<'a>,
+        delim: EmphasisDelim,
+    ) -> crate::format::doc::Doc<'a> {
+        use crate::format::doc::{concat, text};
+        let d = delim.as_str();
+        concat([text(d), body, text(d)])
+    }
 }
 
 impl StrongRun {
@@ -92,6 +105,21 @@ impl StrongRun {
 
     pub(crate) fn resolve(self, ctx: ResolveCtx) -> EmphasisDelim {
         resolve(self.source_delim, ctx)
+    }
+
+    /// Wrap `body` in the doubled resolved delimiter (`**…**` or
+    /// `__…__`).
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'a>(
+        body: crate::format::doc::Doc<'a>,
+        delim: EmphasisDelim,
+    ) -> crate::format::doc::Doc<'a> {
+        use crate::format::doc::{concat, text};
+        let d: &'static str = match delim {
+            EmphasisDelim::Asterisk => "**",
+            EmphasisDelim::Underscore => "__",
+        };
+        concat([text(d), body, text(d)])
     }
 }
 

@@ -235,6 +235,18 @@ impl<'a> LinkRun<'a> {
     pub(crate) fn emit_style<'s>(&'s self, ctx: &LinkResolveCtx<'_>) -> EmitLinkStyle<'s> {
         decide_style(&self.source, ctx.body_text)
     }
+
+    /// Emit this link with the resolved style.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(
+        &self,
+        body: Doc<'b>,
+        ctx: &crate::format::pretty::PrettyCtx<'b>,
+    ) -> Doc<'b> {
+        let flat = flatten_body_doc(&body);
+        let style = self.emit_style(&LinkResolveCtx { body_text: &flat });
+        assemble_link(ctx, body, self.dest(), self.title(), &style, false)
+    }
 }
 
 impl<'a> ImageRun<'a> {
@@ -304,6 +316,18 @@ impl<'a> ImageRun<'a> {
     #[tracing::instrument(level = "trace", skip(self, ctx))]
     pub(crate) fn emit_style<'s>(&'s self, ctx: &LinkResolveCtx<'_>) -> EmitLinkStyle<'s> {
         decide_style(&self.source, ctx.body_text)
+    }
+
+    /// Emit this image with the resolved style.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(
+        &self,
+        body: Doc<'b>,
+        ctx: &crate::format::pretty::PrettyCtx<'b>,
+    ) -> Doc<'b> {
+        let flat = flatten_body_doc(&body);
+        let style = self.emit_style(&LinkResolveCtx { body_text: &flat });
+        assemble_link(ctx, body, self.dest(), self.title(), &style, true)
     }
 }
 
@@ -380,6 +404,152 @@ fn walk(doc: &Doc<'_>, out: &mut String) {
             }
         }
     }
+}
+
+// ============================================================
+// Link / image assembly
+// ============================================================
+
+/// Shared between [`LinkRun::pretty`] and [`ImageRun::pretty`]:
+/// emits the body wrapped in `[…](…)` (inline), `[…][label]` (full),
+/// `[…][]` (collapsed), or `[…]` (shortcut) per `style`.
+fn assemble_link<'a>(
+    ctx: &crate::format::pretty::PrettyCtx<'a>,
+    body_doc: Doc<'a>,
+    dest: &str,
+    title: &str,
+    style: &EmitLinkStyle<'_>,
+    is_image: bool,
+) -> Doc<'a> {
+    use crate::format::doc::{concat, text, unbreakable};
+    let prefix = if is_image { "![" } else { "[" };
+    match style {
+        EmitLinkStyle::Inline => {
+            let dest_str = render_url_destination_owned(dest, ctx.opts.link_def_style());
+            let mut parts: Vec<Doc<'a>> = Vec::with_capacity(6);
+            parts.push(text(prefix));
+            parts.push(body_doc);
+            parts.push(text("]("));
+            parts.push(text(dest_str));
+            if !title.is_empty() {
+                parts.push(text(format!(" \"{}\"", escape_title(title))));
+            }
+            parts.push(text(")"));
+            unbreakable(concat(parts))
+        }
+        EmitLinkStyle::ReferenceFull { label } => unbreakable(concat([
+            text(prefix),
+            body_doc,
+            text(format!("][{label}]")),
+        ])),
+        EmitLinkStyle::ReferenceCollapsed => {
+            unbreakable(concat([text(prefix), body_doc, text("][]")]))
+        }
+        EmitLinkStyle::ReferenceShortcut => {
+            unbreakable(concat([text(prefix), body_doc, text("]")]))
+        }
+    }
+}
+
+/// Render a URL destination, choosing between the bare and angle
+/// forms. Public so the link-reference-definition emitter in
+/// `format/document.rs` can share the same escape policy.
+pub(crate) fn render_url_destination_owned(
+    url: &str,
+    style: crate::config::LinkDefStyle,
+) -> String {
+    if matches!(style, crate::config::LinkDefStyle::Angle) {
+        return format!("<{}>", escape_angle_url(url));
+    }
+    match escape_url(url) {
+        EscapedUrl::Bare(s) => s.into_owned(),
+        EscapedUrl::Angle(s) => format!("<{s}>"),
+    }
+}
+
+enum EscapedUrl<'a> {
+    Bare(Cow<'a, str>),
+    Angle(Cow<'a, str>),
+}
+
+fn escape_url(url: &str) -> EscapedUrl<'_> {
+    if url
+        .bytes()
+        .any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+    {
+        return EscapedUrl::Angle(escape_angle_url(url));
+    }
+    EscapedUrl::Bare(escape_bare_url(url))
+}
+
+fn escape_bare_url(url: &str) -> Cow<'_, str> {
+    let bytes = url.as_bytes();
+    let mut needs_escape: Vec<bool> = vec![false; bytes.len()];
+    let mut open_stack: Vec<usize> = Vec::new();
+    for (i, &b) in bytes.iter().enumerate() {
+        match b {
+            b'(' => open_stack.push(i),
+            b')' => {
+                if open_stack.pop().is_none()
+                    && let Some(slot) = needs_escape.get_mut(i)
+                {
+                    *slot = true;
+                }
+            }
+            _ => {}
+        }
+    }
+    for i in &open_stack {
+        if let Some(slot) = needs_escape.get_mut(*i) {
+            *slot = true;
+        }
+    }
+    let any = needs_escape.iter().any(|&b| b);
+    if !any {
+        return Cow::Borrowed(url);
+    }
+    let mut out = String::with_capacity(url.len().saturating_add(open_stack.len()));
+    for (i, &b) in bytes.iter().enumerate() {
+        if needs_escape.get(i).copied().unwrap_or(false) {
+            out.push('\\');
+        }
+        out.push(char::from(b));
+    }
+    Cow::Owned(out)
+}
+
+fn escape_angle_url(url: &str) -> Cow<'_, str> {
+    if url.bytes().all(|b| !matches!(b, b'<' | b'>' | b'\\')) {
+        return Cow::Borrowed(url);
+    }
+    let mut out = String::with_capacity(url.len().saturating_add(4));
+    for ch in url.chars() {
+        match ch {
+            '<' | '>' | '\\' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    Cow::Owned(out)
+}
+
+fn escape_title(title: &str) -> Cow<'_, str> {
+    if title.bytes().all(|b| !matches!(b, b'\\' | b'"')) {
+        return Cow::Borrowed(title);
+    }
+    let mut out = String::with_capacity(title.len().saturating_add(4));
+    for ch in title.chars() {
+        match ch {
+            '\\' | '"' => {
+                out.push('\\');
+                out.push(ch);
+            }
+            _ => out.push(ch),
+        }
+    }
+    Cow::Owned(out)
 }
 
 /// `CommonMark` label normalisation: trim leading/trailing whitespace,

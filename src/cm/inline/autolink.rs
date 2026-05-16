@@ -53,6 +53,13 @@ impl<'a> AutolinkRun<'a> {
         &self.url
     }
 
+    /// Emit `<url>` as a single unbreakable token.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
+        use crate::format::doc::{text, unbreakable};
+        unbreakable(text(format!("<{}>", self.url)))
+    }
+
     #[cfg(test)]
     pub(crate) fn kind(&self) -> AutolinkKind {
         self.kind

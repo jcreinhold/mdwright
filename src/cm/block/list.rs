@@ -55,6 +55,15 @@ pub(crate) enum OrderedDelim {
     Paren,
 }
 
+impl OrderedDelim {
+    pub(crate) fn as_char(self) -> char {
+        match self {
+            Self::Period => '.',
+            Self::Paren => ')',
+        }
+    }
+}
+
 /// Bullet/ordered marker of a list. Carries the *parsed* shape; any
 /// normalisation (e.g., "always emit `-` for bullets") is a formatter
 /// decision applied at render time.
@@ -267,6 +276,213 @@ impl ListBlock {
     pub(crate) fn item_for(&self, node_id: NodeId) -> Option<&ListItemKind> {
         self.items.iter().find(|k| k.item_id() == node_id)
     }
+
+    /// Emit every item in source order, marker-prefixed, with
+    /// continuation lines indented to the marker width. Loose lists
+    /// insert a blank line between items. Always terminates with one
+    /// hard newline so the surrounding block-sequence separator
+    /// produces a blank line between the list and whatever follows.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'a>(
+        &self,
+        ctx: &crate::format::pretty::PrettyCtx<'a>,
+        _id: crate::tree::NodeId,
+    ) -> crate::format::doc::Doc<'a> {
+        use crate::format::doc::{concat, hard_line};
+        let tight = matches!(self.tightness, Tightness::Tight);
+        let mut parts: Vec<crate::format::doc::Doc<'a>> =
+            Vec::with_capacity(self.items.len().saturating_mul(2));
+        for (idx, item_kind) in self.items.iter().enumerate() {
+            if idx > 0 {
+                parts.push(hard_line());
+                if !tight {
+                    parts.push(hard_line());
+                }
+            }
+            let marker = self.marker_for_index(ctx, idx, item_kind);
+            parts.push(render_item(ctx, item_kind, &marker));
+        }
+        // Trailing hard line: ensures `concat([list, hard_line, next_block])`
+        // produces a blank line between list and next block.
+        parts.push(hard_line());
+        concat(parts)
+    }
+
+    fn marker_for_index(
+        &self,
+        ctx: &crate::format::pretty::PrettyCtx<'_>,
+        idx: usize,
+        item_kind: &ListItemKind,
+    ) -> String {
+        use crate::config::OrderedListStyle;
+        match self.marker {
+            ListMarker::Ordered { start, delim } => {
+                let n = match ctx.opts.ordered_list() {
+                    OrderedListStyle::Consistent => {
+                        u64::from(start).saturating_add(idx as u64)
+                    }
+                    OrderedListStyle::Preserve => {
+                        source_ordered_marker_number(ctx, item_kind.item_id())
+                            .unwrap_or_else(|| u64::from(start).saturating_add(idx as u64))
+                    }
+                };
+                let punct = source_ordered_punct(ctx, item_kind.item_id())
+                    .unwrap_or_else(|| delim.as_char());
+                format!("{n}{punct} ")
+            }
+            ListMarker::Dash => {
+                let b = ctx.opts.resolve_list_marker(b'-');
+                format!("{} ", char::from(b))
+            }
+            ListMarker::Asterisk => {
+                let b = ctx.opts.resolve_list_marker(b'*');
+                format!("{} ", char::from(b))
+            }
+            ListMarker::Plus => {
+                let b = ctx.opts.resolve_list_marker(b'+');
+                format!("{} ", char::from(b))
+            }
+        }
+    }
+}
+
+fn source_ordered_marker_number(
+    ctx: &crate::format::pretty::PrettyCtx<'_>,
+    item_id: NodeId,
+) -> Option<u64> {
+    let raw = ctx.tree.raw_text(item_id);
+    let trimmed = raw.trim_start();
+    let digits: String = trimmed.chars().take_while(char::is_ascii_digit).collect();
+    digits.parse().ok()
+}
+
+fn source_ordered_punct(
+    ctx: &crate::format::pretty::PrettyCtx<'_>,
+    item_id: NodeId,
+) -> Option<char> {
+    let raw = ctx.tree.raw_text(item_id);
+    let trimmed = raw.trim_start();
+    trimmed
+        .chars()
+        .find(|c| !c.is_ascii_digit())
+        .filter(|c| *c == '.' || *c == ')')
+}
+
+fn render_item<'a>(
+    ctx: &crate::format::pretty::PrettyCtx<'a>,
+    item_kind: &ListItemKind,
+    marker: &str,
+) -> crate::format::doc::Doc<'a> {
+    use crate::format::doc::{RenderOptions, render, text, unbreakable};
+    use crate::format::wrap::wrap_doc;
+
+    let id = item_kind.item_id();
+    let task_prefix = match item_kind {
+        ListItemKind::Task(t) => Some(if t.checked() { "[x] " } else { "[ ] " }),
+        ListItemKind::Plain(_) => None,
+    };
+
+    let body = render_item_body(ctx, id);
+    let marker_with_task: String = match task_prefix {
+        Some(t) => format!("{marker}{t}"),
+        None => marker.to_owned(),
+    };
+    let indent_width = marker_with_task.chars().count();
+    let shrink_n = u32::try_from(indent_width).unwrap_or(u32::MAX);
+    let wrapped = wrap_doc(body, ctx.opts.wrap().shrink(shrink_n));
+    let rendered = render(&wrapped, &RenderOptions);
+    let trimmed = rendered.trim_end_matches('\n');
+    let indent: String = std::iter::repeat_n(' ', indent_width).collect();
+    let mut out = String::with_capacity(trimmed.len().saturating_add(indent_width));
+    for (i, line) in trimmed.split('\n').enumerate() {
+        if i > 0 {
+            out.push('\n');
+        }
+        if i == 0 {
+            out.push_str(&marker_with_task);
+            out.push_str(line);
+        } else if line.is_empty() {
+            // blank
+        } else {
+            out.push_str(&indent);
+            out.push_str(line);
+        }
+    }
+    unbreakable(text(out))
+}
+
+/// Render an `Item`'s children: groups runs of inline children into
+/// virtual paragraphs and recurses into block children normally. When
+/// the parent list is loose, item-internal blocks are separated by a
+/// blank line.
+fn render_item_body<'a>(
+    ctx: &crate::format::pretty::PrettyCtx<'a>,
+    id: NodeId,
+) -> crate::format::doc::Doc<'a> {
+    use crate::cm::block::paragraph::escape_paragraph_line_starts;
+    use crate::format::doc::{concat, hard_line};
+    use crate::tree::NodeKind;
+
+    let parent_loose = ctx
+        .tree
+        .parent(id)
+        .and_then(|p| ctx.tree.node(p))
+        .is_some_and(|n| matches!(n.kind, NodeKind::List { tight: false, .. }));
+    let children: Vec<NodeId> = ctx.tree.children(id).collect();
+    let mut parts: Vec<crate::format::doc::Doc<'a>> = Vec::new();
+    let mut inline_run: Vec<NodeId> = Vec::new();
+    let mut emitted = 0usize;
+
+    let flush_inline = |run: &mut Vec<NodeId>,
+                            parts: &mut Vec<crate::format::doc::Doc<'a>>,
+                            emitted: &mut usize| {
+        if run.is_empty() {
+            return;
+        }
+        if *emitted > 0 && parent_loose {
+            parts.push(hard_line());
+        }
+        let inline =
+            crate::format::inline::pretty_inline_children_for_ids(ctx, run);
+        let body = escape_paragraph_line_starts(ctx, inline);
+        parts.push(concat([body, hard_line()]));
+        *emitted = emitted.saturating_add(1);
+        run.clear();
+    };
+
+    for cid in children {
+        let kind = ctx.tree.node(cid).map(|n| &n.kind);
+        if is_block_kind(kind) {
+            flush_inline(&mut inline_run, &mut parts, &mut emitted);
+            if emitted > 0 && parent_loose {
+                parts.push(hard_line());
+            }
+            parts.push(crate::format::block::pretty_block(ctx, cid));
+            emitted = emitted.saturating_add(1);
+        } else {
+            inline_run.push(cid);
+        }
+    }
+    flush_inline(&mut inline_run, &mut parts, &mut emitted);
+    concat(parts)
+}
+
+fn is_block_kind(kind: Option<&crate::tree::NodeKind<'_>>) -> bool {
+    use crate::tree::NodeKind;
+    matches!(
+        kind,
+        Some(
+            NodeKind::Paragraph
+                | NodeKind::Heading { .. }
+                | NodeKind::BlockQuote
+                | NodeKind::CodeBlock { .. }
+                | NodeKind::HtmlBlock { .. }
+                | NodeKind::ThematicBreak
+                | NodeKind::List { .. }
+                | NodeKind::Table { .. }
+                | NodeKind::FootnoteDefinition { .. }
+        )
+    )
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

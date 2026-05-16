@@ -5,6 +5,10 @@
 //! refuses the setext-plus-level-3+ combination — setext underlines
 //! exist only for H1 (`===`) and H2 (`---`).
 
+use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text};
+use crate::format::pretty::PrettyCtx;
+use crate::tree::NodeId;
+
 /// A heading level in 1..=6. Constructed only via [`HeadingLevel::try_new`];
 /// the inner byte is intentionally inaccessible so out-of-range values
 /// are unrepresentable.
@@ -62,6 +66,30 @@ impl Heading {
 
     pub(crate) fn style(self) -> HeadingStyle {
         self.style
+    }
+
+    /// Emit an ATX (`# Body`) or setext (`Body\n===`) heading. `body`
+    /// is the already-rendered inline doc; the dispatcher produces it.
+    /// Setext headings carry their underline width at render time so
+    /// the line matches the inline's display width (minimum 3).
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
+        let body = crate::format::inline::pretty_inline_children(ctx, id);
+        let level = self.level.as_u8();
+        if matches!(self.style, HeadingStyle::Setext) && level <= 2 {
+            let rendered = render(&body, &RenderOptions);
+            let width = rendered
+                .lines()
+                .next()
+                .map_or(3, |l| l.chars().count())
+                .max(3);
+            let underline_char = if level == 1 { '=' } else { '-' };
+            let underline: String = std::iter::repeat_n(underline_char, width).collect();
+            return concat([body, hard_line(), text(underline), hard_line()]);
+        }
+        let lvl = level.clamp(1, 6) as usize;
+        let prefix: String = std::iter::repeat_n('#', lvl).collect::<String>() + " ";
+        concat([text(prefix), body, hard_line()])
     }
 }
 

@@ -9,14 +9,15 @@
 //! Pretty" (2000); and the `prettyplease` crate for prior art.
 
 pub(crate) mod block;
-pub(crate) mod ctx;
 pub(crate) mod doc;
+pub(crate) mod document;
 pub(crate) mod inline;
 pub(crate) mod math;
+pub(crate) mod pretty;
 pub(crate) mod verbatim;
 pub(crate) mod wrap;
 
-use crate::config::{EndOfLine, FmtOptions, FormatMode};
+use crate::config::EndOfLine;
 
 /// Ensure the rendered output ends in exactly one `\n` when
 /// `trailing_newline` is true, or no trailing newline when it is
@@ -52,37 +53,4 @@ pub(crate) fn apply_end_of_line(out: &mut String, policy: EndOfLine, source: &st
     *out = out.replace('\n', target);
 }
 
-/// Front-end used by `Document::format`. Renders the tree IR rooted
-/// at `root` into a Markdown string.
-pub(crate) fn format_document<'a>(
-    source: &'a str,
-    opts: &'a FmtOptions,
-    tree: &'a crate::tree::Tree<'a>,
-    frontmatter: Option<&'a crate::ir::Frontmatter<'a>>,
-    admonitions: &'a [crate::ir::AdmonitionRegion<'a>],
-    math_regions: &'a [crate::format::math::MathRegion],
-    refs: &'a crate::cm::refs::ReferenceTable,
-) -> String {
-    let ctx = ctx::Ctx {
-        source,
-        opts,
-        tree,
-        frontmatter,
-        admonitions,
-        math_regions,
-        refs,
-    };
-    let doc = if opts.mode() == FormatMode::Verbatim {
-        // Emit the entire document source as one borrowed slice.
-        // Trailing-newline and end-of-line policies still apply at
-        // the document boundary; no block-level rewrite runs.
-        doc::unbreakable(doc::text(source))
-    } else {
-        block::render_block_sequence(&ctx, tree.root())
-    };
-    let wrapped = wrap::wrap_doc(doc, opts.wrap());
-    let mut out = doc::render(&wrapped, &doc::RenderOptions);
-    normalize_trailing_newline(&mut out, opts.trailing_newline());
-    apply_end_of_line(&mut out, opts.end_of_line(), source);
-    out
-}
+pub(crate) use document::format_document;

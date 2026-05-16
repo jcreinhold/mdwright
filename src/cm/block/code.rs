@@ -9,6 +9,10 @@
 
 use std::borrow::Cow;
 
+use crate::format::doc::{Doc, concat, hard_line, text, unbreakable};
+use crate::format::pretty::PrettyCtx;
+use crate::tree::NodeId;
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum CodeFenceChar {
     Backtick,
@@ -78,6 +82,78 @@ impl<'a> FencedCodeBlock<'a> {
     pub(crate) fn body(&self) -> &str {
         self.body.as_ref()
     }
+
+    /// Emit `FENCE INFO\nBODY\nFENCE\n` honouring source-derived fence
+    /// char and source-derived fence length when these are at least as
+    /// long as the body-minimum. The whole block is wrapped in
+    /// [`unbreakable`] so its embedded newlines never enter a wrap run.
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(&self, ctx: &PrettyCtx<'b>, id: NodeId) -> Doc<'b> {
+        let body = self.body.trim_end_matches('\n');
+        let source_char = source_fence_char(ctx, id);
+        let fence_char = source_char.unwrap_or_else(|| char::from(self.fence.char.as_byte()));
+        let body_min = usize::from(self.fence.length);
+        let source_len = source_fence_len(ctx, id, fence_char).unwrap_or(0);
+        let fence_len = source_len.max(body_min).max(3);
+        let fence_string: String = std::iter::repeat_n(fence_char, fence_len).collect();
+        let fence_str: &str = fence_string.as_str();
+        let info = self.info.as_ref();
+        let mut open = String::with_capacity(fence_str.len().saturating_add(info.len()));
+        open.push_str(fence_str);
+        open.push_str(info);
+        if body.is_empty() {
+            return concat([
+                unbreakable(concat([
+                    text(open),
+                    hard_line(),
+                    text(fence_string.clone()),
+                ])),
+                hard_line(),
+            ]);
+        }
+        let mut tail =
+            String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
+        tail.push_str(body);
+        if !tail.ends_with('\n') {
+            tail.push('\n');
+        }
+        tail.push_str(fence_str);
+        concat([
+            unbreakable(concat([text(open), hard_line(), text(tail)])),
+            hard_line(),
+        ])
+    }
+}
+
+/// First non-whitespace byte of the source for `id`, if it is a fence
+/// character. Used to preserve a `~~~` source rather than always
+/// emitting backticks.
+fn source_fence_char(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<char> {
+    let raw = ctx.tree.raw_text(id);
+    raw.bytes()
+        .find(|b| !matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+        .map(char::from)
+        .filter(|c| *c == '`' || *c == '~')
+}
+
+/// Length of the opening fence run in the source for this code block,
+/// when it matches `fence_char`. Returns `None` for indented blocks or
+/// when the source can't be inspected.
+fn source_fence_len(ctx: &PrettyCtx<'_>, id: NodeId, fence_char: char) -> Option<usize> {
+    let fc = fence_char as u8;
+    let raw = ctx.tree.raw_text(id);
+    let bytes = raw.as_bytes();
+    let start = bytes
+        .iter()
+        .position(|b| !matches!(*b, b' ' | b'\t' | b'\n' | b'\r'))?;
+    if bytes.get(start).copied() != Some(fc) {
+        return None;
+    }
+    let mut i = start;
+    while bytes.get(i).copied() == Some(fc) {
+        i = i.saturating_add(1);
+    }
+    Some(i.saturating_sub(start))
 }
 
 #[derive(Clone, Debug)]
@@ -95,6 +171,43 @@ impl<'a> IndentedCodeBlock<'a> {
 
     pub(crate) fn body(&self) -> &str {
         self.body.as_ref()
+    }
+
+    /// Emit an indented code block as a canonical backtick-fenced
+    /// block. (At the document root the dispatcher's verbatim overlay
+    /// short-circuits this path; the fenced emission applies only when
+    /// the block is nested inside a container.)
+    #[tracing::instrument(level = "trace", skip_all)]
+    pub(crate) fn pretty<'b>(&self, _ctx: &PrettyCtx<'b>, _id: NodeId) -> Doc<'b> {
+        let body = self.body.trim_end_matches('\n');
+        let fence_len = pick_fence_length(CodeFenceChar::Backtick, body).max(3) as usize;
+        let fence_string: String = std::iter::repeat_n('`', fence_len).collect();
+        let fence_str: &str = fence_string.as_str();
+        if body.is_empty() {
+            return concat([
+                unbreakable(concat([
+                    text(fence_string.clone()),
+                    hard_line(),
+                    text(fence_string.clone()),
+                ])),
+                hard_line(),
+            ]);
+        }
+        let mut tail =
+            String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
+        tail.push_str(body);
+        if !tail.ends_with('\n') {
+            tail.push('\n');
+        }
+        tail.push_str(fence_str);
+        concat([
+            unbreakable(concat([
+                text(fence_string.clone()),
+                hard_line(),
+                text(tail),
+            ])),
+            hard_line(),
+        ])
     }
 }
 

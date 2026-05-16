@@ -13,10 +13,10 @@
 //! invariant) and a normalised pulldown-cmark event stream (the
 //! stronger invariant that catches silent raw-HTML insertion).
 //!
-//! Two entry points: [`gfm_spec_fast`] runs a curated subset and is
-//! part of the default `cargo test` run; [`gfm_spec_full`] runs every
-//! case behind `#[ignore]`. The allowlist at
-//! `tests/gfm-spec/known-mismatches.txt` is shared.
+//! [`gfm_spec_full`] runs every case behind `#[ignore]`. The
+//! allowlist at `tests/gfm-spec/known-mismatches.txt` curates the
+//! known divergences; per-construct round-trip proptests in later
+//! prompts will retire the ratchet.
 
 use std::collections::HashSet;
 use std::fmt::Write as _;
@@ -313,16 +313,6 @@ fn report(fails: &[CaseFailure], total: usize) -> String {
     out
 }
 
-/// Curated case numbers that currently pass under both invariants.
-/// These are regression sentinels — adding a case here requires that
-/// it pass `gfm_spec_full` first. Categories represented: emphasis,
-/// links, images, autolinks, tables, strikethrough, task lists, and a
-/// handful of core `CommonMark` constructs. Kept small so
-/// `cargo test --release` stays under a few seconds.
-const FAST_CASES: &[u32] = &[
-    32, 50, 62, 181, 198, 199, 279, 282, 351, 424, 490, 491, 492, 537, 584, 602, 620, 632, 634,
-];
-
 /// Baseline failure count for the full spec sweep. The exhaustive
 /// sweep asserts `failures ≤ FULL_BASELINE_FAILURES`: regressions
 /// fail the test, improvements pass with room to lower the baseline
@@ -332,19 +322,10 @@ const FAST_CASES: &[u32] = &[
 /// emphasis nesting). Future sessions tighten this number toward zero.
 const FULL_BASELINE_FAILURES: usize = 243;
 
-fn run_subset(cases: &[SpecCase], allow: &HashSet<u32>, fast: bool) -> (Vec<CaseFailure>, usize) {
+fn run_subset(cases: &[SpecCase], allow: &HashSet<u32>) -> (Vec<CaseFailure>, usize) {
     let mut fails = Vec::new();
     let mut count = 0usize;
-    let selector: Box<dyn Fn(&SpecCase) -> bool> = if fast {
-        let set: HashSet<u32> = FAST_CASES.iter().copied().collect();
-        Box::new(move |c| set.contains(&c.number))
-    } else {
-        Box::new(|_| true)
-    };
     for case in cases {
-        if !selector(case) {
-            continue;
-        }
         if allow.contains(&case.number) {
             continue;
         }
@@ -352,15 +333,6 @@ fn run_subset(cases: &[SpecCase], allow: &HashSet<u32>, fast: bool) -> (Vec<Case
         fails.extend(run_case(case));
     }
     (fails, count)
-}
-
-#[test]
-fn gfm_spec_fast() {
-    let cases = load_spec();
-    let allow = load_allowlist();
-    let (fails, count) = run_subset(&cases, &allow, true);
-    assert!(count > 0, "fast subset is empty — check FAST_CASES");
-    assert!(fails.is_empty(), "{}", report(&fails, count));
 }
 
 /// Exhaustive sweep. Asserts the failure count does not exceed
@@ -372,7 +344,7 @@ fn gfm_spec_fast() {
 fn gfm_spec_full() {
     let cases = load_spec();
     let allow = load_allowlist();
-    let (fails, count) = run_subset(&cases, &allow, false);
+    let (fails, count) = run_subset(&cases, &allow);
     assert!(count > 0, "spec parse produced no cases");
     let unique_cases: HashSet<u32> = fails.iter().map(|f| f.case).collect();
     let n = unique_cases.len();

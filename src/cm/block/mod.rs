@@ -9,14 +9,10 @@
 //! it should emit.
 //!
 //! These values live on [`crate::tree::Node::typed`] alongside the
-//! legacy [`crate::tree::NodeKind`] enum. The legacy block formatter
-//! keeps consuming `NodeKind` until prompt 27 swaps it; emitter
-//! bridges that read the typed value land per-kind as that prompt
-//! progresses.
+//! legacy [`crate::tree::NodeKind`] enum. The Phase-R printer
+//! (prompt 27) dispatches every block through this module's
+//! [`TypedBlock::pretty`] — each typed value owns its serialisation.
 
-// Accessors on the typed-block values land before prompt 27's
-// emitter swap, so the bridges that will consume them are not yet
-// in place. Suppress dead-code warnings on the submodules until then.
 #[allow(dead_code)]
 pub(crate) mod code;
 #[allow(dead_code)]
@@ -46,14 +42,16 @@ use quote::BlockQuote;
 use table::TableBlock;
 use thematic::ThematicBreak;
 
+use crate::format::doc::Doc;
+use crate::format::pretty::PrettyCtx;
+use crate::tree::NodeId;
+
 /// One typed block value attached to a [`crate::tree::Node`]. The
 /// variants mirror the `CommonMark` §4 and GFM §4.10 / extension
 /// block kinds whose well-formedness invariants Phase R has lifted
 /// into types. Post-prompt-26b every printable block kind has a
-/// variant here; the legacy `NodeKind` data still drives emission
-/// until prompt 27 swaps the renderer.
+/// variant here; [`TypedBlock::pretty`] is the printer entry point.
 #[derive(Clone, Debug)]
-#[allow(dead_code)]
 pub(crate) enum TypedBlock<'a> {
     Paragraph(Paragraph),
     Heading(Heading),
@@ -65,4 +63,24 @@ pub(crate) enum TypedBlock<'a> {
     ListBlock(ListBlock),
     Table(TableBlock<'a>),
     FootnoteDef(FootnoteDef<'a>),
+}
+
+impl<'a> TypedBlock<'a> {
+    /// Render this block. The exhaustive match makes adding a variant
+    /// a compile error here — surfacing the missing renderer rather
+    /// than silently falling through.
+    pub(crate) fn pretty(&self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
+        match self {
+            Self::Paragraph(p) => (*p).pretty(ctx, id),
+            Self::Heading(h) => (*h).pretty(ctx, id),
+            Self::FencedCodeBlock(c) => c.pretty(ctx, id),
+            Self::IndentedCodeBlock(c) => c.pretty(ctx, id),
+            Self::HtmlBlock(h) => h.pretty(ctx, id),
+            Self::BlockQuote(q) => (*q).pretty(ctx, id),
+            Self::ThematicBreak(t) => (*t).pretty(ctx, id),
+            Self::ListBlock(l) => l.pretty(ctx, id),
+            Self::Table(t) => t.pretty(ctx, id),
+            Self::FootnoteDef(f) => f.pretty(ctx, id),
+        }
+    }
 }

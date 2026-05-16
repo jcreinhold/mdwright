@@ -1,9 +1,15 @@
-//! Immutable context threaded through the block/inline serializers.
+//! Immutable context threaded through every typed-construct `pretty()`
+//! method.
 //!
-//! `Ctx` carries the source, the resolved formatter options, and the
-//! tree IR — everything the per-node renderers read but never write.
-//! Indent state is **not** here: it lives in the `Doc` IR via
-//! `Nest`, so recursion through the serializer stays pure.
+//! `PrettyCtx` carries the source, the resolved formatter options, the
+//! tree IR, the reference table, and the overlay-region inputs
+//! (frontmatter, admonitions, math regions). It is a `Copy` value
+//! object — no mutable state. Pass by `&PrettyCtx<'a>`.
+//!
+//! Indent state is **not** here: container constructs that need to
+//! prefix their body's emitted lines (blockquote, list item, footnote
+//! definition) own the prefix decision and apply it inside their own
+//! `pretty()` method.
 
 use crate::cm::refs::ReferenceTable;
 use crate::config::FmtOptions;
@@ -12,7 +18,7 @@ use crate::ir::{AdmonitionRegion, Frontmatter};
 use crate::tree::Tree;
 
 #[derive(Clone, Copy)]
-pub(crate) struct Ctx<'a> {
+pub(crate) struct PrettyCtx<'a> {
     pub source: &'a str,
     pub opts: &'a FmtOptions,
     pub tree: &'a Tree<'a>,

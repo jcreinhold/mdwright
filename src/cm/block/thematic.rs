@@ -8,6 +8,8 @@
 //! policy field, not a hard-coded constant in the emitter.
 
 use crate::config::ThematicStyle;
+use crate::format::doc::{Doc, concat, hard_line, text};
+use crate::format::pretty::PrettyCtx;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ThematicBreak {
@@ -22,6 +24,19 @@ impl ThematicBreak {
 
     pub(crate) fn style(self) -> ThematicStyle {
         self.style
+    }
+
+    /// Emit the CM §4.1 line: three repetitions of the configured byte,
+    /// terminated by a hard newline. The byte source is
+    /// [`PrettyCtx::opts`]'s `thematic_break_style`; the value carried
+    /// on `self` is the parse-time choice and is currently overridden
+    /// by the formatter setting.
+    #[tracing::instrument(level = "trace", skip_all)]
+    #[allow(clippy::unused_self)]
+    pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, _id: crate::tree::NodeId) -> Doc<'a> {
+        let b = ctx.opts.thematic_break_style().as_byte();
+        let line: String = std::iter::repeat_n(char::from(b), 3).collect();
+        concat([text(line), hard_line()])
     }
 }
 
