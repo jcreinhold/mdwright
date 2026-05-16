@@ -73,6 +73,17 @@ pub(crate) fn escape_buffer(buf: &str, forced: &[bool], scope: EscapeScope) -> S
     String::from_utf8(out).unwrap_or_default()
 }
 
+/// True iff any byte in `buf` would be escaped by the standard
+/// per-byte policy under `scope` (forced escapes are *not* considered;
+/// callers handle them separately). The singleton no-forced-escape
+/// path in [`super::run::InlineRun::new`] uses this to skip the
+/// owned-buffer allocation in [`escape_buffer`] when the input is
+/// already escape-free, which is the common case for plain prose.
+pub(crate) fn any_byte_needs_escape(buf: &str, scope: EscapeScope) -> bool {
+    let bytes = buf.as_bytes();
+    (0..bytes.len()).any(|i| needs_escape_at(bytes, i, scope))
+}
+
 /// Per-byte decision. Pure; no allocation; the unit-testable heart.
 fn needs_escape_at(bytes: &[u8], i: usize, scope: EscapeScope) -> bool {
     let Some(b) = bytes.get(i).copied() else {

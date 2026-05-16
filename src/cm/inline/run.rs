@@ -16,7 +16,7 @@
 
 use std::borrow::Cow;
 
-use crate::cm::inline::escape_policy::{EscapeScope, escape_buffer};
+use crate::cm::inline::escape_policy::{EscapeScope, any_byte_needs_escape, escape_buffer};
 
 /// Input event handed to [`InlineRun::new`]. The IR builder produces
 /// one of these per pulldown event during a run.
@@ -224,11 +224,20 @@ fn escape_singleton<'a>(
     source: Option<&str>,
     scope: EscapeScope,
 ) -> Cow<'a, str> {
+    // Common path: no source-escape bytes in this chunk. Pre-scan
+    // for any standard-policy escape and return the borrow untouched
+    // when none applies — avoids two allocations (`Vec<bool>` and the
+    // owned escape buffer) for every plain-text run.
     let forced = match source {
         Some(src) if payload_has_source_escape(payload.as_ref(), src) => {
             forced_escapes_from_source(payload.as_ref(), src)
         }
-        _ => vec![false; payload.len()],
+        _ => {
+            if !any_byte_needs_escape(payload.as_ref(), scope) {
+                return payload;
+            }
+            vec![false; payload.len()]
+        }
     };
     let any_forced = forced.iter().any(|&b| b);
     if !any_forced {
