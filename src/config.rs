@@ -152,6 +152,7 @@ pub struct FmtOptions {
     link_def_style: LinkDefStyle,
     footnote_placement: Placement,
     preserve_frontmatter: bool,
+    thematic_break_style: ThematicStyle,
     mode: FormatMode,
 }
 
@@ -226,6 +227,13 @@ impl FmtOptions {
     #[must_use]
     pub fn preserve_frontmatter(&self) -> bool {
         self.preserve_frontmatter
+    }
+
+    /// Thematic-break canonicalisation policy. Defaults to
+    /// [`ThematicStyle::Dash`].
+    #[must_use]
+    pub fn thematic_break_style(&self) -> ThematicStyle {
+        self.thematic_break_style
     }
 
     /// Formatter mode: [`FormatMode::Normalise`] applies enabled
@@ -307,6 +315,7 @@ impl FmtOptions {
                 .placement
                 .map_or(default.footnote_placement, Placement::from),
             preserve_frontmatter: frontmatter.preserve.unwrap_or(default.preserve_frontmatter),
+            thematic_break_style: default.thematic_break_style,
             mode: default.mode,
         }
     }
@@ -332,6 +341,7 @@ impl Default for FmtOptions {
             // [`crate::Document::format_validated`].
             footnote_placement: Placement::Preserve,
             preserve_frontmatter: true,
+            thematic_break_style: ThematicStyle::Dash,
             mode: FormatMode::Normalise,
         }
     }
@@ -434,6 +444,29 @@ pub enum ListMarkerStyle {
 pub enum OrderedListStyle {
     Consistent,
     Preserve,
+}
+
+/// Thematic-break canonicalisation policy. The project default is
+/// `Dash` (the prompt-16 idempotence fix "always emit `---`"), now
+/// expressed as a [`FmtOptions`] field rather than a hard-coded
+/// constant in the emitter.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ThematicStyle {
+    Dash,
+    Asterisk,
+    Underscore,
+}
+
+impl ThematicStyle {
+    /// The repeated byte the thematic-break line is built from.
+    #[must_use]
+    pub fn as_byte(self) -> u8 {
+        match self {
+            Self::Dash => b'-',
+            Self::Asterisk => b'*',
+            Self::Underscore => b'_',
+        }
+    }
 }
 
 /// Line-ending policy. `Keep` adopts the first newline in the source.

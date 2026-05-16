@@ -305,7 +305,7 @@ pub(crate) fn render_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
             render_code_block(ctx, id, *fenced, info.as_ref())
         }
         NodeKind::HtmlBlock { .. } => render_html_block(ctx, id),
-        NodeKind::ThematicBreak => render_thematic_break(),
+        NodeKind::ThematicBreak => render_thematic_break(ctx),
         NodeKind::List {
             ordered,
             start,
@@ -752,8 +752,14 @@ fn trim_trailing_blockquote_marker(s: &str) -> String {
 // Thematic break, HTML block
 // ============================================================
 
-fn render_thematic_break<'a>() -> Doc<'a> {
-    concat([text("---"), hard_line()])
+fn render_thematic_break<'a>(ctx: &Ctx<'_>) -> Doc<'a> {
+    // The chosen byte comes from `FmtOptions::thematic_break_style`;
+    // the typed-block view on the node carries the prompt-16 default
+    // (`---`) so callers that bypass `FmtOptions` still get a valid
+    // line. Three repetitions are the CM §4.1 minimum.
+    let b = ctx.opts.thematic_break_style().as_byte();
+    let line: String = std::iter::repeat_n(char::from(b), 3).collect();
+    concat([text(line), hard_line()])
 }
 
 fn render_html_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {

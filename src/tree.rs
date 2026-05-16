@@ -34,6 +34,11 @@ use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
 
+use crate::cm::block::TypedBlock;
+use crate::cm::block::code::{CodeFenceChar, FencedCodeBlock, IndentedCodeBlock};
+use crate::cm::block::heading::{Heading, HeadingLevel, HeadingStyle};
+use crate::cm::block::quote::BlockQuote;
+use crate::cm::block::thematic::ThematicBreak;
 use crate::cm::inline::autolink::AutolinkRun;
 use crate::cm::inline::code::InlineCodeRun;
 use crate::cm::inline::emphasis::{EmphasisRun, StrongRun};
@@ -68,6 +73,13 @@ pub struct Node<'a> {
     /// Exclusive end of this node's subtree in the arena. Always
     /// `>= self_id + 1`; equals `self_id + 1` for leaves.
     pub(crate) subtree_end: u32,
+    /// Typed block payload, populated by [`TreeBuilder`] for the
+    /// block kinds Phase R has lifted into [`TypedBlock`]. `None`
+    /// for inline nodes, for block kinds not yet typed, and for the
+    /// rare case where the source-derived data is malformed (e.g., a
+    /// `Heading` with level > 6 from a degenerate event stream): the
+    /// legacy `NodeKind` data still drives emission in those cases.
+    pub(crate) typed: Option<TypedBlock<'a>>,
 }
 
 /// All node kinds we recognise.
@@ -361,6 +373,7 @@ impl<'a> TreeBuilder<'a> {
             raw_range: 0..source.len(),
             children: 0..0,
             subtree_end: 1,
+            typed: None,
         };
         Self {
             source,
@@ -598,6 +611,7 @@ impl<'a> TreeBuilder<'a> {
                 raw_range: target.raw_range.clone(),
                 children: 0..0,
                 subtree_end: id.0.saturating_add(1),
+                typed: None,
             });
             self.parents.push(Some(NodeId(0)));
             doc_children.push(id);
@@ -635,6 +649,7 @@ impl<'a> TreeBuilder<'a> {
             raw_range,
             children: 0..0,
             subtree_end,
+            typed: None,
         });
         let parent = self.open.last().map(|f| f.arena_id);
         self.parents.push(parent);
@@ -708,6 +723,14 @@ impl<'a> TreeBuilder<'a> {
                     _ => {}
                 }
             }
+            // Stamp the typed-block view alongside the legacy `kind`
+            // for the block kinds Phase R has lifted into types. The
+            // typed value's constructor encodes CM well-formedness
+            // (level ∈ 1..=6, fence > longest body run, etc.); a
+            // `None` here means either the kind is not yet typed or
+            // the source-derived data violated an invariant — in
+            // which case the legacy `kind` still drives emission.
+            node.typed = build_typed_block(&node.kind, self.source, node.raw_range.clone());
         }
     }
 
@@ -742,7 +765,13 @@ impl<'a> TreeBuilder<'a> {
 
     /// Handle the tail portion of an event whose source range
     fn push_leaf(&mut self, kind: NodeKind<'a>, range: Range<usize>) {
-        let _ = self.alloc_node(kind, range);
+        let id = self.alloc_node(kind, range);
+        // Stamp the typed view for the leaf block kinds we model
+        // (currently just `ThematicBreak`); the inline leaves keep
+        // their typed payload inside their `NodeKind` variant.
+        if let Some(node) = self.arena.get_mut(id.idx()) {
+            node.typed = build_typed_block(&node.kind, self.source, node.raw_range.clone());
+        }
     }
 
     /// Reclaim a leading `\` that pulldown-cmark consumed as a
@@ -953,6 +982,81 @@ fn widen_to_line_start(source: &str, range: Range<usize>) -> Range<usize> {
         start = start.saturating_sub(1);
     }
     start..range.end
+}
+
+/// Project a [`NodeKind`] onto its [`TypedBlock`] view, if one exists.
+///
+/// Returns `None` when the kind is inline, is a block kind Phase R has
+/// not yet typed (paragraph, list, table, HTML block, footnote def,
+/// link-ref def), or when the source-derived data violates the typed
+/// constructor's invariant — in which case the legacy `NodeKind` still
+/// drives emission. The typed value's existence is a witness that the
+/// data round-trips under the relevant `CommonMark` §4 rule.
+#[allow(clippy::wildcard_enum_match_arm)]
+fn build_typed_block<'a>(
+    kind: &NodeKind<'a>,
+    source: &'a str,
+    raw_range: Range<usize>,
+) -> Option<TypedBlock<'a>> {
+    use crate::config::ThematicStyle;
+    match kind {
+        NodeKind::Heading { level, setext } => {
+            let lvl = u8::try_from(*level).ok()?;
+            let level = HeadingLevel::try_new(lvl).ok()?;
+            let style = if *setext {
+                HeadingStyle::Setext
+            } else {
+                HeadingStyle::Atx
+            };
+            Heading::try_new(level, style).ok().map(TypedBlock::Heading)
+        }
+        NodeKind::CodeBlock {
+            fenced: true,
+            info,
+            body,
+        } => {
+            let char = source_fence_char(source, raw_range).unwrap_or(CodeFenceChar::Backtick);
+            Some(TypedBlock::FencedCodeBlock(FencedCodeBlock::new(
+                char,
+                info.clone(),
+                body.clone(),
+            )))
+        }
+        NodeKind::CodeBlock {
+            fenced: false,
+            body,
+            ..
+        } => Some(TypedBlock::IndentedCodeBlock(IndentedCodeBlock::new(
+            body.clone(),
+        ))),
+        NodeKind::BlockQuote => Some(TypedBlock::BlockQuote(BlockQuote::new())),
+        NodeKind::ThematicBreak => {
+            // The chosen style is a formatter policy, not a tree-IR
+            // fact; stamp the prompt-16 default here, and let the
+            // emitter swap in `FmtOptions::thematic_break_style` at
+            // render time.
+            Some(TypedBlock::ThematicBreak(ThematicBreak::new(
+                ThematicStyle::Dash,
+            )))
+        }
+        _ => None,
+    }
+}
+
+/// First fence character (`` ` `` or `~`) inside `raw_range`. Used to
+/// reconstruct a [`FencedCodeBlock`]'s fence type from the source —
+/// pulldown's [`CodeBlockKind::Fenced`] carries only the info string.
+fn source_fence_char(source: &str, raw_range: Range<usize>) -> Option<CodeFenceChar> {
+    let bytes = source.as_bytes().get(raw_range)?;
+    bytes
+        .iter()
+        .copied()
+        .find(|b| !matches!(*b, b' ' | b'\t' | b'\n' | b'\r'))
+        .and_then(|b| match b {
+            b'`' => Some(CodeFenceChar::Backtick),
+            b'~' => Some(CodeFenceChar::Tilde),
+            _ => None,
+        })
 }
 
 #[cfg(test)]

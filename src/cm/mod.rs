@@ -5,5 +5,6 @@
 //! IR builder in [`crate::tree`] is the deep module that produces
 //! these values; the format pipeline consumes them as final-form bytes.
 
+pub(crate) mod block;
 pub(crate) mod inline;
 pub(crate) mod refs;
