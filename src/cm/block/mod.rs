@@ -26,20 +26,23 @@ pub(crate) mod list;
 #[allow(dead_code)]
 pub(crate) mod quote;
 #[allow(dead_code)]
+pub(crate) mod table;
+#[allow(dead_code)]
 pub(crate) mod thematic;
 
 use code::{FencedCodeBlock, IndentedCodeBlock};
 use heading::Heading;
 use list::ListBlock;
 use quote::BlockQuote;
+use table::TableBlock;
 use thematic::ThematicBreak;
 
 /// One typed block value attached to a [`crate::tree::Node`]. The
-/// variants mirror the five `CommonMark` §4 block kinds whose
-/// well-formedness invariants Phase R prompt 24 lifted into types.
-/// Tables, lists, paragraphs, HTML blocks, footnote definitions,
-/// and link-reference definitions remain typed only by their
-/// `NodeKind` variant until later prompts.
+/// variants mirror the `CommonMark` §4 and GFM §4.10 block kinds
+/// whose well-formedness invariants Phase R prompts 24–26 lifted
+/// into types. Paragraphs, HTML blocks, footnote definitions, and
+/// link-reference definitions remain typed only by their `NodeKind`
+/// variant until later prompts.
 #[derive(Clone, Debug)]
 #[allow(dead_code)]
 pub(crate) enum TypedBlock<'a> {
@@ -49,4 +52,5 @@ pub(crate) enum TypedBlock<'a> {
     BlockQuote(BlockQuote),
     ThematicBreak(ThematicBreak),
     ListBlock(ListBlock),
+    Table(TableBlock<'a>),
 }

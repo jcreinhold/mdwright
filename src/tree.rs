@@ -41,6 +41,7 @@ use crate::cm::block::list::{
     ListBlock, ListItem, ListItemKind, ListMarker, TaskItem, Tightness, item_indent,
 };
 use crate::cm::block::quote::BlockQuote;
+use crate::cm::block::table::{TableBlock, TableCell, TableRow};
 use crate::cm::block::thematic::ThematicBreak;
 use crate::cm::inline::autolink::AutolinkRun;
 use crate::cm::inline::code::InlineCodeRun;
@@ -58,8 +59,17 @@ pub struct NodeId(u32);
 
 impl NodeId {
     #[must_use]
-    fn idx(self) -> usize {
+    pub(crate) fn idx(self) -> usize {
         self.0 as usize
+    }
+
+    /// Build a `NodeId` from a raw arena index. Used by unit tests in
+    /// sibling modules that need a `NodeId` without standing up a
+    /// whole `TreeBuilder`.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn from_index(i: u32) -> Self {
+        Self(i)
     }
 }
 
@@ -717,15 +727,22 @@ impl<'a> TreeBuilder<'a> {
             }
         }
 
-        // Build the typed-block view. Lists need a structural walk of
-        // their item children so they go through a dedicated builder;
-        // other kinds project from `NodeKind` alone. A `None` typed
-        // value means either the kind is not yet typed or the
-        // source-derived data violated an invariant — in which case
-        // the legacy `kind` still drives emission.
+        // Build the typed-block view. Lists and tables need a
+        // structural walk of their children so they go through
+        // dedicated builders; other kinds project from `NodeKind`
+        // alone. A `None` typed value means either the kind is not
+        // yet typed or the source-derived data violated an invariant
+        // — in which case the legacy `kind` still drives emission.
+        let node_is_table = matches!(
+            self.arena.get(frame.arena_id.idx()).map(|n| &n.kind),
+            Some(NodeKind::Table { .. })
+        );
         let typed = if node_is_list {
             build_list_block(&self.arena, &self.child_ids, self.source, frame.arena_id)
                 .map(TypedBlock::ListBlock)
+        } else if node_is_table {
+            build_table_block(&self.arena, &self.child_ids, frame.arena_id)
+                .map(TypedBlock::Table)
         } else {
             self.arena
                 .get(frame.arena_id.idx())
@@ -1078,6 +1095,75 @@ fn build_list_block<'a>(
         });
     }
     ListBlock::try_new(marker, items).ok()
+}
+
+/// Build the typed [`TableBlock`] view from a `Table` node's arena
+/// state. Walks the head row and each body row, runs each through
+/// [`TableRow::from_raw`] for GFM §4.10 column-count reconciliation,
+/// and hands the result to [`TableBlock::try_new`]. Returns `None`
+/// only when the alignment vector is empty or the arena lookup
+/// fails — pulldown-cmark does not produce such tables from valid
+/// input. The legacy `NodeKind::Table` keeps driving emission until
+/// prompt 27's printer swap.
+fn build_table_block<'a>(
+    arena: &[Node<'a>],
+    child_ids: &[NodeId],
+    table_id: NodeId,
+) -> Option<TableBlock<'a>> {
+    let table_node = arena.get(table_id.idx())?;
+    let NodeKind::Table { alignments } = &table_node.kind else {
+        return None;
+    };
+    let expected = alignments.len();
+
+    let mut head: Option<TableRow> = None;
+    let mut body: Vec<TableRow> = Vec::new();
+
+    for i in table_node.children.clone() {
+        let Some(&child_id) = child_ids.get(i as usize) else {
+            continue;
+        };
+        let Some(child_node) = arena.get(child_id.idx()) else {
+            continue;
+        };
+        #[allow(clippy::wildcard_enum_match_arm)]
+        match &child_node.kind {
+            NodeKind::TableHead => {
+                let cells = collect_row_cells(arena, child_ids, child_node);
+                head = Some(TableRow::from_raw(child_id, cells, expected));
+            }
+            NodeKind::TableRow => {
+                let cells = collect_row_cells(arena, child_ids, child_node);
+                body.push(TableRow::from_raw(child_id, cells, expected));
+            }
+            _ => {}
+        }
+    }
+
+    // A table with no head is a degenerate pulldown shape — leave
+    // the typed view absent so the legacy formatter handles it.
+    let head = head?;
+    TableBlock::try_new(alignments.clone(), head, body).ok()
+}
+
+fn collect_row_cells(
+    arena: &[Node<'_>],
+    child_ids: &[NodeId],
+    row: &Node<'_>,
+) -> Vec<TableCell> {
+    let mut cells = Vec::new();
+    for j in row.children.clone() {
+        let Some(&cid) = child_ids.get(j as usize) else {
+            continue;
+        };
+        if matches!(
+            arena.get(cid.idx()).map(|n| &n.kind),
+            Some(NodeKind::TableCell)
+        ) {
+            cells.push(TableCell::new(cid));
+        }
+    }
+    cells
 }
 
 fn item_has_direct_paragraph(arena: &[Node<'_>], child_ids: &[NodeId], item: &Node<'_>) -> bool {
