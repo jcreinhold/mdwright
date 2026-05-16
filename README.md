@@ -46,14 +46,14 @@ flags do not combine.
 ## Spec conformance
 
 The formatter round-trips the GFM 0.29-gfm spec (vendored at
-`tests/gfm-spec/spec.txt`). At v0.3.0:
+`tests/gfm-spec/spec.txt`). Current coverage:
 
 | Bucket               | Examples |
 | -------------------- | -------- |
 | Spec examples total  | 672      |
-| Matching             | 605      |
+| Matching             | 615      |
 | Editorial deviations | 0        |
-| Tracked regressions  | 67       |
+| Tracked regressions  | 57       |
 
 See [docs/deviations.md](docs/deviations.md) for the per-section
 breakdown and how the snapshot / allowlist mechanism works. The

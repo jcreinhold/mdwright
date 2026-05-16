@@ -19,20 +19,20 @@ parts because the underlying mechanism does:
   and forces a deliberate update.
 
 The `gfm_spec_coverage` test prints the live count for both groups; the
-numbers below are accurate as of the v0.3.0 release.
+numbers below are a snapshot of the current main branch.
 
-## Coverage at v0.3.0
+## Coverage
 
 | Bucket                 | Examples |
 | ---------------------- | -------- |
 | Spec examples total    | 672      |
-| Matching               | 605      |
+| Matching               | 615      |
 | Editorial deviations   | 0        |
-| Tracked regressions    | 67       |
+| Tracked regressions    | 57       |
 
 A *case* may fail more than one comparison kind (`html`, `ast`,
 `idempotence`); the snapshot file is keyed by `(case, kind)` and
-currently lists 86 entries across 67 distinct cases.
+currently lists 70 entries across 57 distinct cases.
 
 ## Editorial deviations
 
@@ -51,25 +51,23 @@ Counts below are `(case, kind)` failures from
 | Section                                  | Failures |
 | ---------------------------------------- | -------- |
 | Emphasis and strong emphasis             | 18       |
-| List items                               | 18       |
+| List items                               | 12       |
 | HTML blocks                              | 8        |
-| Lists                                    | 6        |
 | Links                                    | 6        |
-| Setext headings                          | 4        |
 | Link reference definitions               | 4        |
 | Entity and numeric character references  | 4        |
-| Thematic breaks                          | 3        |
+| Lists                                    | 4        |
 | Tabs                                     | 3        |
-| Fenced code blocks                       | 3        |
-| Block quotes                             | 3        |
-| Task list items (extension)              | 2        |
-| Raw HTML                                 | 1        |
-| Code spans                               | 1        |
+| Thematic breaks                          | 3        |
+| Block quotes                             | 2        |
+| Fenced code blocks                       | 2        |
+| Setext headings                          | 1        |
+| Task list items (extension)              | 1        |
 | Backslash escapes                        | 1        |
-| ATX headings                             | 1        |
+| Raw HTML                                 | 1        |
 
-By comparison kind: 54 AST mismatches, 19 HTML mismatches,
-13 idempotence failures.
+By comparison kind: 48 AST mismatches, 13 HTML mismatches,
+9 idempotence failures.
 
 Most AST mismatches come from pulldown-cmark's text-run chunking
 differing from cmark-gfm's; these cases still produce equivalent
