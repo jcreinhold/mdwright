@@ -37,16 +37,25 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   shape on re-parse. Fixes one fuzz-found idempotence regression
   and resolves six GFM-spec list-item snapshot cases.
 
-- `src/cm/block/paragraph.rs` adds a narrow setext-underline escape:
-  when a paragraph continuation line is a pure `=` or `-` run and the
-  prior line carried text, emit it escaped (`\=` / `\-`) so the
-  reformatted document does not re-parse as a setext heading. The
-  per-fragment state grows by two booleans (`after_break`,
-  `prev_line_had_text`); `escape_for_block_start` is unchanged, so
-  no other escape rule is widened. Fixes the previously-deferred
-  fuzz regression at `tests/regressions/fuzz_236b414f.in` and
-  resolves three more GFM-spec snapshot cases (Setext headings
-  case 57 html/ast and case 63 idempotence).
+- `src/cm/block/paragraph.rs` introduces a typed `ParagraphBody<'a>`
+  newtype whose single constructor (`from_inline`) runs the
+  line-start safety pass. `Paragraph::pretty` and
+  `list.rs::render_item_body` are switched to it; the previously-public
+  `escape_paragraph_line_starts` is gone. This makes the
+  "paragraph continuation line re-tokenises as a different block on
+  reparse" bug class **unrepresentable** — every paragraph body is,
+  by construction, paragraph-safe; adding coverage for a new
+  interrupter character is a one-line edit inside one helper rather
+  than per-caller-path discipline. The safety pass uses a strict
+  CM-correct paragraph-interrupter set
+  (`escape_for_paragraph_interrupt`) for the soft-break case: only
+  `>`, ATX with required space, bullet-with-content, ordered list at
+  start=1, fenced code, thematic break. Closes the previously-deferred
+  `fuzz_236b414f.in` (setext underline) AND `fuzz_09a8d6b1.in` (tab
+  + `>>>>` re-parsing as nested blockquote). Resolves 5 more
+  GFM-spec snapshot cases (ATX heading 40 idem; Block quotes 216
+  idem; Task list items 280 html+ast; Lists 292 html+ast); leaves a
+  pre-existing nested-list-indent bug visible as 280 idempotence.
 - `src/ir.rs::split_frontmatter` now requires the candidate body to
   contain at least one `key:` (YAML) or `key =` (TOML) line. Without
   this gate, a document whose first line is a thematic break (`---`)
@@ -60,14 +69,12 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   no stack risk on deeply nested `Doc::Concat`.
 
 ### Known issues
-- One newly fuzz-found idempotence regression remains: a paragraph
-  continuation line beginning with TAB + `>>>>` loses its tab on
-  reformat and the `>>>>` then re-parses as a stack of blockquotes.
-  Same family as the fixed setext-underline case; the fix likely
-  generalises the new `escape_setext_underline` helper to cover the
-  full block-leader set after a soft break, guarded by
-  `prev_line_had_text`. Reproducer at
-  [`fuzz/known-issues/idempotence-tab-strip-becomes-blockquote.in`](./fuzz/known-issues/README.md).
+- One new (different-family) fuzz find: a paragraph break followed
+  by certain control-character payloads yields one extra blank line
+  on the first format that collapses on the second, so
+  `format ∘ format ≠ format`. Outside the paragraph-continuation
+  bug class fixed above; reproducer parked at
+  [`fuzz/known-issues/idempotence-blank-line-drift.in`](./fuzz/known-issues/README.md).
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 

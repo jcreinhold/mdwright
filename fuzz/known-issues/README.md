@@ -10,33 +10,23 @@ suite would fail).
 When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 and delete the matching entry from this README.
 
-## idempotence-tab-strip-becomes-blockquote.in
+## idempotence-blank-line-drift.in
 
-Bytes: `: \t \x01 \x02 \0 \x04 \n \t > > > >` (12 bytes).
+Bytes: `:\x01\n\x0c\n\n\x0c\x0c 1\x00\x00` (11 bytes).
 
-`pulldown_cmark` parses this as a paragraph with two lines, the
-second of which starts with a tab + `>>>>`. mdwright's formatter
-strips the leading tab when emitting paragraph continuation lines,
-so the round-trip produces:
+`once = format(parse(s))` emits one extra `\n` between two paragraphs
+(`"…\n\n\n…"` vs the expected `"…\n\n…"`). The second format
+collapses the extra blank to one, so the second pass differs from the
+first and idempotence fails.
 
-```
-:\t\x01\x02\0\x04
->>>>
-```
+This is a **different bug class** from the paragraph-continuation
+re-tokenisation family that the typed `ParagraphBody` constructor now
+makes unrepresentable. The cause sits in document-root block
+separation (likely an off-by-one in the inter-block hard-line count
+when a block ends with content containing trailing form-feed
+characters, or a normalisation that runs only once). It does not
+involve the paragraph escape pass and cannot be fixed there.
 
-The `>>>>` line, now flush at column 0 with paragraph text above it,
-re-parses as four nested blockquotes — pulldown sees `> > > >` shape.
-On second format, the document becomes paragraph + blockquote stack,
-and `format(parse(format(parse(s)))) ≠ format(parse(s))`.
-
-This is the same family of bug as the now-fixed
-`fuzz_236b414f.in` (setext-underline after soft break): the formatter
-detoxifies whitespace on continuation lines, and the result is then
-re-tokenised as a different block. A clean fix would generalise the
-narrow `escape_setext_underline` helper in
-`src/cm/block/paragraph.rs` to cover `>` (blockquote) and the rest
-of the block-leader set when `after_break && prev_line_had_text`,
-guarded carefully so the GFM-spec snapshot does not regress (a first
-attempt at the broad form did regress 2 cases — see git log for
-the setext fix). Doing that requires triaging the specific corpus
-cases the broad escape touches.
+Triage path: bisect which block boundary inserts the extra hard-line
+on the first format; check `src/format/block.rs` document-root
+emission and the per-typed-block `pretty()` terminators.

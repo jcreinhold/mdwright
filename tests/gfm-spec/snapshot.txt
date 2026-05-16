@@ -8,7 +8,6 @@
 16    ast         Thematic breaks
 19    ast         Thematic breaks
 31    idempotence Thematic breaks
-40    idempotence ATX headings
 61    ast         Setext headings
 102   ast         Fenced code blocks
 103   ast         Fenced code blocks
@@ -26,7 +25,6 @@
 171   html        Link reference definitions
 171   ast         Link reference definitions
 214   ast         Block quotes
-216   idempotence Block quotes
 230   ast         Block quotes
 232   ast         List items
 235   idempotence List items
@@ -40,11 +38,8 @@
 265   ast         List items
 266   ast         List items
 268   ast         List items
-280   html        Task list items (extension)
-280   ast         Task list items (extension)
+280   idempotence Task list items (extension)
 281   idempotence Lists
-292   html        Lists
-292   ast         Lists
 293   idempotence Lists
 298   html        Lists
 298   ast         Lists

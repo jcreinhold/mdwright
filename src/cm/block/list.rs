@@ -421,7 +421,7 @@ fn render_item_body<'a>(
     ctx: &crate::format::pretty::PrettyCtx<'a>,
     id: NodeId,
 ) -> crate::format::doc::Doc<'a> {
-    use crate::cm::block::paragraph::escape_paragraph_line_starts;
+    use crate::cm::block::paragraph::ParagraphBody;
     use crate::format::doc::{concat, hard_line};
     use crate::tree::NodeKind;
 
@@ -445,7 +445,7 @@ fn render_item_body<'a>(
             parts.push(hard_line());
         }
         let inline = crate::format::inline::pretty_inline_children_for_ids(ctx, run);
-        let body = escape_paragraph_line_starts(ctx, inline);
+        let body = ParagraphBody::from_inline(inline).into_doc();
         parts.push(concat([body, hard_line()]));
         *emitted = emitted.saturating_add(1);
         run.clear();

@@ -29,8 +29,9 @@
 //! | `\|`    | always inside a table cell                             | GFM tables |
 //!
 //! Line-start positional escapes that protect against *block* re-parsing
-//! live elsewhere (`crate::format::block::escape_paragraph_line_starts`)
-//! on the emitted `Doc` tree.
+//! live elsewhere — see [`crate::cm::block::paragraph::ParagraphBody`],
+//! whose constructor runs the line-start safety pass on the emitted
+//! `Doc` tree.
 
 /// Non-local context the escape policy needs. The IR builder fills
 /// this in from its scope stack at construction time; once the bytes

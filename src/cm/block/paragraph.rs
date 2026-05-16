@@ -24,15 +24,18 @@ impl Paragraph {
         Self
     }
 
-    /// Wrap the inline body in line-start escapes and append the
-    /// block terminator. `self` is taken by value to keep the typed
-    /// dispatcher's method-call form uniform with the other variants.
+    /// Build the paragraph body and append the block terminator. The
+    /// inline body is wrapped in [`ParagraphBody`], whose constructor
+    /// is the only way to apply paragraph-continuation safety — so
+    /// every emitted paragraph is, by construction, immune to the
+    /// "continuation line re-tokenises as a different block" family
+    /// of round-trip bugs.
     #[tracing::instrument(level = "trace", skip_all)]
     #[allow(clippy::unused_self)]
     pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
         let body = crate::format::inline::pretty_inline_children(ctx, id);
-        let escaped = escape_paragraph_line_starts(ctx, body);
-        concat([escaped, hard_line()])
+        let safe = ParagraphBody::from_inline(body).into_doc();
+        concat([safe, hard_line()])
     }
 
     /// True iff this paragraph can round-trip through verbatim
@@ -79,21 +82,58 @@ impl Paragraph {
 }
 
 // ============================================================
-// Line-start escape pass — shared by paragraph and list-item
-// rendering.
+// ParagraphBody — typed paragraph-body wrapper.
 // ============================================================
+//
+// `Paragraph::pretty` and `list::render_item_body` are the only sites
+// that need to emit paragraph-shaped inline content. Both wrap their
+// inline `Doc` in this type. The constructor is the only way to
+// produce a `ParagraphBody`, and it always runs the safety pass
+// (`apply_paragraph_safety`), so the bug class "a paragraph
+// continuation line re-tokenises as a different block on reparse"
+// is **unrepresentable**: there is no path that constructs a
+// `ParagraphBody` without the pass having run.
+//
+// Adding coverage for a newly-discovered interrupter character (say,
+// `<` HTML-block start) is a one-line edit inside the safety pass,
+// not a new rule-per-caller-path.
 
-pub(crate) fn escape_paragraph_line_starts<'a>(_ctx: &PrettyCtx<'a>, doc: Doc<'a>) -> Doc<'a> {
+pub(crate) struct ParagraphBody<'a>(Doc<'a>);
+
+impl<'a> ParagraphBody<'a> {
+    /// Build from raw inline content. The body is walked and every
+    /// text fragment that begins a source line is checked: bytes
+    /// that would start a different CM block on reparse are
+    /// backslash-escaped.
+    pub(crate) fn from_inline(inline: Doc<'a>) -> Self {
+        Self(apply_paragraph_safety(inline))
+    }
+
+    pub(crate) fn into_doc(self) -> Doc<'a> {
+        self.0
+    }
+}
+
+/// Walk the inline `Doc` and escape any text byte that would start a
+/// new block on reparse. Three pieces of state:
+///
+/// - `at_line_start` — true after `HardLine` (and at entry). The
+///   long-standing trigger for the full block-interrupter escape set.
+/// - `after_break` — true after `HardLine` *or* `Line` (soft break).
+///   `Wrap::Keep` (default) promotes `Line` to a hard newline, so a
+///   continuation line behind a soft break is just as line-start in
+///   the final byte stream as one behind a hard break.
+/// - `prev_line_had_text` — committed when a break is observed.
+///   Gates the soft-break escape so we do **not** escape characters
+///   at the very first line of a paragraph (where no soft break has
+///   yet happened) and so we do **not** escape inside empty-line
+///   stretches. Without this gate, the broad form regresses two
+///   GFM-spec cases — the gate is what makes the rule narrow enough
+///   to ship.
+fn apply_paragraph_safety<'a>(doc: Doc<'a>) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::new();
     flatten(doc, &mut parts);
     coalesce_adjacent_text(&mut parts);
-    // Three pieces of state. `at_line_start` keeps its long-standing
-    // meaning (only true after a `HardLine` or at the very start) so
-    // every existing escape rule fires in exactly the same places.
-    // `after_break` and `prev_line_had_text` are new and feed only
-    // the setext-underline check — a soft break followed by a bare
-    // `=` line forms a setext H1 after `Wrap::Keep` converts the
-    // soft break to a hard line, breaking idempotence.
     let mut at_line_start = true;
     let mut after_break = true;
     let mut this_line_has_text = false;
@@ -105,19 +145,13 @@ pub(crate) fn escape_paragraph_line_starts<'a>(_ctx: &PrettyCtx<'a>, doc: Doc<'a
                 if !s.is_empty() {
                     let escaped = if at_line_start {
                         escape_for_block_start(s.as_ref(), next_on_same_line(&parts, i))
+                    } else if after_break && prev_line_had_text {
+                        let next = next_on_same_source_line(&parts, i);
+                        escape_for_paragraph_interrupt(s.as_ref(), next)
+                            .or_else(|| escape_setext_underline(s.as_ref(), next))
                     } else {
                         None
-                    }
-                    .or_else(|| {
-                        if after_break && prev_line_had_text {
-                            escape_setext_underline(
-                                s.as_ref(),
-                                next_on_same_source_line(&parts, i),
-                            )
-                        } else {
-                            None
-                        }
-                    });
+                    };
                     if let Some(esc) = escaped {
                         out.push(text(esc));
                         at_line_start = false;
@@ -137,11 +171,11 @@ pub(crate) fn escape_paragraph_line_starts<'a>(_ctx: &PrettyCtx<'a>, doc: Doc<'a
                 this_line_has_text = false;
             }
             Doc::Line => {
-                // Soft break: keep `at_line_start` false so existing
-                // escape rules are not over-eagerly applied to
-                // continuation lines (the previous, broader fix
-                // tripped GFM-spec snapshot cases). Mark the boundary
-                // for the setext-underline check only.
+                // Soft break: leave `at_line_start` false. The
+                // `at_line_start` branch above retains the long-standing
+                // hard-break escape behaviour; the soft-break path
+                // is governed by the new `after_break +
+                // prev_line_had_text` branch.
                 at_line_start = false;
                 after_break = true;
                 prev_line_had_text = this_line_has_text;
@@ -255,6 +289,101 @@ fn escape_setext_underline(s: &str, next: LineContext) -> Option<String> {
     esc.push('\\');
     esc.push_str(s);
     Some(esc)
+}
+
+/// Strict subset of [`escape_for_block_start`] for the soft-break
+/// case. The CM rule "what can interrupt a paragraph" (§5) is stricter
+/// than "what starts a block at a hard line": indented code never
+/// interrupts; bullet lists must have non-empty content; ordered lists
+/// must additionally start at `1`. Mirror those rules here so we do
+/// not insert spurious `\` characters that would either
+/// (a) make the formatter non-byte-identity on previously-correct
+/// inputs, or (b) split pulldown's text events (e.g. `1\.` becomes
+/// two `Text` events vs `1.`'s one), which the spec snapshot test
+/// detects as an AST regression.
+fn escape_for_paragraph_interrupt(s: &str, next: LineContext) -> Option<String> {
+    let bytes = s.as_bytes();
+    let first = *bytes.first()?;
+    let needs = match first {
+        // §5.1 blockquote — `>` always interrupts a paragraph.
+        b'>' => true,
+        // §4.2 ATX heading — `#{1..=6}` followed by space, tab, or
+        // end-of-line. Bare `#abc` does not interrupt.
+        b'#' => {
+            let hash_count = bytes.iter().take_while(|&&b| b == b'#').count();
+            if !(1..=6).contains(&hash_count) {
+                false
+            } else if hash_count == bytes.len() {
+                matches!(next, LineContext::EndOfLine)
+            } else {
+                matches!(bytes.get(hash_count).copied(), Some(b' ' | b'\t'))
+            }
+        }
+        // §4.1 thematic break (`***`/`---`/`___`) — 3+ same chars,
+        // optionally separated by spaces or tabs, fills the line.
+        // `---` is also handled by `escape_setext_underline`; the
+        // overlap is benign (either helper returns `Some`).
+        b'*' | b'-' | b'_' if is_thematic_break_line(bytes) => true,
+        // §5.2 list bullet — `*`/`-`/`+` then space/tab then NON-BLANK
+        // content. An empty marker (`* ` or just `*` on a line) does
+        // not interrupt a paragraph.
+        b'*' | b'-' | b'+' => {
+            matches!(bytes.get(1).copied(), Some(b' ' | b'\t'))
+                && line_has_nonblank_after(bytes, 2, next)
+        }
+        // §5.2 ordered list — only `1.` / `1)` (start = 1) can
+        // interrupt. Other digits cannot, and the digit run must be
+        // followed by `.` or `)` then space/tab + non-blank content.
+        b'1' => {
+            matches!(bytes.get(1).copied(), Some(b'.' | b')'))
+                && matches!(bytes.get(2).copied(), Some(b' ' | b'\t'))
+                && line_has_nonblank_after(bytes, 3, next)
+        }
+        // §4.5 fenced code block — `` ``` `` or `~~~` of 3+.
+        b'`' | b'~' => {
+            let run = bytes.iter().take_while(|&&b| b == first).count();
+            run >= 3
+        }
+        _ => false,
+    };
+    if !needs {
+        return None;
+    }
+    let mut esc = String::with_capacity(s.len().saturating_add(1));
+    esc.push('\\');
+    esc.push_str(s);
+    Some(esc)
+}
+
+/// True iff the fragment from `start..` contains at least one
+/// non-blank byte, or the fragment ends here and the *next* sibling
+/// continues the same source line (so the non-blank content might
+/// live there).
+fn line_has_nonblank_after(bytes: &[u8], start: usize, next: LineContext) -> bool {
+    let tail = bytes.get(start..).unwrap_or(&[]);
+    if tail.iter().any(|&b| !matches!(b, b' ' | b'\t')) {
+        true
+    } else {
+        matches!(next, LineContext::MoreContent)
+    }
+}
+
+/// True iff `bytes` is a CM §4.1 thematic-break line: at least three
+/// of the same char (`*`, `-`, or `_`), with only spaces or tabs
+/// allowed between them, and nothing else on the line.
+fn is_thematic_break_line(bytes: &[u8]) -> bool {
+    let Some(first @ (b'*' | b'-' | b'_')) = bytes.first().copied() else {
+        return false;
+    };
+    let mut count = 0usize;
+    for &b in bytes {
+        if b == first {
+            count = count.saturating_add(1);
+        } else if !matches!(b, b' ' | b'\t') {
+            return false;
+        }
+    }
+    count >= 3
 }
 
 fn escape_for_block_start(s: &str, next: LineContext) -> Option<String> {
