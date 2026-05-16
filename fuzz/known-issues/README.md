@@ -11,57 +11,54 @@ When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 `tests/regressions.rs`) and delete the matching entry from this
 README.
 
-## html-list-bullet-merge.in
+## html-pi-leading-whitespace.in
 
-Bytes (3): `+ \n -` (the `+`, LF, `-`).
+Bytes (2): `< ?`.
 
-Pulldown classifies `+\n-` as **two separate lists**, each with one
-empty list item, because the bullet character changes between marker
-lines (CM §5.2: a list ends when the marker character changes).
-Source HTML: `<ul><li></li></ul><ul><li></li></ul>`.
+`render_html("<?")` returns `" <?"` (with a leading space — pulldown
+inserts whitespace around inline HTML processing-instruction starts
+in some boundary cases). The formatter emits the input verbatim
+(`<?`), but `render_html` of the formatted output returns `"<?"` (no
+leading space). HTML diverges → `fuzz_parse_format` rejects.
 
-mdwright's `ListMarkerStyle::Dash` default normalises both markers to
-`-`, emitting `- \n\n- `. Pulldown re-parses that as **one list with
-two empty items**: `<ul><li></li><li></li></ul>`. HTML diverges →
-`fuzz_parse_format` rejects.
+Bug class: HTML-equivalence is sensitive to pulldown's
+whitespace-around-inline-HTML quirks that the formatter doesn't model
+explicitly. The fix needs either (a) the formatter to emit canonical
+whitespace such that re-render matches the source render, or
+(b) tighter inline-HTML detection in the formatter so the
+representation matches pulldown's tokenisation choice. Likely
+requires a deep look at `src/cm/inline/html.rs` and
+`src/format/block.rs::root_verbatim_safe` for unfinished PI / CDATA
+handling.
 
-Bug class: stylistic bullet-character normalisation can merge
-adjacent lists that the source intentionally separated by using
-different markers. The fix needs a list-boundary preservation
-mechanism — either (a) detect when adjacent lists in the source
-would merge under the chosen marker style and either keep the
-distinct markers or insert an HTML-equivalent separator, or (b)
-change the default to `Preserve` and document that
-`Dash`/`Asterisk`/`Plus` are unsafe for documents using bullet-style
-changes as list boundaries.
+Reproducer: `cargo +nightly fuzz run fuzz_parse_format fuzz/known-issues/html-pi-leading-whitespace.in`.
 
-Reproducer: `cargo +nightly fuzz run fuzz_parse_format fuzz/known-issues/html-list-bullet-merge.in`.
+## idempotence-nul-emphasis-escape.in
 
-## idempotence-cr-in-setext-body.in
+Bytes (16): `\n \x04 \0\0\0\0\0\0\0\0 * _ \0 _ ~` (with a leading `\n`
+option-byte consumed by `fuzz_idempotence` as
+`Wrap::At(80)` / `FormatMode::Normalise` / `math.normalise=false`).
 
-Bytes (9): `\x19 \x19 \r \t \0 \n = \n` (with a leading `\x19`
-option-byte prefix consumed by `fuzz_idempotence` as
-`Wrap::At(80)`, normalise mode, math.normalise=false).
+The body's `*_\0_~` (asterisk + underscore + NUL + underscore + tilde)
+emphasis-candidate run interacts with mdwright's escape sieve: pass
+1 normalises the emphasis delimiters to one shape (`**\0*~`), pass 2
+sees that shape and inserts backslash escapes (`*\*\0\*~`),
+non-idempotent.
 
-The body of the setext heading contains a CR byte. After the recent
-heading-body-source-verbatim emit (commit "heading: decide setext-vs-
-ATX from source bytes"), mdwright copies the CR through to its
-rendered output. The post-render `normalize_line_endings_lf` then
-converts CR → LF, changing the body byte length, which changes the
-underline width on the next pass. Pass 1 emits `=====` (5 chars
-matching pre-LF-normalisation body); pass 2 sees a different body
-length and emits `===` (3 chars). Non-idempotent.
+Bug class: emphasis-run resolution + escape sieve interact
+non-deterministically on inputs with NUL bytes between emphasis
+markers. CM §2.3 says NUL is replaced with U+FFFD pre-parse — pulldown
+does this internally — so re-parse sees the FFFD bytes, not NUL. But
+the formatter slices source bytes that still contain NUL, and the
+inline emphasis IR encodes delimiter choices that may not survive
+re-tokenisation around FFFD.
 
-Bug class: the document-boundary line-ending normaliser
-(`normalize_line_endings_lf` at `src/format/mod.rs:39`) does not
-distinguish CR-as-line-terminator from CR-as-content. The setext body
-verbatim path is the first emit site that legitimately carries
-content CR through render. Two fix shapes:
-   (a) Normalise CR → LF inside body source bytes *before* the
-       verbatim emit, so the post-render normaliser is a no-op on
-       that span (downside: changes source bytes unconditionally,
-       though CR-as-content is exceedingly rare).
-   (b) Distinguish content CR from terminator CR at the IR layer,
-       so the post-render pass only touches terminators.
+Two fix shapes:
+   (a) Canonicalise NUL → FFFD at `Document::parse` so source and
+       IR-derived bytes agree, removing the discrepancy at the
+       source-byte layer.
+   (b) Make the emphasis IR's emit decisions consult only data that
+       survives re-parse (similar to the Bug B fix: pure function of
+       typed-IR fields, not of escape-sieve-tweaked rendered bytes).
 
-Reproducer: `cargo +nightly fuzz run fuzz_idempotence fuzz/known-issues/idempotence-cr-in-setext-body.in`.
+Reproducer: `cargo +nightly fuzz run fuzz_idempotence fuzz/known-issues/idempotence-nul-emphasis-escape.in`.
