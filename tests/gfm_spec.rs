@@ -404,9 +404,7 @@ fn gfm_spec_coverage() {
     let total = cases.len();
     let intentional = allowlist.len();
     let tracked = failing_cases.difference(&allowlist).count();
-    let matching = total
-        .saturating_sub(intentional)
-        .saturating_sub(tracked);
+    let matching = total.saturating_sub(intentional).saturating_sub(tracked);
     let unexpected = failing_cases
         .iter()
         .filter(|n| !allowlist.contains(n))
@@ -422,7 +420,10 @@ fn gfm_spec_coverage() {
     eprintln!(
         "GFM spec coverage:\n  total cases:        {total}\n  fully matching:     {matching}\n  intentional dev:    {intentional}\n  tracked regression: {tracked}\n  unexpected:         {unexpected}"
     );
-    assert_eq!(unexpected, 0, "{unexpected} cases failed without being in the snapshot or allowlist");
+    assert_eq!(
+        unexpected, 0,
+        "{unexpected} cases failed without being in the snapshot or allowlist"
+    );
 }
 
 /// True if the snapshot file contains a failure line for `case`.

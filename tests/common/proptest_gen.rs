@@ -242,8 +242,7 @@ fn arb_construct_fragment() -> impl Strategy<Value = String> {
 pub fn arb_emphasis_src() -> impl Strategy<Value = String> {
     prop_oneof![
         // Plain emphasis with each delimiter byte.
-        (arb_word(), prop_oneof![Just('*'), Just('_')])
-            .prop_map(|(w, d)| format!("{d}{w}{d}\n")),
+        (arb_word(), prop_oneof![Just('*'), Just('_')]).prop_map(|(w, d)| format!("{d}{w}{d}\n")),
         // Intraword `*`: CM admits, formatter should keep `*`.
         (arb_word(), arb_word()).prop_map(|(a, b)| format!("{a}*{b}*{a}\n")),
         // Two adjacent runs sharing a paragraph (collision-flip path).
@@ -258,8 +257,7 @@ pub fn arb_emphasis_src() -> impl Strategy<Value = String> {
 /// * adjacency with an emphasis run (nested-fusion flip).
 pub fn arb_strong_src() -> impl Strategy<Value = String> {
     prop_oneof![
-        (arb_word(), prop_oneof![Just("**"), Just("__")])
-            .prop_map(|(w, d)| format!("{d}{w}{d}\n")),
+        (arb_word(), prop_oneof![Just("**"), Just("__")]).prop_map(|(w, d)| format!("{d}{w}{d}\n")),
         // Strong wrapping an emphasis: hits the nested-fusion delimiter
         // decision documented in `cm::inline::emphasis`.
         (arb_word(), arb_word()).prop_map(|(a, b)| format!("**{a} *{b}***\n")),
@@ -271,10 +269,12 @@ pub fn arb_strong_src() -> impl Strategy<Value = String> {
 /// * destination with allowed punctuation (`-`, `_`, `.`),
 /// * label with whitespace (text-style label, no nested markup).
 pub fn arb_link_inline_src() -> impl Strategy<Value = String> {
-    (arb_text(), arb_word(), prop_oneof![Just(""), Just(" \"t\"")])
-        .prop_map(|(label, dest, title)| {
-            format!("[{label}](https://example.com/{dest}{title})\n")
-        })
+    (
+        arb_text(),
+        arb_word(),
+        prop_oneof![Just(""), Just(" \"t\"")],
+    )
+        .prop_map(|(label, dest, title)| format!("[{label}](https://example.com/{dest}{title})\n"))
 }
 
 /// CM §6.3 reference link. Cycles full / collapsed / shortcut against
@@ -377,15 +377,11 @@ pub fn arb_quote_src() -> impl Strategy<Value = String> {
 pub fn arb_list_src() -> impl Strategy<Value = String> {
     prop_oneof![
         // Unordered tight.
-        vec(arb_inline_run(), 1..=3).prop_map(|items| items
-            .into_iter()
-            .map(|it| format!("- {it}\n"))
-            .collect()),
+        vec(arb_inline_run(), 1..=3)
+            .prop_map(|items| items.into_iter().map(|it| format!("- {it}\n")).collect()),
         // Unordered loose.
-        vec(arb_inline_run(), 1..=3).prop_map(|items| items
-            .into_iter()
-            .map(|it| format!("- {it}\n\n"))
-            .collect()),
+        vec(arb_inline_run(), 1..=3)
+            .prop_map(|items| items.into_iter().map(|it| format!("- {it}\n\n")).collect()),
         // Ordered tight.
         vec(arb_inline_run(), 1..=3).prop_map(|items| items
             .into_iter()
@@ -404,12 +400,7 @@ pub fn arb_list_src() -> impl Strategy<Value = String> {
 /// printer (column widths, alignment-aware separator row), not on
 /// inline-content quirks that have their own per-construct law.
 pub fn arb_table_src() -> impl Strategy<Value = String> {
-    let alignment = prop_oneof![
-        Just("---"),
-        Just(":--"),
-        Just(":-:"),
-        Just("--:"),
-    ];
+    let alignment = prop_oneof![Just("---"), Just(":--"), Just(":-:"), Just("--:"),];
     (
         vec(arb_word(), 2..=3),
         vec(alignment, 2..=3),
@@ -461,7 +452,6 @@ pub fn arb_thematic_src() -> impl Strategy<Value = String> {
 /// Multi-paragraph definitions are deferred — they exercise block-
 /// continuation rules with their own pending-regression backlog.
 pub fn arb_footnote_src() -> impl Strategy<Value = String> {
-    ("[a-z][a-z0-9]{0,5}", arb_inline_run(), arb_inline_run()).prop_map(
-        |(label, body, def)| format!("{body}[^{label}]\n\n[^{label}]: {def}\n"),
-    )
+    ("[a-z][a-z0-9]{0,5}", arb_inline_run(), arb_inline_run())
+        .prop_map(|(label, body, def)| format!("{body}[^{label}]\n\n[^{label}]: {def}\n"))
 }
