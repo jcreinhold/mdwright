@@ -62,8 +62,24 @@ pub(crate) struct RenderOptions;
 
 // --- constructors ---------------------------------------------------
 
+/// `Doc::Text` is CR-free by construction. Every source-passthrough
+/// emit site (setext heading body, fenced/indented code body, HTML
+/// block body, frontmatter, admonitions, paragraph verbatim copy)
+/// flows through here; canonicalising EOL once at construction means
+/// downstream width calculations and the rendered byte stream agree,
+/// and the post-render line-ending normaliser becomes redundant.
+///
+/// Cost: `.contains('\r')` early-out; zero allocation for the common
+/// case (synthesised prefixes like `# `, escape `\`, and any source
+/// slice without `\r`).
 pub(crate) fn text<'a>(s: impl Into<Cow<'a, str>>) -> Doc<'a> {
-    Doc::Text(s.into())
+    let s = s.into();
+    if s.contains('\r') {
+        let normalised = s.replace("\r\n", "\n").replace('\r', "\n");
+        Doc::Text(Cow::Owned(normalised))
+    } else {
+        Doc::Text(s)
+    }
 }
 
 pub(crate) fn line<'a>() -> Doc<'a> {

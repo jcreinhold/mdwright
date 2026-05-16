@@ -47,12 +47,15 @@ pub(crate) fn normalize_trailing_newline(
     }
 }
 
-/// Normalise every `\r\n` and lone `\r` in `out` to `\n`. After
-/// this runs the string contains only LF line terminators, so the
-/// end-of-line policy step can transform line endings uniformly
-/// without worrying about CR bytes that leaked in from
-/// source-verbatim emitters (e.g. `format/block.rs::verbatim_lines`,
-/// admonition raw passthrough). Zero-cost when `out` has no `\r`.
+/// Normalise every `\r\n` and lone `\r` in `out` to `\n`.
+///
+/// **Defensive safety net.** The load-bearing invariant lives on
+/// [`crate::format::doc::text`]: every `Doc::Text` constructed from
+/// source bytes canonicalises CR at construction, so the rendered
+/// string already contains only `\n` terminators in practice. This
+/// pass remains as cheap belt-and-braces (`.contains('\r')` early-out;
+/// zero allocation when clean) in case a future emit site bypasses
+/// the `text()` helper.
 pub(crate) fn normalize_line_endings_lf(out: &mut String) {
     if !out.contains('\r') {
         return;

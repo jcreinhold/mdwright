@@ -162,17 +162,29 @@ impl Heading {
             if let Some((body_source, _underline_source)) = split_setext_source(raw)
                 && setext_body_safe(body_source)
             {
+                // Canonicalise CR → LF *once*: both the underline
+                // width calculation and the emitted bytes must agree
+                // on what "line 1 of the body" is. `Doc::Text`
+                // canonicalises internally; doing the same here keeps
+                // the width and the bytes derived from the same
+                // string, so the renderer's output and the next
+                // parser's view of it match.
+                let canonical_body: String = if body_source.contains('\r') {
+                    body_source.replace("\r\n", "\n").replace('\r', "\n")
+                } else {
+                    body_source.to_owned()
+                };
                 // `unbreakable` keeps the body source's embedded `\n`
                 // bytes from being split by the wrap pass (which
                 // treats `\n` as ASCII whitespace, joining lines with
                 // spaces and collapsing a multi-line setext body to a
                 // single line — exactly the bug this fix targets).
-                let body_doc = unbreakable(text(body_source.to_owned()));
-                let first_line_width = body_source
+                let first_line_width = canonical_body
                     .lines()
                     .next()
                     .map_or(3, |l| l.chars().count())
                     .max(3);
+                let body_doc = unbreakable(text(canonical_body));
                 let underline_char = if level == 1 { '=' } else { '-' };
                 let underline: String =
                     std::iter::repeat_n(underline_char, first_line_width).collect();
