@@ -43,6 +43,30 @@ Run `mdwright list-rules` to print the live catalogue. Advisory rules report fin
 Select rules with `--only escaped-emphasis,stray-dollar` or exclude them with `--skip unicodeable-subscript`. The two
 flags do not combine.
 
+## Spec conformance
+
+The formatter round-trips the GFM 0.29-gfm spec (vendored at
+`tests/gfm-spec/spec.txt`). At v0.3.0:
+
+| Bucket               | Examples |
+| -------------------- | -------- |
+| Spec examples total  | 672      |
+| Matching             | 605      |
+| Editorial deviations | 0        |
+| Tracked regressions  | 67       |
+
+See [docs/deviations.md](docs/deviations.md) for the per-section
+breakdown and how the snapshot / allowlist mechanism works. The
+`--mode=verbatim` flag bypasses the typed-IR path and preserves the
+source byte-for-byte for documents where the default normalising mode
+would diverge.
+
+Live numbers (the table above is a release snapshot):
+
+```sh
+cargo test --release --test gfm_spec gfm_spec_coverage -- --nocapture
+```
+
 ## Performance
 
 `mdwright fmt --check` is **~580× faster than `mdformat --check`** on the Kan documentation corpus.
@@ -55,6 +79,13 @@ flags do not combine.
 
 Both tools parse the same Markdown and verify that a round-trip would be a no-op. mdformat is single-threaded Python;
 mdwright is Rust and walks files in parallel with rayon, so most of the gap is the platform, not the algorithm.
+
+The v0.3.0 spec-alignment redesign moved each CM/GFM construct into a typed IR value with its own `pretty()` method.
+For the steady-state format step (parse outside the timed region), this is **25–27 % faster** than the v0.2.0 sieve
+on the project's micro-benches: `format/small` 0.216 ms → 0.159 ms, `format/medium` 0.368 ms → 0.271 ms. The end-to-end
+parse-plus-format path is 8–15 % slower because IR construction now does more work per event; the headline
+`mdwright fmt --check docs/` number above is dominated by parallel I/O and parse, so the regression is not visible at
+that level.
 
 **Experimental conditions.** Apple M4 Pro (12 cores), 24 GB RAM, macOS 26.4.1. Mdwright built with `rustc 1.95.0` on the
 `release` profile, default `RUSTFLAGS`. Mdformat 1.0.0 with the `mdformat-gfm`, `mdformat_footnote`, `mdformat_mkdocs`,
