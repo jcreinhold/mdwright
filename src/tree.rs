@@ -597,8 +597,7 @@ impl<'a> TreeBuilder<'a> {
         // pushed exactly one frame, so this pop must succeed; if it
         // ever doesn't, fall through with no Document children.
         let doc_pending_start = self.open.pop().map_or(0u32, |f| f.pending_start);
-        let doc_children: Vec<NodeId> =
-            self.pending.drain(doc_pending_start as usize..).collect();
+        let doc_children: Vec<NodeId> = self.pending.drain(doc_pending_start as usize..).collect();
 
         // Validate every reference-style Link / Image node against the
         // table; unresolvable references downgrade to `Unknown` so the
@@ -1446,7 +1445,8 @@ let x = 1;
     // payload (one-arg tuple variant). The kitchen-sink fixture
     // exercises every printable kind we expect; an unexercised arm
     // means the fixture is missing a construct.
-    const TYPED_COVERAGE_KITCHEN: &str = include_str!("../tests/fixtures/typed_coverage_kitchen.md");
+    const TYPED_COVERAGE_KITCHEN: &str =
+        include_str!("../tests/fixtures/typed_coverage_kitchen.md");
 
     fn is_printable_block(k: &NodeKind<'_>) -> bool {
         // `Item` and table sub-parts (TableHead/Row/Cell) are not in
@@ -1531,8 +1531,7 @@ let x = 1;
         // never affect HTML output anyway).
         let src = "[a]: https://a.example\n[b]: https://b.example\n\n[a] and [b].\n";
         let ir = Ir::parse(src);
-        let mut labels: Vec<String> =
-            ir.refs.iter().map(|t| t.label_raw().to_owned()).collect();
+        let mut labels: Vec<String> = ir.refs.iter().map(|t| t.label_raw().to_owned()).collect();
         labels.sort();
         assert_eq!(labels, vec!["a".to_owned(), "b".to_owned()]);
     }
