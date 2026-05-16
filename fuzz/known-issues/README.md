@@ -12,28 +12,26 @@ When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 `tests/regressions.rs`) and delete the matching entry from this
 README.
 
-## idempotence-emphasis-strikethrough-escape-drift.in
+## idempotence-unclosed-fenced-code-block.in
 
-Bytes: `Hww$\0***$~\0B*~~B~` (17 bytes).
+Bytes: `` ```` `` + control bytes + `\r#\t,` + `` ` `` (14 bytes).
 
-The output gains an extra `\*` escape on the second format pass
-compared with the first (`B*~~B~~` → `B\*~~B~~`). One single `*`
-inside text adjacent to a `~~` strikethrough boundary gets escaped
-on reformat in one direction but not the other, breaking
-idempotence.
+Source starts with `` ```` `` — a fenced code block opener with no
+matching closer in the input. mdwright's first format does NOT emit
+a closing fence; the second format DOES. The two outputs differ at
+the trailing line:
 
-This is a **different bug class** from the typed-constructor
-families fixed so far (paragraph body, code span). It involves the
-emphasis emitter's decisions around `*` characters that sit next to
-strikethrough (`~~`) delimiter runs — likely the run-resolution
-logic in `cm/inline/emphasis.rs` doesn't reach the same fixed point
-on the two passes because the surrounding context differs after
-the first format adds escapes.
+```
+once:  …# ,\`\n
+twice: …# ,\`\n````\n
+```
 
-Fix shape: as with paragraph body and code span, the typed inline
-constructor (`EmphasisRun` / `StrongRun`) should encode "what I emit
-reparses to me" as a debug-time round-trip self-check. The current
-constructor decides delimiter style and escapes per-pass; the
-invariant the fuzz find shows must hold is that the decision is a
-fixed point of (parse → emit). Audit `resolve()` in the emphasis
-module.
+Bug lives in the fenced-code-block emitter
+(`src/cm/block/code_block.rs`-ish), which decides whether to write
+a closing fence based on source structure rather than always
+emitting one. Like the strikethrough escape and code-span padding
+bugs already fixed, the right shape is a typed-construct invariant:
+"emitted bytes round-trip to one `Event::Start(CodeBlock(Fenced))`
+followed by content followed by `Event::End`." A constructor that
+always emits the closer + a debug-time self-check would make this
+class unrepresentable.

@@ -101,13 +101,29 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   `tests/regressions/fuzz_9abf9d1d.in` and 2 GFM-spec snapshot
   cases (Fenced code blocks 108 idem; Code spans 344 idem).
 
+- `src/cm/inline/strikethrough.rs::Strikethrough::pretty` now
+  escapes every unescaped `~` byte in the body's text leaves before
+  wrapping in `~~ … ~~`. Without this, a body containing literal
+  `~~` (e.g. from the input strikethrough's own content) closed the
+  wrapping `~~` early on reparse, producing a structurally different
+  paragraph. The escape skips `~` bytes already preceded by `\` so
+  source-preserved escapes (via
+  `cm::inline::run::forced_escapes_from_source`) are not
+  double-escaped on each format pass. Atomic children (inline code
+  spans) are passed through verbatim — their `~` bytes are fenced
+  and cannot reach the surrounding strikethrough delimiter
+  detector. The invariant is enforced by a debug-time
+  `body_has_no_unescaped_tilde` walk inside `pretty`. Resolves the
+  parked `tests/regressions/fuzz_66c5d21c.in` and the downstream
+  `*`-escape drift it produced.
+
 ### Known issues
-- One new (different-class) fuzz find: a single `*` adjacent to a
-  `~~` strikethrough run gets escaped on reformat in one direction
-  but not the other, breaking idempotence. Outside the
-  code-span / paragraph-body invariants this PR series enforces;
-  reproducer at
-  [`fuzz/known-issues/idempotence-emphasis-strikethrough-escape-drift.in`](./fuzz/known-issues/README.md).
+- One new (different-class) fuzz find: a fenced code block opener
+  with no source-side closer emits without a closing fence on the
+  first format pass but with one on the second, breaking
+  idempotence. Outside the strikethrough invariants this PR
+  enforces; reproducer at
+  [`fuzz/known-issues/idempotence-unclosed-fenced-code-block.in`](./fuzz/known-issues/README.md).
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 
