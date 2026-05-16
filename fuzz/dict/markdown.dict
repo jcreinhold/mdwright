@@ -1,0 +1,118 @@
+# libFuzzer dictionary: high-value CommonMark / GFM / math / mdwright
+# tokens. Each entry is one literal byte sequence the fuzzer can
+# splice into mutated inputs, dramatically cutting time-to-coverage on
+# rarely-explored constructs (math environments, admonitions, GFM
+# tables, footnotes, frontmatter).
+#
+# Pass with: cargo +nightly fuzz run <target> -- -dict=dict/markdown.dict
+#
+# Format reference: https://llvm.org/docs/LibFuzzer.html#dictionaries
+# Only \xNN escapes are valid (no \n / \t literals). Newline = \x0a.
+
+# Headings (ATX + setext)
+"# "
+"## "
+"### "
+"#### "
+"##### "
+"###### "
+"\x0a===\x0a"
+"\x0a---\x0a"
+
+# Thematic breaks
+"\x0a***\x0a"
+"\x0a___\x0a"
+
+# Lists
+"- "
+"* "
+"+ "
+"1. "
+"1) "
+"- [ ] "
+"- [x] "
+
+# Blockquote
+"> "
+
+# Code fences
+"```"
+"~~~"
+"```rust\x0a"
+"```\x0a"
+"    "
+
+# Inline emphasis / code
+"*"
+"**"
+"_"
+"__"
+"~~"
+"`"
+"``"
+
+# Links / images / autolinks / refs / footnotes
+"["
+"]("
+"![]("
+"<https://"
+"[^"
+"[link]: "
+"<!--"
+"-->"
+
+# Tables
+"| "
+" |\x0a"
+"|---|"
+"|:---:|"
+
+# Math (CommonMark + LaTeX environments)
+"$"
+"$$"
+"\\("
+"\\)"
+"\\["
+"\\]"
+"\\begin{"
+"\\end{"
+"\\begin{align}\x0a"
+"\\end{align}\x0a"
+"\\begin{aligned}"
+"\\begin{equation}"
+"\\begin{pmatrix}"
+"\\begin{cases}"
+"&"
+"\\\\\x0a"
+"\\frac{"
+
+# HTML blocks / inline
+"<div>"
+"</div>"
+"<details>"
+"</details>"
+"<summary>"
+"<br>"
+"<br/>"
+"<p>"
+
+# Admonitions (mdwright + GFM alerts)
+":::note\x0a"
+":::warning\x0a"
+":::\x0a"
+"> [!NOTE]\x0a"
+"> [!WARNING]\x0a"
+"> [!TIP]\x0a"
+
+# Frontmatter
+"---\x0a"
+"+++\x0a"
+
+# Escapes (CM §2.4) and common entities
+"\\"
+"\\*"
+"\\_"
+"\\["
+"\\]"
+"&amp;"
+"&#"

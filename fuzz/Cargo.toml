@@ -8,6 +8,7 @@ version = "0.0.0"
 cargo-fuzz = true
 
 [dependencies]
+arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = "0.4"
 mdwright = { path = ".." }
 
@@ -30,4 +31,18 @@ bench = false
 doc = false
 name = "fuzz_lint"
 path = "fuzz_targets/fuzz_lint.rs"
+test = false
+
+[[bin]]
+bench = false
+doc = false
+name = "fuzz_verbatim_identity"
+path = "fuzz_targets/fuzz_verbatim_identity.rs"
+test = false
+
+[[bin]]
+bench = false
+doc = false
+name = "fuzz_structured_idempotence"
+path = "fuzz_targets/fuzz_structured_idempotence.rs"
 test = false

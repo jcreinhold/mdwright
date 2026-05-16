@@ -1,0 +1,62 @@
+name: fuzz
+
+on:
+  schedule:
+    - cron: '0 4 * * *'  # 04:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      duration_secs:
+        description: Per-target sweep duration in seconds
+        required: false
+        default: '300'
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_parse_format
+          - fuzz_idempotence
+          - fuzz_lint
+          - fuzz_verbatim_identity
+          - fuzz_structured_idempotence
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly + cargo-fuzz
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup default nightly
+          cargo install cargo-fuzz --locked
+
+      - name: Cache fuzz build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            fuzz/target
+          key: fuzz-${{ matrix.target }}-${{ hashFiles('fuzz/Cargo.toml', 'Cargo.lock') }}
+          restore-keys: |
+            fuzz-${{ matrix.target }}-
+
+      - name: Run ${{ matrix.target }}
+        working-directory: fuzz
+        run: |
+          DURATION="${{ github.event.inputs.duration_secs || '300' }}"
+          cargo +nightly fuzz run "${{ matrix.target }}" \
+            -- -dict=dict/markdown.dict -max_total_time="$DURATION"
+
+      - name: Upload reproducer on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reproducer-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore

@@ -147,18 +147,49 @@ past the size cap are refused with a clear non-zero exit. The library
 bytes from non-CLI front-ends are responsible for bounding input
 themselves.
 
-Three coverage-guided fuzz targets live under [`fuzz/`](./fuzz):
+Five coverage-guided fuzz targets live under [`fuzz/`](./fuzz):
 
-- `fuzz_parse_format` — parse and format, must not panic.
+- `fuzz_parse_format` — `html(s) == html(format(s))`; format must
+  not change the rendered HTML (mirrors the `format_validated` CLI
+  gate).
 - `fuzz_idempotence` — `format(parse(format(parse(s))))` ≡
-  `format(parse(s))`.
+  `format(parse(s))`. First input byte drives `FmtOptions` (wrap ×
+  mode × `math.normalise`).
 - `fuzz_lint` — every standard-library lint rule on every input,
-  must not panic.
+  must not panic; every diagnostic span lies in `0..len`; lint
+  output is deterministic.
+- `fuzz_verbatim_identity` — verbatim mode is idempotent and, when
+  the source is in canonical boundary form, a strict identity.
+- `fuzz_structured_idempotence` — `arbitrary`-driven block-template
+  generator builds Markdown documents biased toward shapes that
+  have historically surfaced idempotence bugs; same oracle as
+  `fuzz_idempotence` with the option byte too.
 
 Run a target with `cd fuzz && cargo +nightly fuzz run <target> --
--max_total_time=300`. Reproducer inputs that surface real bugs are
-checked in under [`tests/regressions/fuzz_*.in`](./tests/regressions)
-and gated by the suite in `tests/regressions.rs`.
+-max_total_time=300 -dict=dict/markdown.dict`. The dictionary holds
+~60 high-value CommonMark / GFM / math tokens and cuts
+time-to-first-coverage on rare constructs (math envs, admonitions,
+tables, frontmatter).
+
+Reproducer inputs that surface real bugs are checked in under
+[`tests/regressions/fuzz_*.in`](./tests/regressions) and gated by the
+suite in `tests/regressions.rs`. Open bugs (fix deferred) live under
+[`fuzz/known-issues/`](./fuzz/known-issues) and are pinned by
+`tests/known_issues.rs` so silent drift fails CI even while the bug
+itself stays in.
+
+**Corpus hygiene.** Before committing corpus changes, minimise:
+
+```sh
+cd fuzz
+for t in fuzz_parse_format fuzz_idempotence fuzz_lint \
+         fuzz_verbatim_identity fuzz_structured_idempotence; do
+  cargo +nightly fuzz cmin "$t"
+done
+```
+
+Target ≤2k entries per corpus post-minimisation. Larger corpora
+slow iter/sec without buying coverage.
 
 Reports of panics on any input are security bugs; see
 [SECURITY.md](./SECURITY.md) for disclosure.
