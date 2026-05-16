@@ -154,6 +154,14 @@ pub struct FmtOptions {
     preserve_frontmatter: bool,
     thematic_break_style: ThematicStyle,
     mode: FormatMode,
+    /// Whether to normalise recognised math regions (whitespace,
+    /// ampersand alignment in environments). Defaults to `false`
+    /// because math regions are opaque to `CommonMark`: pulldown-cmark
+    /// parses their bytes as prose, so any whitespace change inside
+    /// shifts the byte-level HTML output and trips
+    /// [`Document::format_validated`]. Authors who use a math renderer
+    /// downstream (`KaTeX`, `MathJax`) can opt in.
+    math_normalise: bool,
 }
 
 impl FmtOptions {
@@ -243,6 +251,23 @@ impl FmtOptions {
         self.mode
     }
 
+    /// Whether the math pretty-printer is active. Defaults to `false`
+    /// — see the field docs on [`FmtOptions::math_normalise`] for the
+    /// reason. Programmatic callers opt in with
+    /// [`Self::with_math_normalise`].
+    #[must_use]
+    pub fn math_normalise(&self) -> bool {
+        self.math_normalise
+    }
+
+    /// Override the math-normalisation flag. Returns the receiver for
+    /// chaining.
+    #[must_use]
+    pub fn with_math_normalise(mut self, normalise: bool) -> Self {
+        self.math_normalise = normalise;
+        self
+    }
+
     /// Override the formatter mode. Used by the CLI's `--mode` flag
     /// and by callers (benches, tests) that need to opt into verbatim
     /// emission programmatically.
@@ -317,6 +342,7 @@ impl FmtOptions {
             preserve_frontmatter: frontmatter.preserve.unwrap_or(default.preserve_frontmatter),
             thematic_break_style: default.thematic_break_style,
             mode: default.mode,
+            math_normalise: default.math_normalise,
         }
     }
 }
@@ -343,6 +369,7 @@ impl Default for FmtOptions {
             preserve_frontmatter: true,
             thematic_break_style: ThematicStyle::Dash,
             mode: FormatMode::Normalise,
+            math_normalise: false,
         }
     }
 }

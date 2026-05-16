@@ -30,6 +30,24 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   unbalanced-math-delim -->` need to update to the namespaced names.
 
 ### Added
+- Math pretty-printer at `mdwright::cm::math::pretty`. When a block
+  is entirely a math region (display `\[…\]` / `$$…$$` or an
+  environment standing alone), the renderer normalises:
+  whitespace inside the body, the opener / closer onto their own
+  lines, and `&` columns inside aligning environments (`align`,
+  `aligned`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, `cases`,
+  `array`, `split`) padded to per-column Unicode display width.
+  Gated behind `FmtOptions::math_normalise` (default `false`) —
+  pulldown-cmark parses math bodies as prose, so any whitespace
+  change shifts the byte-level HTML output and trips
+  `Document::format_validated`. Authors with a downstream math
+  renderer (KaTeX, MathJax) opt in. Paragraphs containing inline
+  math fragments continue to emit verbatim so the recogniser's
+  ambiguous calls (`\(` as math vs. as punctuation escape) cannot
+  rewrite prose. New `math/unbalanced-braces` lint rule surfaces
+  imbalanced `{` / `}` inside a math body; on imbalance the
+  pretty-printer falls back to verbatim. Golden fixtures under
+  `tests/golden_math/`.
 - Coverage-guided fuzz harness at [`fuzz/`](./fuzz) with three
   targets: `fuzz_parse_format`, `fuzz_idempotence`, `fuzz_lint`.
   See [README §Safety](./README.md#safety).

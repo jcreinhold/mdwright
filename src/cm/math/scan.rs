@@ -15,16 +15,23 @@
 //!   counts nested `\begin{name}` so an inner environment of the same
 //!   name does not close the outer.
 //!
-//! Unmatched openers become [`MathError`] values without aborting
-//! the scan; the rest of the document still produces regions and
-//! errors normally.
+//! Each recognised region carries a [`MathSpan`] tag (inline, display,
+//! or environment) with the body byte range; the pretty-printer
+//! ([`super::pretty`]) dispatches on it.
+//!
+//! Unmatched openers become [`MathError`] values without aborting the
+//! scan. Brace imbalance inside a recognised body is checked once per
+//! region and surfaces as [`MathError::UnbalancedBraces`]; the region
+//! still scans (its markers are balanced) but the pretty-printer
+//! falls back to verbatim emission.
 
 use std::ops::Range;
 
 use crate::ir::{CodeBlock, HtmlBlock, InlineCode, InlineHtml};
 
 use super::MathRegion;
-use super::span::{AnyDelim, MathError};
+use super::env::{EnvKind, KnownEnv};
+use super::span::{AnyDelim, DisplayDelim, InlineDelim, MathError, MathSpan};
 
 /// Which math delimiter pairs to recognise. Defaults match the Kan
 /// corpus convention (LaTeX-style `\[ \]` and `\( \)`); the dollar
@@ -57,7 +64,8 @@ impl Default for MathConfig {
 }
 
 /// Scan `source` for math regions. Returns regions in source order
-/// (non-overlapping) and any unmatched openers as errors.
+/// (non-overlapping) and any unmatched openers / brace-imbalanced
+/// bodies as errors.
 #[tracing::instrument(level = "debug", skip_all, fields(len = source.len()))]
 pub(crate) fn scan_math_regions(
     source: &str,
@@ -80,14 +88,20 @@ pub(crate) fn scan_math_regions(
         // Environments first: `\begin{name}` is structurally
         // unambiguous and would otherwise be passed over.
         if cfg.environments
-            && let Some((env_name, after_begin)) = match_begin(source, bytes, i)
+            && let Some((env_name, name_range, after_begin)) = match_begin(source, bytes, i)
         {
             match find_end_env(source, bytes, after_begin, env_name, &exclusions) {
-                Some(end_after) => {
-                    regions.push(MathRegion {
-                        range: i..end_after,
-                    });
-                    tracing::debug!(env = env_name, range = ?(i..end_after), "env region");
+                Some((end_start, end_after)) => {
+                    let region = i..end_after;
+                    let body = after_begin..end_start;
+                    let env = match KnownEnv::from_name(env_name) {
+                        Some(k) => EnvKind::Known(k),
+                        None => EnvKind::Custom(name_range),
+                    };
+                    let span = MathSpan::Environment { env, body: body.clone() };
+                    record_brace_errors(source, &region, &body, &mut errors);
+                    regions.push(MathRegion { range: region.clone(), span });
+                    tracing::debug!(env = env_name, range = ?region, "env region");
                     i = end_after;
                     continue;
                 }
@@ -110,10 +124,17 @@ pub(crate) fn scan_math_regions(
             Some(close_start) => {
                 let close_len = delim.close().len();
                 let region_end = close_start.saturating_add(close_len);
-                regions.push(MathRegion {
-                    range: i..region_end,
-                });
-                tracing::debug!(delim = delim.open(), range = ?(i..region_end), "delim region");
+                let region = i..region_end;
+                let body = content_start..close_start;
+                let span = match delim {
+                    AnyDelim::Paren => MathSpan::Inline { delim: InlineDelim::Paren, body: body.clone() },
+                    AnyDelim::Dollar => MathSpan::Inline { delim: InlineDelim::Dollar, body: body.clone() },
+                    AnyDelim::Bracket => MathSpan::Display { delim: DisplayDelim::Bracket, body: body.clone() },
+                    AnyDelim::Dollar2 => MathSpan::Display { delim: DisplayDelim::Dollar2, body: body.clone() },
+                };
+                record_brace_errors(source, &region, &body, &mut errors);
+                regions.push(MathRegion { range: region.clone(), span });
+                tracing::debug!(delim = delim.open(), range = ?region, "delim region");
                 i = region_end;
             }
             None => {
@@ -126,6 +147,25 @@ pub(crate) fn scan_math_regions(
         }
     }
     (regions, errors)
+}
+
+/// Push a `MathError::UnbalancedBraces` if `body` (a sub-range of
+/// `source`) has unbalanced `{` / `}`. Delegates to the shared
+/// validator in [`super::pretty::body_braces_balanced`] so the
+/// scanner and the pretty-printer agree on what counts as balanced.
+fn record_brace_errors(
+    source: &str,
+    region: &Range<usize>,
+    body: &Range<usize>,
+    errors: &mut Vec<MathError>,
+) {
+    let Some(slice) = source.get(body.clone()) else { return };
+    if let Err(local_offset) = super::pretty::body_braces_balanced(slice) {
+        errors.push(MathError::UnbalancedBraces {
+            offset: body.start.saturating_add(local_offset),
+            region: region.clone(),
+        });
+    }
 }
 
 /// Sorted, merged byte ranges where math regions cannot start or
@@ -181,17 +221,25 @@ fn excluded_end(exclusions: &[Range<usize>], i: usize) -> Option<usize> {
     None
 }
 
-/// Match `\begin{name}` at `i`. Returns `(name, position after the
-/// closing `}`)`. The `\` must not be itself escaped (even-count of
-/// preceding backslashes).
-fn match_begin<'a>(source: &'a str, bytes: &[u8], i: usize) -> Option<(&'a str, usize)> {
+/// Match `\begin{name}` at `i`. Returns `(name, byte range of the
+/// name, position after the closing `}`)`. The `\` must not be itself
+/// escaped (even-count of preceding backslashes).
+fn match_begin<'a>(
+    source: &'a str,
+    bytes: &[u8],
+    i: usize,
+) -> Option<(&'a str, Range<usize>, usize)> {
     let after = match_kw(bytes, i, b"begin")?;
     parse_env_name(source, after)
 }
 
-/// Match `\end{name}` at `j`. Returns `(name, position after the
-/// closing `}`)`.
-fn match_end<'a>(source: &'a str, bytes: &[u8], j: usize) -> Option<(&'a str, usize)> {
+/// Match `\end{name}` at `j`. Returns `(name, byte range of the name,
+/// position after the closing `}`)`.
+fn match_end<'a>(
+    source: &'a str,
+    bytes: &[u8],
+    j: usize,
+) -> Option<(&'a str, Range<usize>, usize)> {
     let after = match_kw(bytes, j, b"end")?;
     parse_env_name(source, after)
 }
@@ -214,9 +262,9 @@ fn match_kw(bytes: &[u8], i: usize, keyword: &[u8]) -> Option<usize> {
 }
 
 /// Parse `{name}` starting at `after`, where `name` is `[A-Za-z]+\*?`
-/// (LaTeX environment name convention). Returns `(name, position
-/// after the closing `}`)`.
-fn parse_env_name(source: &str, after: usize) -> Option<(&str, usize)> {
+/// (LaTeX environment name convention). Returns `(name, byte range of
+/// the name in `source`, position after the closing `}`)`.
+fn parse_env_name(source: &str, after: usize) -> Option<(&str, Range<usize>, usize)> {
     let bytes = source.as_bytes();
     if bytes.get(after).copied() != Some(b'{') {
         return None;
@@ -241,20 +289,20 @@ fn parse_env_name(source: &str, after: usize) -> Option<(&str, usize)> {
         return None;
     }
     let name = source.get(name_start..j)?;
-    Some((name, j.saturating_add(1)))
+    Some((name, name_start..j, j.saturating_add(1)))
 }
 
 /// Find the matching `\end{name}` for an open environment. Returns
-/// the byte index just after the closing `}` of `\end{name}`. Counts
-/// nested `\begin{name}` so inner environments of the same name do
-/// not close the outer.
+/// the byte index of the `\` of `\end` and the byte index just after
+/// the closing `}` of `\end{name}`. Counts nested `\begin{name}` so
+/// inner environments of the same name do not close the outer.
 fn find_end_env(
     source: &str,
     bytes: &[u8],
     from: usize,
     name: &str,
     exclusions: &[Range<usize>],
-) -> Option<usize> {
+) -> Option<(usize, usize)> {
     let mut depth: u32 = 1;
     let mut j = from;
     while j < bytes.len() {
@@ -262,17 +310,17 @@ fn find_end_env(
             j = end;
             continue;
         }
-        if let Some((found_name, after)) = match_end(source, bytes, j) {
+        if let Some((found_name, _, after)) = match_end(source, bytes, j) {
             if found_name == name {
                 depth = depth.saturating_sub(1);
                 if depth == 0 {
-                    return Some(after);
+                    return Some((j, after));
                 }
             }
             j = after;
             continue;
         }
-        if let Some((found_name, after)) = match_begin(source, bytes, j) {
+        if let Some((found_name, _, after)) = match_begin(source, bytes, j) {
             if found_name == name {
                 depth = depth.saturating_add(1);
             }
@@ -400,6 +448,10 @@ mod tests {
         let regs = regions(s);
         assert_eq!(regs.len(), 1);
         assert_eq!(&s[regs[0].range.clone()], r"\[ A \]");
+        assert!(matches!(
+            regs[0].span,
+            MathSpan::Display { delim: DisplayDelim::Bracket, .. }
+        ));
     }
 
     #[test]
@@ -418,6 +470,10 @@ mod tests {
         let regs = regions(s);
         assert_eq!(regs.len(), 1);
         assert_eq!(&s[regs[0].range.clone()], r"\( a + b \)");
+        assert!(matches!(
+            regs[0].span,
+            MathSpan::Inline { delim: InlineDelim::Paren, .. }
+        ));
     }
 
     #[test]
@@ -440,7 +496,9 @@ mod tests {
                 assert_eq!(delim.open(), r"\[");
                 assert_eq!(delim.close(), r"\]");
             }
-            MathError::UnbalancedEnv { .. } => panic!("expected delim error"),
+            MathError::UnbalancedEnv { .. } | MathError::UnbalancedBraces { .. } => {
+                panic!("expected delim error")
+            }
         }
     }
 
@@ -492,10 +550,6 @@ mod tests {
 
     #[test]
     fn region_inside_inline_html_excluded() {
-        // Math-like bytes appearing inside an inline HTML tag (e.g.
-        // attribute values) must not anchor a region. The heuristic
-        // scanner missed this class because it had no inline-HTML
-        // exclusion list.
         let s = r#"see <a href="/x?val=$foo">x</a> after"#;
         let ih = vec![InlineHtml {
             text: r#"<a href="/x?val=$foo">"#,
@@ -526,6 +580,10 @@ mod tests {
         let (regs, _) = scan_math_regions(s, &[], &[], &[], &[], cfg);
         assert_eq!(regs.len(), 1);
         assert_eq!(&s[regs[0].range.clone()], "$$ x = 5 $$");
+        assert!(matches!(
+            regs[0].span,
+            MathSpan::Display { delim: DisplayDelim::Dollar2, .. }
+        ));
     }
 
     #[test]
@@ -538,6 +596,10 @@ mod tests {
         let (regs, _) = scan_math_regions(s, &[], &[], &[], &[], cfg);
         assert_eq!(regs.len(), 1);
         assert_eq!(&s[regs[0].range.clone()], "$a + b$");
+        assert!(matches!(
+            regs[0].span,
+            MathSpan::Inline { delim: InlineDelim::Dollar, .. }
+        ));
     }
 
     #[test]
@@ -568,6 +630,18 @@ mod tests {
         let span = &s[regs[0].range.clone()];
         assert!(span.starts_with("\\begin{align}"));
         assert!(span.ends_with("\\end{align}"));
+        match &regs[0].span {
+            MathSpan::Environment { env, body } => {
+                assert!(matches!(env, EnvKind::Known(KnownEnv::Align)));
+                // body starts after `\begin{align}` (13 bytes) plus the
+                // 7-byte prefix `before `.
+                assert_eq!(body.start, 7 + 13);
+                assert!(&s[body.clone()].contains("x &= y"));
+            }
+            MathSpan::Inline { .. } | MathSpan::Display { .. } => {
+                panic!("expected environment span")
+            }
+        }
     }
 
     #[test]
@@ -583,6 +657,10 @@ mod tests {
         let s = "\\begin{align*} x \\end{align*}";
         let regs = regions(s);
         assert_eq!(regs.len(), 1);
+        assert!(matches!(
+            &regs[0].span,
+            MathSpan::Environment { env: EnvKind::Known(KnownEnv::AlignStar), .. }
+        ));
     }
 
     #[test]
@@ -590,6 +668,16 @@ mod tests {
         let s = "\\begin{widget} q \\end{widget}";
         let regs = regions(s);
         assert_eq!(regs.len(), 1);
+        match &regs[0].span {
+            MathSpan::Environment { env: EnvKind::Custom(name_range), .. } => {
+                assert_eq!(&s[name_range.clone()], "widget");
+            }
+            MathSpan::Inline { .. }
+            | MathSpan::Display { .. }
+            | MathSpan::Environment { env: EnvKind::Known(_), .. } => {
+                panic!("expected custom env")
+            }
+        }
     }
 
     #[test]
@@ -606,5 +694,29 @@ mod tests {
         let s = "\\[ \\begin{aligned} a &= b \\end{aligned} \\]";
         let regs = regions(s);
         assert_eq!(regs.len(), 1);
+        // The outer region is Display (brackets); the inner aligned
+        // is part of the body, not its own top-level region.
+        assert!(matches!(
+            &regs[0].span,
+            MathSpan::Display { delim: DisplayDelim::Bracket, .. }
+        ));
+    }
+
+    #[test]
+    fn brace_imbalance_emits_error_but_region_still_scans() {
+        let s = r"\[ \frac{a}{b \]";
+        let (regs, errs) = scan(s);
+        assert_eq!(regs.len(), 1);
+        assert!(errs.iter().any(|e| matches!(e, MathError::UnbalancedBraces { .. })));
+    }
+
+    #[test]
+    fn brace_balance_with_escaped_braces() {
+        let s = r"\[ \{ a \} \]";
+        let (_, errs) = scan(s);
+        assert!(
+            errs.iter().all(|e| !matches!(e, MathError::UnbalancedBraces { .. })),
+            "escaped braces should not count: {errs:?}"
+        );
     }
 }

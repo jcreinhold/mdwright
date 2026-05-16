@@ -13,6 +13,7 @@
 use std::ops::Range;
 
 use crate::cm::block::paragraph::Paragraph;
+use crate::cm::math::MathRegion;
 use crate::config::{LinkDefStyle, Placement};
 use crate::format::doc::{Doc, concat, hard_line, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
@@ -74,18 +75,37 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
                 continue;
             }
         }
-        // Math overlay: any block whose source range overlaps a math
-        // region is emitted byte-verbatim.
-        if let Some(node) = ctx.tree.node(child)
-            && block_overlaps_math(ctx, &node.raw_range)
-        {
-            if emitted > 0 {
-                parts.push(hard_line());
+        // Math overlay. Two cases:
+        //   * The block is *entirely* math (display `\[…\]` / `$$…$$`
+        //     or a `\begin{env}…\end{env}` standing on its own) — we
+        //     render it through `MathSpan::pretty` for whitespace
+        //     normalisation and ampersand alignment.
+        //   * The block merely *contains* one or more math regions
+        //     (typical: a paragraph with inline `\(x\)` fragments) —
+        //     we emit the whole block verbatim. The recogniser cannot
+        //     reliably distinguish prose backslash escapes like
+        //     `\(\)` / `\[\\\]` (GFM spec ex. 308) from genuine
+        //     inline math; touching only some of those bytes would
+        //     drift the round-trip, so we keep the safe overlay.
+        if let Some(node) = ctx.tree.node(child) {
+            let hits = math_regions_in(ctx, &node.raw_range);
+            if !hits.is_empty() {
+                if emitted > 0 {
+                    parts.push(hard_line());
+                }
+                let doc = if let Some(region) = whole_block_math(&hits, &node.raw_range, ctx.source) {
+                    let mut pieces: Vec<Doc<'a>> = Vec::with_capacity(3);
+                    pieces.push(region.span.pretty(ctx, &region.range));
+                    pieces.push(hard_line());
+                    unbreakable(concat(pieces))
+                } else {
+                    let raw = ctx.source.get(node.raw_range.clone()).unwrap_or("");
+                    unbreakable(verbatim_lines(raw))
+                };
+                parts.push(doc);
+                emitted = emitted.saturating_add(1);
+                continue;
             }
-            let raw = ctx.source.get(node.raw_range.clone()).unwrap_or("");
-            parts.push(unbreakable(verbatim_lines(raw)));
-            emitted = emitted.saturating_add(1);
-            continue;
         }
         if emitted > 0 {
             parts.push(hard_line());
@@ -152,10 +172,43 @@ fn root_verbatim_safe(ctx: &PrettyCtx<'_>, id: NodeId) -> bool {
         .contains('\r')
 }
 
-fn block_overlaps_math(ctx: &PrettyCtx<'_>, block: &Range<usize>) -> bool {
+/// Math regions overlapping `block` in source order. The returned
+/// references point into `ctx.math_regions`; their `range` fields are
+/// source-absolute.
+fn math_regions_in<'b>(
+    ctx: &'b PrettyCtx<'_>,
+    block: &Range<usize>,
+) -> Vec<&'b MathRegion> {
     ctx.math_regions
         .iter()
-        .any(|r| r.range.start < block.end && block.start < r.range.end)
+        .filter(|r| r.range.start < block.end && block.start < r.range.end)
+        .collect()
+}
+
+/// `Some(region)` iff exactly one math region covers all non-blank
+/// bytes of `block`. Whole-block coverage is the safety condition
+/// that lets us swap byte-verbatim emission for `MathSpan::pretty`:
+/// the source bytes outside the math region are at most leading /
+/// trailing whitespace, so a different (normalised) render of the
+/// math cannot rearrange surrounding prose.
+fn whole_block_math<'b>(
+    hits: &[&'b MathRegion],
+    block: &Range<usize>,
+    source: &str,
+) -> Option<&'b MathRegion> {
+    if hits.len() != 1 {
+        return None;
+    }
+    let region = hits.first().copied()?;
+    let head = source.get(block.start..region.range.start)?;
+    let tail = source.get(region.range.end..block.end)?;
+    if head.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+        && tail.bytes().all(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+    {
+        Some(region)
+    } else {
+        None
+    }
 }
 
 /// Build a `Doc` for `raw` that emits the input byte-verbatim with a
