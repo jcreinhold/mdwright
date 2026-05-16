@@ -9,6 +9,46 @@ use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::NodeId;
 
+/// First byte of `s` after skipping spaces, tabs, and line-feeds.
+/// `None` iff `s` is whitespace-only.
+fn first_significant_byte(s: &str) -> Option<u8> {
+    s.bytes()
+        .find(|&b| !matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+}
+
+/// `true` iff a setext heading with body `body_source` can re-parse as
+/// itself. The check is a pure function of source bytes (no inline
+/// `Doc` walk) so the setext-vs-ATX decision is stable across re-parse
+/// — fuzz-found bug class: a body whose rendered `Doc` carried
+/// `HardLine`/`Line` markers (e.g. from control-byte handling) made
+/// pass 1 keep setext and pass 2 flip to ATX. Source bytes survive
+/// formatting identically; rendered `Doc` does not.
+///
+/// Setext is safe iff:
+/// - body has at least one significant byte, AND
+/// - the first significant byte is not a CM block-leader (`#`/`>`/
+///   `-`/`+`/`*`/`=`/`~`/backtick/`<`/tab/digit) — those would
+///   re-parse the body line as a different block, splitting the
+///   heading.
+fn setext_body_safe(body_source: &str) -> bool {
+    let Some(first) = first_significant_byte(body_source) else {
+        return false;
+    };
+    !matches!(
+        first,
+        b'#' | b'>'
+            | b'-'
+            | b'+'
+            | b'*'
+            | b'='
+            | b'~'
+            | b'`'
+            | b'<'
+            | b'\t'
+            | b'0'..=b'9'
+    )
+}
+
 /// A heading level in 1..=6. Constructed only via [`HeadingLevel::try_new`];
 /// the inner byte is intentionally inaccessible so out-of-range values
 /// are unrepresentable.
@@ -77,14 +117,17 @@ impl Heading {
         let body = crate::format::inline::pretty_inline_children(ctx, id);
         let level = self.level.as_u8();
         if matches!(self.style, HeadingStyle::Setext) && level <= 2 {
-            // Setext re-parses correctly only when the body's first
-            // line does not look like a different block-starter to
-            // pulldown. A body of `*`, for example, would re-parse as
-            // a list bullet — the `===` underline then becomes a
-            // bare paragraph, breaking idempotence. Walk the body Doc
-            // directly so soft breaks (which render as spaces) still
-            // count as line breaks for the multi-line check.
-            if setext_body_safe(&body) {
+            // The setext-vs-ATX decision is a pure function of the
+            // heading's source bytes — never of the rendered body
+            // `Doc`, whose `HardLine`/`Line` markers shift between
+            // passes when control characters or other byte-level
+            // quirks change how the inline emitter splits the body.
+            let body_source = ctx
+                .tree
+                .node(id)
+                .map(|n| ctx.source.get(n.raw_range.clone()).unwrap_or(""))
+                .unwrap_or("");
+            if setext_body_safe(body_source) {
                 let rendered = render(&body, &RenderOptions);
                 let width = rendered
                     .lines()
@@ -106,67 +149,6 @@ impl Heading {
 pub(crate) enum HeadingError {
     InvalidLevel(u8),
     SetextLevelTooHigh { level: u8 },
-}
-
-/// Conservative gate for emitting setext form. Walks `body` directly
-/// so soft breaks (which render as spaces in isolation but become
-/// hard newlines during the wrap pass) still count as line breaks
-/// for the multi-line detection.
-///
-/// Decision matrix:
-/// - empty body → ATX (setext requires non-blank content).
-/// - multi-line body → setext (ATX cannot carry multi-line content;
-///   the wrap pass would split it into a heading + a paragraph).
-/// - single-line body whose first non-empty byte is a block-leader
-///   (`*`, `-`, `+`, `#`, `>`, `=`, `~`, backtick, `<`, tab, digit)
-///   → ATX (setext would re-parse as a different block).
-/// - otherwise → setext.
-fn setext_body_safe(body: &Doc<'_>) -> bool {
-    let mut first_byte: Option<u8> = None;
-    let mut has_break = false;
-    walk_body(body, &mut first_byte, &mut has_break);
-    let Some(first) = first_byte else {
-        return false; // empty body
-    };
-    if has_break {
-        // Multi-line body — keep setext; ATX cannot represent it.
-        return true;
-    }
-    match first {
-        // ATX heading, blockquote, list bullets, setext underline,
-        // fenced code, indented code (tab counts), HTML start.
-        b'#' | b'>' | b'-' | b'+' | b'*' | b'=' | b'~' | b'`' | b'<' | b'\t' => false,
-        // Digit could be an ordered-list marker if `.` or `)` follows.
-        b'0'..=b'9' => false,
-        _ => true,
-    }
-}
-
-/// Iterative pre-order walk: capture the first text byte and note
-/// whether any `Doc::Line` or `Doc::HardLine` appears.
-fn walk_body(body: &Doc<'_>, first_byte: &mut Option<u8>, has_break: &mut bool) {
-    let mut stack: Vec<&Doc<'_>> = vec![body];
-    while let Some(node) = stack.pop() {
-        if first_byte.is_some() && *has_break {
-            return;
-        }
-        match node {
-            Doc::Text(s) => {
-                if first_byte.is_none()
-                    && let Some(b) = s.as_bytes().iter().find(|&&b| b != b' ' && b != b'\t')
-                {
-                    *first_byte = Some(*b);
-                }
-            }
-            Doc::Line | Doc::HardLine => *has_break = true,
-            Doc::Atomic(inner) | Doc::Prefix(_, inner) => stack.push(inner),
-            Doc::Concat(items) => {
-                for item in items.iter().rev() {
-                    stack.push(item);
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
