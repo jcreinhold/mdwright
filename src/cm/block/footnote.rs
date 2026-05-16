@@ -31,6 +31,15 @@ impl<'a> FootnoteDef<'a> {
     /// spaces. Open multi-line `<!-- ... -->` spans are detected and
     /// have the formatter's own 4-space prefix elided so pulldown's
     /// re-parse sees the same continuation depth.
+    ///
+    /// TODO(doc-prefix): this construct still uses the legacy
+    /// render-to-string-then-prefix pattern because the HTML-comment
+    /// continuation rule needs source-aware indent *stripping* on
+    /// specific lines — [`crate::format::doc::Doc::Prefix`] applies
+    /// indent uniformly and has no per-line content gate. Migrating
+    /// this to `prefix_lines` needs the comment-indent compensation
+    /// to move into
+    /// [`crate::cm::inline::html::InlineHtmlSpan::from_parser`].
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(&self, ctx: &PrettyCtx<'b>, id: NodeId) -> Doc<'b> {
         let inner = crate::format::block::pretty_block_sequence(ctx, id);

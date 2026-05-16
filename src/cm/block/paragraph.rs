@@ -109,7 +109,7 @@ pub(crate) fn escape_paragraph_line_starts<'a>(
                 }
             }
             Doc::HardLine => at_line_start = true,
-            Doc::Line | Doc::Concat(_) | Doc::Atomic(_) => {
+            Doc::Line | Doc::Concat(_) | Doc::Atomic(_) | Doc::Prefix(_, _) => {
                 at_line_start = false;
             }
         }
@@ -158,7 +158,11 @@ fn flatten<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
                 flatten(item, out);
             }
         }
-        leaf @ (Doc::Text(_) | Doc::Line | Doc::HardLine | Doc::Atomic(_)) => {
+        leaf @ (Doc::Text(_)
+        | Doc::Line
+        | Doc::HardLine
+        | Doc::Atomic(_)
+        | Doc::Prefix(_, _)) => {
             out.push(leaf);
         }
     }

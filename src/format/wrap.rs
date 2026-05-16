@@ -75,6 +75,7 @@ fn rewrite_lines<'a>(doc: Doc<'a>, r: Replace) -> Doc<'a> {
         },
         Doc::Text(_) | Doc::HardLine => doc,
         Doc::Atomic(inner) => Doc::Atomic(Box::new(rewrite_lines(*inner, r))),
+        Doc::Prefix(p, inner) => Doc::Prefix(p, Box::new(rewrite_lines(*inner, r))),
         Doc::Concat(items) => {
             let v: Vec<Doc<'a>> = items
                 .into_vec()
@@ -113,7 +114,11 @@ fn linearize<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
                 linearize(item, out);
             }
         }
-        leaf @ (Doc::Text(_) | Doc::Line | Doc::HardLine | Doc::Atomic(_)) => {
+        leaf @ (Doc::Text(_)
+        | Doc::Line
+        | Doc::HardLine
+        | Doc::Atomic(_)
+        | Doc::Prefix(_, _)) => {
             out.push(leaf);
         }
     }
@@ -127,10 +132,27 @@ fn process_stream<'a>(stream: Vec<Doc<'a>>, target: u32) -> Vec<Doc<'a>> {
             run.push(item);
         } else {
             flush_run(&mut run, target, &mut out);
-            // Only `HardLine` and (defensively) `Concat` can reach
-            // here: `Text`, `Line`, and `Atomic` are wrap tokens and
-            // were siphoned into `run` by `is_wrap_token`.
-            out.push(item);
+            match item {
+                // Recurse into the prefix subtree with a reduced
+                // budget so continuation-line wrapping accounts for
+                // the prefix's column cost.
+                Doc::Prefix(p, inner) => {
+                    let shrink = u32::try_from(unicode_width::UnicodeWidthStr::width(
+                        p.content.as_ref(),
+                    ))
+                    .unwrap_or(u32::MAX);
+                    let new_target = target.saturating_sub(shrink).max(1);
+                    let wrapped = wrap_at(*inner, new_target);
+                    out.push(Doc::Prefix(p, Box::new(wrapped)));
+                }
+                // `HardLine` and (defensively) `Concat` end up here:
+                // `Text`, `Line`, and `Atomic` are wrap tokens and
+                // were siphoned into `run` by `is_wrap_token`.
+                other @ (Doc::HardLine | Doc::Concat(_)) => out.push(other),
+                // Wrap-tokens cannot reach the `else` branch — they
+                // were filtered into the run above. Drop defensively.
+                Doc::Text(_) | Doc::Line | Doc::Atomic(_) => {}
+            }
         }
     }
     flush_run(&mut run, target, &mut out);
@@ -217,10 +239,10 @@ fn tokenize_run<'a>(run: Vec<Doc<'a>>) -> Vec<Bx<'a>> {
                 );
                 pending_glue = false;
             }
-            // Defensive: process_stream routes `HardLine` and
-            // `Concat` outside runs, so neither should reach here.
+            // Defensive: process_stream routes `HardLine`, `Prefix`,
+            // and `Concat` outside runs, so none should reach here.
             // Treat any leak as an atomic box of its flat width.
-            other @ (Doc::HardLine | Doc::Concat(_)) => {
+            other @ (Doc::HardLine | Doc::Concat(_) | Doc::Prefix(_, _)) => {
                 let width = doc_flat_width(&other);
                 append_box(
                     &mut boxes,
@@ -329,7 +351,7 @@ fn doc_flat_width(d: &Doc<'_>) -> u32 {
             }
             Doc::Line => *acc = acc.saturating_add(1),
             Doc::HardLine => {}
-            Doc::Atomic(inner) => walk(inner, acc),
+            Doc::Atomic(inner) | Doc::Prefix(_, inner) => walk(inner, acc),
             Doc::Concat(items) => {
                 for item in items {
                     walk(item, acc);
@@ -455,7 +477,8 @@ fn rebuild<'a>(boxes: Vec<Bx<'a>>, breaks: &[usize]) -> Vec<Doc<'a>> {
 mod tests {
     use super::{Wrap, wrap_doc};
     use crate::format::doc::{
-        Doc, RenderOptions, concat, hard_line, line, render, text, unbreakable,
+        Doc, LinePrefix, RenderOptions, concat, hard_line, line, prefix_lines, render, text,
+        unbreakable,
     };
 
     fn render_wrapped(doc: Doc<'_>, wrap: Wrap) -> String {
@@ -531,6 +554,39 @@ mod tests {
     fn empty_input_returns_empty() {
         let d: Doc<'_> = concat([]);
         assert_eq!(render_wrapped(d, Wrap::At(80)), "");
+    }
+
+    #[test]
+    fn wrap_recurses_into_prefix_with_shrunken_target() {
+        // Inner content fits at outer target 10 but not at the
+        // reduced target (10 - 2 = 8) the "> " prefix imposes.
+        // Words "aaaa bbbb": flat width 9 (fits at 10, not at 8).
+        let inner = concat([text("aaaa"), line(), text("bbbb")]);
+        let prefixed = prefix_lines(
+            LinePrefix {
+                content: "> ".into(),
+                blank: ">".into(),
+            },
+            inner,
+        );
+        let out = render_wrapped(prefixed, Wrap::At(10));
+        // Reduced target forces the break; continuation line carries
+        // the "> " drain.
+        assert_eq!(out, "aaaa\n> bbbb");
+    }
+
+    #[test]
+    fn prefix_keep_mode_preserves_inner_breaks() {
+        let inner = concat([text("a"), line(), text("b")]);
+        let prefixed = prefix_lines(
+            LinePrefix {
+                content: "> ".into(),
+                blank: ">".into(),
+            },
+            inner,
+        );
+        // Keep promotes Line to HardLine inside Prefix too.
+        assert_eq!(render_wrapped(prefixed, Wrap::Keep), "a\n> b");
     }
 
     #[test]

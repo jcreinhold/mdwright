@@ -6,9 +6,8 @@
 //! "emit the source bytes verbatim" in `Verbatim` mode. Children live
 //! in the surrounding [`crate::tree::Tree`] arena.
 
-use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text, unbreakable};
+use crate::format::doc::{Doc, LinePrefix, concat, prefix_lines, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
-use crate::format::wrap::wrap_doc;
 use crate::tree::NodeId;
 
 /// Empty payload by design: every `BlockQuote` has the same emission
@@ -24,45 +23,37 @@ impl BlockQuote {
         Self
     }
 
-    /// Emit the inner block sequence with every line prefixed by `>`
-    /// + space (or bare `>` on blank lines). The inner is rendered to
-    /// a string under a wrap budget reduced by the prefix's 2 columns,
-    /// then the whole prefixed buffer is emitted as one unbreakable
-    /// text block — embedded newlines flow straight through the
-    /// renderer.
+    /// Emit the inner block sequence with every continuation line
+    /// prefixed by `>` + space (or bare `>` on blank lines). The
+    /// first line's `> ` is pre-pended outside the [`prefix_lines`]
+    /// node; the prefix node itself handles every line after the
+    /// first hard break.
+    ///
+    /// The inner sequence already terminates in a `HardLine` (every
+    /// block-helper emits one). That trailing `HardLine` plays the
+    /// block-terminator role our outer `pretty_block_sequence`
+    /// expects, so we deliberately do *not* append another
+    /// `hard_line()` here — doing so under a nested blockquote would
+    /// leave `pending=AfterHardLine` outside the inner Prefix and
+    /// drain the outer prefix's blank form, producing a spurious `>`
+    /// row at the end of the quote.
     #[tracing::instrument(level = "trace", skip_all)]
     #[allow(clippy::unused_self)]
     pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
         let inner = crate::format::block::pretty_block_sequence(ctx, id);
-        let wrapped = wrap_doc(inner, ctx.opts.wrap().shrink(2));
-        let rendered = render(&wrapped, &RenderOptions);
-        let mut prefixed = String::with_capacity(rendered.len().saturating_add(rendered.len() / 32));
-        for (i, line) in rendered.split('\n').enumerate() {
-            if i > 0 {
-                prefixed.push('\n');
-            }
-            if line.is_empty() {
-                prefixed.push('>');
-            } else {
-                prefixed.push_str("> ");
-                prefixed.push_str(line);
-            }
-        }
-        let trimmed = trim_trailing_marker(&prefixed);
-        concat([unbreakable(text(trimmed)), hard_line()])
+        let prefixed = prefix_lines(
+            LinePrefix {
+                content: "> ".into(),
+                blank: ">".into(),
+            },
+            inner,
+        );
+        // `unbreakable(text("> "))` keeps the trailing space out of
+        // the wrap pass's whitespace-stripping path — otherwise a
+        // bare `text("> ")` siblinged into a run loses the space
+        // when no following word shares the run, producing `>A…`.
+        concat([unbreakable(text("> ")), prefixed])
     }
-}
-
-fn trim_trailing_marker(s: &str) -> String {
-    let mut out = s.to_owned();
-    while out.ends_with("\n>") || out.ends_with("\n> ") {
-        if let Some(idx) = out.rfind('\n') {
-            out.truncate(idx);
-        } else {
-            break;
-        }
-    }
-    out
 }
 
 #[cfg(test)]

@@ -397,7 +397,7 @@ fn walk(doc: &Doc<'_>, out: &mut String) {
     match doc {
         Doc::Text(s) => out.push_str(s),
         Doc::Line | Doc::HardLine => out.push(' '),
-        Doc::Atomic(inner) => walk(inner, out),
+        Doc::Atomic(inner) | Doc::Prefix(_, inner) => walk(inner, out),
         Doc::Concat(items) => {
             for item in items {
                 walk(item, out);

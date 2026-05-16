@@ -22,6 +22,8 @@
 //! records the arena id of its source `Node` so emitters can rejoin
 //! to the inline body.
 
+use std::borrow::Cow;
+
 use crate::tree::NodeId;
 
 /// CM §5.3 tightness. *Derived* from items at [`ListBlock::try_new`];
@@ -292,19 +294,17 @@ impl ListBlock {
         let tight = matches!(self.tightness, Tightness::Tight);
         let mut parts: Vec<crate::format::doc::Doc<'a>> =
             Vec::with_capacity(self.items.len().saturating_mul(2));
+        // Each rendered item's body already ends with a `HardLine`
+        // (the block-helper contract). For tight lists that hard
+        // line is the only between-items separator we want; for
+        // loose lists we add one more to make a blank line.
         for (idx, item_kind) in self.items.iter().enumerate() {
-            if idx > 0 {
+            if idx > 0 && !tight {
                 parts.push(hard_line());
-                if !tight {
-                    parts.push(hard_line());
-                }
             }
             let marker = self.marker_for_index(ctx, idx, item_kind);
             parts.push(render_item(ctx, item_kind, &marker));
         }
-        // Trailing hard line: ensures `concat([list, hard_line, next_block])`
-        // produces a blank line between list and next block.
-        parts.push(hard_line());
         concat(parts)
     }
 
@@ -373,8 +373,7 @@ fn render_item<'a>(
     item_kind: &ListItemKind,
     marker: &str,
 ) -> crate::format::doc::Doc<'a> {
-    use crate::format::doc::{RenderOptions, render, text, unbreakable};
-    use crate::format::wrap::wrap_doc;
+    use crate::format::doc::{LinePrefix, concat, prefix_lines, text, unbreakable};
 
     let id = item_kind.item_id();
     let task_prefix = match item_kind {
@@ -388,27 +387,33 @@ fn render_item<'a>(
         None => marker.to_owned(),
     };
     let indent_width = marker_with_task.chars().count();
-    let shrink_n = u32::try_from(indent_width).unwrap_or(u32::MAX);
-    let wrapped = wrap_doc(body, ctx.opts.wrap().shrink(shrink_n));
-    let rendered = render(&wrapped, &RenderOptions);
-    let trimmed = rendered.trim_end_matches('\n');
-    let indent: String = std::iter::repeat_n(' ', indent_width).collect();
-    let mut out = String::with_capacity(trimmed.len().saturating_add(indent_width));
-    for (i, line) in trimmed.split('\n').enumerate() {
-        if i > 0 {
-            out.push('\n');
-        }
-        if i == 0 {
-            out.push_str(&marker_with_task);
-            out.push_str(line);
-        } else if line.is_empty() {
-            // blank
-        } else {
-            out.push_str(&indent);
-            out.push_str(line);
-        }
+    let indent: Cow<'static, str> = indent_cow(indent_width);
+    let prefixed = prefix_lines(
+        LinePrefix {
+            content: indent,
+            blank: "".into(),
+        },
+        body,
+    );
+    // `unbreakable(text(marker))` keeps the marker's trailing space
+    // off the wrap pass's whitespace-strip path (see the symmetric
+    // note in `cm::block::quote::BlockQuote::pretty`). The Prefix'd
+    // body itself is left open to wrap — its inner content needs
+    // continuation lines to break inside the reduced budget.
+    concat([unbreakable(text(marker_with_task)), prefixed])
+}
+
+/// Lookup `' '` × `n` as a static slice when `n ≤ 32`; allocate
+/// otherwise. List-item indent widths rarely exceed a single-digit
+/// ordered marker + `[x] `, so the static path is the common case.
+fn indent_cow(n: usize) -> Cow<'static, str> {
+    const SPACES: &str =
+        "                                "; // 32 spaces
+    if n <= SPACES.len() {
+        Cow::Borrowed(&SPACES[..n])
+    } else {
+        Cow::Owned(" ".repeat(n))
     }
-    unbreakable(text(out))
 }
 
 /// Render an `Item`'s children: groups runs of inline children into
