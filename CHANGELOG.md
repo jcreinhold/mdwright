@@ -125,23 +125,30 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   emitters quietly violated. The CRLF and Keep end-of-line policies
   now operate on a uniformly-LF input, so mixed line endings can no
   longer appear in mdwright output.
-- `src/cm/block/paragraph.rs::Paragraph::is_verbatim_eligible` now
-  also refuses paragraphs whose source contains `\r`. Pulldown's
-  block-starter detection (fence opener, ATX heading, etc.) is
-  line-ending-sensitive — CR-only line endings parse differently
-  from LF/CRLF on certain inputs — so emitting CR source verbatim
-  could let mdwright's output reparse to a different block
-  structure than the input. Forcing such paragraphs through the
-  IR-driven `ParagraphBody` path runs the line-start escape, which
-  prevents the divergence. Resolves the parked
-  `tests/regressions/fuzz_20c5c865.in`.
+- `src/format/block.rs` lifts the "no `\r` in source" precondition
+  out of `Paragraph::is_verbatim_eligible` and into a new private
+  `root_verbatim_safe` gate in `pretty_block`. All three root-level
+  verbatim short-circuits (HtmlBlock, indented CodeBlock, verbatim-
+  eligible Paragraph) now share one CR-refusal: CR-bearing root
+  blocks fall through to the IR-driven `typed.pretty()` path, which
+  materialises canonical LF Markdown. The bug class "root-verbatim
+  bytes leak `\r` that the chokepoint LF-norm rewrites into a
+  structurally different shape on reparse" is unrepresentable at
+  the routing boundary. Closes the previously-deferred
+  `fuzz/known-issues/idempotence-indented-code-line-drop.in`
+  (whitespace-only first line of an indented code block was
+  dropped on the second format pass when the source had a `\r`
+  separator); regression at
+  `tests/regressions/fuzz_2ed01ab2.idem.in`.
 
 ### Known issues
-- One new (different-class) fuzz find: an indented code block whose
-  first line is whitespace-only (just `\t`) loses that line on
-  reformat, breaking idempotence. Outside the line-ending and
-  paragraph-verbatim invariants this PR enforces; reproducer at
-  [`fuzz/known-issues/idempotence-indented-code-line-drop.in`](./fuzz/known-issues/README.md).
+- One new (different-class) fuzz find: a paragraph whose first
+  source line is `*\v` (asterisk + vertical tab) reparses as a
+  bullet list marker on the second format pass, perturbing the
+  remaining block structure. Sibling of the paragraph line-start
+  escape family but at the first line, where `ParagraphBody`'s
+  safety pass does not currently cover. Reproducer at
+  [`fuzz/known-issues/idempotence-bullet-marker-rewrite.in`](./fuzz/known-issues/README.md).
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 

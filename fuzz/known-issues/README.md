@@ -12,25 +12,28 @@ When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 `tests/regressions.rs`) and delete the matching entry from this
 README.
 
-## idempotence-indented-code-line-drop.in
+## idempotence-bullet-marker-rewrite.in
 
-Bytes: `\t\r\t\0\0[\x07` (7 bytes).
+Bytes (28): `* \v \n \0 \0 \n \n \0 \0 \0 \0 \x04 \0 \0 \0 \0 \0 \0 \0 \x17 \x17 \x17 \n \v \0 \0 > * \n` (the leading `*\v` is a `*` followed by a vertical tab).
 
-Two consecutive tab-prefixed lines (separated by `\r`) form an
-indented code block in CM. Once preserves both lines; twice drops
-one:
+Once preserves the leading `*` line; twice rewrites it as a bullet
+list item (`- `) and inserts a leading blank line, perturbing the
+remaining structure:
 
 ```
-once:  \t\n\t\0\0[\x07\n
-twice: \t\0\0[\x07\n        (first \t-line gone)
+once : *\n\0\0\n\n\0\0\0\0\x04\0\0\0\0\0\0\0\x17\x17\x17\n\v\0\0>*\n
+twice: - \n\n\0\0\n\n\0\0\0\0\x04\0\0\0\0\0\0\0\x17\x17\x17\n\v\0\0>*\n
 ```
 
-Lives in the indented-code-block emitter
-(`src/cm/block/code.rs::IndentedCodeBlock::pretty`) or the
-document-root verbatim path for indented-code blocks. The bug
-class: an indented code block with a "trivial" first line (only
-whitespace) loses that line on re-parse / re-emit. Fix shape: as
-with the other typed-construct invariants, the indented-code
-emitter must preserve every line of body content, including
-blank-looking ones whose `\t` prefix carries the only structural
-signal.
+Bug class: a paragraph whose first line is exactly one `*` (after
+verbatim emission strips a trailing `\v` from its source line)
+reparses as the marker of an empty bullet list item. Sibling of
+the paragraph-line-start escape family, but the trigger is a
+*first*-line `*` (not a continuation line). `ParagraphBody`'s
+line-start safety pass currently restricts itself to continuation
+lines.
+
+Fix shape (to investigate): extend the line-start safety pass to
+the first line as well, OR refuse root-verbatim emission for
+paragraphs whose first source line collapses to a single bullet-
+marker character after the chokepoint LF-norm.

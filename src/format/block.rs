@@ -117,7 +117,7 @@ pub(crate) fn pretty_block<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
     let Some(node) = ctx.tree.node(id) else {
         return concat([]);
     };
-    if ctx.tree.parent(id) == Some(ctx.tree.root()) {
+    if ctx.tree.parent(id) == Some(ctx.tree.root()) && root_verbatim_safe(ctx, id) {
         #[allow(clippy::wildcard_enum_match_arm)]
         match &node.kind {
             NodeKind::HtmlBlock { .. } => return emit_verbatim(ctx.tree, id),
@@ -132,6 +132,24 @@ pub(crate) fn pretty_block<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
         Some(typed) => typed.pretty(ctx, id),
         None => concat([text(ctx.tree.raw_text(id)), hard_line()]),
     }
+}
+
+/// A root block is verbatim-safe iff its raw source contains no `\r`.
+/// Pulldown's block-starter detection (fence opener, indented-code
+/// blank-line rule, ATX heading, …) is line-ending-sensitive, so
+/// CR-bearing source emitted verbatim and then LF-normalised at the
+/// document chokepoint (`format::normalize_line_endings_lf`) could
+/// reparse to a different shape than the input. IR-driven emission
+/// (`typed.pretty()`) does not have this hazard because it
+/// materialises the block as canonical LF Markdown.
+fn root_verbatim_safe(ctx: &PrettyCtx<'_>, id: NodeId) -> bool {
+    let Some(node) = ctx.tree.node(id) else {
+        return false;
+    };
+    !ctx.source
+        .get(node.raw_range.clone())
+        .unwrap_or("")
+        .contains('\r')
 }
 
 fn block_overlaps_math(ctx: &PrettyCtx<'_>, block: &Range<usize>) -> bool {
