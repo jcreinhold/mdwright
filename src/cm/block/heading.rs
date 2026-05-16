@@ -5,7 +5,7 @@
 //! refuses the setext-plus-level-3+ combination — setext underlines
 //! exist only for H1 (`===`) and H2 (`---`).
 
-use crate::format::doc::{Doc, concat, hard_line, text};
+use crate::format::doc::{Doc, concat, hard_line, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::NodeId;
 
@@ -162,7 +162,12 @@ impl Heading {
             if let Some((body_source, _underline_source)) = split_setext_source(raw)
                 && setext_body_safe(body_source)
             {
-                let body_doc = text(body_source.to_owned());
+                // `unbreakable` keeps the body source's embedded `\n`
+                // bytes from being split by the wrap pass (which
+                // treats `\n` as ASCII whitespace, joining lines with
+                // spaces and collapsing a multi-line setext body to a
+                // single line — exactly the bug this fix targets).
+                let body_doc = unbreakable(text(body_source.to_owned()));
                 let first_line_width = body_source
                     .lines()
                     .next()
