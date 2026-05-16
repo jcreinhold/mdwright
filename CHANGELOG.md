@@ -86,13 +86,28 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   refuses to write such outputs. First user:
   `tests/regressions/fuzz_25240f9e.idem.in`.
 
+- `src/cm/inline/code.rs::InlineCodeRun::new` padding rule
+  corrected to CM §6.1 exactly: the constructor now pads only when
+  an edge byte is a backtick (fence collision) or when both edges
+  are spaces **and** content has at least one non-space byte (the
+  case where pulldown's strip rule applies). Previously the rule
+  padded eagerly on any edge-space, which inflated all-space code
+  spans by 2 bytes per format pass (`` ` ` `` → `` `   ` `` →
+  `` `     ` `` …). The constructor also gains a debug-only
+  `reparses_to` self-check that runs the emitted bytes through
+  pulldown and asserts the recovered `Event::Code(body)` matches
+  the input — encoding the round-trip invariant in code, not just
+  in prose. Resolves the parked
+  `tests/regressions/fuzz_9abf9d1d.in` and 2 GFM-spec snapshot
+  cases (Fenced code blocks 108 idem; Code spans 344 idem).
+
 ### Known issues
-- One new (different-class) fuzz find: the inline code-span emitter
-  adds 2 spaces of padding on every format pass for spans whose
-  content touches a backtick (`Code(" ")` → `Code("   ")` →
-  `Code("     ")`). Outside the paragraph-body invariants this PR
-  enforces; reproducer at
-  [`fuzz/known-issues/idempotence-code-span-padding-grows.in`](./fuzz/known-issues/README.md).
+- One new (different-class) fuzz find: a single `*` adjacent to a
+  `~~` strikethrough run gets escaped on reformat in one direction
+  but not the other, breaking idempotence. Outside the
+  code-span / paragraph-body invariants this PR series enforces;
+  reproducer at
+  [`fuzz/known-issues/idempotence-emphasis-strikethrough-escape-drift.in`](./fuzz/known-issues/README.md).
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 
