@@ -68,13 +68,31 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   `src/cm/inline/link.rs::flatten_body_doc` are now iterative —
   no stack risk on deeply nested `Doc::Concat`.
 
+- `ParagraphBody::from_inline` (`src/cm/block/paragraph.rs`) gains
+  a second construction-time invariant: the body has no leading or
+  trailing `Doc::Line` / `Doc::HardLine`. Pulldown can emit a
+  trailing `SoftBreak` when a paragraph's last content line is
+  followed by a whitespace-only line that the parser elides (e.g.
+  form-feed content). Without trimming, the break rendered as an
+  extra `\n` before the block terminator, producing blank-line
+  drift between formats. The trim makes the bug class unrepresentable
+  at the same boundary as the line-start escape invariant.
+- `tests/regressions.rs` gains an `.idem.in` filename convention:
+  fixtures whose stem ends in `.idem` are exercised for idempotence
+  only, skipping the HTML-equivalence gate. Reserved for inputs
+  whose source contains bytes pulldown elides during parse, where
+  the source → events trip already loses information mdwright cannot
+  reconstruct. The production `mdwright fmt --validate` gate still
+  refuses to write such outputs. First user:
+  `tests/regressions/fuzz_25240f9e.idem.in`.
+
 ### Known issues
-- One new (different-family) fuzz find: a paragraph break followed
-  by certain control-character payloads yields one extra blank line
-  on the first format that collapses on the second, so
-  `format ∘ format ≠ format`. Outside the paragraph-continuation
-  bug class fixed above; reproducer parked at
-  [`fuzz/known-issues/idempotence-blank-line-drift.in`](./fuzz/known-issues/README.md).
+- One new (different-class) fuzz find: the inline code-span emitter
+  adds 2 spaces of padding on every format pass for spans whose
+  content touches a backtick (`Code(" ")` → `Code("   ")` →
+  `Code("     ")`). Outside the paragraph-body invariants this PR
+  enforces; reproducer at
+  [`fuzz/known-issues/idempotence-code-span-padding-grows.in`](./fuzz/known-issues/README.md).
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 

@@ -8,25 +8,29 @@ reproducer; do not add them to `tests/regressions/` (the regression
 suite would fail).
 
 When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
-and delete the matching entry from this README.
+(or `fuzz_<hash>.idem.in` if the fix is idempotence-only — see
+`tests/regressions.rs`) and delete the matching entry from this
+README.
 
-## idempotence-blank-line-drift.in
+## idempotence-code-span-padding-grows.in
 
-Bytes: `:\x01\n\x0c\n\n\x0c\x0c 1\x00\x00` (11 bytes).
+Bytes: `\0\n` `` ` `` `\u{5a5}\0\n` `` ` `` `\u{5a5}`` ` `` ` ``  (16 bytes).
 
-`once = format(parse(s))` emits one extra `\n` between two paragraphs
-(`"…\n\n\n…"` vs the expected `"…\n\n…"`). The second format
-collapses the extra blank to one, so the second pass differs from the
-first and idempotence fails.
+Each format pass widens the content of an inline code span. Source
+has `Code(" ")` (one space inside a `` `` `` … `` `` `` span); first
+format produces `Code("   ")` (three spaces); second produces
+`Code("     ")` (five). The growth is `+2 spaces per format`.
 
-This is a **different bug class** from the paragraph-continuation
-re-tokenisation family that the typed `ParagraphBody` constructor now
-makes unrepresentable. The cause sits in document-root block
-separation (likely an off-by-one in the inter-block hard-line count
-when a block ends with content containing trailing form-feed
-characters, or a normalisation that runs only once). It does not
-involve the paragraph escape pass and cannot be fixed there.
+Cause is in the inline code-span emitter (`src/cm/inline/code.rs`
+or thereabouts), which applies CM §6.1's leading/trailing-space
+padding rule when the content starts or ends with a backtick — but
+the emitter doesn't *first* normalise the content to remove any
+padding pulldown already added on its own pass. Padding accumulates.
 
-Triage path: bisect which block boundary inserts the extra hard-line
-on the first format; check `src/format/block.rs` document-root
-emission and the per-typed-block `pretty()` terminators.
+This is a **different bug class** from the paragraph-body invariants
+that `ParagraphBody::from_inline` enforces. The fix is local to the
+inline code-span constructor: normalise content (strip exactly one
+leading/trailing space when both ends touch a backtick) before
+deciding whether to re-add padding. Make padding idempotent at the
+typed-construct level — the same Phase R / `ParagraphBody`
+discipline applied to code spans.

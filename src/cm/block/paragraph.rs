@@ -89,14 +89,26 @@ impl Paragraph {
 // that need to emit paragraph-shaped inline content. Both wrap their
 // inline `Doc` in this type. The constructor is the only way to
 // produce a `ParagraphBody`, and it always runs the safety pass
-// (`apply_paragraph_safety`), so the bug class "a paragraph
-// continuation line re-tokenises as a different block on reparse"
-// is **unrepresentable**: there is no path that constructs a
-// `ParagraphBody` without the pass having run.
+// (`apply_paragraph_safety`). The pass enforces two construction-time
+// invariants, making the matching bug classes **unrepresentable**:
 //
-// Adding coverage for a newly-discovered interrupter character (say,
-// `<` HTML-block start) is a one-line edit inside the safety pass,
-// not a new rule-per-caller-path.
+// 1. *Line-start safety.* Every continuation line's first text byte
+//    is escaped if it would interrupt a paragraph in CM, so a
+//    rewrite cannot re-tokenise the body as a different block.
+//
+// 2. *Edge-trim.* The body has no leading or trailing `Doc::Line`
+//    / `Doc::HardLine`. Trailing breaks in particular sneak in when
+//    pulldown elides a whitespace-only line as a soft-break
+//    separator at the end of a paragraph (e.g. form-feed content
+//    after the last text line). Without trimming, the body renders
+//    as `…\n` *before* the block's own `hard_line()` terminator,
+//    yielding an extra blank line between blocks that vanishes on
+//    re-parse — the canonical "blank-line drift" idempotence
+//    failure.
+//
+// Adding coverage for a newly-discovered well-formedness requirement
+// is a one-line edit inside the safety pass, not a new
+// rule-per-caller-path.
 
 pub(crate) struct ParagraphBody<'a>(Doc<'a>);
 
@@ -134,6 +146,7 @@ fn apply_paragraph_safety<'a>(doc: Doc<'a>) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::new();
     flatten(doc, &mut parts);
     coalesce_adjacent_text(&mut parts);
+    trim_edge_breaks(&mut parts);
     let mut at_line_start = true;
     let mut after_break = true;
     let mut this_line_has_text = false;
@@ -215,6 +228,22 @@ fn next_on_same_source_line(parts: &[Doc<'_>], i: usize) -> LineContext {
 enum LineContext {
     MoreContent,
     EndOfLine,
+}
+
+/// Drop any leading or trailing `Doc::Line` / `Doc::HardLine` from the
+/// flattened paragraph body. Pulldown can emit a trailing `SoftBreak`
+/// when a paragraph's last content line is followed by a
+/// whitespace-only line that the parser elides (e.g. form-feed
+/// content). Without trimming, the break renders as an extra `\n`
+/// before the block's own terminator, producing a blank-line drift
+/// between formats. Trimming both edges is symmetric and cheap.
+fn trim_edge_breaks(parts: &mut Vec<Doc<'_>>) {
+    while matches!(parts.first(), Some(Doc::Line | Doc::HardLine)) {
+        parts.remove(0);
+    }
+    while matches!(parts.last(), Some(Doc::Line | Doc::HardLine)) {
+        parts.pop();
+    }
 }
 
 fn coalesce_adjacent_text<'a>(parts: &mut Vec<Doc<'a>>) {
