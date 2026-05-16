@@ -70,7 +70,7 @@ mod util;
 
 pub use config::{
     Config, ConfigError, EndOfLine, FmtOptions, FormatMode, ItalicStyle, LinkDefStyle,
-    ListMarkerStyle, OrderedListStyle, Placement, Wrap,
+    ListMarkerStyle, MathOptions, OrderedListStyle, Placement, Wrap,
 };
 pub use diagnostic::{Diagnostic, Fix};
 pub use discover::discover_markdown;

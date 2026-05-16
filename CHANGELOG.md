@@ -37,7 +37,7 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   lines, and `&` columns inside aligning environments (`align`,
   `aligned`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, `cases`,
   `array`, `split`) padded to per-column Unicode display width.
-  Gated behind `FmtOptions::math_normalise` (default `false`) —
+  Gated behind `FmtOptions::math().normalise` (default `false`) —
   pulldown-cmark parses math bodies as prose, so any whitespace
   change shifts the byte-level HTML output and trips
   `Document::format_validated`. Authors with a downstream math

@@ -154,14 +154,22 @@ pub struct FmtOptions {
     preserve_frontmatter: bool,
     thematic_break_style: ThematicStyle,
     mode: FormatMode,
-    /// Whether to normalise recognised math regions (whitespace,
-    /// ampersand alignment in environments). Defaults to `false`
-    /// because math regions are opaque to `CommonMark`: pulldown-cmark
-    /// parses their bytes as prose, so any whitespace change inside
-    /// shifts the byte-level HTML output and trips
-    /// [`Document::format_validated`]. Authors who use a math renderer
-    /// downstream (`KaTeX`, `MathJax`) can opt in.
-    math_normalise: bool,
+    math: MathOptions,
+}
+
+/// Math pretty-printer configuration.
+///
+/// All fields are off by default. Math regions are opaque to
+/// `CommonMark`: pulldown-cmark parses their bytes as prose, so any
+/// whitespace change inside shifts the byte-level HTML output and
+/// trips [`crate::Document::format_validated`]. Authors who render
+/// math downstream (`KaTeX`, `MathJax`) opt in.
+#[derive(Copy, Clone, Debug, Default)]
+pub struct MathOptions {
+    /// Whether the math pretty-printer at `mdwright::cm::math::pretty`
+    /// is active for whole-block math regions (display `\[…\]` /
+    /// `$$…$$` and environments standing alone).
+    pub normalise: bool,
 }
 
 impl FmtOptions {
@@ -251,20 +259,17 @@ impl FmtOptions {
         self.mode
     }
 
-    /// Whether the math pretty-printer is active. Defaults to `false`
-    /// — see the field docs on [`FmtOptions::math_normalise`] for the
-    /// reason. Programmatic callers opt in with
-    /// [`Self::with_math_normalise`].
+    /// Math pretty-printer configuration. See [`MathOptions`] for the
+    /// reason every field defaults off.
     #[must_use]
-    pub fn math_normalise(&self) -> bool {
-        self.math_normalise
+    pub fn math(&self) -> MathOptions {
+        self.math
     }
 
-    /// Override the math-normalisation flag. Returns the receiver for
-    /// chaining.
+    /// Override the math options. Returns the receiver for chaining.
     #[must_use]
-    pub fn with_math_normalise(mut self, normalise: bool) -> Self {
-        self.math_normalise = normalise;
+    pub fn with_math(mut self, math: MathOptions) -> Self {
+        self.math = math;
         self
     }
 
@@ -342,7 +347,7 @@ impl FmtOptions {
             preserve_frontmatter: frontmatter.preserve.unwrap_or(default.preserve_frontmatter),
             thematic_break_style: default.thematic_break_style,
             mode: default.mode,
-            math_normalise: default.math_normalise,
+            math: default.math,
         }
     }
 }
@@ -369,7 +374,7 @@ impl Default for FmtOptions {
             preserve_frontmatter: true,
             thematic_break_style: ThematicStyle::Dash,
             mode: FormatMode::Normalise,
-            math_normalise: false,
+            math: MathOptions::default(),
         }
     }
 }

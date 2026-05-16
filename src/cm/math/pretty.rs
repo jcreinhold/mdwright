@@ -41,7 +41,7 @@ impl MathSpan {
         };
 
         if ctx.opts.mode() == crate::config::FormatMode::Verbatim
-            || !ctx.opts.math_normalise()
+            || !ctx.opts.math().normalise
         {
             return verbatim();
         }

@@ -6,14 +6,14 @@
 //! Math pretty-printer golden tests.
 //!
 //! Each fixture is an `*.in` / `*.out` pair under `tests/golden_math/`.
-//! Math normalisation is gated behind `FmtOptions::math_normalise`
+//! Math normalisation is gated behind `FmtOptions::math().normalise`
 //! (default `false`) — see `src/config.rs` for the reason; this
 //! runner flips it on so the fixtures exercise the pretty path.
 
 use std::fs;
 use std::path::Path;
 
-use mdwright::{Document, FmtOptions};
+use mdwright::{Document, FmtOptions, MathOptions};
 
 #[test]
 fn golden_math() {
@@ -24,7 +24,7 @@ fn golden_math() {
         .collect();
     entries.sort_by_key(std::fs::DirEntry::path);
 
-    let opts = FmtOptions::default().with_math_normalise(true);
+    let opts = FmtOptions::default().with_math(MathOptions { normalise: true });
 
     let mut failures: Vec<String> = Vec::new();
     let mut count = 0usize;
