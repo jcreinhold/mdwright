@@ -9,10 +9,7 @@
 19    ast         Thematic breaks
 31    idempotence Thematic breaks
 40    idempotence ATX headings
-57    html        Setext headings
-57    ast         Setext headings
 61    ast         Setext headings
-63    idempotence Setext headings
 102   ast         Fenced code blocks
 103   ast         Fenced code blocks
 108   idempotence Fenced code blocks

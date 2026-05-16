@@ -87,27 +87,70 @@ pub(crate) fn escape_paragraph_line_starts<'a>(_ctx: &PrettyCtx<'a>, doc: Doc<'a
     let mut parts: Vec<Doc<'a>> = Vec::new();
     flatten(doc, &mut parts);
     coalesce_adjacent_text(&mut parts);
+    // Three pieces of state. `at_line_start` keeps its long-standing
+    // meaning (only true after a `HardLine` or at the very start) so
+    // every existing escape rule fires in exactly the same places.
+    // `after_break` and `prev_line_had_text` are new and feed only
+    // the setext-underline check — a soft break followed by a bare
+    // `=` line forms a setext H1 after `Wrap::Keep` converts the
+    // soft break to a hard line, breaking idempotence.
     let mut at_line_start = true;
+    let mut after_break = true;
+    let mut this_line_has_text = false;
+    let mut prev_line_had_text = false;
     let mut out: Vec<Doc<'a>> = Vec::with_capacity(parts.len());
     for (i, part) in parts.iter().enumerate() {
         match part {
             Doc::Text(s) => {
-                if at_line_start
-                    && !s.is_empty()
-                    && let Some(escaped) =
-                        escape_for_block_start(s.as_ref(), next_on_same_line(&parts, i))
-                {
-                    out.push(text(escaped));
-                    at_line_start = false;
-                    continue;
-                }
                 if !s.is_empty() {
+                    let escaped = if at_line_start {
+                        escape_for_block_start(s.as_ref(), next_on_same_line(&parts, i))
+                    } else {
+                        None
+                    }
+                    .or_else(|| {
+                        if after_break && prev_line_had_text {
+                            escape_setext_underline(
+                                s.as_ref(),
+                                next_on_same_source_line(&parts, i),
+                            )
+                        } else {
+                            None
+                        }
+                    });
+                    if let Some(esc) = escaped {
+                        out.push(text(esc));
+                        at_line_start = false;
+                        after_break = false;
+                        this_line_has_text = true;
+                        continue;
+                    }
                     at_line_start = false;
+                    after_break = false;
+                    this_line_has_text = true;
                 }
             }
-            Doc::HardLine => at_line_start = true,
-            Doc::Line | Doc::Concat(_) | Doc::Atomic(_) | Doc::Prefix(_, _) => {
+            Doc::HardLine => {
+                at_line_start = true;
+                after_break = true;
+                prev_line_had_text = this_line_has_text;
+                this_line_has_text = false;
+            }
+            Doc::Line => {
+                // Soft break: keep `at_line_start` false so existing
+                // escape rules are not over-eagerly applied to
+                // continuation lines (the previous, broader fix
+                // tripped GFM-spec snapshot cases). Mark the boundary
+                // for the setext-underline check only.
                 at_line_start = false;
+                after_break = true;
+                prev_line_had_text = this_line_has_text;
+                this_line_has_text = false;
+            }
+            Doc::Concat(_) | Doc::Atomic(_) | Doc::Prefix(_, _) => {
+                at_line_start = false;
+                after_break = false;
+                this_line_has_text = true;
             }
         }
         out.push(part.clone());
@@ -118,6 +161,18 @@ pub(crate) fn escape_paragraph_line_starts<'a>(_ctx: &PrettyCtx<'a>, doc: Doc<'a
 fn next_on_same_line(parts: &[Doc<'_>], i: usize) -> LineContext {
     match parts.get(i.saturating_add(1)) {
         Some(Doc::HardLine) | None => LineContext::EndOfLine,
+        Some(_) => LineContext::MoreContent,
+    }
+}
+
+/// Same as `next_on_same_line` but also treats `Doc::Line` (soft
+/// break) as the end of the current source line. The setext-underline
+/// check uses this variant because the dangerous case is precisely
+/// "this text fills the rest of the source line, then the wrap pass
+/// turns the soft break into a hard one."
+fn next_on_same_source_line(parts: &[Doc<'_>], i: usize) -> LineContext {
+    match parts.get(i.saturating_add(1)) {
+        Some(Doc::HardLine | Doc::Line) | None => LineContext::EndOfLine,
         Some(_) => LineContext::MoreContent,
     }
 }
@@ -171,6 +226,35 @@ fn flatten<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
             }
         }
     }
+}
+
+/// Detect the setext-underline pair: a pure run of `=` or `-` filling
+/// the rest of a line that follows a line of paragraph text. Returns
+/// `Some("\\" + s)` to escape the leading byte so pulldown sees the
+/// fragment as plain paragraph text instead of a setext underline.
+///
+/// The caller is responsible for the "previous line had text" check;
+/// this helper only looks at the current fragment.
+fn escape_setext_underline(s: &str, next: LineContext) -> Option<String> {
+    let bytes = s.as_bytes();
+    let first = *bytes.first()?;
+    if !matches!(first, b'=' | b'-') {
+        return None;
+    }
+    let mut i = 1usize;
+    while i < bytes.len() && bytes.get(i).copied() == Some(first) {
+        i = i.saturating_add(1);
+    }
+    // The run must fill this fragment AND nothing else may follow on
+    // the same line (otherwise pulldown sees paragraph text, not an
+    // underline).
+    if i != bytes.len() || matches!(next, LineContext::MoreContent) {
+        return None;
+    }
+    let mut esc = String::with_capacity(s.len().saturating_add(1));
+    esc.push('\\');
+    esc.push_str(s);
+    Some(esc)
 }
 
 fn escape_for_block_start(s: &str, next: LineContext) -> Option<String> {

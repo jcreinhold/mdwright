@@ -10,32 +10,33 @@ suite would fail).
 When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 and delete the matching entry from this README.
 
-## idempotence-setext-underline-on-soft-break.in
+## idempotence-tab-strip-becomes-blockquote.in
 
-Bytes: `L 0 B \n \t \t = \t` (8 bytes).
+Bytes: `: \t \x01 \x02 \0 \x04 \n \t > > > >` (12 bytes).
 
-`pulldown_cmark` parses this as a paragraph with two text nodes
-joined by a soft break: `"L0B"` + soft-break + `"="`. After format,
-the soft break renders as a hard line under `Wrap::Keep` (the
-default), producing:
+`pulldown_cmark` parses this as a paragraph with two lines, the
+second of which starts with a tab + `>>>>`. mdwright's formatter
+strips the leading tab when emitting paragraph continuation lines,
+so the round-trip produces:
 
 ```
-L0B
-=
+:\t\x01\x02\0\x04
+>>>>
 ```
 
-That output re-parses as a setext H1 — pulldown treats a bare `=`
-line following paragraph text as a level-1 underline. The second
-format then emits an ATX heading (`# L0B\n`), so
-`format(parse(format(parse(s)))) ≠ format(parse(s))`.
+The `>>>>` line, now flush at column 0 with paragraph text above it,
+re-parses as four nested blockquotes — pulldown sees `> > > >` shape.
+On second format, the document becomes paragraph + blockquote stack,
+and `format(parse(format(parse(s)))) ≠ format(parse(s))`.
 
-The targeted fix is to escape `=` (and `-`) at the start of any
-paragraph continuation line. A first attempt at this
-(commit-window 2026-05-16) widened the escape pass to treat
-`Doc::Line` the same as `Doc::HardLine` and to escape pure `=`/`-`
-runs, but the broader change introduced two `gfm_spec` regressions
-that we have not yet triaged. The right fix probably needs to be
-narrower — only escape when the *previous* line could form a setext
-underline pair with this one (i.e. previous line is paragraph text,
-current line is a pure underline run, and the wrap mode would
-preserve the line break).
+This is the same family of bug as the now-fixed
+`fuzz_236b414f.in` (setext-underline after soft break): the formatter
+detoxifies whitespace on continuation lines, and the result is then
+re-tokenised as a different block. A clean fix would generalise the
+narrow `escape_setext_underline` helper in
+`src/cm/block/paragraph.rs` to cover `>` (blockquote) and the rest
+of the block-leader set when `after_break && prev_line_had_text`,
+guarded carefully so the GFM-spec snapshot does not regress (a first
+attempt at the broad form did regress 2 cases — see git log for
+the setext fix). Doing that requires triaging the specific corpus
+cases the broad escape touches.

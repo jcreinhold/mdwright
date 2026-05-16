@@ -589,6 +589,18 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter<'_>>) {
             FrontmatterDelimiter::Toml => trimmed == "+++",
         };
         if is_close {
+            // Disambiguate a real frontmatter block from a leading
+            // thematic break (`---`) plus a later thematic break that
+            // happens to match the closing delimiter. A YAML / TOML
+            // frontmatter body always contains at least one key-shaped
+            // line (`key:` or `key =`); if none is present we treat
+            // the source as ordinary Markdown. This is the narrowest
+            // rule that preserves every real fixture while rejecting
+            // the round-trip `---\n\n[a][a]\n\n---\n…` shape.
+            let body_text = rest.get(..end_excl).unwrap_or("");
+            if !frontmatter_body_has_key(body_text, delimiter) {
+                return (0, None);
+            }
             let total = body_start
                 .saturating_add(end_excl)
                 .saturating_add(1)
@@ -619,6 +631,52 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter<'_>>) {
             delimiter,
         }),
     )
+}
+
+/// True if `body` contains at least one line shaped like a YAML key
+/// (`name:`) or a TOML key (`name =`). Used by `split_frontmatter` to
+/// reject false positives where the opening `---` is really a thematic
+/// break and a later thematic break supplies the apparent close.
+fn frontmatter_body_has_key(body: &str, delimiter: FrontmatterDelimiter) -> bool {
+    let key_byte = match delimiter {
+        FrontmatterDelimiter::Yaml => b':',
+        FrontmatterDelimiter::Toml => b'=',
+    };
+    body.lines().any(|line| line_has_key(line, key_byte))
+}
+
+fn line_has_key(line: &str, key_byte: u8) -> bool {
+    let bytes = line.as_bytes();
+    let mut i = 0usize;
+    // Optional leading whitespace.
+    while i < bytes.len() && matches!(bytes.get(i).copied(), Some(b' ' | b'\t')) {
+        i = i.saturating_add(1);
+    }
+    // First key byte: ASCII letter or underscore.
+    let start = i;
+    if !matches!(
+        bytes.get(i).copied(),
+        Some(b'a'..=b'z' | b'A'..=b'Z' | b'_')
+    ) {
+        return false;
+    }
+    i = i.saturating_add(1);
+    while i < bytes.len()
+        && matches!(
+            bytes.get(i).copied(),
+            Some(b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_' | b'-' | b'.')
+        )
+    {
+        i = i.saturating_add(1);
+    }
+    if i == start {
+        return false;
+    }
+    // Optional whitespace, then the delimiter byte.
+    while i < bytes.len() && matches!(bytes.get(i).copied(), Some(b' ' | b'\t')) {
+        i = i.saturating_add(1);
+    }
+    bytes.get(i).copied() == Some(key_byte)
 }
 
 fn admonition_header_regex() -> &'static Regex {
