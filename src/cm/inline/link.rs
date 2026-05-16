@@ -9,26 +9,27 @@
 //! post-format text drift that emphasis rewriting can introduce.
 //!
 //! The IR builder ([`crate::tree::TreeBuilder`]) constructs values via
-//! the infallible `from_pulldown_*` constructors. The format walker
+//! the infallible `from_pulldown_inline` constructor for inline links,
+//! and the fallible [`LinkRun::try_new_reference`] /
+//! [`ImageRun::try_new_reference`] for reference-style links. The
+//! reference constructor resolves the label against a
+//! [`ReferenceTable`](crate::cm::refs::ReferenceTable) at IR-build
+//! time; unresolvable labels return [`LinkError::UnresolvedReference`]
+//! and the builder downgrades them to raw text per CM §4.7's
+//! "leave as text" rule. The format walker
 //! ([`crate::format::inline`]) renders the body, flattens it via
 //! [`flatten_body_doc`], and calls `emit_style` once — the sole site
 //! that decides the final style.
-//!
-//! [`ReferenceHandle`] and [`ReferenceTable`] are skeletons this
-//! session; Phase R prompt 23 will replace them with a real two-pass
-//! reference resolver. Until then, `ReferenceHandle` carries only the
-//! label string pulldown extracted, and `emit_style` does not consult
-//! any external table — the body-vs-label identity check happens on
-//! the label carried by the handle.
 
 use std::borrow::Cow;
 
+use crate::cm::refs::{ReferenceHandle, ReferenceTable};
 use crate::format::doc::Doc;
 
 /// Source CM grammar variant pulldown classified the link as.
 ///
 /// `Inline` is reached only through `from_pulldown_inline`; the three
-/// reference variants are reached through `from_pulldown_reference`.
+/// reference variants are reached through `try_new_reference`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LinkSourceKind {
     #[cfg_attr(not(test), allow(dead_code))]
@@ -40,17 +41,18 @@ pub(crate) enum LinkSourceKind {
 
 /// Source-side data for the link or image, mirroring the four CM
 /// grammar variants. Inline carries no handle; the three reference
-/// forms each carry the label they were associated with at parse time.
+/// forms each carry a [`ResolvedRef`] — a [`ReferenceHandle`] paired
+/// with the raw label as the source wrote it.
 #[derive(Clone, Debug)]
 pub(crate) enum LinkSource<'a> {
     Inline,
-    ReferenceFull(ReferenceHandle<'a>),
-    ReferenceCollapsed(ReferenceHandle<'a>),
-    ReferenceShortcut(ReferenceHandle<'a>),
+    ReferenceFull(ResolvedRef<'a>),
+    ReferenceCollapsed(ResolvedRef<'a>),
+    ReferenceShortcut(ResolvedRef<'a>),
 }
 
-#[cfg(test)]
 impl<'a> LinkSource<'a> {
+    #[cfg(test)]
     pub(crate) fn kind(&self) -> LinkSourceKind {
         match self {
             Self::Inline => LinkSourceKind::Inline,
@@ -60,50 +62,49 @@ impl<'a> LinkSource<'a> {
         }
     }
 
-    fn handle(&self) -> Option<&ReferenceHandle<'a>> {
+    fn resolved(&self) -> Option<&ResolvedRef<'a>> {
         match self {
             Self::Inline => None,
-            Self::ReferenceFull(h) | Self::ReferenceCollapsed(h) | Self::ReferenceShortcut(h) => {
-                Some(h)
+            Self::ReferenceFull(r) | Self::ReferenceCollapsed(r) | Self::ReferenceShortcut(r) => {
+                Some(r)
             }
         }
     }
 }
 
-/// Opaque pointer to a link reference definition. In prompt 22 this
-/// carries only the label string; prompt 23 will replace the internals
-/// with an index into a resolved [`ReferenceTable`] without changing
-/// the public surface.
+/// A reference-style link that has been resolved against the
+/// document's [`ReferenceTable`]. The `handle` field is proof of
+/// resolution; the `label` field is what the source wrote between the
+/// brackets, used verbatim for `[label]` emission.
 #[derive(Clone, Debug)]
-pub(crate) struct ReferenceHandle<'a> {
+pub(crate) struct ResolvedRef<'a> {
+    /// Resolution token. `Some` after the finalize validation pass or
+    /// after construction via [`LinkRun::try_new_reference`]; `None`
+    /// for nodes built by `from_pulldown_reference` that have not yet
+    /// been validated.
+    #[allow(dead_code)]
+    handle: Option<ReferenceHandle>,
     label: Cow<'a, str>,
 }
 
-impl<'a> ReferenceHandle<'a> {
-    pub(crate) fn new(label: Cow<'a, str>) -> Self {
-        Self { label }
-    }
-
+impl ResolvedRef<'_> {
     pub(crate) fn label(&self) -> &str {
         &self.label
     }
 }
 
-/// Skeleton reference table. Phase R prompt 23 will fill this in with
-/// a real two-pass resolver; the placeholder lives here so the
-/// public surface of [`LinkRun`] / [`ImageRun`] stays stable across
-/// the prompt boundary.
+/// A reference-style link that could not be resolved against the
+/// document's [`ReferenceTable`]. The tree builder catches this and
+/// emits the original source span as plain text instead.
+///
+/// Currently only consumed by [`LinkRun::try_new_reference`] /
+/// [`ImageRun::try_new_reference`] and their unit tests; the
+/// production path uses [`LinkRun::from_pulldown_reference`] +
+/// post-pass validation. Kept for the prompt 34 diagnostic surface.
 #[allow(dead_code)]
-#[derive(Default)]
-pub(crate) struct ReferenceTable {
-    _marker: (),
-}
-
-#[allow(dead_code)]
-impl ReferenceTable {
-    pub(crate) fn empty() -> Self {
-        Self::default()
-    }
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum LinkError {
+    UnresolvedReference,
 }
 
 /// Typed inline link.
@@ -153,24 +154,62 @@ impl<'a> LinkRun<'a> {
         }
     }
 
+    /// Construct a reference-style link without validating the label
+    /// against the document's [`ReferenceTable`]. The tree builder
+    /// calls this during the pulldown event walk — the table is not
+    /// yet built at that point because it depends on the code-block
+    /// ranges the walk discovers. [`TreeBuilder::finalize`] does the
+    /// validation post-pass: nodes whose label fails to resolve are
+    /// downgraded to raw-source emission.
     pub(crate) fn from_pulldown_reference(
         kind: LinkSourceKind,
         dest: Cow<'a, str>,
         title: Cow<'a, str>,
         label: Cow<'a, str>,
     ) -> Self {
-        let handle = ReferenceHandle::new(label);
+        let resolved = ResolvedRef {
+            handle: None,
+            label,
+        };
         let source = match kind {
             LinkSourceKind::Inline => LinkSource::Inline,
-            LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(handle),
-            LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(handle),
-            LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(handle),
+            LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
+            LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
+            LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),
         };
         Self {
             dest,
             title,
             source,
         }
+    }
+
+    /// Resolve a reference-style link against `table`. Returns
+    /// [`LinkError::UnresolvedReference`] when the label is missing —
+    /// the tree builder downgrades that to plain text per CM §4.7.
+    /// Used by tests and the finalize validation pass.
+    #[allow(dead_code)]
+    #[tracing::instrument(level = "trace", skip(table))]
+    pub(crate) fn try_new_reference(
+        kind: LinkSourceKind,
+        dest: Cow<'a, str>,
+        title: Cow<'a, str>,
+        label: Cow<'a, str>,
+        table: &ReferenceTable,
+    ) -> Result<Self, LinkError> {
+        let source = resolve_kind(kind, label, table)?;
+        Ok(Self {
+            dest,
+            title,
+            source,
+        })
+    }
+
+    /// Inspect the reference label, if any. Returns `None` for inline
+    /// links. Used by the finalize validation pass to look the label
+    /// up in the [`ReferenceTable`].
+    pub(crate) fn reference_label(&self) -> Option<&str> {
+        self.source.resolved().map(ResolvedRef::label)
     }
 
     pub(crate) fn dest(&self) -> &str {
@@ -189,7 +228,7 @@ impl<'a> LinkRun<'a> {
     /// `Some(label)` for the three reference forms, `None` for inline.
     #[cfg(test)]
     pub(crate) fn label(&self) -> Option<&str> {
-        self.source.handle().map(ReferenceHandle::label)
+        self.source.resolved().map(ResolvedRef::label)
     }
 
     #[tracing::instrument(level = "trace", skip(self, ctx))]
@@ -207,24 +246,46 @@ impl<'a> ImageRun<'a> {
         }
     }
 
+    /// Image counterpart to [`LinkRun::from_pulldown_reference`].
     pub(crate) fn from_pulldown_reference(
         kind: LinkSourceKind,
         dest: Cow<'a, str>,
         title: Cow<'a, str>,
         label: Cow<'a, str>,
     ) -> Self {
-        let handle = ReferenceHandle::new(label);
+        let resolved = ResolvedRef {
+            handle: None,
+            label,
+        };
         let source = match kind {
             LinkSourceKind::Inline => LinkSource::Inline,
-            LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(handle),
-            LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(handle),
-            LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(handle),
+            LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
+            LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
+            LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),
         };
         Self {
             dest,
             title,
             source,
         }
+    }
+
+    /// Image counterpart to [`LinkRun::try_new_reference`].
+    #[allow(dead_code)]
+    #[tracing::instrument(level = "trace", skip(table))]
+    pub(crate) fn try_new_reference(
+        kind: LinkSourceKind,
+        dest: Cow<'a, str>,
+        title: Cow<'a, str>,
+        label: Cow<'a, str>,
+        table: &ReferenceTable,
+    ) -> Result<Self, LinkError> {
+        let source = resolve_kind(kind, label, table)?;
+        Ok(Self {
+            dest,
+            title,
+            source,
+        })
     }
 
     pub(crate) fn dest(&self) -> &str {
@@ -235,10 +296,36 @@ impl<'a> ImageRun<'a> {
         &self.title
     }
 
+    /// Inspect the reference label, if any.
+    pub(crate) fn reference_label(&self) -> Option<&str> {
+        self.source.resolved().map(ResolvedRef::label)
+    }
+
     #[tracing::instrument(level = "trace", skip(self, ctx))]
     pub(crate) fn emit_style<'s>(&'s self, ctx: &LinkResolveCtx<'_>) -> EmitLinkStyle<'s> {
         decide_style(&self.source, ctx.body_text)
     }
+}
+
+#[allow(dead_code)]
+fn resolve_kind<'a>(
+    kind: LinkSourceKind,
+    label: Cow<'a, str>,
+    table: &ReferenceTable,
+) -> Result<LinkSource<'a>, LinkError> {
+    let handle = table
+        .resolve(&label)
+        .ok_or(LinkError::UnresolvedReference)?;
+    let resolved = ResolvedRef {
+        handle: Some(handle),
+        label,
+    };
+    Ok(match kind {
+        LinkSourceKind::Inline => LinkSource::Inline,
+        LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
+        LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
+        LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),
+    })
 }
 
 /// Single decision site for the link-style choice. Inline stays inline;
@@ -250,19 +337,19 @@ impl<'a> ImageRun<'a> {
 fn decide_style<'s>(source: &'s LinkSource<'_>, body_text: &str) -> EmitLinkStyle<'s> {
     match source {
         LinkSource::Inline => EmitLinkStyle::Inline,
-        LinkSource::ReferenceFull(h) => EmitLinkStyle::ReferenceFull { label: h.label() },
-        LinkSource::ReferenceCollapsed(h) => {
-            if labels_match(body_text, h.label()) {
+        LinkSource::ReferenceFull(r) => EmitLinkStyle::ReferenceFull { label: r.label() },
+        LinkSource::ReferenceCollapsed(r) => {
+            if labels_match(body_text, r.label()) {
                 EmitLinkStyle::ReferenceCollapsed
             } else {
-                EmitLinkStyle::ReferenceFull { label: h.label() }
+                EmitLinkStyle::ReferenceFull { label: r.label() }
             }
         }
-        LinkSource::ReferenceShortcut(h) => {
-            if labels_match(body_text, h.label()) {
+        LinkSource::ReferenceShortcut(r) => {
+            if labels_match(body_text, r.label()) {
                 EmitLinkStyle::ReferenceShortcut
             } else {
-                EmitLinkStyle::ReferenceFull { label: h.label() }
+                EmitLinkStyle::ReferenceFull { label: r.label() }
             }
         }
     }
@@ -319,8 +406,10 @@ fn cm_normalise_label(s: &str) -> String {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::cm::refs::build_reference_table;
     use crate::format::doc::{concat, hard_line, line, text, unbreakable};
 
     fn cow(s: &str) -> Cow<'_, str> {
@@ -331,10 +420,28 @@ mod tests {
         LinkResolveCtx { body_text: body }
     }
 
+    /// Build a single-label table by parsing a one-def, one-link
+    /// document so pulldown emits the resolved Reference event the
+    /// table consumes.
+    fn table_with(label: &str) -> crate::cm::refs::ReferenceTable {
+        use pulldown_cmark::{Options, Parser};
+        let src = format!("[{label}]: https://example.com\n\n[{label}][{label}]\n");
+        let mut opts = Options::empty();
+        opts.insert(Options::ENABLE_STRIKETHROUGH);
+        opts.insert(Options::ENABLE_FOOTNOTES);
+        opts.insert(Options::ENABLE_TABLES);
+        opts.insert(Options::ENABLE_TASKLISTS);
+        let events: Vec<_> = Parser::new_ext(&src, opts).collect();
+        build_reference_table(&events, &src)
+    }
+
     #[test]
     fn inline_link_keeps_inline() {
         let run = LinkRun::from_pulldown_inline(cow("https://example.com"), cow(""));
-        assert!(matches!(run.emit_style(&ctx("text")), EmitLinkStyle::Inline));
+        assert!(matches!(
+            run.emit_style(&ctx("text")),
+            EmitLinkStyle::Inline
+        ));
         assert_eq!(run.dest(), "https://example.com");
         assert!(run.title().is_empty());
         assert!(run.label().is_none());
@@ -342,12 +449,15 @@ mod tests {
 
     #[test]
     fn reference_full_stays_full() {
-        let run = LinkRun::from_pulldown_reference(
+        let table = table_with("bar");
+        let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceFull,
             cow("https://example.com"),
             cow(""),
             cow("bar"),
-        );
+            &table,
+        )
+        .expect("resolves");
         let style = run.emit_style(&ctx("body"));
         assert!(
             matches!(style, EmitLinkStyle::ReferenceFull { label } if label == "bar"),
@@ -358,12 +468,15 @@ mod tests {
 
     #[test]
     fn collapsed_matches_keeps_collapsed() {
-        let run = LinkRun::from_pulldown_reference(
+        let table = table_with("foo");
+        let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceCollapsed,
             cow(""),
             cow(""),
             cow("foo"),
-        );
+            &table,
+        )
+        .expect("resolves");
         let style = run.emit_style(&ctx("foo"));
         assert!(matches!(style, EmitLinkStyle::ReferenceCollapsed));
     }
@@ -372,48 +485,60 @@ mod tests {
     fn collapsed_mismatch_demotes_to_full() {
         // Emphasis rewriting changed body from `_foo_` to `*foo*`; the
         // label is still `_foo_`, so collapsed cannot be used.
-        let run = LinkRun::from_pulldown_reference(
+        let table = table_with("_foo_");
+        let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceCollapsed,
             cow(""),
             cow(""),
             cow("_foo_"),
-        );
+            &table,
+        )
+        .expect("resolves");
         let style = run.emit_style(&ctx("*foo*"));
         assert!(matches!(style, EmitLinkStyle::ReferenceFull { label } if label == "_foo_"));
     }
 
     #[test]
     fn shortcut_matches_keeps_shortcut() {
-        let run = LinkRun::from_pulldown_reference(
+        let table = table_with("foo");
+        let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceShortcut,
             cow(""),
             cow(""),
             cow("foo"),
-        );
+            &table,
+        )
+        .expect("resolves");
         let style = run.emit_style(&ctx("foo"));
         assert!(matches!(style, EmitLinkStyle::ReferenceShortcut));
     }
 
     #[test]
     fn shortcut_mismatch_demotes_to_full() {
-        let run = LinkRun::from_pulldown_reference(
+        let table = table_with("a");
+        let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceShortcut,
             cow(""),
             cow(""),
             cow("a"),
-        );
+            &table,
+        )
+        .expect("resolves");
         let style = run.emit_style(&ctx("b"));
         assert!(matches!(style, EmitLinkStyle::ReferenceFull { .. }));
     }
 
     #[test]
     fn image_run_uses_same_decision() {
-        let run = ImageRun::from_pulldown_reference(
+        let table = table_with("alt");
+        let run = ImageRun::try_new_reference(
             LinkSourceKind::ReferenceShortcut,
             cow(""),
             cow(""),
             cow("alt"),
-        );
+            &table,
+        )
+        .expect("resolves");
         assert!(matches!(
             run.emit_style(&ctx("alt")),
             EmitLinkStyle::ReferenceShortcut
@@ -422,6 +547,20 @@ mod tests {
             run.emit_style(&ctx("other")),
             EmitLinkStyle::ReferenceFull { .. }
         ));
+    }
+
+    #[test]
+    fn unresolved_reference_errors() {
+        let table = crate::cm::refs::ReferenceTable::empty();
+        let err = LinkRun::try_new_reference(
+            LinkSourceKind::ReferenceFull,
+            cow(""),
+            cow(""),
+            cow("missing"),
+            &table,
+        )
+        .unwrap_err();
+        assert_eq!(err, LinkError::UnresolvedReference);
     }
 
     #[test]
@@ -454,18 +593,17 @@ mod tests {
 
     #[test]
     fn hard_break_in_label_normalises_to_space() {
-        // Body Doc carries a hard break inside the shortcut label; the
-        // label string in the source is `"foo bar"`. After flatten +
-        // normalise both sides become `"foo bar"`, so the shortcut
-        // form survives.
         let body_doc = concat([text("foo"), hard_line(), text("bar")]);
         let body = flatten_body_doc(&body_doc);
-        let run = LinkRun::from_pulldown_reference(
+        let table = table_with("foo bar");
+        let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceShortcut,
             cow(""),
             cow(""),
             cow("foo bar"),
-        );
+            &table,
+        )
+        .expect("resolves");
         assert!(matches!(
             run.emit_style(&ctx(&body)),
             EmitLinkStyle::ReferenceShortcut

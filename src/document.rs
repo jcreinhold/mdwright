@@ -181,10 +181,23 @@ impl<'a> Document<'a> {
         &self.ir.list_groups
     }
 
-    /// Link reference definitions discovered by post-parse scan.
+    /// Link reference definitions. Materialised on demand from the
+    /// document's [`ReferenceTable`](crate::cm::refs::ReferenceTable);
+    /// callers that hit this in a hot loop should cache the result.
+    /// The returned slice borrows from `self` (not from source), so the
+    /// `&str` fields have the document's borrow lifetime.
     #[must_use]
-    pub fn link_defs(&self) -> &[LinkDef<'a>] {
-        &self.ir.link_defs
+    pub fn link_defs(&self) -> Vec<LinkDef<'_>> {
+        self.ir
+            .refs
+            .iter()
+            .map(|t| LinkDef {
+                label: t.label_raw.as_str(),
+                dest: t.dest.as_str(),
+                title: t.title.as_deref(),
+                raw_range: t.raw_range.clone(),
+            })
+            .collect()
     }
 
     /// Frontmatter at the document head, if present. Carries both the

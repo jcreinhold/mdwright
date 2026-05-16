@@ -26,6 +26,7 @@ use std::sync::OnceLock;
 use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use regex::Regex;
 
+use crate::cm::refs::{ReferenceTable, build_reference_table};
 use crate::line_index::LineIndex;
 use crate::tree::{Tree, TreeBuilder};
 use crate::util::regex::compile_static;
@@ -126,9 +127,12 @@ pub enum FrontmatterDelimiter {
     Toml,
 }
 
-/// One link reference definition (`[label]: dest`). Discovered by a
-/// post-parse regex scan; pulldown-cmark 0.13 does not emit these as
-/// events.
+/// One link reference definition (`[label]: dest`).
+///
+/// The lint-rule surface — produced by [`crate::Document::link_defs`]
+/// from the document's [`ReferenceTable`](crate::cm::refs::ReferenceTable).
+/// Pulldown-cmark 0.13 does not emit definition events, so the
+/// authoritative scan lives in [`crate::cm::refs::build_reference_table`].
 #[derive(Clone, Debug)]
 pub struct LinkDef<'a> {
     pub label: &'a str,
@@ -197,7 +201,7 @@ pub(crate) struct Ir<'a> {
     pub(crate) inline_html: Vec<InlineHtml<'a>>,
     pub(crate) headings: Vec<Heading<'a>>,
     pub(crate) list_groups: Vec<ListGroup>,
-    pub(crate) link_defs: Vec<LinkDef<'a>>,
+    pub(crate) refs: ReferenceTable,
     pub(crate) suppressions: Vec<Suppression<'a>>,
     pub(crate) frontmatter: Option<Frontmatter<'a>>,
     pub(crate) admonitions: Vec<AdmonitionRegion<'a>>,
@@ -247,20 +251,23 @@ impl<'a> Ir<'a> {
             headings: Vec::new(),
             list_groups: Vec::new(),
         };
-        // Single pass through pulldown. The flat IR and the tree are
-        // built in lockstep. Math regions are not consulted here:
-        // they short-circuit emission at the *block* level (see
-        // [`crate::format::block::render_block_sequence`]), not the
-        // event level, so the tree builder doesn't need to know.
+        // Collect pulldown events once with absolute byte ranges. The
+        // reference table is built from this event stream (pulldown's
+        // own §4.7 resolution is authoritative); the flat IR and the
+        // tree are then built in lockstep from the same vector.
+        let events: Vec<(Event<'a>, Range<usize>)> = Parser::new_ext(body, opts)
+            .into_offset_iter()
+            .map(|(e, r)| {
+                let abs = r.start.saturating_add(fm_end)..r.end.saturating_add(fm_end);
+                (e, abs)
+            })
+            .collect();
         let mut tree_builder = TreeBuilder::new(source);
-        let mut event_count: usize = 0;
-        for (event, range) in Parser::new_ext(body, opts).into_offset_iter() {
-            let abs = range.start.saturating_add(fm_end)..range.end.saturating_add(fm_end);
-            tree_builder.handle(&event, abs.clone());
-            builder.handle(event, abs);
-            event_count = event_count.saturating_add(1);
+        for (event, abs) in &events {
+            tree_builder.handle(event, abs.clone());
+            builder.handle(event.clone(), abs.clone());
         }
-        tracing::debug!(events = event_count, "pulldown walk complete");
+        tracing::debug!(events = events.len(), "pulldown walk complete");
 
         // Math regions are computed after pulldown's structure pass
         // so the scanner can exclude code spans / blocks / HTML
@@ -273,10 +280,11 @@ impl<'a> Ir<'a> {
             MathConfig::default(),
         );
 
-        let link_defs = scan_link_defs(source, &builder.code_blocks);
+        let bare_events: Vec<Event<'a>> = events.into_iter().map(|(e, _)| e).collect();
+        let refs = build_reference_table(&bare_events, source);
         let suppressions = scan_suppressions(&builder.html_blocks);
         let admonitions = scan_admonitions(source, &builder.code_blocks);
-        let tree = tree_builder.finalize(&link_defs);
+        let tree = tree_builder.finalize(&refs);
 
         Self {
             source,
@@ -287,7 +295,7 @@ impl<'a> Ir<'a> {
             inline_html: builder.inline_html,
             headings: builder.headings,
             list_groups: builder.list_groups,
-            link_defs,
+            refs,
             suppressions,
             frontmatter,
             admonitions,
@@ -705,18 +713,6 @@ fn scan_admonitions<'a>(
     out
 }
 
-fn link_def_regex() -> &'static Regex {
-    static RE: OnceLock<Regex> = OnceLock::new();
-    // Groups: 1 = label, 2 = angle-dest, 3 = bare-dest, 4|5|6 = title
-    // (double-quoted | single-quoted | paren-delimited). The title is
-    // optional; trailing whitespace is consumed.
-    RE.get_or_init(|| {
-        compile_static(
-            r#"^ {0,3}\[([^\]\n]+)\]:\s*(?:<([^>\n]*)>|(\S+))(?:[ \t]+(?:"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'|\(((?:[^)\\\n]|\\.)*)\)))?[ \t]*\r?\n?$"#,
-        )
-    })
-}
-
 fn suppression_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     // Order matters: `allow-next-line` must precede `allow`, and
@@ -777,52 +773,6 @@ fn scan_suppressions<'a>(html_blocks: &[HtmlBlock<'a>]) -> Vec<Suppression<'a>> 
         });
     }
     out
-}
-
-/// Scan source line-by-line for link reference definitions. Skips
-/// lines inside code blocks.
-fn scan_link_defs<'a>(source: &'a str, code_blocks: &[CodeBlock<'a>]) -> Vec<LinkDef<'a>> {
-    let mut defs = Vec::new();
-    let mut line_start = 0usize;
-    for line in source.split_inclusive('\n') {
-        let line_len = line.len();
-        let line_end = line_start.saturating_add(line_len);
-        let inside_code = code_blocks
-            .iter()
-            .any(|c| c.raw_range.start < line_end && line_start < c.raw_range.end);
-        if !inside_code
-            && let Some(caps) = link_def_regex().captures(line)
-            && let Some(lab) = caps.get(1)
-            && let Some(dest) = caps.get(2).or_else(|| caps.get(3))
-        {
-            let lab_start = line_start.saturating_add(lab.start());
-            let lab_end = line_start.saturating_add(lab.end());
-            let dest_start = line_start.saturating_add(dest.start());
-            let dest_end = line_start.saturating_add(dest.end());
-            let title = caps
-                .get(4)
-                .or_else(|| caps.get(5))
-                .or_else(|| caps.get(6))
-                .and_then(|m| {
-                    let s = line_start.saturating_add(m.start());
-                    let e = line_start.saturating_add(m.end());
-                    source.get(s..e)
-                });
-            if let (Some(label), Some(dest)) = (
-                source.get(lab_start..lab_end),
-                source.get(dest_start..dest_end),
-            ) {
-                defs.push(LinkDef {
-                    label,
-                    dest,
-                    title,
-                    raw_range: line_start..line_end,
-                });
-            }
-        }
-        line_start = line_end;
-    }
-    defs
 }
 
 #[cfg(test)]
@@ -963,10 +913,13 @@ mod tests {
     fn link_defs_scanned() -> Result<()> {
         let src = "[bar]: https://example.com\n\nSee [ref][bar].\n";
         let ir = Ir::parse(src);
-        assert_eq!(ir.link_defs.len(), 1);
-        let def = ir.link_defs.first().ok_or_else(|| anyhow!("def"))?;
-        assert_eq!(def.label, "bar");
-        assert_eq!(def.dest, "https://example.com");
+        let target = ir
+            .refs
+            .iter()
+            .next()
+            .ok_or_else(|| anyhow!("expected one target"))?;
+        assert_eq!(target.label_raw, "bar");
+        assert_eq!(target.dest, "https://example.com");
         Ok(())
     }
 
@@ -974,7 +927,7 @@ mod tests {
     fn link_defs_skipped_inside_code_block() {
         let src = "```\n[bar]: https://example.com\n```\n";
         let ir = Ir::parse(src);
-        assert!(ir.link_defs.is_empty());
+        assert!(ir.refs.is_empty());
     }
 
     #[test]

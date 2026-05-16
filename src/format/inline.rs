@@ -15,9 +15,7 @@ use std::borrow::Cow;
 
 use crate::cm::inline::autolink::AutolinkRun;
 use crate::cm::inline::emphasis::{EmphasisDelim, EmphasisRun, ResolveCtx, StrongRun};
-use crate::cm::inline::link::{
-    EmitLinkStyle, ImageRun, LinkResolveCtx, LinkRun, flatten_body_doc,
-};
+use crate::cm::inline::link::{EmitLinkStyle, ImageRun, LinkResolveCtx, LinkRun, flatten_body_doc};
 use crate::cm::inline::run::{InlineRun, RunPart};
 use crate::format::ctx::Ctx;
 use crate::format::doc::{Doc, concat, hard_line, line, text, unbreakable};
@@ -152,7 +150,9 @@ fn render_strong<'a>(ctx: &Ctx<'a>, id: NodeId, run: StrongRun) -> Doc<'a> {
 fn first_child_strong_delim(ctx: &Ctx<'_>, id: NodeId) -> Option<EmphasisDelim> {
     let first = ctx.tree.children(id).next()?;
     let node = ctx.tree.node(first)?;
-    let NodeKind::Strong(run) = &node.kind else { return None };
+    let NodeKind::Strong(run) = &node.kind else {
+        return None;
+    };
     Some(run.resolve(ResolveCtx {
         style: ctx.opts.italic(),
         left_sibling_delim: None,
@@ -166,7 +166,9 @@ fn first_child_strong_delim(ctx: &Ctx<'_>, id: NodeId) -> Option<EmphasisDelim> 
 fn first_child_emphasis_delim(ctx: &Ctx<'_>, id: NodeId) -> Option<EmphasisDelim> {
     let first = ctx.tree.children(id).next()?;
     let node = ctx.tree.node(first)?;
-    let NodeKind::Emphasis(run) = &node.kind else { return None };
+    let NodeKind::Emphasis(run) = &node.kind else {
+        return None;
+    };
     Some(run.resolve(ResolveCtx {
         style: ctx.opts.italic(),
         left_sibling_delim: None,
@@ -187,14 +189,28 @@ fn render_link<'a>(ctx: &Ctx<'a>, id: NodeId, run: &LinkRun<'a>) -> Doc<'a> {
     let text_doc = render_inline(ctx, id);
     let flat = flatten_body_doc(&text_doc);
     let style = run.emit_style(&LinkResolveCtx { body_text: &flat });
-    assemble_link(ctx, text_doc, run.dest(), run.title(), &style, /*is_image=*/ false)
+    assemble_link(
+        ctx,
+        text_doc,
+        run.dest(),
+        run.title(),
+        &style,
+        /*is_image=*/ false,
+    )
 }
 
 fn render_image<'a>(ctx: &Ctx<'a>, id: NodeId, run: &ImageRun<'a>) -> Doc<'a> {
     let text_doc = render_inline(ctx, id);
     let flat = flatten_body_doc(&text_doc);
     let style = run.emit_style(&LinkResolveCtx { body_text: &flat });
-    assemble_link(ctx, text_doc, run.dest(), run.title(), &style, /*is_image=*/ true)
+    assemble_link(
+        ctx,
+        text_doc,
+        run.dest(),
+        run.title(),
+        &style,
+        /*is_image=*/ true,
+    )
 }
 
 fn assemble_link<'a>(

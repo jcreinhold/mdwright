@@ -41,7 +41,7 @@ use crate::cm::inline::escape_policy::EscapeScope;
 use crate::cm::inline::html::InlineHtmlSpan;
 use crate::cm::inline::link::{ImageRun, LinkRun, LinkSourceKind};
 use crate::cm::inline::run::{InlineRun, RunInput};
-use crate::ir::LinkDef;
+use crate::cm::refs::ReferenceTable;
 
 /// Index into [`Tree`]'s arena. Stable for the life of the tree;
 /// can only be obtained from `Tree` methods.
@@ -528,10 +528,7 @@ impl<'a> TreeBuilder<'a> {
     }
 
     fn current_scope(&self) -> EscapeScope {
-        self.scope_stack
-            .last()
-            .copied()
-            .unwrap_or_default()
+        self.scope_stack.last().copied().unwrap_or_default()
     }
 
     /// Scope active for inline children of the container opened by
@@ -563,10 +560,12 @@ impl<'a> TreeBuilder<'a> {
         self.open.last_mut().and_then(|f| f.body_accum.as_mut())
     }
 
-    /// Synthesise `LinkReferenceDefinition` nodes from the flat IR's
-    /// link-defs vector (pulldown does not emit events for them) and
-    /// seal the Document root.
-    pub(crate) fn finalize(mut self, link_defs: &[LinkDef<'a>]) -> Tree<'a> {
+    /// Synthesise `LinkReferenceDefinition` nodes from the document's
+    /// [`ReferenceTable`] (pulldown-cmark 0.13 does not emit events for
+    /// reference definitions), downgrade unresolved reference-style
+    /// links to raw source emission, and seal the Document root.
+    #[tracing::instrument(level = "debug", skip(self, refs))]
+    pub(crate) fn finalize(mut self, refs: &ReferenceTable) -> Tree<'a> {
         // Flush any inline events left in the buffer (the document's
         // trailing run before the parser exhausted its events).
         self.flush_inline_run();
@@ -577,18 +576,26 @@ impl<'a> TreeBuilder<'a> {
         let mut doc_children: Vec<NodeId> =
             self.pending.drain(doc_pending_start as usize..).collect();
 
-        // Synthesise one LinkReferenceDefinition per link_def and
-        // append to doc_children, then sort by raw_range.start so
-        // they appear in source order alongside the rest.
-        for def in link_defs {
+        // Validate every reference-style Link / Image node against the
+        // table; unresolvable references downgrade to `Unknown` so the
+        // formatter emits the original source span verbatim (CM §4.7
+        // "leave as text").
+        downgrade_unresolved_links(&mut self.arena, refs);
+
+        // Synthesise one LinkReferenceDefinition per resolved target
+        // (in source order) and append to doc_children, then sort by
+        // raw_range.start so they appear in source order alongside the
+        // rest. CM §4.7's "first definition wins" rule already deduped
+        // duplicates inside `ReferenceTable::insert`.
+        for target in refs.iter() {
             let id = NodeId(u32::try_from(self.arena.len()).unwrap_or(u32::MAX));
             self.arena.push(Node {
                 kind: NodeKind::LinkReferenceDefinition {
-                    label: Cow::Borrowed(def.label),
-                    dest: Cow::Borrowed(def.dest),
-                    title: def.title.map(Cow::Borrowed),
+                    label: Cow::Owned(target.label_raw.clone()),
+                    dest: Cow::Owned(target.dest.clone()),
+                    title: target.title.as_ref().map(|t| Cow::Owned(t.clone())),
                 },
-                raw_range: def.raw_range.clone(),
+                raw_range: target.raw_range.clone(),
                 children: 0..0,
                 subtree_end: id.0.saturating_add(1),
             });
@@ -830,6 +837,33 @@ impl<'a> TreeBuilder<'a> {
     }
 }
 
+/// Replace every reference-style [`NodeKind::Link`] / [`NodeKind::Image`]
+/// whose label fails to resolve against `refs` with [`NodeKind::Unknown`].
+/// `Unknown` is the formatter's "emit verbatim source" fallback, which is
+/// exactly the behaviour CM §4.7 prescribes for an unresolvable reference.
+#[allow(clippy::wildcard_enum_match_arm)] // many irrelevant NodeKind variants
+fn downgrade_unresolved_links(arena: &mut [Node<'_>], refs: &ReferenceTable) {
+    for node in arena.iter_mut() {
+        let (label_opt, is_image): (Option<&str>, bool) = match &node.kind {
+            NodeKind::Link(run) => (run.reference_label(), false),
+            NodeKind::Image(run) => (run.reference_label(), true),
+            _ => (None, false),
+        };
+        let Some(label) = label_opt else { continue };
+        if refs.resolve(label).is_some() {
+            continue;
+        }
+        let tag = if is_image { "Image" } else { "Link" };
+        node.kind = NodeKind::Unknown { tag };
+        // Drop the subtree's structural children: `Unknown` is emitted
+        // verbatim from `raw_text`, so the children must not be
+        // rendered separately. Clearing the children range is enough —
+        // the arena entries linger but become unreachable from the
+        // root.
+        node.children = 0..0;
+    }
+}
+
 fn link_kind<'a>(
     lt: LinkType,
     dest_url: &CowStr<'a>,
@@ -949,11 +983,7 @@ mod tests {
             .filter_map(|id| tree.node(id).map(|n| &n.kind))
             .collect();
         assert!(kinds.iter().any(|k| matches!(k, NodeKind::Paragraph)));
-        assert!(
-            kinds
-                .iter()
-                .any(|k| matches!(k, NodeKind::Run(_)))
-        );
+        assert!(kinds.iter().any(|k| matches!(k, NodeKind::Run(_))));
     }
 
     #[test]
@@ -1165,7 +1195,11 @@ let x = 1;
 
     #[test]
     fn link_reference_definitions_appear_as_doc_children() {
-        let src = "[a]: https://a.example\n[b]: https://b.example\n\nText.\n";
+        // Defs only enter the tree when at least one reference uses
+        // them (the new pulldown-event-driven resolver dropped the
+        // "emit unused defs verbatim" behaviour because unused defs
+        // never affect HTML output anyway).
+        let src = "[a]: https://a.example\n[b]: https://b.example\n\n[a] and [b].\n";
         let ir = Ir::parse(src);
         let tree = &ir.tree;
         let defs: Vec<String> = tree
@@ -1175,7 +1209,9 @@ let x = 1;
                 _ => None,
             })
             .collect();
-        assert_eq!(defs, vec!["a".to_owned(), "b".to_owned()]);
+        let mut sorted = defs;
+        sorted.sort();
+        assert_eq!(sorted, vec!["a".to_owned(), "b".to_owned()]);
     }
 
     #[test]
@@ -1215,7 +1251,9 @@ let x = 1;
         let info = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::CodeBlock { fenced: true, info, .. }) => Some(info.to_string()),
+                Some(NodeKind::CodeBlock {
+                    fenced: true, info, ..
+                }) => Some(info.to_string()),
                 _ => None,
             })
             .expect("fenced code block");

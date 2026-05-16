@@ -139,38 +139,58 @@ mod tests {
     #[test]
     fn preserve_keeps_source_asterisk() {
         let run = EmphasisRun::from_source(b'*');
-        assert_eq!(run.resolve(ctx(ItalicStyle::Preserve, None, None)), EmphasisDelim::Asterisk);
+        assert_eq!(
+            run.resolve(ctx(ItalicStyle::Preserve, None, None)),
+            EmphasisDelim::Asterisk
+        );
     }
 
     #[test]
     fn preserve_keeps_source_underscore() {
         let run = EmphasisRun::from_source(b'_');
-        assert_eq!(run.resolve(ctx(ItalicStyle::Preserve, None, None)), EmphasisDelim::Underscore);
+        assert_eq!(
+            run.resolve(ctx(ItalicStyle::Preserve, None, None)),
+            EmphasisDelim::Underscore
+        );
     }
 
     #[test]
     fn asterisk_style_rewrites_underscore() {
         let run = EmphasisRun::from_source(b'_');
-        assert_eq!(run.resolve(ctx(ItalicStyle::Asterisk, None, None)), EmphasisDelim::Asterisk);
+        assert_eq!(
+            run.resolve(ctx(ItalicStyle::Asterisk, None, None)),
+            EmphasisDelim::Asterisk
+        );
     }
 
     #[test]
     fn underscore_style_rewrites_asterisk() {
         let run = EmphasisRun::from_source(b'*');
-        assert_eq!(run.resolve(ctx(ItalicStyle::Underscore, None, None)), EmphasisDelim::Underscore);
+        assert_eq!(
+            run.resolve(ctx(ItalicStyle::Underscore, None, None)),
+            EmphasisDelim::Underscore
+        );
     }
 
     #[test]
     fn sibling_collision_flips() {
         let run = EmphasisRun::from_source(b'*');
-        let d = run.resolve(ctx(ItalicStyle::Asterisk, Some(EmphasisDelim::Asterisk), None));
+        let d = run.resolve(ctx(
+            ItalicStyle::Asterisk,
+            Some(EmphasisDelim::Asterisk),
+            None,
+        ));
         assert_eq!(d, EmphasisDelim::Underscore);
     }
 
     #[test]
     fn nested_child_collision_flips() {
         let run = EmphasisRun::from_source(b'*');
-        let d = run.resolve(ctx(ItalicStyle::Asterisk, None, Some(EmphasisDelim::Asterisk)));
+        let d = run.resolve(ctx(
+            ItalicStyle::Asterisk,
+            None,
+            Some(EmphasisDelim::Asterisk),
+        ));
         assert_eq!(d, EmphasisDelim::Underscore);
     }
 
@@ -190,12 +210,21 @@ mod tests {
     #[test]
     fn strong_uses_same_logic() {
         let run = StrongRun::from_source(b'_');
-        assert_eq!(run.resolve(ctx(ItalicStyle::Asterisk, None, None)), EmphasisDelim::Asterisk);
+        assert_eq!(
+            run.resolve(ctx(ItalicStyle::Asterisk, None, None)),
+            EmphasisDelim::Asterisk
+        );
     }
 
     #[test]
     fn flip_is_involutive() {
-        assert_eq!(EmphasisDelim::Asterisk.flip().flip(), EmphasisDelim::Asterisk);
-        assert_eq!(EmphasisDelim::Underscore.flip().flip(), EmphasisDelim::Underscore);
+        assert_eq!(
+            EmphasisDelim::Asterisk.flip().flip(),
+            EmphasisDelim::Asterisk
+        );
+        assert_eq!(
+            EmphasisDelim::Underscore.flip().flip(),
+            EmphasisDelim::Underscore
+        );
     }
 }

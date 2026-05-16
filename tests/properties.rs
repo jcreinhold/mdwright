@@ -39,7 +39,45 @@ fn dump_counterexample(label: &str, src: &str) {
     }
 }
 
+/// Synthesise a single `[label]: dest "title"` def plus a reference
+/// link. Labels and dests are bounded ASCII to keep the round-trip
+/// property focused on the resolver, not on Unicode quirks of other
+/// passes.
+fn arb_reference_triple() -> impl Strategy<Value = (String, String, String, &'static str)> {
+    (
+        "[a-zA-Z][a-zA-Z0-9_ -]{0,15}",
+        "/[a-zA-Z0-9._/-]{0,32}",
+        "[a-zA-Z0-9 .,!?-]{0,32}",
+        prop_oneof![Just("full"), Just("collapsed"), Just("shortcut")],
+    )
+        .prop_map(
+            |(label, dest, title, kind): (String, String, String, &'static str)| {
+                (label, dest, title, kind)
+            },
+        )
+}
+
 proptest! {
+    /// Resolver round-trip: a synthesised `[label]` reference plus its
+    /// `[label]: dest "title"` def must format → reparse → format
+    /// unchanged and produce identical HTML on both sides.
+    #[test]
+    fn reference_resolver_round_trips(
+        (label, dest, title, kind) in arb_reference_triple(),
+    ) {
+        let reference = match kind {
+            "full" => format!("[{label}][{label}]"),
+            "collapsed" => format!("[{label}][]"),
+            _ => format!("[{label}]"),
+        };
+        let src = format!("{reference}\n\n[{label}]: {dest} \"{title}\"\n");
+        let opts = FmtOptions::default();
+        let once = Document::parse(&src).format(&opts);
+        let twice = Document::parse(&once).format(&opts);
+        prop_assert_eq!(&once, &twice);
+        prop_assert_eq!(render_html(&src), render_html(&once));
+    }
+
     #[test]
     fn idempotent(src in generators::arb_document()) {
         let opts = FmtOptions::default();

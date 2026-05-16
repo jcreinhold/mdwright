@@ -352,7 +352,10 @@ mod tests {
 
     #[test]
     fn asterisk_pair_at_start_and_end_is_escaped() {
-        assert_eq!(escape_no_forced("*foo bar*", default_scope()), r"\*foo bar\*");
+        assert_eq!(
+            escape_no_forced("*foo bar*", default_scope()),
+            r"\*foo bar\*"
+        );
     }
 
     #[test]
@@ -362,7 +365,10 @@ mod tests {
 
     #[test]
     fn intraword_underscore_is_text_hom_cart() {
-        assert_eq!(escape_no_forced("Hom_{cart}", default_scope()), "Hom_{cart}");
+        assert_eq!(
+            escape_no_forced("Hom_{cart}", default_scope()),
+            "Hom_{cart}"
+        );
     }
 
     #[test]
@@ -398,17 +404,26 @@ mod tests {
 
     #[test]
     fn bracket_not_link_shape_is_text() {
-        assert_eq!(escape_no_forced("[foo bar baz", default_scope()), "[foo bar baz");
+        assert_eq!(
+            escape_no_forced("[foo bar baz", default_scope()),
+            "[foo bar baz"
+        );
     }
 
     #[test]
     fn bracket_link_shape_is_escaped() {
-        assert_eq!(escape_no_forced("[foo](bar)", default_scope()), r"\[foo](bar)");
+        assert_eq!(
+            escape_no_forced("[foo](bar)", default_scope()),
+            r"\[foo](bar)"
+        );
     }
 
     #[test]
     fn bracket_reference_shape_is_escaped() {
-        assert_eq!(escape_no_forced("[foo][bar]", default_scope()), r"\[foo][bar]");
+        assert_eq!(
+            escape_no_forced("[foo][bar]", default_scope()),
+            r"\[foo][bar]"
+        );
     }
 
     #[test]

@@ -25,6 +25,7 @@ owo-colors = "4"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
 rayon = "1"
 regex = "1"
+rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 tracing = "0.1"

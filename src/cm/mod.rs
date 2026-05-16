@@ -6,3 +6,4 @@
 //! these values; the format pipeline consumes them as final-form bytes.
 
 pub(crate) mod inline;
+pub(crate) mod refs;
