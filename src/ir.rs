@@ -206,7 +206,7 @@ pub(crate) struct Ir<'a> {
     pub(crate) frontmatter: Option<Frontmatter<'a>>,
     pub(crate) admonitions: Vec<AdmonitionRegion<'a>>,
     pub(crate) math_regions: Vec<MathRegion>,
-    pub(crate) unclosed_math: Vec<UnclosedOpen>,
+    pub(crate) math_errors: Vec<MathError>,
     pub(crate) line_index: LineIndex<'a>,
     pub(crate) tree: Tree<'a>,
 }
@@ -222,7 +222,9 @@ pub(crate) struct AdmonitionRegion<'a> {
     pub(crate) text: &'a str,
 }
 
-use crate::format::math::{MathConfig, MathRegion, UnclosedOpen, scan_math};
+use crate::cm::math::MathRegion;
+use crate::cm::math::scan::{MathConfig, scan_math_regions};
+use crate::cm::math::span::MathError;
 
 impl<'a> Ir<'a> {
     #[tracing::instrument(level = "info", name = "Ir::parse", skip(source), fields(len = source.len()))]
@@ -271,12 +273,14 @@ impl<'a> Ir<'a> {
 
         // Math regions are computed after pulldown's structure pass
         // so the scanner can exclude code spans / blocks / HTML
-        // blocks (regions where `\[` / `\(` are not math).
-        let (math_regions, unclosed_math) = scan_math(
+        // blocks / inline HTML (regions where `\[` / `\(` / `$` are
+        // not math).
+        let (math_regions, math_errors) = scan_math_regions(
             source,
             &builder.inline_codes,
             &builder.code_blocks,
             &builder.html_blocks,
+            &builder.inline_html,
             MathConfig::default(),
         );
 
@@ -300,7 +304,7 @@ impl<'a> Ir<'a> {
             frontmatter,
             admonitions,
             math_regions,
-            unclosed_math,
+            math_errors,
             line_index,
             tree,
         }

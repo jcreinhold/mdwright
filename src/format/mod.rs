@@ -12,7 +12,6 @@ pub(crate) mod block;
 pub(crate) mod doc;
 pub(crate) mod document;
 pub(crate) mod inline;
-pub(crate) mod math;
 pub(crate) mod pretty;
 pub(crate) mod verbatim;
 pub(crate) mod wrap;

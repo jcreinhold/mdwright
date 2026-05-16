@@ -10,6 +10,8 @@
 //! | Name | Default | Advisory |
 //! | --- | --- | --- |
 //! | `unbalanced-backtick`      | yes | no  |
+//! | `math/unbalanced-delim`    | yes | no  |
+//! | `math/unbalanced-env`      | yes | no  |
 //! | `adjacent-code-no-space`   | yes | no  |
 //! | `heading-punctuation`      | yes | no  |
 //! | `orphan-reference-link`    | yes | no  |
@@ -37,12 +39,13 @@ mod info_string_typo;
 mod latex_command;
 pub mod latex_unicode;
 mod list_tightness_flipped;
+mod math_unbalanced_delim;
+mod math_unbalanced_env;
 mod orphan_reference_link;
 mod stray_dollar;
 mod subscript_damage;
 mod trailing_whitespace;
 mod unbalanced_backtick;
-mod unbalanced_math;
 mod unicodeable_subscript;
 
 use crate::rule::LintRule;
@@ -58,12 +61,13 @@ pub use inconsistent_list_marker::InconsistentListMarker;
 pub use info_string_typo::InfoStringTypo;
 pub use latex_command::LatexCommand;
 pub use list_tightness_flipped::ListTightnessFlipped;
+pub use math_unbalanced_delim::MathUnbalancedDelim;
+pub use math_unbalanced_env::MathUnbalancedEnv;
 pub use orphan_reference_link::OrphanReferenceLink;
 pub use stray_dollar::StrayDollar;
 pub use subscript_damage::SubscriptDamage;
 pub use trailing_whitespace::TrailingWhitespace;
 pub use unbalanced_backtick::UnbalancedBacktick;
-pub use unbalanced_math::UnbalancedMath;
 pub use unicodeable_subscript::UnicodeableSubscript;
 
 /// Every stdlib rule's kebab-case name, in registration order.
@@ -76,7 +80,8 @@ pub use unicodeable_subscript::UnicodeableSubscript;
 /// rules themselves.
 pub const NAMES: &[&str] = &[
     "unbalanced-backtick",
-    "unbalanced-math-delim",
+    "math/unbalanced-delim",
+    "math/unbalanced-env",
     "adjacent-code-no-space",
     "heading-punctuation",
     "orphan-reference-link",
@@ -106,7 +111,8 @@ pub fn names() -> impl Iterator<Item = &'static str> {
 fn all_boxed() -> Vec<Box<dyn LintRule>> {
     vec![
         Box::new(UnbalancedBacktick),
-        Box::new(UnbalancedMath),
+        Box::new(MathUnbalancedDelim),
+        Box::new(MathUnbalancedEnv),
         Box::new(AdjacentCodeNoSpace),
         Box::new(HeadingPunctuation),
         Box::new(OrphanReferenceLink),
@@ -182,8 +188,9 @@ mod tests {
         let rs = all();
         assert!(rs.contains("stray-dollar"));
         assert!(rs.contains("subscript-damage"));
-        assert!(rs.contains("unbalanced-math-delim"));
-        assert!(rs.len() == 17);
+        assert!(rs.contains("math/unbalanced-delim"));
+        assert!(rs.contains("math/unbalanced-env"));
+        assert!(rs.len() == 18);
     }
 
     #[test]

@@ -142,20 +142,22 @@ impl<'a> Document<'a> {
     }
 
     /// TeX-style math regions detected in source (`\[ … \]`,
-    /// `\( … \)`, optionally `$$ … $$` / `$ … $`). Lint rules that
-    /// operate on prose (e.g., `latex-command`) consult this slice
-    /// to skip diagnostics that fire inside math content — `\alpha`
-    /// is intentional inside `\[ … \]` and a bug outside it.
+    /// `\( … \)`, `\begin{env} … \end{env}`, optionally
+    /// `$$ … $$` / `$ … $`). Lint rules that operate on prose
+    /// (e.g., `latex-command`) consult this slice to skip
+    /// diagnostics that fire inside math content — `\alpha` is
+    /// intentional inside `\[ … \]` and a bug outside it.
     #[must_use]
-    pub fn math_regions(&self) -> &[crate::format::math::MathRegion] {
+    pub fn math_regions(&self) -> &[crate::cm::math::MathRegion] {
         &self.ir.math_regions
     }
 
-    /// Math open delimiters with no matching close. Surfaced by the
-    /// `unbalanced-math-delim` lint rule.
+    /// Recogniser errors (unmatched delimiter opens, unmatched
+    /// environment `\begin`). Surfaced by the `math/unbalanced-delim`
+    /// and `math/unbalanced-env` lint rules.
     #[must_use]
-    pub fn unclosed_math(&self) -> &[crate::format::math::UnclosedOpen] {
-        &self.ir.unclosed_math
+    pub fn math_errors(&self) -> &[crate::cm::math::span::MathError] {
+        &self.ir.math_errors
     }
 
     /// Fenced and indented code blocks in source order.

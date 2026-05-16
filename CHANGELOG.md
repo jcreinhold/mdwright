@@ -12,6 +12,23 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Changed
+- Math recognition moved out of `src/format/math.rs` into a structural
+  recogniser at `mdwright::cm::math`. The new scanner runs over the
+  same source bytes but uses the IR's inline / block atoms — including
+  inline HTML, which the heuristic scanner did not consult — as
+  exclusion zones, closing the "odd `$` in an HTML attribute anchors
+  a phantom region" class of false positive. `\begin{env} … \end{env}`
+  is recognised with same-name nesting; the four primitive delimiter
+  pairs (`\[ \]`, `\( \)`, `$$ $$`, `$ $`) keep their existing
+  greedy-first-close semantics, and the dollar variants remain
+  opt-in via `MathConfig`.
+- The `unbalanced-math-delim` lint rule splits into namespaced
+  siblings `math/unbalanced-delim` (primitive delimiter imbalance)
+  and `math/unbalanced-env` (LaTeX environment imbalance). No alias
+  is kept; users referencing the old name in `<!-- mdwright: allow
+  unbalanced-math-delim -->` need to update to the namespaced names.
+
 ### Added
 - Coverage-guided fuzz harness at [`fuzz/`](./fuzz) with three
   targets: `fuzz_parse_format`, `fuzz_idempotence`, `fuzz_lint`.

@@ -11,9 +11,9 @@
 //! definition) own the prefix decision and apply it inside their own
 //! `pretty()` method.
 
+use crate::cm::math::MathRegion;
 use crate::cm::refs::ReferenceTable;
 use crate::config::FmtOptions;
-use crate::format::math::MathRegion;
 use crate::ir::{AdmonitionRegion, Frontmatter};
 use crate::tree::Tree;
 

@@ -10,7 +10,7 @@ use crate::cm::refs::ReferenceTable;
 use crate::config::{FmtOptions, FormatMode};
 use crate::format::block;
 use crate::format::doc::{self, RenderOptions};
-use crate::format::math::MathRegion;
+use crate::cm::math::MathRegion;
 use crate::format::pretty::PrettyCtx;
 use crate::format::wrap::wrap_doc;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
