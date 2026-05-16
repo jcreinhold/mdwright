@@ -7,7 +7,6 @@
 //! line-break discipline; soft wrapping is deferred to a later
 //! session and so every line break here is a [`Doc::HardLine`].
 
-use std::collections::HashSet;
 use std::ops::Range;
 
 use crate::config::{LinkDefStyle, OrderedListStyle, Placement, Wrap};
@@ -39,7 +38,6 @@ fn block_overlaps_math(ctx: &Ctx<'_>, block: &Range<usize>) -> bool {
 
 pub(crate) fn render_block_sequence<'a>(ctx: &Ctx<'a>, parent: NodeId) -> Doc<'a> {
     let is_doc_root = parent == ctx.tree.root();
-    let end_placement = ctx.opts.link_def_placement() == Placement::End;
     let footnote_end = ctx.opts.footnote_placement() == Placement::End;
     let mut parts: Vec<Doc<'a>> = Vec::new();
     let mut emitted = 0usize;
@@ -56,19 +54,6 @@ pub(crate) fn render_block_sequence<'a>(ctx: &Ctx<'a>, parent: NodeId) -> Doc<'a
     let mut adm_idx = 0usize;
     let mut emitted_adm: Option<usize> = None;
     for child in ctx.tree.children(parent) {
-        // Under End placement at the document root, skip
-        // LinkReferenceDefinition nodes so the tail pass can sort
-        // and emit them in one place — without leaving stray
-        // separator newlines from the inter-block hard_line below.
-        if is_doc_root
-            && end_placement
-            && matches!(
-                ctx.tree.node(child).map(|n| &n.kind),
-                Some(NodeKind::LinkReferenceDefinition { .. })
-            )
-        {
-            continue;
-        }
         // Under End placement at the document root, defer
         // FootnoteDefinition nodes to a sorted tail pass.
         if is_doc_root
@@ -130,7 +115,7 @@ pub(crate) fn render_block_sequence<'a>(ctx: &Ctx<'a>, parent: NodeId) -> Doc<'a
         parts.push(render_block(ctx, child));
         emitted = emitted.saturating_add(1);
     }
-    if is_doc_root && end_placement {
+    if is_doc_root {
         append_link_def_tail(ctx, &mut parts);
     }
     if is_doc_root && footnote_end {
@@ -232,43 +217,30 @@ fn append_footnote_def_tail<'a>(ctx: &Ctx<'a>, parts: &mut Vec<Doc<'a>>) {
     }
 }
 
-/// At the document root under [`Placement::End`], append a sorted,
-/// deduplicated block of every link reference definition collected
-/// from the document. Footnote-shaped labels (`^foo`) are excluded —
-/// they belong to a separate emission path.
+/// At the document root, append every resolved link reference
+/// definition in insertion order. [`ReferenceTable::insert`] already
+/// enforces CM §4.7's "first definition wins" rule, so no de-dup is
+/// needed here. Footnote-shaped labels never enter the table —
+/// pulldown emits `FootnoteReference` events separately.
 fn append_link_def_tail<'a>(ctx: &Ctx<'a>, parts: &mut Vec<Doc<'a>>) {
-    let mut items: Vec<(String, NodeId, usize)> = Vec::new();
-    for child in ctx.tree.children(ctx.tree.root()) {
-        let Some(node) = ctx.tree.node(child) else {
-            continue;
-        };
-        if let NodeKind::LinkReferenceDefinition { label, .. } = &node.kind
-            && !label.starts_with('^')
-        {
-            items.push((label.to_ascii_lowercase(), child, node.raw_range.start));
-        }
-    }
-    if items.is_empty() {
+    if ctx.refs.is_empty() {
         return;
     }
-    items.sort_by(|a, b| a.0.cmp(&b.0).then(a.2.cmp(&b.2)));
-    let mut seen: HashSet<String> = HashSet::new();
-    items.retain(|i| seen.insert(i.0.clone()));
     if !parts.is_empty() {
         parts.push(hard_line());
     }
     let style = ctx.opts.link_def_style();
-    for (_, child, _) in items {
-        if let Some(node) = ctx.tree.node(child)
-            && let NodeKind::LinkReferenceDefinition { label, dest, title } = &node.kind
-        {
-            parts.push(render_link_ref_def(
-                label.as_ref(),
-                dest.as_ref(),
-                title.as_deref(),
-                style,
-            ));
-        }
+    // Stable alphabetical (case-insensitive) order — matches the
+    // canonical trailing-def block format the golden fixtures pin.
+    let mut targets: Vec<_> = ctx.refs.iter().collect();
+    targets.sort_by_key(|t| t.label_raw().to_ascii_lowercase());
+    for target in targets {
+        parts.push(render_link_ref_def(
+            target.label_raw(),
+            target.dest(),
+            target.title(),
+            style,
+        ));
     }
 }
 
@@ -314,24 +286,6 @@ pub(crate) fn render_block<'a>(ctx: &Ctx<'a>, id: NodeId) -> Doc<'a> {
         } => render_list(ctx, id, *ordered, *start, *tight, *marker_byte),
         NodeKind::Table { alignments } => render_table(ctx, id, alignments),
         NodeKind::FootnoteDefinition { label } => render_footnote_def(ctx, id, label.as_ref()),
-        NodeKind::LinkReferenceDefinition { label, dest, title } => {
-            // The flat-IR's link-def scan also picks up footnote
-            // definitions (`[^a]: …`) because they share the prefix
-            // shape. Pulldown emits those separately as
-            // `FootnoteDefinition`, so suppress the synthesised copy
-            // here to avoid double emission. Under End placement the
-            // tail pass owns emission; suppress here too.
-            if label.starts_with('^') || ctx.opts.link_def_placement() == Placement::End {
-                concat([])
-            } else {
-                render_link_ref_def(
-                    label.as_ref(),
-                    dest.as_ref(),
-                    title.as_deref(),
-                    ctx.opts.link_def_style(),
-                )
-            }
-        }
         // Container kinds we do not expect as direct block children:
         // `Document` is the root (handled by `render_block_sequence`);
         // `Item` is handled by `render_list`; table sub-parts are
@@ -976,7 +930,6 @@ fn is_block_kind(kind: Option<&NodeKind<'_>>) -> bool {
                 | NodeKind::List { .. }
                 | NodeKind::Table { .. }
                 | NodeKind::FootnoteDefinition { .. }
-                | NodeKind::LinkReferenceDefinition { .. }
         )
     )
 }

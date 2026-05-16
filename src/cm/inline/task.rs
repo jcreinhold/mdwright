@@ -7,7 +7,7 @@
 //! syntax at the right textual position.
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct TaskMarker {
+pub struct TaskMarker {
     checked: bool,
 }
 

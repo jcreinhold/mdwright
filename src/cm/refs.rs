@@ -231,6 +231,20 @@ impl ReferenceTable {
     }
 }
 
+impl LinkTarget {
+    pub(crate) fn label_raw(&self) -> &str {
+        &self.label_raw
+    }
+
+    pub(crate) fn dest(&self) -> &str {
+        &self.dest
+    }
+
+    pub(crate) fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+}
+
 /// Build the document's reference table from a pulldown event stream
 /// and the original source.
 ///

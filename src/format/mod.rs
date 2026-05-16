@@ -61,6 +61,7 @@ pub(crate) fn format_document<'a>(
     frontmatter: Option<&'a crate::ir::Frontmatter<'a>>,
     admonitions: &'a [crate::ir::AdmonitionRegion<'a>],
     math_regions: &'a [crate::format::math::MathRegion],
+    refs: &'a crate::cm::refs::ReferenceTable,
 ) -> String {
     let ctx = ctx::Ctx {
         source,
@@ -69,6 +70,7 @@ pub(crate) fn format_document<'a>(
         frontmatter,
         admonitions,
         math_regions,
+        refs,
     };
     let doc = if opts.mode() == FormatMode::Verbatim {
         // Emit the entire document source as one borrowed slice.

@@ -5,6 +5,7 @@
 //! Indent state is **not** here: it lives in the `Doc` IR via
 //! `Nest`, so recursion through the serializer stays pure.
 
+use crate::cm::refs::ReferenceTable;
 use crate::config::FmtOptions;
 use crate::format::math::MathRegion;
 use crate::ir::{AdmonitionRegion, Frontmatter};
@@ -23,4 +24,8 @@ pub(crate) struct Ctx<'a> {
     /// `\[ ... \]` (and the prose around it within the same block)
     /// pulldown-byte-identical between source and formatted output.
     pub math_regions: &'a [MathRegion],
+    /// Resolved link reference definitions in insertion order.
+    /// `LinkReferenceDefinition` is not a tree node — the table is
+    /// the single source of truth.
+    pub refs: &'a ReferenceTable,
 }

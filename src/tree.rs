@@ -50,9 +50,11 @@ use crate::cm::inline::autolink::AutolinkRun;
 use crate::cm::inline::code::InlineCodeRun;
 use crate::cm::inline::emphasis::{EmphasisRun, StrongRun};
 use crate::cm::inline::escape_policy::EscapeScope;
+use crate::cm::inline::footnote::FootnoteReference;
 use crate::cm::inline::html::InlineHtmlSpan;
 use crate::cm::inline::link::{ImageRun, LinkRun, LinkSourceKind};
 use crate::cm::inline::run::{InlineRun, RunInput};
+use crate::cm::inline::task::TaskMarker;
 use crate::cm::refs::ReferenceTable;
 
 /// Index into [`Tree`]'s arena. Stable for the life of the tree;
@@ -161,15 +163,6 @@ pub enum NodeKind<'a> {
     FootnoteDefinition {
         label: Cow<'a, str>,
     },
-    /// Reference link definition (`[label]: dest "title"`). Synthesised
-    /// from [`crate::ir::Ir::link_defs`] after the event walk; appears
-    /// as a direct child of the Document node in source order.
-    LinkReferenceDefinition {
-        label: Cow<'a, str>,
-        dest: Cow<'a, str>,
-        title: Option<Cow<'a, str>>,
-    },
-
     // Inline:
     /// A coalesced run of text + soft/hard breaks, with the
     /// `CommonMark` escape policy applied at construction.
@@ -184,8 +177,8 @@ pub enum NodeKind<'a> {
     Autolink(AutolinkRun<'a>),
     /// One inline HTML span.
     HtmlSpan(InlineHtmlSpan<'a>),
-    FootnoteReference(Cow<'a, str>),
-    TaskListMarker(bool),
+    FootnoteReference(FootnoteReference<'a>),
+    TaskListMarker(TaskMarker),
 
     /// Forward-compatibility fallback. Pulldown-cmark may emit tags
     /// we don't recognise (math when enabled, definition lists,
@@ -477,7 +470,8 @@ impl<'a> TreeBuilder<'a> {
             }
             Event::FootnoteReference(label) => {
                 self.flush_inline_run();
-                self.push_leaf(NodeKind::FootnoteReference(cow_to_cow(label)), range);
+                let r = FootnoteReference::new(cow_to_cow(label));
+                self.push_leaf(NodeKind::FootnoteReference(r), range);
             }
             Event::SoftBreak => {
                 self.push_inline_break(RunInput::SoftBreak, range);
@@ -497,7 +491,7 @@ impl<'a> TreeBuilder<'a> {
                 {
                     *task = Some(*checked);
                 }
-                self.push_leaf(NodeKind::TaskListMarker(*checked), range);
+                self.push_leaf(NodeKind::TaskListMarker(TaskMarker::new(*checked)), range);
             }
             // Math is not enabled in Options; if it ever appears,
             // record the bytes inline as text.
@@ -589,10 +583,11 @@ impl<'a> TreeBuilder<'a> {
         self.open.last_mut().and_then(|f| f.body_accum.as_mut())
     }
 
-    /// Synthesise `LinkReferenceDefinition` nodes from the document's
-    /// [`ReferenceTable`] (pulldown-cmark 0.13 does not emit events for
-    /// reference definitions), downgrade unresolved reference-style
-    /// links to raw source emission, and seal the Document root.
+    /// Downgrade unresolved reference-style links to raw source
+    /// emission, then seal the Document root. Reference definitions
+    /// themselves live in [`ReferenceTable`] (pulldown-cmark 0.13
+    /// does not emit events for them); the formatter reads that table
+    /// directly rather than via synthesised tree children.
     #[tracing::instrument(level = "debug", skip(self, refs))]
     pub(crate) fn finalize(mut self, refs: &ReferenceTable) -> Tree<'a> {
         // Flush any inline events left in the buffer (the document's
@@ -602,7 +597,7 @@ impl<'a> TreeBuilder<'a> {
         // pushed exactly one frame, so this pop must succeed; if it
         // ever doesn't, fall through with no Document children.
         let doc_pending_start = self.open.pop().map_or(0u32, |f| f.pending_start);
-        let mut doc_children: Vec<NodeId> =
+        let doc_children: Vec<NodeId> =
             self.pending.drain(doc_pending_start as usize..).collect();
 
         // Validate every reference-style Link / Image node against the
@@ -610,33 +605,6 @@ impl<'a> TreeBuilder<'a> {
         // formatter emits the original source span verbatim (CM §4.7
         // "leave as text").
         downgrade_unresolved_links(&mut self.arena, refs);
-
-        // Synthesise one LinkReferenceDefinition per resolved target
-        // (in source order) and append to doc_children, then sort by
-        // raw_range.start so they appear in source order alongside the
-        // rest. CM §4.7's "first definition wins" rule already deduped
-        // duplicates inside `ReferenceTable::insert`.
-        for target in refs.iter() {
-            let id = NodeId(u32::try_from(self.arena.len()).unwrap_or(u32::MAX));
-            self.arena.push(Node {
-                kind: NodeKind::LinkReferenceDefinition {
-                    label: Cow::Owned(target.label_raw.clone()),
-                    dest: Cow::Owned(target.dest.clone()),
-                    title: target.title.as_ref().map(|t| Cow::Owned(t.clone())),
-                },
-                raw_range: target.raw_range.clone(),
-                children: 0..0,
-                subtree_end: id.0.saturating_add(1),
-                typed: None,
-            });
-            self.parents.push(Some(NodeId(0)));
-            doc_children.push(id);
-        }
-        doc_children.sort_by_key(|id| {
-            self.arena
-                .get(id.idx())
-                .map_or(usize::MAX, |n| n.raw_range.start)
-        });
 
         let children_start = u32::try_from(self.child_ids.len()).unwrap_or(u32::MAX);
         self.child_ids.extend(doc_children.iter().copied());
@@ -1472,25 +1440,101 @@ let x = 1;
         assert_eq!(kind, LinkSourceKind::ReferenceShortcut);
     }
 
+    // Load-bearing invariant for prompt 27's total dispatcher: every
+    // printable block node carries a typed payload on `Node.typed`,
+    // and every printable inline NodeKind variant *is* its typed
+    // payload (one-arg tuple variant). The kitchen-sink fixture
+    // exercises every printable kind we expect; an unexercised arm
+    // means the fixture is missing a construct.
+    const TYPED_COVERAGE_KITCHEN: &str = include_str!("../tests/fixtures/typed_coverage_kitchen.md");
+
+    fn is_printable_block(k: &NodeKind<'_>) -> bool {
+        // `Item` and table sub-parts (TableHead/Row/Cell) are not in
+        // this set: their typed data lives inside the parent
+        // `ListBlock` / `TableBlock` payload, not on `node.typed`.
+        matches!(
+            k,
+            NodeKind::Paragraph
+                | NodeKind::Heading { .. }
+                | NodeKind::BlockQuote
+                | NodeKind::List { .. }
+                | NodeKind::CodeBlock { .. }
+                | NodeKind::HtmlBlock { .. }
+                | NodeKind::ThematicBreak
+                | NodeKind::Table { .. }
+                | NodeKind::FootnoteDefinition { .. }
+        )
+    }
+
     #[test]
-    fn link_reference_definitions_appear_as_doc_children() {
-        // Defs only enter the tree when at least one reference uses
+    fn every_printable_block_has_some_typed() {
+        let ir = Ir::parse(TYPED_COVERAGE_KITCHEN);
+        let tree = &ir.tree;
+        for id in tree.descendants(tree.root()) {
+            let node = tree.node(id).expect("descendant id is valid");
+            if is_printable_block(&node.kind) {
+                assert!(
+                    node.typed.is_some(),
+                    "block node {id:?} {:?} has no typed payload",
+                    node.kind,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_printable_inline_carries_typed_payload() {
+        // Compile-time check: each printable inline NodeKind variant
+        // matches as a single typed payload. Adding a new inline
+        // variant without a typed wrapper forces this match to be
+        // updated.
+        let ir = Ir::parse(TYPED_COVERAGE_KITCHEN);
+        let tree = &ir.tree;
+        for id in tree.descendants(tree.root()) {
+            let node = tree.node(id).expect("descendant id is valid");
+            match &node.kind {
+                NodeKind::Run(_)
+                | NodeKind::CodeRun(_)
+                | NodeKind::HtmlSpan(_)
+                | NodeKind::Emphasis(_)
+                | NodeKind::Strong(_)
+                | NodeKind::Strikethrough
+                | NodeKind::Link(_)
+                | NodeKind::Image(_)
+                | NodeKind::Autolink(_)
+                | NodeKind::FootnoteReference(_)
+                | NodeKind::TaskListMarker(_) => {}
+                NodeKind::Document
+                | NodeKind::Paragraph
+                | NodeKind::Heading { .. }
+                | NodeKind::BlockQuote
+                | NodeKind::List { .. }
+                | NodeKind::Item { .. }
+                | NodeKind::CodeBlock { .. }
+                | NodeKind::HtmlBlock { .. }
+                | NodeKind::ThematicBreak
+                | NodeKind::Table { .. }
+                | NodeKind::TableHead
+                | NodeKind::TableRow
+                | NodeKind::TableCell
+                | NodeKind::FootnoteDefinition { .. }
+                | NodeKind::Unknown { .. } => {}
+            }
+        }
+    }
+
+    #[test]
+    fn link_reference_definitions_appear_in_reference_table() {
+        // Defs only enter the table when at least one reference uses
         // them (the new pulldown-event-driven resolver dropped the
         // "emit unused defs verbatim" behaviour because unused defs
         // never affect HTML output anyway).
         let src = "[a]: https://a.example\n[b]: https://b.example\n\n[a] and [b].\n";
         let ir = Ir::parse(src);
-        let tree = &ir.tree;
-        let defs: Vec<String> = tree
-            .children(tree.root())
-            .filter_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::LinkReferenceDefinition { label, .. }) => Some(label.to_string()),
-                _ => None,
-            })
-            .collect();
-        let mut sorted = defs;
-        sorted.sort();
-        assert_eq!(sorted, vec!["a".to_owned(), "b".to_owned()]);
+        let mut labels: Vec<String> =
+            ir.refs.iter().map(|t| t.label_raw().to_owned()).collect();
+        labels.sort();
+        assert_eq!(labels, vec!["a".to_owned(), "b".to_owned()]);
     }
 
     #[test]

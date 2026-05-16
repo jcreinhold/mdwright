@@ -8,7 +8,7 @@
 use std::borrow::Cow;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct FootnoteReference<'a> {
+pub struct FootnoteReference<'a> {
     label: Cow<'a, str>,
 }
 

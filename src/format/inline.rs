@@ -55,8 +55,8 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId]) -> Doc<'a> 
             NodeKind::Link(run) => parts.push(render_link(ctx, cid, run)),
             NodeKind::Image(run) => parts.push(render_image(ctx, cid, run)),
             NodeKind::Autolink(run) => parts.push(render_autolink(run)),
-            NodeKind::FootnoteReference(label) => {
-                parts.push(text(format!("[^{label}]")));
+            NodeKind::FootnoteReference(r) => {
+                parts.push(text(format!("[^{}]", r.label())));
             }
             NodeKind::TaskListMarker(_) => {
                 // The list-item renderer prepends `[x] ` / `[ ] `; skip
@@ -79,7 +79,6 @@ pub(crate) fn render_inline_nodes<'a>(ctx: &Ctx<'a>, ids: &[NodeId]) -> Doc<'a> 
             | NodeKind::TableRow
             | NodeKind::TableCell
             | NodeKind::FootnoteDefinition { .. }
-            | NodeKind::LinkReferenceDefinition { .. }
             | NodeKind::Unknown { .. } => {
                 debug_assert!(
                     matches!(&node.kind, NodeKind::Unknown { .. }),
