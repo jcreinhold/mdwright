@@ -16,16 +16,33 @@ pub(crate) mod pretty;
 pub(crate) mod verbatim;
 pub(crate) mod wrap;
 
-use crate::config::EndOfLine;
+use crate::config::{EndOfLine, TrailingNewline};
 
-/// Ensure the rendered output ends in exactly one `\n` when
-/// `trailing_newline` is true, or no trailing newline when it is
-/// false.
-pub(crate) fn normalize_trailing_newline(out: &mut String, trailing: bool) {
+/// Apply the trailing-newline policy at the document boundary.
+///
+/// `Preserve` (the default) shapes the output to match the source's
+/// trailing-newline run: one terminating `\n` if the source had any,
+/// none otherwise. This is the only policy that survives
+/// `Document::format_validated` on inputs ending in an indented or
+/// fenced code block, where any LF the post-pass introduces lands
+/// inside the code body on re-parse and changes the rendered HTML.
+///
+/// `Strip` drops every trailing `\n`. `Ensure` forces exactly one
+/// trailing `\n` — the pre-Preserve behaviour, now opt-in.
+pub(crate) fn normalize_trailing_newline(
+    out: &mut String,
+    policy: TrailingNewline,
+    source: &str,
+) {
     while out.ends_with('\n') {
         let _ = out.pop();
     }
-    if trailing {
+    let want_trailing = match policy {
+        TrailingNewline::Preserve => source.ends_with('\n'),
+        TrailingNewline::Strip => false,
+        TrailingNewline::Ensure => true,
+    };
+    if want_trailing {
         out.push('\n');
     }
 }

@@ -145,7 +145,7 @@ pub struct FmtOptions {
     italic: ItalicStyle,
     list_marker: ListMarkerStyle,
     ordered_list: OrderedListStyle,
-    trailing_newline: bool,
+    trailing_newline: TrailingNewline,
     end_of_line: EndOfLine,
     exclude_globs: Vec<String>,
     link_def_placement: Placement,
@@ -197,9 +197,9 @@ impl FmtOptions {
         self.ordered_list
     }
 
-    /// Whether to ensure a trailing newline at end-of-file.
+    /// Trailing-newline policy at the document boundary.
     #[must_use]
-    pub fn trailing_newline(&self) -> bool {
+    pub fn trailing_newline(&self) -> TrailingNewline {
         self.trailing_newline
     }
 
@@ -330,7 +330,9 @@ impl FmtOptions {
             ordered_list: schema
                 .ordered_list
                 .map_or(default.ordered_list, OrderedListStyle::from),
-            trailing_newline: schema.trailing_newline.unwrap_or(default.trailing_newline),
+            trailing_newline: schema
+                .trailing_newline
+                .map_or(default.trailing_newline, TrailingNewline::from),
             end_of_line: schema
                 .end_of_line
                 .map_or(default.end_of_line, EndOfLine::from),
@@ -359,7 +361,7 @@ impl Default for FmtOptions {
             italic: ItalicStyle::Asterisk,
             list_marker: ListMarkerStyle::Dash,
             ordered_list: OrderedListStyle::Consistent,
-            trailing_newline: true,
+            trailing_newline: TrailingNewline::Preserve,
             end_of_line: EndOfLine::Lf,
             exclude_globs: Vec::new(),
             link_def_placement: Placement::End,
@@ -377,6 +379,35 @@ impl Default for FmtOptions {
             math: MathOptions::default(),
         }
     }
+}
+
+/// Trailing-newline policy applied at the document boundary.
+///
+/// `Preserve` (the default) matches the source's trailing-newline
+/// shape: if the source ends with one or more `\n` bytes, the
+/// formatted output ends with exactly one `\n`; if the source has no
+/// trailing `\n`, the output has none either. This is what
+/// `Document::format_validated` needs to hold: pulldown-cmark's HTML
+/// render of `\t\x10` is `<pre><code>\x10</code></pre>` while its
+/// render of `\t\x10\n` is `<pre><code>\x10\n</code></pre>` — the
+/// trailing LF lives inside the code body for any document ending in
+/// an indented code block. An unconditional "ensure trailing `\n`"
+/// post-pass cannot avoid that class of HTML-divergence; `Preserve`
+/// avoids it by construction.
+///
+/// `Strip` drops every trailing `\n`. `Ensure` forces exactly one
+/// trailing `\n` (the pre-Preserve `trailing_newline = true`
+/// behaviour); kept under an explicit name so callers opt in to the
+/// foot-gun rather than getting it by default.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum TrailingNewline {
+    /// Match the source: one trailing `\n` iff the source had any.
+    #[default]
+    Preserve,
+    /// Drop every trailing `\n`.
+    Strip,
+    /// Force exactly one trailing `\n`, appending if absent.
+    Ensure,
 }
 
 /// Formatter operating mode.
@@ -602,7 +633,7 @@ struct FmtSchema {
     #[serde(default, rename = "ordered-list")]
     ordered_list: Option<OrderedListSchema>,
     #[serde(default, rename = "trailing-newline")]
-    trailing_newline: Option<bool>,
+    trailing_newline: Option<TrailingNewlineSchema>,
     #[serde(default, rename = "end-of-line")]
     end_of_line: Option<EndOfLineSchema>,
     #[serde(default)]
@@ -688,6 +719,36 @@ enum ListMarkerSchema {
 enum OrderedListSchema {
     Consistent,
     Preserve,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum TrailingNewlineSchema {
+    Named(TrailingNewlineNamed),
+    /// `trailing-newline = true` ⇒ `Ensure`; `false` ⇒ `Strip`. Kept
+    /// for backward compatibility with config files written against
+    /// the pre-Preserve schema.
+    Bool(bool),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum TrailingNewlineNamed {
+    Preserve,
+    Strip,
+    Ensure,
+}
+
+impl From<TrailingNewlineSchema> for TrailingNewline {
+    fn from(s: TrailingNewlineSchema) -> Self {
+        match s {
+            TrailingNewlineSchema::Named(TrailingNewlineNamed::Preserve) => Self::Preserve,
+            TrailingNewlineSchema::Named(TrailingNewlineNamed::Strip) => Self::Strip,
+            TrailingNewlineSchema::Named(TrailingNewlineNamed::Ensure) => Self::Ensure,
+            TrailingNewlineSchema::Bool(true) => Self::Ensure,
+            TrailingNewlineSchema::Bool(false) => Self::Strip,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -806,7 +867,8 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema, Wrap,
+        Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema,
+        TrailingNewline, Wrap,
     };
 
     fn with_cwd<R>(p: &Path, f: impl FnOnce() -> Result<R>) -> Result<R> {
@@ -859,7 +921,7 @@ exclude = ["docs/generated/**"]
         assert_eq!(fmt.italic(), ItalicStyle::Asterisk);
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::Consistent);
-        assert!(fmt.trailing_newline());
+        assert_eq!(fmt.trailing_newline(), TrailingNewline::Ensure);
         assert_eq!(fmt.end_of_line(), EndOfLine::Lf);
         assert_eq!(fmt.exclude_globs(), &["docs/generated/**".to_owned()]);
         Ok(())

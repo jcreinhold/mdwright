@@ -55,7 +55,7 @@ pub(crate) fn format_document<'a>(
     // different structure on the next format pass. Normalise here,
     // once, at the document chokepoint.
     normalize_line_endings_lf(&mut out);
-    normalize_trailing_newline(&mut out, opts.trailing_newline());
+    normalize_trailing_newline(&mut out, opts.trailing_newline(), source);
     apply_end_of_line(&mut out, opts.end_of_line(), source);
     out
 }
