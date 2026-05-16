@@ -12,28 +12,34 @@ When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 `tests/regressions.rs`) and delete the matching entry from this
 README.
 
-## idempotence-bullet-marker-rewrite.in
+## idempotence-formfeed-paragraph-resplit.in
 
-Bytes (28): `* \v \n \0 \0 \n \n \0 \0 \0 \0 \x04 \0 \0 \0 \0 \0 \0 \0 \x17 \x17 \x17 \n \v \0 \0 > * \n` (the leading `*\v` is a `*` followed by a vertical tab).
+Bytes (10): `K \n \f \n + \n \f * * B` (the `\f` bytes are form-feed, U+000C).
 
-Once preserves the leading `*` line; twice rewrites it as a bullet
-list item (`- `) and inserts a leading blank line, perturbing the
-remaining structure:
+Once collapses the form-feed "line" between `K` and `+` into a
+blank-line separator, leaving `+\n\f**B` as one paragraph; twice
+reparses the resulting `+\n` as a bullet-list marker for an empty
+item (default bullet style `- `) and inserts an extra blank line:
 
 ```
-once : *\n\0\0\n\n\0\0\0\0\x04\0\0\0\0\0\0\0\x17\x17\x17\n\v\0\0>*\n
-twice: - \n\n\0\0\n\n\0\0\0\0\x04\0\0\0\0\0\0\0\x17\x17\x17\n\v\0\0>*\n
+once : K\n\n+\n\f**B\n
+twice: K\n\n- \n\n\f**B\n
 ```
 
-Bug class: a paragraph whose first line is exactly one `*` (after
-verbatim emission strips a trailing `\v` from its source line)
-reparses as the marker of an empty bullet list item. Sibling of
-the paragraph-line-start escape family, but the trigger is a
-*first*-line `*` (not a continuation line). `ParagraphBody`'s
-line-start safety pass currently restricts itself to continuation
-lines.
+Bug class differs from the lone-`*`-on-first-line family closed in
+`5d63f2a` / the helper merge: here the `+` is on a *continuation*
+line of a paragraph on the first format pass, so the line-start
+escape doesn't fire; on the second pass the form-feed-separator
+context that protected it on the first pass is gone, so the same
+`+\n` is now a list marker. Either:
 
-Fix shape (to investigate): extend the line-start safety pass to
-the first line as well, OR refuse root-verbatim emission for
-paragraphs whose first source line collapses to a single bullet-
-marker character after the chokepoint LF-norm.
+- the form-feed-only "line" must be classified by mdwright the
+  same way pulldown classifies it (so once and twice agree on
+  block boundaries), or
+- the safety pass needs to escape `+`/`-`/`*` at the start of any
+  paragraph-continuation line that becomes line-start-after-blank
+  in the emitted output (broader than the current
+  `escape_for_paragraph_interrupt` set, which by CM §5.3 declines
+  empty markers).
+
+Reproducer: `cargo +nightly fuzz run fuzz_idempotence fuzz/known-issues/idempotence-formfeed-paragraph-resplit.in`.

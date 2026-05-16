@@ -140,15 +140,32 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   dropped on the second format pass when the source had a `\r`
   separator); regression at
   `tests/regressions/fuzz_2ed01ab2.idem.in`.
+- `src/cm/block/paragraph.rs` collapses the two line-end lookahead
+  helpers (`next_on_same_line`, `next_on_same_source_line`) into
+  one that treats both `Doc::HardLine` and `Doc::Line` (soft
+  break) as the end of the current line. The first-line escape
+  decision now sees a trailing soft break as a line terminator,
+  which it is under `Wrap::Keep` once the soft break promotes to
+  a hard `\n`. The bug class "a soft break is treated as
+  continuation-on-the-same-line for the line-start escape but as
+  end-of-line for the setext escape" is unrepresentable — one
+  helper, one rule. Closes the parked
+  `fuzz/known-issues/idempotence-bullet-marker-rewrite.in`
+  (paragraph whose first inline text fragment was a lone `*`
+  followed by a soft break reparsed as an empty bullet-list
+  marker on the second format pass); regression at
+  `tests/regressions/fuzz_6695c40b.in`.
 
 ### Known issues
-- One new (different-class) fuzz find: a paragraph whose first
-  source line is `*\v` (asterisk + vertical tab) reparses as a
-  bullet list marker on the second format pass, perturbing the
-  remaining block structure. Sibling of the paragraph line-start
-  escape family but at the first line, where `ParagraphBody`'s
-  safety pass does not currently cover. Reproducer at
-  [`fuzz/known-issues/idempotence-bullet-marker-rewrite.in`](./fuzz/known-issues/README.md).
+- One new (different-class) fuzz find: a paragraph whose lines
+  are separated by a form-feed-only line is re-split by the
+  formatter such that a continuation-line `+` ends up at a
+  block-start position on reparse, promoting it to an empty
+  bullet-list marker. Class is "block-boundary classification
+  disagrees between once and twice when a whitespace-only line
+  carries non-blank-line whitespace (form-feed, line tabulation,
+  …)." Reproducer at
+  [`fuzz/known-issues/idempotence-formfeed-paragraph-resplit.in`](./fuzz/known-issues/README.md).
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 

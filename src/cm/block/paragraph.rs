@@ -161,10 +161,10 @@ fn apply_paragraph_safety<'a>(doc: Doc<'a>) -> Doc<'a> {
         match part {
             Doc::Text(s) => {
                 if !s.is_empty() {
+                    let next = next_on_same_line(&parts, i);
                     let escaped = if at_line_start {
-                        escape_for_block_start(s.as_ref(), next_on_same_line(&parts, i))
+                        escape_for_block_start(s.as_ref(), next)
                     } else if after_break && prev_line_had_text {
-                        let next = next_on_same_source_line(&parts, i);
                         escape_for_paragraph_interrupt(s.as_ref(), next)
                             .or_else(|| escape_setext_underline(s.as_ref(), next))
                     } else {
@@ -210,19 +210,17 @@ fn apply_paragraph_safety<'a>(doc: Doc<'a>) -> Doc<'a> {
     concat(out)
 }
 
+/// Lookahead used by every line-start / paragraph-interrupter /
+/// setext-underline escape decision. Both `Doc::HardLine` and
+/// `Doc::Line` (soft break) count as the end of the current line:
+/// under `Wrap::Keep` the soft break renders as a hard `\n` in the
+/// emitted bytes, and under `Wrap::At(_)` the safety pass runs
+/// before wrap, so over-escaping costs at most one `\` (HTML-
+/// equivalent inside paragraph text). Treating a soft break as
+/// "more inline content" would silently leak responsibility for
+/// the line-end escape onto the wrap stage, which does not
+/// re-check it.
 fn next_on_same_line(parts: &[Doc<'_>], i: usize) -> LineContext {
-    match parts.get(i.saturating_add(1)) {
-        Some(Doc::HardLine) | None => LineContext::EndOfLine,
-        Some(_) => LineContext::MoreContent,
-    }
-}
-
-/// Same as `next_on_same_line` but also treats `Doc::Line` (soft
-/// break) as the end of the current source line. The setext-underline
-/// check uses this variant because the dangerous case is precisely
-/// "this text fills the rest of the source line, then the wrap pass
-/// turns the soft break into a hard one."
-fn next_on_same_source_line(parts: &[Doc<'_>], i: usize) -> LineContext {
     match parts.get(i.saturating_add(1)) {
         Some(Doc::HardLine | Doc::Line) | None => LineContext::EndOfLine,
         Some(_) => LineContext::MoreContent,
