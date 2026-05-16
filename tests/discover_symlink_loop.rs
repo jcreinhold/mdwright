@@ -43,8 +43,14 @@ fn symlink_cycle_does_not_hang() -> anyhow::Result<()> {
         .filter_map(|p| p.file_name().and_then(|s| s.to_str()).map(str::to_owned))
         .collect();
     assert!(names.contains(&"real.md".to_owned()), "found = {names:?}");
-    assert!(names.contains(&"inside_a.md".to_owned()), "found = {names:?}");
-    assert!(names.contains(&"inside_b.md".to_owned()), "found = {names:?}");
+    assert!(
+        names.contains(&"inside_a.md".to_owned()),
+        "found = {names:?}"
+    );
+    assert!(
+        names.contains(&"inside_b.md".to_owned()),
+        "found = {names:?}"
+    );
     // No duplicates from cycle traversal.
     let mut sorted = names.clone();
     sorted.sort();

@@ -381,8 +381,5 @@ fn wrap_completes_on_dense_paragraph_below_cap() {
     let start = Instant::now();
     let _ = Document::parse(&src).format(&opts);
     let elapsed = start.elapsed();
-    assert!(
-        elapsed < Duration::from_secs(30),
-        "format took {elapsed:?}"
-    );
+    assert!(elapsed < Duration::from_secs(30), "format took {elapsed:?}");
 }

@@ -81,9 +81,7 @@ fn build(body: &str, scope: EscapeScope) -> String {
     // content monotonically across format passes.
     let needs_pad = body.starts_with('`')
         || body.ends_with('`')
-        || (body.starts_with(' ')
-            && body.ends_with(' ')
-            && body.bytes().any(|b| b != b' '));
+        || (body.starts_with(' ') && body.ends_with(' ') && body.bytes().any(|b| b != b' '));
     let escape_pipe = scope.in_table_cell && body.contains('|');
     let extra = if escape_pipe {
         body.bytes().filter(|&b| b == b'|').count()

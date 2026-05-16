@@ -72,7 +72,12 @@ struct Cli {
     /// cap bounds memory use against pathological inputs. Default
     /// 10 MB is generous enough that no real Markdown document trips
     /// it. Pass `0` to disable the cap entirely.
-    #[arg(long, value_name = "BYTES", default_value_t = 10_000_000, global = true)]
+    #[arg(
+        long,
+        value_name = "BYTES",
+        default_value_t = 10_000_000,
+        global = true
+    )]
     max_input_bytes: usize,
 
     #[command(subcommand)]

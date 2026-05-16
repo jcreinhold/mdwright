@@ -118,10 +118,9 @@ fn escape_tildes_in(s: Cow<'_, str>) -> Cow<'_, str> {
 /// common all-clean case.
 fn needs_tilde_escape(s: &str) -> bool {
     let bytes = s.as_bytes();
-    bytes
-        .iter()
-        .enumerate()
-        .any(|(i, &b)| b == b'~' && i.checked_sub(1).and_then(|j| bytes.get(j)).copied() != Some(b'\\'))
+    bytes.iter().enumerate().any(|(i, &b)| {
+        b == b'~' && i.checked_sub(1).and_then(|j| bytes.get(j)).copied() != Some(b'\\')
+    })
 }
 
 /// Debug-only invariant check: walk `body` and confirm no

@@ -1,8 +1,8 @@
 [package]
-name = "mdwright-fuzz"
-version = "0.0.0"
 edition = "2024"
+name = "mdwright-fuzz"
 publish = false
+version = "0.0.0"
 
 [package.metadata]
 cargo-fuzz = true
@@ -12,22 +12,22 @@ libfuzzer-sys = "0.4"
 mdwright = { path = ".." }
 
 [[bin]]
+bench = false
+doc = false
 name = "fuzz_parse_format"
 path = "fuzz_targets/fuzz_parse_format.rs"
 test = false
-doc = false
-bench = false
 
 [[bin]]
+bench = false
+doc = false
 name = "fuzz_idempotence"
 path = "fuzz_targets/fuzz_idempotence.rs"
 test = false
-doc = false
-bench = false
 
 [[bin]]
+bench = false
+doc = false
 name = "fuzz_lint"
 path = "fuzz_targets/fuzz_lint.rs"
 test = false
-doc = false
-bench = false
