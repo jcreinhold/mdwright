@@ -4,6 +4,11 @@ name = "mdwright-fuzz"
 publish = false
 version = "0.0.0"
 
+# Stand-alone workspace: the root `[workspace]` table excludes `fuzz`, but
+# cargo still walks upward and refuses to build without an explicit marker
+# here. Keep this empty so the fuzz crate resolves only its own dependencies.
+[workspace]
+
 [package.metadata]
 cargo-fuzz = true
 
