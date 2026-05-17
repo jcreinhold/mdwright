@@ -8,8 +8,7 @@
 //! [`StrongRun`](crate::cm::inline::emphasis::StrongRun) its chosen
 //! delimiter.
 
-use crate::cm::inline::emphasis::{EmphasisDelim, EmphasisRun, ResolveCtx, StrongRun};
-use crate::cm::inline::link::flatten_body_doc;
+use crate::cm::inline::emphasis::{EmphasisDelim, ResolveCtx};
 use crate::cm::inline::strikethrough::Strikethrough;
 use crate::format::doc::{Doc, concat, text};
 use crate::format::emit_safety::{FlankCtx, RunKind, emit_emphasis_safely};
@@ -53,8 +52,6 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                     source_slice,
                     flank,
                 ));
-                let _ = run;
-                let _ = EmphasisRun::pretty;
                 left_emphasis_delim = Some(delim);
                 continue;
             }
@@ -74,8 +71,6 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                     source_slice,
                     flank,
                 ));
-                let _ = run;
-                let _ = StrongRun::pretty;
             }
             NodeKind::Strikethrough => {
                 let body = pretty_inline_children(ctx, cid);
@@ -120,10 +115,6 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
         }
         left_emphasis_delim = None;
     }
-    // `flatten_body_doc` is re-exported through `cm::inline::link`; the
-    // unused import below keeps clippy from removing the visibility
-    // contract this module relies on.
-    let _ = flatten_body_doc;
     concat(parts)
 }
 
