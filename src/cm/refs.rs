@@ -135,17 +135,6 @@ pub(crate) struct LinkTarget {
     pub(crate) raw_range: Range<usize>,
 }
 
-/// Diagnostic for a duplicate definition. The first definition wins
-/// (CM §4.7); subsequent ones land here so a future linter pass can
-/// surface them. Not yet wired to the diagnostic stream — that's
-/// prompt 34 (error UX).
-#[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub(crate) struct DuplicateDiagnostic {
-    pub(crate) label: NormalisedLabel,
-    pub(crate) raw_range: Range<usize>,
-}
-
 /// Per-document reference table. Built once in
 /// [`build_reference_table`]; immutable thereafter.
 #[derive(Debug, Default)]
@@ -153,14 +142,10 @@ pub(crate) struct ReferenceTable {
     // FxHash chosen over std SipHash because link labels are short
     // strings looked up on every reference link; SipHash's collision
     // resistance is not needed for a per-document table that never
-    // crosses a trust boundary. ahash considered and rejected:
-    // randomised seeds defeat snapshot-test determinism for the
-    // duplicate-diagnostic ordering. See
-    // `/optimizing-rust-performance` references/intervention-patterns
-    // §Hashing.
+    // crosses a trust boundary.
     by_label: FxHashMap<NormalisedLabel, ReferenceHandle>,
     targets: Vec<LinkTarget>,
-    duplicates: Vec<DuplicateDiagnostic>,
+    duplicate_count: u32,
 }
 
 impl ReferenceTable {
@@ -176,9 +161,10 @@ impl ReferenceTable {
         self.by_label.get(&norm).copied()
     }
 
-    /// Look up a target by handle. Always returns `Some` for handles
-    /// obtained from this table.
-    #[allow(dead_code)]
+    /// Look up a target by handle. Test-only; production paths
+    /// consume the table via [`Self::iter`] (the format walker) or
+    /// [`Self::resolve`] (the link resolver).
+    #[cfg(test)]
     pub(crate) fn target(&self, h: ReferenceHandle) -> Option<&LinkTarget> {
         self.targets.get(h.0 as usize)
     }
@@ -188,35 +174,19 @@ impl ReferenceTable {
         self.targets.iter()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn is_empty(&self) -> bool {
         self.targets.is_empty()
     }
 
-    #[cfg(test)]
-    #[allow(dead_code)]
-    pub(crate) fn len(&self) -> usize {
-        self.targets.len()
-    }
-
-    #[cfg(test)]
-    #[allow(dead_code)]
-    pub(crate) fn duplicates(&self) -> &[DuplicateDiagnostic] {
-        &self.duplicates
-    }
-
     /// Insert a candidate target observed on a reference-style Link /
     /// Image event. CM §4.7: first definition wins; duplicates are
-    /// recorded as diagnostics but do not displace the winner.
+    /// counted (for observability) but do not displace the winner.
     fn insert(&mut self, label_raw: String, dest: String, title: Option<String>) {
         let Some(norm) = NormalisedLabel::from_raw(&label_raw) else {
             return;
         };
         if self.by_label.contains_key(&norm) {
-            self.duplicates.push(DuplicateDiagnostic {
-                label: norm,
-                raw_range: usize::MAX..usize::MAX,
-            });
+            self.duplicate_count = self.duplicate_count.saturating_add(1);
             return;
         }
         let idx = u32::try_from(self.targets.len()).unwrap_or(u32::MAX);
@@ -323,7 +293,7 @@ pub(crate) fn build_reference_table(events: &[Event<'_>], source: &str) -> Refer
     }
     tracing::debug!(
         defs = table.targets.len(),
-        dupes = table.duplicates.len(),
+        dupes = table.duplicate_count,
         "refs built"
     );
     table

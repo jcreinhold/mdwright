@@ -23,7 +23,8 @@
 
 use std::borrow::Cow;
 
-use crate::cm::refs::{ReferenceHandle, ReferenceTable};
+#[cfg(test)]
+use crate::cm::refs::ReferenceTable;
 use crate::format::doc::Doc;
 
 /// Source CM grammar variant pulldown classified the link as.
@@ -73,17 +74,10 @@ impl LinkSource {
 }
 
 /// A reference-style link that has been resolved against the
-/// document's [`ReferenceTable`]. The `handle` field is proof of
-/// resolution; the `label` field is what the source wrote between the
-/// brackets, used verbatim for `[label]` emission.
+/// document's [`ReferenceTable`]. The `label` field is what the source
+/// wrote between the brackets, used verbatim for `[label]` emission.
 #[derive(Clone, Debug)]
 pub(crate) struct ResolvedRef {
-    /// Resolution token. `Some` after the finalize validation pass or
-    /// after construction via [`LinkRun::try_new_reference`]; `None`
-    /// for nodes built by `from_pulldown_reference` that have not yet
-    /// been validated.
-    #[allow(dead_code)]
-    handle: Option<ReferenceHandle>,
     label: String,
 }
 
@@ -94,14 +88,13 @@ impl ResolvedRef {
 }
 
 /// A reference-style link that could not be resolved against the
-/// document's [`ReferenceTable`]. The tree builder catches this and
-/// emits the original source span as plain text instead.
-///
-/// Currently only consumed by [`LinkRun::try_new_reference`] /
-/// [`ImageRun::try_new_reference`] and their unit tests; the
-/// production path uses [`LinkRun::from_pulldown_reference`] +
-/// post-pass validation. Kept for the prompt 34 diagnostic surface.
-#[allow(dead_code)]
+/// document's [`ReferenceTable`]. Used only by the test-only
+/// [`LinkRun::try_new_reference`] /
+/// [`ImageRun::try_new_reference`] helpers; the production path
+/// uses [`LinkRun::from_pulldown_reference`] + post-pass validation
+/// and downgrades unresolved labels to raw source emission instead
+/// of producing an error.
+#[cfg(test)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LinkError {
     UnresolvedReference,
@@ -167,10 +160,7 @@ impl LinkRun {
         title: String,
         label: String,
     ) -> Self {
-        let resolved = ResolvedRef {
-            handle: None,
-            label,
-        };
+        let resolved = ResolvedRef { label };
         let source = match kind {
             LinkSourceKind::Inline => LinkSource::Inline,
             LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
@@ -185,10 +175,12 @@ impl LinkRun {
     }
 
     /// Resolve a reference-style link against `table`. Returns
-    /// [`LinkError::UnresolvedReference`] when the label is missing —
-    /// the tree builder downgrades that to plain text per CM §4.7.
-    /// Used by tests and the finalize validation pass.
-    #[allow(dead_code)]
+    /// [`LinkError::UnresolvedReference`] when the label is missing.
+    /// Test-only: production goes through
+    /// [`Self::from_pulldown_reference`] + post-pass validation, which
+    /// downgrades unresolved labels to raw-source emission rather than
+    /// erroring.
+    #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(table))]
     pub(crate) fn try_new_reference(
         kind: LinkSourceKind,
@@ -265,10 +257,7 @@ impl ImageRun {
         title: String,
         label: String,
     ) -> Self {
-        let resolved = ResolvedRef {
-            handle: None,
-            label,
-        };
+        let resolved = ResolvedRef { label };
         let source = match kind {
             LinkSourceKind::Inline => LinkSource::Inline,
             LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
@@ -282,8 +271,8 @@ impl ImageRun {
         }
     }
 
-    /// Image counterpart to [`LinkRun::try_new_reference`].
-    #[allow(dead_code)]
+    /// Image counterpart to [`LinkRun::try_new_reference`]. Test-only.
+    #[cfg(test)]
     #[tracing::instrument(level = "trace", skip(table))]
     pub(crate) fn try_new_reference(
         kind: LinkSourceKind,
@@ -331,19 +320,14 @@ impl ImageRun {
     }
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 fn resolve_kind(
     kind: LinkSourceKind,
     label: String,
     table: &ReferenceTable,
 ) -> Result<LinkSource, LinkError> {
-    let handle = table
-        .resolve(&label)
-        .ok_or(LinkError::UnresolvedReference)?;
-    let resolved = ResolvedRef {
-        handle: Some(handle),
-        label,
-    };
+    table.resolve(&label).ok_or(LinkError::UnresolvedReference)?;
+    let resolved = ResolvedRef { label };
     Ok(match kind {
         LinkSourceKind::Inline => LinkSource::Inline,
         LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
