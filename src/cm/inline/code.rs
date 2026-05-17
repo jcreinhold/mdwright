@@ -38,11 +38,12 @@ impl InlineCodeRun {
     pub(crate) fn new(body: &str, scope: EscapeScope) -> Self {
         let out = build(body, scope);
         debug_assert!(
-            reparses_to(&out, body),
+            reparses_to(&out, body, scope),
             "InlineCodeRun: emitted bytes do not reparse to body — \
-             body={:?} bytes={:?}",
+             body={:?} bytes={:?} scope={:?}",
             body,
             out,
+            scope,
         );
         Self { bytes: out }
     }
@@ -117,17 +118,32 @@ fn build(body: &str, scope: EscapeScope) -> String {
     out
 }
 
-/// Debug-only round-trip check: parse `bytes` with pulldown and
-/// verify the single emitted `Event::Code` has content equal to
-/// `body`. Used in the `debug_assert!` inside
-/// [`InlineCodeRun::new`] so any future change that breaks the
-/// constructor's round-trip invariant fails immediately in tests.
-/// Compiled away in release builds.
+/// Debug-only round-trip check: parse `bytes` *in their target
+/// embedding context* (paragraph or table cell) and verify the single
+/// emitted `Event::Code` has content equal to `body`. The embedding
+/// context matters because the GFM table parser decodes `\|` escapes
+/// *before* the inline parser sees the cell content, so a code span
+/// containing `\|` reparses correctly inside a table cell but not in
+/// a paragraph. Compiled away in release builds.
 #[cfg(debug_assertions)]
-fn reparses_to(bytes: &str, body: &str) -> bool {
+fn reparses_to(bytes: &str, body: &str, scope: EscapeScope) -> bool {
     use pulldown_cmark::{Event, Options, Parser};
+
+    let (input, opts): (String, Options) = if scope.in_table_cell {
+        // Wrap the bytes in a minimal GFM table so pulldown's table
+        // parser runs over them and applies the escape rules the
+        // formatter relied on. The first row is the header; the
+        // second is the delimiter line; the third is the data row
+        // that carries our code span.
+        let mut opts = Options::empty();
+        opts.insert(Options::ENABLE_TABLES);
+        (format!("|h|\n|---|\n|{bytes}|\n"), opts)
+    } else {
+        (bytes.to_owned(), Options::empty())
+    };
+
     let mut found: Option<String> = None;
-    for ev in Parser::new_ext(bytes, Options::empty()) {
+    for ev in Parser::new_ext(&input, opts) {
         if let Event::Code(s) = ev {
             if found.is_some() {
                 return false;
@@ -138,7 +154,7 @@ fn reparses_to(bytes: &str, body: &str) -> bool {
     found.as_deref() == Some(body)
 }
 #[cfg(not(debug_assertions))]
-fn reparses_to(_: &str, _: &str) -> bool {
+fn reparses_to(_: &str, _: &str, _: EscapeScope) -> bool {
     true
 }
 
