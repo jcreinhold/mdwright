@@ -233,10 +233,7 @@ impl ListBlock {
     /// with no items is a degenerate pulldown shape — leave the
     /// typed view absent and fall back to legacy emission).
     #[tracing::instrument(level = "trace", skip_all, fields(marker = ?marker, items_len = items.len()))]
-    pub(crate) fn try_new(
-        marker: ListMarker,
-        items: Vec<ListItemKind>,
-    ) -> Result<Self, ListBlockError> {
+    pub(crate) fn try_new(marker: ListMarker, items: Vec<ListItemKind>) -> Result<Self, ListBlockError> {
         if items.is_empty() {
             return Err(ListBlockError::Empty);
         }
@@ -257,10 +254,7 @@ impl ListBlock {
     /// Ordered lists distinguish themselves by `start`; bullet adjacency
     /// resolution applies only to the unordered case.
     pub(crate) fn is_unordered(&self) -> bool {
-        matches!(
-            self.marker,
-            ListMarker::Dash | ListMarker::Asterisk | ListMarker::Plus
-        )
+        matches!(self.marker, ListMarker::Dash | ListMarker::Asterisk | ListMarker::Plus)
     }
 
     /// Source bullet byte (`-`, `*`, or `+`) for unordered lists.
@@ -291,11 +285,7 @@ impl ListBlock {
     /// pulldown would have parsed them as a single list); if even the
     /// source bullet collides, pick any byte from `{-, *, +}` that
     /// avoids the collision.
-    pub(crate) fn resolve_unordered_bullet(
-        &self,
-        opts: &crate::config::FmtOptions,
-        avoid: Option<u8>,
-    ) -> u8 {
+    pub(crate) fn resolve_unordered_bullet(&self, opts: &crate::config::FmtOptions, avoid: Option<u8>) -> u8 {
         debug_assert!(self.is_unordered());
         let source_byte = self.source_bullet_byte();
         let candidate = opts.resolve_list_marker(source_byte);
@@ -345,8 +335,7 @@ impl ListBlock {
     ) -> crate::format::doc::Doc<'a> {
         use crate::format::doc::{concat, hard_line};
         let tight = matches!(self.tightness, Tightness::Tight);
-        let mut parts: Vec<crate::format::doc::Doc<'a>> =
-            Vec::with_capacity(self.items.len().saturating_mul(2));
+        let mut parts: Vec<crate::format::doc::Doc<'a>> = Vec::with_capacity(self.items.len().saturating_mul(2));
         // Each rendered item's body already ends with a `HardLine`
         // (the block-helper contract). For tight lists that hard
         // line is the only between-items separator we want; for
@@ -373,38 +362,28 @@ impl ListBlock {
             ListMarker::Ordered { start, delim } => {
                 let n = match ctx.opts.ordered_list() {
                     OrderedListStyle::Consistent => u64::from(start).saturating_add(idx as u64),
-                    OrderedListStyle::Preserve => {
-                        source_ordered_marker_number(ctx, item_kind.item_id())
-                            .unwrap_or_else(|| u64::from(start).saturating_add(idx as u64))
-                    }
+                    OrderedListStyle::Preserve => source_ordered_marker_number(ctx, item_kind.item_id())
+                        .unwrap_or_else(|| u64::from(start).saturating_add(idx as u64)),
                 };
-                let punct = source_ordered_punct(ctx, item_kind.item_id())
-                    .unwrap_or_else(|| delim.as_char());
+                let punct = source_ordered_punct(ctx, item_kind.item_id()).unwrap_or_else(|| delim.as_char());
                 format!("{n}{punct} ")
             }
             ListMarker::Dash | ListMarker::Asterisk | ListMarker::Plus => {
-                let b = unordered_bullet
-                    .unwrap_or_else(|| ctx.opts.resolve_list_marker(self.source_bullet_byte()));
+                let b = unordered_bullet.unwrap_or_else(|| ctx.opts.resolve_list_marker(self.source_bullet_byte()));
                 format!("{} ", char::from(b))
             }
         }
     }
 }
 
-fn source_ordered_marker_number(
-    ctx: &crate::format::pretty::PrettyCtx<'_>,
-    item_id: NodeId,
-) -> Option<u64> {
+fn source_ordered_marker_number(ctx: &crate::format::pretty::PrettyCtx<'_>, item_id: NodeId) -> Option<u64> {
     let raw = ctx.tree.raw_text(ctx.source, item_id);
     let trimmed = raw.trim_start();
     let digits: String = trimmed.chars().take_while(char::is_ascii_digit).collect();
     digits.parse().ok()
 }
 
-fn source_ordered_punct(
-    ctx: &crate::format::pretty::PrettyCtx<'_>,
-    item_id: NodeId,
-) -> Option<char> {
+fn source_ordered_punct(ctx: &crate::format::pretty::PrettyCtx<'_>, item_id: NodeId) -> Option<char> {
     let raw = ctx.tree.raw_text(ctx.source, item_id);
     let trimmed = raw.trim_start();
     trimmed
@@ -464,10 +443,7 @@ fn indent_cow(n: usize) -> Cow<'static, str> {
 /// virtual paragraphs and recurses into block children normally. When
 /// the parent list is loose, item-internal blocks are separated by a
 /// blank line.
-fn render_item_body<'a>(
-    ctx: &crate::format::pretty::PrettyCtx<'a>,
-    id: NodeId,
-) -> crate::format::doc::Doc<'a> {
+fn render_item_body<'a>(ctx: &crate::format::pretty::PrettyCtx<'a>, id: NodeId) -> crate::format::doc::Doc<'a> {
     use crate::cm::block::paragraph::ParagraphBody;
     use crate::format::doc::{concat, hard_line};
     use crate::tree::NodeKind;
@@ -482,9 +458,7 @@ fn render_item_body<'a>(
     let mut inline_run: Vec<NodeId> = Vec::new();
     let mut emitted = 0usize;
 
-    let flush_inline = |run: &mut Vec<NodeId>,
-                        parts: &mut Vec<crate::format::doc::Doc<'a>>,
-                        emitted: &mut usize| {
+    let flush_inline = |run: &mut Vec<NodeId>, parts: &mut Vec<crate::format::doc::Doc<'a>>, emitted: &mut usize| {
         if run.is_empty() {
             return;
         }
@@ -562,15 +536,9 @@ pub(crate) fn item_indent(source: &str, raw_range: core::ops::Range<usize>) -> u
             i = i.saturating_add(1);
         }
         let line_bytes = bytes.get(line_start..i).unwrap_or(&[]);
-        if line_bytes
-            .iter()
-            .any(|b| !matches!(*b, b' ' | b'\t' | b'\r'))
-        {
+        if line_bytes.iter().any(|b| !matches!(*b, b' ' | b'\t' | b'\r')) {
             // Non-blank line — count its indent.
-            let count = line_bytes
-                .iter()
-                .take_while(|b| matches!(**b, b' ' | b'\t'))
-                .count();
+            let count = line_bytes.iter().take_while(|b| matches!(**b, b' ' | b'\t')).count();
             return u8::try_from(count).unwrap_or(u8::MAX);
         }
         if i >= bytes.len() {
@@ -620,13 +588,7 @@ mod tests {
 
     #[test]
     fn tightness_loose_when_task_item_has_paragraph() {
-        let items = vec![ListItemKind::Task(TaskItem::new(
-            nid(0),
-            0,
-            true,
-            false,
-            false,
-        ))];
+        let items = vec![ListItemKind::Task(TaskItem::new(nid(0), 0, true, false, false))];
         assert_eq!(Tightness::from_items(&items), Tightness::Loose);
     }
 
@@ -694,10 +656,7 @@ mod tests {
     fn marker_from_legacy_ordered_start_overflow_rejected() {
         // 2^32 does not fit in u32; the constructor returns None.
         let huge: u64 = u64::from(u32::MAX) + 1;
-        assert_eq!(
-            ListMarker::from_legacy(true, huge, b'1', "1. a\n", 0..5),
-            None,
-        );
+        assert_eq!(ListMarker::from_legacy(true, huge, b'1', "1. a\n", 0..5), None,);
     }
 
     #[test]

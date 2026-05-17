@@ -185,8 +185,7 @@ fn next_line_span(source: &str, after: usize) -> Option<Range<usize>> {
         if line_start >= bytes.len() {
             return None;
         }
-        let at_line_start =
-            line_start == 0 || bytes.get(line_start.saturating_sub(1)).copied() == Some(b'\n');
+        let at_line_start = line_start == 0 || bytes.get(line_start.saturating_sub(1)).copied() == Some(b'\n');
         if at_line_start {
             break;
         }

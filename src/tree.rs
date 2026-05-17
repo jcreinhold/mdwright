@@ -39,9 +39,7 @@ use crate::cm::block::code::{CodeFenceChar, FencedCodeBlock, IndentedCodeBlock};
 use crate::cm::block::footnote::FootnoteDef;
 use crate::cm::block::heading::{Heading, HeadingLevel, HeadingStyle};
 use crate::cm::block::html::HtmlBlock;
-use crate::cm::block::list::{
-    ListBlock, ListItem, ListItemKind, ListMarker, TaskItem, Tightness, item_indent,
-};
+use crate::cm::block::list::{ListBlock, ListItem, ListItemKind, ListMarker, TaskItem, Tightness, item_indent};
 use crate::cm::block::paragraph::Paragraph;
 use crate::cm::block::quote::BlockQuote;
 use crate::cm::block::table::{TableBlock, TableCell, TableRow};
@@ -466,19 +464,12 @@ impl<'a> TreeBuilder<'a> {
                 // when present. Fuzz-found
                 // `html-pi-leading-whitespace.in`.
                 let range = match &kind {
-                    NodeKind::CodeBlock { fenced: false, .. } => {
-                        widen_to_line_start(self.source, range)
-                    }
-                    NodeKind::HtmlBlock { .. } => {
-                        widen_to_line_start_through_ws(self.source, range)
-                    }
+                    NodeKind::CodeBlock { fenced: false, .. } => widen_to_line_start(self.source, range),
+                    NodeKind::HtmlBlock { .. } => widen_to_line_start_through_ws(self.source, range),
                     _ => range,
                 };
-                let body_accum = matches!(
-                    &kind,
-                    NodeKind::CodeBlock { .. } | NodeKind::HtmlBlock { .. }
-                )
-                .then(String::new);
+                let body_accum =
+                    matches!(&kind, NodeKind::CodeBlock { .. } | NodeKind::HtmlBlock { .. }).then(String::new);
                 let scope = self.current_scope_after_start(tag);
                 self.open_container(kind, range, body_accum);
                 self.scope_stack.push(scope);
@@ -583,12 +574,7 @@ impl<'a> TreeBuilder<'a> {
     }
 
     /// Push a decoded text payload into the inline accumulator.
-    fn push_inline_text(
-        &mut self,
-        payload: Cow<'a, str>,
-        source: Option<&'a str>,
-        range: Range<usize>,
-    ) {
+    fn push_inline_text(&mut self, payload: Cow<'a, str>, source: Option<&'a str>, range: Range<usize>) {
         self.extend_inline_range(&range);
         self.inline_buf.push(RunInput::Text { payload, source });
     }
@@ -854,8 +840,7 @@ impl<'a> TreeBuilder<'a> {
             Some(NodeKind::Table { .. })
         );
         let typed = if node_is_list {
-            build_list_block(&self.arena, &self.child_ids, self.source, frame.arena_id)
-                .map(TypedBlock::ListBlock)
+            build_list_block(&self.arena, &self.child_ids, self.source, frame.arena_id).map(TypedBlock::ListBlock)
         } else if node_is_table {
             build_table_block(&self.arena, &self.child_ids, frame.arena_id).map(TypedBlock::Table)
         } else {
@@ -869,9 +854,7 @@ impl<'a> TreeBuilder<'a> {
             // field so the legacy formatter (block.rs:794) keeps
             // working unchanged. This mirror retires alongside the
             // formatter swap in prompt 27.
-            if let (NodeKind::List { tight: t, .. }, Some(TypedBlock::ListBlock(lb))) =
-                (&mut node.kind, &typed)
-            {
+            if let (NodeKind::List { tight: t, .. }, Some(TypedBlock::ListBlock(lb))) = (&mut node.kind, &typed) {
                 *t = matches!(lb.tightness(), Tightness::Tight);
             }
             node.typed = typed;
@@ -923,9 +906,7 @@ impl<'a> TreeBuilder<'a> {
                     body: String::new(),
                 }
             }
-            Tag::HtmlBlock => NodeKind::HtmlBlock {
-                body: String::new(),
-            },
+            Tag::HtmlBlock => NodeKind::HtmlBlock { body: String::new() },
             Tag::List(start) => NodeKind::List {
                 ordered: start.is_some(),
                 start: start.unwrap_or(0),
@@ -965,18 +946,14 @@ impl<'a> TreeBuilder<'a> {
             } => link_kind(*link_type, dest_url, title, id, /* is_image= */ true),
             Tag::Superscript => NodeKind::Unknown { tag: "Superscript" },
             Tag::Subscript => NodeKind::Unknown { tag: "Subscript" },
-            Tag::DefinitionList => NodeKind::Unknown {
-                tag: "DefinitionList",
-            },
+            Tag::DefinitionList => NodeKind::Unknown { tag: "DefinitionList" },
             Tag::DefinitionListTitle => NodeKind::Unknown {
                 tag: "DefinitionListTitle",
             },
             Tag::DefinitionListDefinition => NodeKind::Unknown {
                 tag: "DefinitionListDefinition",
             },
-            Tag::MetadataBlock(_) => NodeKind::Unknown {
-                tag: "MetadataBlock",
-            },
+            Tag::MetadataBlock(_) => NodeKind::Unknown { tag: "MetadataBlock" },
         }
     }
 }
@@ -1008,13 +985,7 @@ fn downgrade_unresolved_links(arena: &mut [Node], refs: &ReferenceTable) {
     }
 }
 
-fn link_kind(
-    lt: LinkType,
-    dest_url: &CowStr<'_>,
-    title: &CowStr<'_>,
-    id: &CowStr<'_>,
-    is_image: bool,
-) -> NodeKind {
+fn link_kind(lt: LinkType, dest_url: &CowStr<'_>, title: &CowStr<'_>, id: &CowStr<'_>, is_image: bool) -> NodeKind {
     let ref_kind = match lt {
         LinkType::Autolink => {
             return NodeKind::Autolink(AutolinkRun::new(dest_url.to_string()));
@@ -1025,9 +996,7 @@ fn link_kind(
         LinkType::WikiLink { .. } => return NodeKind::Unknown { tag: "WikiLink" },
         LinkType::Inline => None,
         LinkType::Reference | LinkType::ReferenceUnknown => Some(LinkSourceKind::ReferenceFull),
-        LinkType::Collapsed | LinkType::CollapsedUnknown => {
-            Some(LinkSourceKind::ReferenceCollapsed)
-        }
+        LinkType::Collapsed | LinkType::CollapsedUnknown => Some(LinkSourceKind::ReferenceCollapsed),
         LinkType::Shortcut | LinkType::ShortcutUnknown => Some(LinkSourceKind::ReferenceShortcut),
     };
     let dest = dest_url.to_string();
@@ -1155,27 +1124,19 @@ fn build_typed_block(kind: &NodeKind, source: &str, raw_range: Range<usize>) -> 
             )))
         }
         NodeKind::CodeBlock {
-            fenced: false,
-            body,
-            ..
-        } => Some(TypedBlock::IndentedCodeBlock(IndentedCodeBlock::new(
-            body.clone(),
-        ))),
+            fenced: false, body, ..
+        } => Some(TypedBlock::IndentedCodeBlock(IndentedCodeBlock::new(body.clone()))),
         NodeKind::BlockQuote => Some(TypedBlock::BlockQuote(BlockQuote::new())),
         NodeKind::ThematicBreak => {
             // The chosen style is a formatter policy, not a tree-IR
             // fact; stamp the prompt-16 default here, and let the
             // emitter swap in `FmtOptions::thematic_break_style` at
             // render time.
-            Some(TypedBlock::ThematicBreak(ThematicBreak::new(
-                ThematicStyle::Dash,
-            )))
+            Some(TypedBlock::ThematicBreak(ThematicBreak::new(ThematicStyle::Dash)))
         }
         NodeKind::Paragraph => Some(TypedBlock::Paragraph(Paragraph::new())),
         NodeKind::HtmlBlock { body } => Some(TypedBlock::HtmlBlock(HtmlBlock::new(body.clone()))),
-        NodeKind::FootnoteDefinition { label } => {
-            Some(TypedBlock::FootnoteDef(FootnoteDef::new(label.clone())))
-        }
+        NodeKind::FootnoteDefinition { label } => Some(TypedBlock::FootnoteDef(FootnoteDef::new(label.clone()))),
         _ => None,
     }
 }
@@ -1184,12 +1145,7 @@ fn build_typed_block(kind: &NodeKind, source: &str, raw_range: Range<usize>) -> 
 /// state. Returns `None` for degenerate shapes (no items, marker byte
 /// outside `-*+0..9`); the IR falls back to legacy `NodeKind::List`
 /// emission in that case.
-fn build_list_block(
-    arena: &[Node],
-    child_ids: &[NodeId],
-    source: &str,
-    list_id: NodeId,
-) -> Option<ListBlock> {
+fn build_list_block(arena: &[Node], child_ids: &[NodeId], source: &str, list_id: NodeId) -> Option<ListBlock> {
     let list_node = arena.get(list_id.idx())?;
     let NodeKind::List {
         ordered,
@@ -1200,13 +1156,7 @@ fn build_list_block(
     else {
         return None;
     };
-    let marker = ListMarker::from_legacy(
-        *ordered,
-        *start,
-        *marker_byte,
-        source,
-        list_node.raw_range.clone(),
-    )?;
+    let marker = ListMarker::from_legacy(*ordered, *start, *marker_byte, source, list_node.raw_range.clone())?;
 
     let mut items: Vec<ListItemKind> = Vec::new();
     for i in list_node.children.clone() {
@@ -1224,9 +1174,7 @@ fn build_list_block(
         items.push(match task_state {
             Some(checked) => {
                 let body_empty = task_item_body_empty(arena, child_ids, item_node);
-                ListItemKind::Task(TaskItem::new(
-                    item_id, indent, has_para, checked, body_empty,
-                ))
+                ListItemKind::Task(TaskItem::new(item_id, indent, has_para, checked, body_empty))
             }
             None => ListItemKind::Plain(ListItem::new(item_id, indent, has_para)),
         });
@@ -1285,10 +1233,7 @@ fn collect_row_cells(arena: &[Node], child_ids: &[NodeId], row: &Node) -> Vec<Ta
         let Some(&cid) = child_ids.get(j as usize) else {
             continue;
         };
-        if matches!(
-            arena.get(cid.idx()).map(|n| &n.kind),
-            Some(NodeKind::TableCell)
-        ) {
+        if matches!(arena.get(cid.idx()).map(|n| &n.kind), Some(NodeKind::TableCell)) {
             cells.push(TableCell::new(cid));
         }
     }
@@ -1300,10 +1245,7 @@ fn item_has_direct_paragraph(arena: &[Node], child_ids: &[NodeId], item: &Node) 
         let Some(&cid) = child_ids.get(j as usize) else {
             continue;
         };
-        if matches!(
-            arena.get(cid.idx()).map(|n| &n.kind),
-            Some(NodeKind::Paragraph)
-        ) {
+        if matches!(arena.get(cid.idx()).map(|n| &n.kind), Some(NodeKind::Paragraph)) {
             return true;
         }
     }
@@ -1446,8 +1388,7 @@ let x = 1;
                         "fenced code block missing opening fence: {raw:?}",
                     );
                     assert!(
-                        raw.trim_end_matches('\n').ends_with("```")
-                            || raw.trim_end_matches('\n').ends_with("~~~"),
+                        raw.trim_end_matches('\n').ends_with("```") || raw.trim_end_matches('\n').ends_with("~~~"),
                         "fenced code block missing closing fence: {raw:?}",
                     );
                 }
@@ -1492,8 +1433,7 @@ let x = 1;
             let child = tree.node(id).expect("valid child id");
             let parent = tree.node(parent_id).expect("valid parent id");
             assert!(
-                parent.raw_range.start <= child.raw_range.start
-                    && child.raw_range.end <= parent.raw_range.end,
+                parent.raw_range.start <= child.raw_range.start && child.raw_range.end <= parent.raw_range.end,
                 "child {:?} {:?} outside parent {:?} {:?}",
                 child.kind,
                 child.raw_range,
@@ -1557,9 +1497,7 @@ let x = 1;
         let link = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::Link(run)) => {
-                    Some((run.source().kind(), run.label().map(str::to_owned)))
-                }
+                Some(NodeKind::Link(run)) => Some((run.source().kind(), run.label().map(str::to_owned))),
                 _ => None,
             })
             .expect("link present");
@@ -1603,8 +1541,7 @@ let x = 1;
     // payload (one-arg tuple variant). The kitchen-sink fixture
     // exercises every printable kind we expect; an unexercised arm
     // means the fixture is missing a construct.
-    const TYPED_COVERAGE_KITCHEN: &str =
-        include_str!("../tests/fixtures/typed_coverage_kitchen.md");
+    const TYPED_COVERAGE_KITCHEN: &str = include_str!("../tests/fixtures/typed_coverage_kitchen.md");
 
     fn is_printable_block(k: &NodeKind) -> bool {
         // `Item` and table sub-parts (TableHead/Row/Cell) are not in
@@ -1730,9 +1667,7 @@ let x = 1;
         let info = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::CodeBlock {
-                    fenced: true, info, ..
-                }) => Some(info.clone()),
+                Some(NodeKind::CodeBlock { fenced: true, info, .. }) => Some(info.clone()),
                 _ => None,
             })
             .expect("fenced code block");

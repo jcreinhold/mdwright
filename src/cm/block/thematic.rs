@@ -47,11 +47,7 @@ mod tests {
 
     #[test]
     fn style_round_trips() {
-        for s in [
-            ThematicStyle::Dash,
-            ThematicStyle::Asterisk,
-            ThematicStyle::Underscore,
-        ] {
+        for s in [ThematicStyle::Dash, ThematicStyle::Asterisk, ThematicStyle::Underscore] {
             assert_eq!(ThematicBreak::new(s).style(), s);
         }
     }

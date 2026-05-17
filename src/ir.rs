@@ -279,11 +279,7 @@ impl Ir {
         // and list-item continuation indents) let the recogniser
         // scan across container prefixes without those bytes leaking
         // into the math body.
-        let transparent_runs = compute_transparent_runs(
-            source,
-            &builder.blockquote_ranges,
-            &builder.list_item_ranges,
-        );
+        let transparent_runs = compute_transparent_runs(source, &builder.blockquote_ranges, &builder.list_item_ranges);
         let (math_regions, math_errors) = scan_math_regions(
             source,
             &builder.inline_codes,
@@ -409,8 +405,7 @@ impl Builder<'_> {
                 });
             }
             Tag::Item => {
-                let marker_byte =
-                    first_non_whitespace_byte(self.source, range.start).unwrap_or(b'-');
+                let marker_byte = first_non_whitespace_byte(self.source, range.start).unwrap_or(b'-');
                 let indent = item_continuation_width(self.source, &range);
                 self.list_item_ranges.push((range.clone(), indent));
                 if let Some(open) = self.list_stack.last_mut() {
@@ -505,15 +500,11 @@ impl Builder<'_> {
         let raw = self.source.get(range.clone()).unwrap_or("");
         let lead = raw.bytes().take_while(|&b| b == b'`').count();
         let trail = raw.bytes().rev().take_while(|&b| b == b'`').count();
-        let (content_start, content_end) =
-            if lead == 0 || trail == 0 || lead.saturating_add(trail) >= raw.len() {
-                (range.start, range.end)
-            } else {
-                (
-                    range.start.saturating_add(lead),
-                    range.end.saturating_sub(trail),
-                )
-            };
+        let (content_start, content_end) = if lead == 0 || trail == 0 || lead.saturating_add(trail) >= raw.len() {
+            (range.start, range.end)
+        } else {
+            (range.start.saturating_add(lead), range.end.saturating_sub(trail))
+        };
         let Some(text) = self.source.get(content_start..content_end) else {
             return;
         };
@@ -645,9 +636,7 @@ fn compute_transparent_runs(
             let marker_pos = cursor.saturating_add(spaces);
             if marker_pos < line_end
                 && bytes.get(marker_pos).copied() == Some(b'>')
-                && blockquote_ranges
-                    .iter()
-                    .any(|r| r.start <= cursor && cursor < r.end)
+                && blockquote_ranges.iter().any(|r| r.start <= cursor && cursor < r.end)
             {
                 cursor = marker_pos.saturating_add(1);
                 if cursor < line_end && bytes.get(cursor).copied() == Some(b' ') {
@@ -700,17 +689,10 @@ fn trim_heading(raw: &str) -> (&str, usize) {
     let body = body.split_once('\n').map_or(body, |(first, _)| first);
     let lead_hashes = body.bytes().take_while(|&b| b == b'#').count();
     let after_hashes = body.get(lead_hashes..).unwrap_or("");
-    let lead_ws = after_hashes
-        .bytes()
-        .take_while(|&b| b == b' ' || b == b'\t')
-        .count();
+    let lead_ws = after_hashes.bytes().take_while(|&b| b == b' ' || b == b'\t').count();
     let inner_start = lead_hashes.saturating_add(lead_ws);
     let inner = body.get(inner_start..).unwrap_or("");
-    let trail_ws = inner
-        .bytes()
-        .rev()
-        .take_while(|&b| b == b' ' || b == b'\t')
-        .count();
+    let trail_ws = inner.bytes().rev().take_while(|&b| b == b' ' || b == b'\t').count();
     let after_trail_ws = inner.len().saturating_sub(trail_ws);
     let no_trail_ws = inner.get(..after_trail_ws).unwrap_or("");
     let trail_hashes = no_trail_ws.bytes().rev().take_while(|&b| b == b'#').count();
@@ -773,10 +755,7 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter>) {
             if !frontmatter_body_has_key(body_text, delimiter) {
                 return (0, None);
             }
-            let total = body_start
-                .saturating_add(end_excl)
-                .saturating_add(1)
-                .min(source.len());
+            let total = body_start.saturating_add(end_excl).saturating_add(1).min(source.len());
             let text = source.get(0..total).unwrap_or("");
             return (
                 total,
@@ -826,10 +805,7 @@ fn line_has_key(line: &str, key_byte: u8) -> bool {
     }
     // First key byte: ASCII letter or underscore.
     let start = i;
-    if !matches!(
-        bytes.get(i).copied(),
-        Some(b'a'..=b'z' | b'A'..=b'Z' | b'_')
-    ) {
+    if !matches!(bytes.get(i).copied(), Some(b'a'..=b'z' | b'A'..=b'Z' | b'_')) {
         return false;
     }
     i = i.saturating_add(1);
@@ -875,12 +851,7 @@ fn scan_admonitions(source: &str, code_blocks: &[CodeBlock]) -> Vec<AdmonitionRe
                 .filter_map(|(i, b)| if b == b'\n' { i.checked_add(1) } else { None }),
         )
         .collect();
-    let line_end = |idx: usize| {
-        line_starts
-            .get(idx.saturating_add(1))
-            .copied()
-            .unwrap_or(source.len())
-    };
+    let line_end = |idx: usize| line_starts.get(idx.saturating_add(1)).copied().unwrap_or(source.len());
     let is_indented_or_blank = |s: &str| {
         let trimmed = s.trim_end_matches('\n');
         trimmed.is_empty() || trimmed.starts_with("    ") || trimmed.starts_with('\t')
@@ -1025,21 +996,14 @@ mod tests {
         let ir = Ir::parse(src);
         // No chunk should contain the code-block body.
         for c in &ir.prose_chunks {
-            assert!(
-                !c.text.contains("\\_y"),
-                "prose chunk leaked code body: {:?}",
-                c.text
-            );
+            assert!(!c.text.contains("\\_y"), "prose chunk leaked code body: {:?}", c.text);
         }
         // The escapes outside the fence ARE visible: at least one
         // chunk must contain `\_` and at least one must contain
         // `outside`. (Text events split at escape boundaries, so the
         // full literal `\_outside\_` is spread across multiple chunks.)
         let texts: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
-        assert!(
-            texts.iter().any(|t| t.contains("\\_")),
-            "no chunk has `\\_`: {texts:?}"
-        );
+        assert!(texts.iter().any(|t| t.contains("\\_")), "no chunk has `\\_`: {texts:?}");
         assert!(
             texts.iter().any(|t| t.contains("outside")),
             "no chunk has `outside`: {texts:?}"
@@ -1060,10 +1024,7 @@ mod tests {
     fn frontmatter_split() -> Result<()> {
         let src = "---\ntitle: T\n---\nbody text\n";
         let ir = Ir::parse(src);
-        let fm = ir
-            .frontmatter
-            .as_ref()
-            .ok_or_else(|| anyhow!("frontmatter"))?;
+        let fm = ir.frontmatter.as_ref().ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Yaml);
         let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(body_chunks.iter().any(|t| t == &"body text"));
@@ -1074,10 +1035,7 @@ mod tests {
     fn frontmatter_toml_split() -> Result<()> {
         let src = "+++\ntitle = \"T\"\n+++\nbody text\n";
         let ir = Ir::parse(src);
-        let fm = ir
-            .frontmatter
-            .as_ref()
-            .ok_or_else(|| anyhow!("frontmatter"))?;
+        let fm = ir.frontmatter.as_ref().ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Toml);
         let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(body_chunks.iter().any(|t| t == &"body text"));
@@ -1112,11 +1070,7 @@ mod tests {
     fn headings_trimmed_and_levelled() {
         let ir = Ir::parse("# One\n\n## Two ##\n\n### Three\n");
         assert_eq!(ir.headings.len(), 3);
-        let texts: Vec<(&str, u32)> = ir
-            .headings
-            .iter()
-            .map(|h| (h.text.as_str(), h.level))
-            .collect();
+        let texts: Vec<(&str, u32)> = ir.headings.iter().map(|h| (h.text.as_str(), h.level)).collect();
         assert_eq!(texts, vec![("One", 1), ("Two", 2), ("Three", 3)]);
     }
 
@@ -1125,17 +1079,11 @@ mod tests {
         let src = "- one\n- two\n* three\n";
         let ir = Ir::parse(src);
         assert_eq!(ir.list_groups.len(), 2);
-        let g1 = ir
-            .list_groups
-            .first()
-            .ok_or_else(|| anyhow!("first list"))?;
+        let g1 = ir.list_groups.first().ok_or_else(|| anyhow!("first list"))?;
         assert!(!g1.ordered);
         let markers: Vec<u8> = g1.items.iter().map(|i| i.marker_byte).collect();
         assert_eq!(markers, vec![b'-', b'-']);
-        let g2 = ir
-            .list_groups
-            .get(1)
-            .ok_or_else(|| anyhow!("second list"))?;
+        let g2 = ir.list_groups.get(1).ok_or_else(|| anyhow!("second list"))?;
         let item = g2.items.first().ok_or_else(|| anyhow!("item"))?;
         assert_eq!(item.marker_byte, b'*');
         Ok(())
@@ -1145,11 +1093,7 @@ mod tests {
     fn link_defs_scanned() -> Result<()> {
         let src = "[bar]: https://example.com\n\nSee [ref][bar].\n";
         let ir = Ir::parse(src);
-        let target = ir
-            .refs
-            .iter()
-            .next()
-            .ok_or_else(|| anyhow!("expected one target"))?;
+        let target = ir.refs.iter().next().ok_or_else(|| anyhow!("expected one target"))?;
         assert_eq!(target.label_raw, "bar");
         assert_eq!(target.dest, "https://example.com");
         Ok(())
@@ -1224,8 +1168,7 @@ mod tests {
 
     #[test]
     fn suppression_disable_enable_parse() -> Result<()> {
-        let src =
-            "<!-- mdwright: disable bare-url -->\n\nfoo\n\n<!-- mdwright: enable bare-url -->\n";
+        let src = "<!-- mdwright: disable bare-url -->\n\nfoo\n\n<!-- mdwright: enable bare-url -->\n";
         let ir = Ir::parse(src);
         assert_eq!(ir.suppressions.len(), 2);
         let first = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;

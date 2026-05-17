@@ -29,11 +29,8 @@ impl LintRule for HeadingPunctuation {
             let trailing_byte_len = c.len_utf8();
             let local_start = h.text.len().saturating_sub(trailing_byte_len);
             let local_end = h.text.len();
-            let message =
-                format!("heading ends with `{c}` — headings should not carry sentence punctuation");
-            if let Some(d) =
-                Diagnostic::at(doc, h.byte_offset, local_start..local_end, message, None)
-            {
+            let message = format!("heading ends with `{c}` — headings should not carry sentence punctuation");
+            if let Some(d) = Diagnostic::at(doc, h.byte_offset, local_start..local_end, message, None) {
                 out.push(d);
             }
         }

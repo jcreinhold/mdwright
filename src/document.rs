@@ -18,8 +18,7 @@ use crate::config::FmtOptions;
 use crate::diagnostic::Diagnostic;
 use crate::format;
 use crate::ir::{
-    CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup,
-    Suppression, TextSlice,
+    CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup, Suppression, TextSlice,
 };
 use crate::line_index::LineIndex;
 use crate::rule_set::RuleSet;
@@ -214,8 +213,7 @@ impl Document {
     /// view). Pairing is by `raw_range.start`, which is unique across
     /// lists in source order.
     pub(crate) fn typed_list_blocks(&self) -> Vec<(&ListGroup, &ListBlock)> {
-        let mut typed_by_start: std::collections::HashMap<usize, &ListBlock> =
-            std::collections::HashMap::new();
+        let mut typed_by_start: std::collections::HashMap<usize, &ListBlock> = std::collections::HashMap::new();
         let tree = self.tree();
         for id in tree.descendants(tree.root()) {
             let Some(node) = tree.node(id) else { continue };
@@ -393,10 +391,7 @@ impl Document {
                 // Translate the canonical span the diagnostic carries
                 // to an original span so the edit lands at the bytes
                 // the caller's file actually has.
-                let canon = ByteSpan::new(
-                    u32::try_from(d.span.start).ok()?,
-                    u32::try_from(d.span.end).ok()?,
-                );
+                let canon = ByteSpan::new(u32::try_from(d.span.start).ok()?, u32::try_from(d.span.end).ok()?);
                 let orig = self.source.to_original(canon);
                 Some((orig.range(), fix.replacement.as_str()))
             })

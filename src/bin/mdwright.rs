@@ -40,8 +40,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use mdwright::{
-    Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LintOptions, RuleSet,
-    discover_markdown, stdlib,
+    Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LintOptions, RuleSet, discover_markdown, stdlib,
 };
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -72,12 +71,7 @@ struct Cli {
     /// cap bounds memory use against pathological inputs. Default
     /// 10 MB is generous enough that no real Markdown document trips
     /// it. Pass `0` to disable the cap entirely.
-    #[arg(
-        long,
-        value_name = "BYTES",
-        default_value_t = 10_000_000,
-        global = true
-    )]
+    #[arg(long, value_name = "BYTES", default_value_t = 10_000_000, global = true)]
     max_input_bytes: usize,
 
     #[command(subcommand)]
@@ -259,10 +253,7 @@ fn read_stdin_capped(buf: &mut String, cap: usize, label: &str) -> Result<()> {
         return Ok(());
     }
     let limit = u64::try_from(cap).unwrap_or(u64::MAX).saturating_add(1);
-    handle
-        .take(limit)
-        .read_to_string(buf)
-        .context("read stdin")?;
+    handle.take(limit).read_to_string(buf).context("read stdin")?;
     enforce_input_cap(label, buf.len(), cap)
 }
 
@@ -362,12 +353,7 @@ fn run_fmt(
     }
 }
 
-fn run_fmt_stdin(
-    opts: &FmtOptions,
-    args: &FmtArgs,
-    check: bool,
-    max_input_bytes: usize,
-) -> Result<ExitCode> {
+fn run_fmt_stdin(opts: &FmtOptions, args: &FmtArgs, check: bool, max_input_bytes: usize) -> Result<ExitCode> {
     let name = args
         .stdin_filename
         .as_deref()
@@ -492,8 +478,7 @@ fn run_lint(
     let results: Vec<Result<()>> = files
         .par_iter()
         .map(|path| -> Result<()> {
-            let source =
-                fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+            let source = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
             enforce_input_cap(&path.display().to_string(), source.len(), max_input_bytes)?;
             let doc = Document::parse(&source);
             let diags = doc.lint_with(&rules, lint_opts);
@@ -503,8 +488,7 @@ fn run_lint(
             let (final_diags, applied) = if apply_fixes && !diags.is_empty() {
                 let (new_src, n) = doc.apply_safe_fixes(&diags);
                 if n > 0 && new_src != source {
-                    fs::write(path, &new_src)
-                        .with_context(|| format!("write {}", path.display()))?;
+                    fs::write(path, &new_src).with_context(|| format!("write {}", path.display()))?;
                 }
                 let post_doc = Document::parse(&new_src);
                 (post_doc.lint_with(&rules, lint_opts), n)
@@ -526,14 +510,7 @@ fn run_lint(
                 .map_err(|_| anyhow::anyhow!("stdout lock poisoned"))?;
             let stdout = io::stdout();
             let mut out = stdout.lock();
-            emit(
-                &mut out,
-                &path_display,
-                &final_diags,
-                args.format,
-                use_color,
-                applied,
-            )?;
+            emit(&mut out, &path_display, &final_diags, args.format, use_color, applied)?;
             drop(guard);
             Ok(())
         })
@@ -657,19 +634,14 @@ fn run_stdin(
 /// `--rules unbalanced-backtick,adjacent-code-no-space` for
 /// convenience.
 fn parse_rules_spec(spec: &str) -> Result<RuleSet> {
-    let tokens: Vec<&str> = spec
-        .split(',')
-        .map(str::trim)
-        .filter(|t| !t.is_empty())
-        .collect();
+    let tokens: Vec<&str> = spec.split(',').map(str::trim).filter(|t| !t.is_empty()).collect();
     if tokens.is_empty() {
         return Ok(RuleSet::stdlib_defaults());
     }
     let mut rs: Option<RuleSet> = None;
     for tok in tokens {
         if let Some(name) = tok.strip_prefix('+') {
-            let rule = stdlib::by_name(name)
-                .ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {name}"))?;
+            let rule = stdlib::by_name(name).ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {name}"))?;
             let target = rs.get_or_insert_with(RuleSet::new);
             if !target.contains(name) {
                 target.add(rule).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -684,8 +656,7 @@ fn parse_rules_spec(spec: &str) -> Result<RuleSet> {
         } else {
             // Bare name: union into the working set, starting from
             // empty if this is the first token.
-            let rule = stdlib::by_name(tok)
-                .ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {tok}"))?;
+            let rule = stdlib::by_name(tok).ok_or_else(|| anyhow::anyhow!("unknown rule in --rules: {tok}"))?;
             let target = rs.get_or_insert_with(RuleSet::new);
             if !target.contains(tok) {
                 target.add(rule).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -710,13 +681,7 @@ fn emit<W: Write>(
     }
 }
 
-fn emit_pretty<W: Write>(
-    out: &mut W,
-    path: &str,
-    diags: &[Diagnostic],
-    color: bool,
-    fixed: usize,
-) -> Result<()> {
+fn emit_pretty<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic], color: bool, fixed: usize) -> Result<()> {
     let banner = if color {
         format!("{}", path.bold().underline())
     } else {
@@ -749,11 +714,7 @@ fn emit_pretty<W: Write>(
 
 fn emit_compact<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic]) -> Result<()> {
     for d in diags {
-        writeln!(
-            out,
-            "{path}:{}:{}: {}: {}",
-            d.line, d.column, d.rule, d.message
-        )?;
+        writeln!(out, "{path}:{}:{}: {}: {}", d.line, d.column, d.rule, d.message)?;
     }
     Ok(())
 }
@@ -825,19 +786,13 @@ fn init_tracing(verbose: u8) {
         .with_writer(io::stderr)
         .with_span_events(FmtSpan::CLOSE)
         .compact();
-    let _init = tracing_subscriber::registry()
-        .with(filter)
-        .with(fmt_layer)
-        .try_init();
+    let _init = tracing_subscriber::registry().with(filter).with(fmt_layer).try_init();
 }
 
 fn print_rule_catalogue() -> Result<()> {
     let stdout = io::stdout();
     let mut out = stdout.lock();
-    writeln!(
-        out,
-        "Rules (use with `--rules`; advisory rules do not fail `--check`):"
-    )?;
+    writeln!(out, "Rules (use with `--rules`; advisory rules do not fail `--check`):")?;
     let all = RuleSet::stdlib_all();
     for rule in all.iter() {
         let mut tags = Vec::new();

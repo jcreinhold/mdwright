@@ -107,14 +107,7 @@ pub(crate) fn scan_math_regions(
         if cfg.environments
             && let Some((env_name, name_range, after_begin)) = match_begin(source, bytes, i)
         {
-            match find_end_env(
-                source,
-                bytes,
-                after_begin,
-                env_name,
-                &exclusions,
-                transparent_runs,
-            ) {
+            match find_end_env(source, bytes, after_begin, env_name, &exclusions, transparent_runs) {
                 Some((end_start, end_after)) => {
                     let region = i..end_after;
                     let body_range = after_begin..end_start;
@@ -250,12 +243,7 @@ fn body_runs_empty(body_range: &Range<usize>, transparent_runs: &[Range<usize>])
 /// over the clean body, so container prefixes cannot affect brace
 /// balance, and the local offset is mapped back to a source-absolute
 /// byte via [`MathBody::clean_offset_to_source`].
-fn record_brace_errors(
-    source: &str,
-    region: &Range<usize>,
-    body: &MathBody,
-    errors: &mut Vec<MathError>,
-) {
+fn record_brace_errors(source: &str, region: &Range<usize>, body: &MathBody, errors: &mut Vec<MathError>) {
     let clean = body.as_str(source);
     if let Err(local_offset) = super::pretty::body_braces_balanced(clean.as_ref()) {
         errors.push(MathError::UnbalancedBraces {
@@ -337,22 +325,14 @@ fn transparent_end(transparent_runs: &[Range<usize>], i: usize) -> Option<usize>
 /// Match `\begin{name}` at `i`. Returns `(name, byte range of the
 /// name, position after the closing `}`)`. The `\` must not be itself
 /// escaped (even-count of preceding backslashes).
-fn match_begin<'a>(
-    source: &'a str,
-    bytes: &[u8],
-    i: usize,
-) -> Option<(&'a str, Range<usize>, usize)> {
+fn match_begin<'a>(source: &'a str, bytes: &[u8], i: usize) -> Option<(&'a str, Range<usize>, usize)> {
     let after = match_kw(bytes, i, b"begin")?;
     parse_env_name(source, after)
 }
 
 /// Match `\end{name}` at `j`. Returns `(name, byte range of the name,
 /// position after the closing `}`)`.
-fn match_end<'a>(
-    source: &'a str,
-    bytes: &[u8],
-    j: usize,
-) -> Option<(&'a str, Range<usize>, usize)> {
+fn match_end<'a>(source: &'a str, bytes: &[u8], j: usize) -> Option<(&'a str, Range<usize>, usize)> {
     let after = match_kw(bytes, j, b"end")?;
     parse_env_name(source, after)
 }
@@ -529,9 +509,7 @@ fn find_close(
                 }
             }
             AnyDelim::Dollar2 => {
-                if bytes.get(j).copied() == Some(b'$')
-                    && bytes.get(j.saturating_add(1)).copied() == Some(b'$')
-                {
+                if bytes.get(j).copied() == Some(b'$') && bytes.get(j.saturating_add(1)).copied() == Some(b'$') {
                     return Some(j);
                 }
             }
@@ -825,8 +803,7 @@ mod tests {
             MathSpan::Inline { .. }
             | MathSpan::Display { .. }
             | MathSpan::Environment {
-                env: EnvKind::Known(_),
-                ..
+                env: EnvKind::Known(_), ..
             } => {
                 panic!("expected custom env")
             }
@@ -863,10 +840,7 @@ mod tests {
         let s = r"\[ \frac{a}{b \]";
         let (regs, errs) = scan(s);
         assert_eq!(regs.len(), 1);
-        assert!(
-            errs.iter()
-                .any(|e| matches!(e, MathError::UnbalancedBraces { .. }))
-        );
+        assert!(errs.iter().any(|e| matches!(e, MathError::UnbalancedBraces { .. })));
     }
 
     #[test]
@@ -874,8 +848,7 @@ mod tests {
         let s = r"\[ \{ a \} \]";
         let (_, errs) = scan(s);
         assert!(
-            errs.iter()
-                .all(|e| !matches!(e, MathError::UnbalancedBraces { .. })),
+            errs.iter().all(|e| !matches!(e, MathError::UnbalancedBraces { .. })),
             "escaped braces should not count: {errs:?}"
         );
     }
@@ -1004,8 +977,7 @@ mod tests {
         let (regs, errs) = scan_with_runs(s, runs, cfg);
         assert!(regs.is_empty(), "no region should match in {s:?}");
         assert!(
-            errs.iter()
-                .any(|e| matches!(e, MathError::UnbalancedDelim { .. })),
+            errs.iter().any(|e| matches!(e, MathError::UnbalancedDelim { .. })),
             "expected an UnbalancedDelim for the unclosed `$`: {errs:?}",
         );
     }

@@ -23,9 +23,7 @@ pub struct SubscriptDamage;
 
 fn pattern() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
-    RE.get_or_init(|| {
-        compile_static(r"(?P<head>[A-Za-z\p{Greek}\p{Letter}])\*(?P<tail>[A-Za-z\{])")
-    })
+    RE.get_or_init(|| compile_static(r"(?P<head>[A-Za-z\p{Greek}\p{Letter}])\*(?P<tail>[A-Za-z\{])"))
 }
 
 const PULLBACK_HEADS: &[&str] = &["λ", "f", "F", "g", "G", "u", "v", "h"];
@@ -61,10 +59,7 @@ fn scan(text: &str, offset: usize, doc: &Document, out: &mut Vec<Diagnostic>) {
             continue;
         }
         let matched = m.as_str();
-        let fixed: String = matched
-            .chars()
-            .map(|c| if c == '*' { '_' } else { c })
-            .collect();
+        let fixed: String = matched.chars().map(|c| if c == '*' { '_' } else { c }).collect();
         let message = format!(
             "`{matched}` looks like subscript damage (`_` rewritten to `*` after a \
              broken code span); intended math is likely `{fixed}`"

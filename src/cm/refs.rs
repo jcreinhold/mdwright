@@ -267,10 +267,7 @@ pub(crate) fn build_reference_table(events: &[Event<'_>], source: &str) -> Refer
             | Tag::Subscript
             | Tag::MetadataBlock(_) => continue,
         };
-        if !matches!(
-            lt,
-            LinkType::Reference | LinkType::Collapsed | LinkType::Shortcut
-        ) {
+        if !matches!(lt, LinkType::Reference | LinkType::Collapsed | LinkType::Shortcut) {
             continue;
         }
         if id.is_empty() {
@@ -279,23 +276,12 @@ pub(crate) fn build_reference_table(events: &[Event<'_>], source: &str) -> Refer
         let Some(norm) = NormalisedLabel::from_raw(id) else {
             continue;
         };
-        let label_raw = casings
-            .get(&norm)
-            .cloned()
-            .unwrap_or_else(|| id.to_string());
+        let label_raw = casings.get(&norm).cloned().unwrap_or_else(|| id.to_string());
         let title_str = title.to_string();
-        let title_opt = if title_str.is_empty() {
-            None
-        } else {
-            Some(title_str)
-        };
+        let title_opt = if title_str.is_empty() { None } else { Some(title_str) };
         table.insert(label_raw, dest.to_string(), title_opt);
     }
-    tracing::debug!(
-        defs = table.targets.len(),
-        dupes = table.duplicate_count,
-        "refs built"
-    );
+    tracing::debug!(defs = table.targets.len(), dupes = table.duplicate_count, "refs built");
     table
 }
 
@@ -403,9 +389,7 @@ mod tests {
     #[test]
     fn table_handles_multiline_definition() {
         let table = build("[foo]:\n/url\n\n[foo]\n");
-        let t = table
-            .target(table.resolve("foo").expect("resolves"))
-            .expect("target");
+        let t = table.target(table.resolve("foo").expect("resolves")).expect("target");
         assert_eq!(t.dest, "/url");
     }
 
@@ -414,9 +398,7 @@ mod tests {
         // The def writes `[Foo]:`; the link writes `[FOO]`. The
         // emitted label should match the def's casing.
         let table = build("[Foo]: https://example.com\n\n[FOO]\n");
-        let t = table
-            .target(table.resolve("foo").expect("resolves"))
-            .expect("target");
+        let t = table.target(table.resolve("foo").expect("resolves")).expect("target");
         assert_eq!(t.label_raw, "Foo");
     }
 }

@@ -73,8 +73,7 @@ fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_le
     use pulldown_cmark::OffsetIter;
 
     let (open_tag, close_tag) = kind.tags();
-    let parser: OffsetIter<'_> =
-        Parser::new_ext(input, Options::ENABLE_STRIKETHROUGH).into_offset_iter();
+    let parser: OffsetIter<'_> = Parser::new_ext(input, Options::ENABLE_STRIKETHROUGH).into_offset_iter();
 
     let target_open = skip_left;
     let target_close = skip_left.saturating_add(run_len);
@@ -141,8 +140,7 @@ fn parses_as_single_run_isolated(wrapped: &str, kind: RunKind) -> bool {
     let Some(first) = first else {
         return false;
     };
-    if !matches!(first, Event::Start(ref t) if std::mem::discriminant(t) == std::mem::discriminant(&open_tag))
-    {
+    if !matches!(first, Event::Start(ref t) if std::mem::discriminant(t) == std::mem::discriminant(&open_tag)) {
         return false;
     }
 
@@ -153,10 +151,7 @@ fn parses_as_single_run_isolated(wrapped: &str, kind: RunKind) -> bool {
     for ev in &mut events {
         match ev {
             Event::Start(_) => depth = depth.saturating_add(1),
-            Event::End(ref t)
-                if depth == 0
-                    && std::mem::discriminant(t) == std::mem::discriminant(&close_tag) =>
-            {
+            Event::End(ref t) if depth == 0 && std::mem::discriminant(t) == std::mem::discriminant(&close_tag) => {
                 closed_outer = true;
                 break;
             }
@@ -340,10 +335,7 @@ mod tests {
         // GFM spec example 378: *(*foo*)* is nested emphasis. The
         // outer wrap must survive even though the body contains
         // another emphasis run.
-        assert!(parses_as_single_run_isolated(
-            "*(*foo*)*",
-            RunKind::Emphasis
-        ));
+        assert!(parses_as_single_run_isolated("*(*foo*)*", RunKind::Emphasis));
     }
 
     #[test]
@@ -354,10 +346,7 @@ mod tests {
 
     #[test]
     fn escape_body_no_op_when_target_absent() {
-        assert_eq!(
-            escape_body_for_emphasis("plain", EmphasisDelim::Asterisk),
-            None
-        );
+        assert_eq!(escape_body_for_emphasis("plain", EmphasisDelim::Asterisk), None);
     }
 
     #[test]

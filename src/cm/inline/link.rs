@@ -70,9 +70,7 @@ impl LinkSource {
     fn resolved(&self) -> Option<&ResolvedRef> {
         match self {
             Self::Inline => None,
-            Self::ReferenceFull(r) | Self::ReferenceCollapsed(r) | Self::ReferenceShortcut(r) => {
-                Some(r)
-            }
+            Self::ReferenceFull(r) | Self::ReferenceCollapsed(r) | Self::ReferenceShortcut(r) => Some(r),
         }
     }
 }
@@ -158,23 +156,14 @@ impl LinkRun {
     /// ranges the walk discovers. [`TreeBuilder::finalize`] does the
     /// validation post-pass: nodes whose label fails to resolve are
     /// downgraded to raw-source emission.
-    pub(crate) fn from_pulldown_reference(
-        kind: LinkSourceKind,
-        dest: String,
-        title: String,
-        label: String,
-    ) -> Self {
+    pub(crate) fn from_pulldown_reference(kind: LinkSourceKind, dest: String, title: String, label: String) -> Self {
         let resolved = ResolvedRef { label };
         let source = match kind {
             LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
             LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
             LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),
         };
-        Self {
-            dest,
-            title,
-            source,
-        }
+        Self { dest, title, source }
     }
 
     /// Resolve a reference-style link against `table`. Returns
@@ -193,11 +182,7 @@ impl LinkRun {
         table: &ReferenceTable,
     ) -> Result<Self, LinkError> {
         let source = resolve_kind(kind, label, table)?;
-        Ok(Self {
-            dest,
-            title,
-            source,
-        })
+        Ok(Self { dest, title, source })
     }
 
     /// Inspect the reference label, if any. Returns `None` for inline
@@ -233,11 +218,7 @@ impl LinkRun {
 
     /// Emit this link with the resolved style.
     #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(
-        &self,
-        body: Doc<'b>,
-        ctx: &crate::format::pretty::PrettyCtx<'b>,
-    ) -> Doc<'b> {
+    pub(crate) fn pretty<'b>(&self, body: Doc<'b>, ctx: &crate::format::pretty::PrettyCtx<'b>) -> Doc<'b> {
         let flat = flatten_body_doc(&body);
         let style = self.emit_style(&LinkResolveCtx { body_text: &flat });
         assemble_link(ctx, body, self.dest(), self.title(), &style, false)
@@ -254,23 +235,14 @@ impl ImageRun {
     }
 
     /// Image counterpart to [`LinkRun::from_pulldown_reference`].
-    pub(crate) fn from_pulldown_reference(
-        kind: LinkSourceKind,
-        dest: String,
-        title: String,
-        label: String,
-    ) -> Self {
+    pub(crate) fn from_pulldown_reference(kind: LinkSourceKind, dest: String, title: String, label: String) -> Self {
         let resolved = ResolvedRef { label };
         let source = match kind {
             LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
             LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
             LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),
         };
-        Self {
-            dest,
-            title,
-            source,
-        }
+        Self { dest, title, source }
     }
 
     /// Image counterpart to [`LinkRun::try_new_reference`]. Test-only.
@@ -284,11 +256,7 @@ impl ImageRun {
         table: &ReferenceTable,
     ) -> Result<Self, LinkError> {
         let source = resolve_kind(kind, label, table)?;
-        Ok(Self {
-            dest,
-            title,
-            source,
-        })
+        Ok(Self { dest, title, source })
     }
 
     pub(crate) fn dest(&self) -> &str {
@@ -311,11 +279,7 @@ impl ImageRun {
 
     /// Emit this image with the resolved style.
     #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(
-        &self,
-        body: Doc<'b>,
-        ctx: &crate::format::pretty::PrettyCtx<'b>,
-    ) -> Doc<'b> {
+    pub(crate) fn pretty<'b>(&self, body: Doc<'b>, ctx: &crate::format::pretty::PrettyCtx<'b>) -> Doc<'b> {
         let flat = flatten_body_doc(&body);
         let style = self.emit_style(&LinkResolveCtx { body_text: &flat });
         assemble_link(ctx, body, self.dest(), self.title(), &style, true)
@@ -323,14 +287,8 @@ impl ImageRun {
 }
 
 #[cfg(test)]
-fn resolve_kind(
-    kind: LinkSourceKind,
-    label: String,
-    table: &ReferenceTable,
-) -> Result<LinkSource, LinkError> {
-    table
-        .resolve(&label)
-        .ok_or(LinkError::UnresolvedReference)?;
+fn resolve_kind(kind: LinkSourceKind, label: String, table: &ReferenceTable) -> Result<LinkSource, LinkError> {
+    table.resolve(&label).ok_or(LinkError::UnresolvedReference)?;
     let resolved = ResolvedRef { label };
     Ok(match kind {
         LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
@@ -429,27 +387,18 @@ fn assemble_link<'a>(
             parts.push(text(")"));
             unbreakable(concat(parts))
         }
-        EmitLinkStyle::ReferenceFull { label } => unbreakable(concat([
-            text(prefix),
-            body_doc,
-            text(format!("][{label}]")),
-        ])),
-        EmitLinkStyle::ReferenceCollapsed => {
-            unbreakable(concat([text(prefix), body_doc, text("][]")]))
+        EmitLinkStyle::ReferenceFull { label } => {
+            unbreakable(concat([text(prefix), body_doc, text(format!("][{label}]"))]))
         }
-        EmitLinkStyle::ReferenceShortcut => {
-            unbreakable(concat([text(prefix), body_doc, text("]")]))
-        }
+        EmitLinkStyle::ReferenceCollapsed => unbreakable(concat([text(prefix), body_doc, text("][]")])),
+        EmitLinkStyle::ReferenceShortcut => unbreakable(concat([text(prefix), body_doc, text("]")])),
     }
 }
 
 /// Render a URL destination, choosing between the bare and angle
 /// forms. Public so the link-reference-definition emitter in
 /// `format/document.rs` can share the same escape policy.
-pub(crate) fn render_url_destination_owned(
-    url: &str,
-    style: crate::config::LinkDefStyle,
-) -> String {
+pub(crate) fn render_url_destination_owned(url: &str, style: crate::config::LinkDefStyle) -> String {
     if matches!(style, crate::config::LinkDefStyle::Angle) {
         return format!("<{}>", escape_angle_url(url));
     }
@@ -465,10 +414,7 @@ enum EscapedUrl<'a> {
 }
 
 fn escape_url(url: &str) -> EscapedUrl<'_> {
-    if url
-        .bytes()
-        .any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
-    {
+    if url.bytes().any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r')) {
         return EscapedUrl::Angle(escape_angle_url(url));
     }
     EscapedUrl::Bare(escape_bare_url(url))
@@ -600,10 +546,7 @@ mod tests {
     #[test]
     fn inline_link_keeps_inline() {
         let run = LinkRun::from_pulldown_inline(cow("https://example.com"), cow(""));
-        assert!(matches!(
-            run.emit_style(&ctx("text")),
-            EmitLinkStyle::Inline
-        ));
+        assert!(matches!(run.emit_style(&ctx("text")), EmitLinkStyle::Inline));
         assert_eq!(run.dest(), "https://example.com");
         assert!(run.title().is_empty());
         assert!(run.label().is_none());
@@ -631,14 +574,8 @@ mod tests {
     #[test]
     fn collapsed_matches_keeps_collapsed() {
         let table = table_with("foo");
-        let run = LinkRun::try_new_reference(
-            LinkSourceKind::ReferenceCollapsed,
-            cow(""),
-            cow(""),
-            cow("foo"),
-            &table,
-        )
-        .expect("resolves");
+        let run = LinkRun::try_new_reference(LinkSourceKind::ReferenceCollapsed, cow(""), cow(""), cow("foo"), &table)
+            .expect("resolves");
         let style = run.emit_style(&ctx("foo"));
         assert!(matches!(style, EmitLinkStyle::ReferenceCollapsed));
     }
@@ -663,14 +600,8 @@ mod tests {
     #[test]
     fn shortcut_matches_keeps_shortcut() {
         let table = table_with("foo");
-        let run = LinkRun::try_new_reference(
-            LinkSourceKind::ReferenceShortcut,
-            cow(""),
-            cow(""),
-            cow("foo"),
-            &table,
-        )
-        .expect("resolves");
+        let run = LinkRun::try_new_reference(LinkSourceKind::ReferenceShortcut, cow(""), cow(""), cow("foo"), &table)
+            .expect("resolves");
         let style = run.emit_style(&ctx("foo"));
         assert!(matches!(style, EmitLinkStyle::ReferenceShortcut));
     }
@@ -678,14 +609,8 @@ mod tests {
     #[test]
     fn shortcut_mismatch_demotes_to_full() {
         let table = table_with("a");
-        let run = LinkRun::try_new_reference(
-            LinkSourceKind::ReferenceShortcut,
-            cow(""),
-            cow(""),
-            cow("a"),
-            &table,
-        )
-        .expect("resolves");
+        let run = LinkRun::try_new_reference(LinkSourceKind::ReferenceShortcut, cow(""), cow(""), cow("a"), &table)
+            .expect("resolves");
         let style = run.emit_style(&ctx("b"));
         assert!(matches!(style, EmitLinkStyle::ReferenceFull { .. }));
     }
@@ -693,18 +618,9 @@ mod tests {
     #[test]
     fn image_run_uses_same_decision() {
         let table = table_with("alt");
-        let run = ImageRun::try_new_reference(
-            LinkSourceKind::ReferenceShortcut,
-            cow(""),
-            cow(""),
-            cow("alt"),
-            &table,
-        )
-        .expect("resolves");
-        assert!(matches!(
-            run.emit_style(&ctx("alt")),
-            EmitLinkStyle::ReferenceShortcut
-        ));
+        let run = ImageRun::try_new_reference(LinkSourceKind::ReferenceShortcut, cow(""), cow(""), cow("alt"), &table)
+            .expect("resolves");
+        assert!(matches!(run.emit_style(&ctx("alt")), EmitLinkStyle::ReferenceShortcut));
         assert!(matches!(
             run.emit_style(&ctx("other")),
             EmitLinkStyle::ReferenceFull { .. }
@@ -714,14 +630,8 @@ mod tests {
     #[test]
     fn unresolved_reference_errors() {
         let table = crate::cm::refs::ReferenceTable::empty();
-        let err = LinkRun::try_new_reference(
-            LinkSourceKind::ReferenceFull,
-            cow(""),
-            cow(""),
-            cow("missing"),
-            &table,
-        )
-        .unwrap_err();
+        let err = LinkRun::try_new_reference(LinkSourceKind::ReferenceFull, cow(""), cow(""), cow("missing"), &table)
+            .unwrap_err();
         assert_eq!(err, LinkError::UnresolvedReference);
     }
 
@@ -766,9 +676,6 @@ mod tests {
             &table,
         )
         .expect("resolves");
-        assert!(matches!(
-            run.emit_style(&ctx(&body)),
-            EmitLinkStyle::ReferenceShortcut
-        ));
+        assert!(matches!(run.emit_style(&ctx(&body)), EmitLinkStyle::ReferenceShortcut));
     }
 }

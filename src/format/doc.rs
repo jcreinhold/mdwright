@@ -244,10 +244,7 @@ fn emit_text(out: &mut String, s: &str, prefixes: &[&LinePrefix], pending: &mut 
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Doc, LinePrefix, RenderOptions, concat, hard_line, line, prefix_lines, render, text,
-        unbreakable,
-    };
+    use super::{Doc, LinePrefix, RenderOptions, concat, hard_line, line, prefix_lines, render, text, unbreakable};
 
     fn r(doc: &Doc<'_>) -> String {
         render(doc, &RenderOptions)

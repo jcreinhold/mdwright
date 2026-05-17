@@ -303,11 +303,7 @@ fn flatten<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
                     stack.push(item);
                 }
             }
-            leaf @ (Doc::Text(_)
-            | Doc::Line
-            | Doc::HardLine
-            | Doc::Atomic(_)
-            | Doc::Prefix(_, _)) => {
+            leaf @ (Doc::Text(_) | Doc::Line | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
                 out.push(leaf);
             }
         }
@@ -380,8 +376,7 @@ fn escape_for_paragraph_interrupt(s: &str, next: LineContext) -> Option<String> 
         // content. An empty marker (`* ` or just `*` on a line) does
         // not interrupt a paragraph.
         b'*' | b'-' | b'+' => {
-            matches!(bytes.get(1).copied(), Some(b' ' | b'\t'))
-                && line_has_nonblank_after(bytes, 2, next)
+            matches!(bytes.get(1).copied(), Some(b' ' | b'\t')) && line_has_nonblank_after(bytes, 2, next)
         }
         // §5.2 ordered list — only `1.` / `1)` (start = 1) can
         // interrupt. Other digits cannot, and the digit run must be
@@ -450,8 +445,7 @@ fn escape_for_block_start(s: &str, next: LineContext) -> Option<String> {
             if fragment_continues_inline {
                 false
             } else {
-                matches!(two, Some(b' ' | b'\t') | None)
-                    || (two == Some(first) && bytes.get(2).copied() == Some(first))
+                matches!(two, Some(b' ' | b'\t') | None) || (two == Some(first) && bytes.get(2).copied() == Some(first))
             }
         }
         b'=' => two == Some(b'='),

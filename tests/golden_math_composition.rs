@@ -38,14 +38,13 @@ fn golden_math_composition() {
             continue;
         };
         let expected_path = dir.join(format!("{stem}.out"));
-        let input =
-            fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        let expected = fs::read_to_string(&expected_path)
-            .unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
+        let input = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let expected =
+            fs::read_to_string(&expected_path).unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
         let config_path = dir.join(format!("{stem}.config.toml"));
         let opts = if config_path.is_file() {
-            let cfg = Config::load(Some(&config_path))
-                .unwrap_or_else(|e| panic!("load {}: {e}", config_path.display()));
+            let cfg =
+                Config::load(Some(&config_path)).unwrap_or_else(|e| panic!("load {}: {e}", config_path.display()));
             cfg.fmt_options().clone()
         } else {
             FmtOptions::default()
@@ -59,11 +58,7 @@ fn golden_math_composition() {
             ));
         }
     }
-    assert!(
-        count > 0,
-        "no golden fixtures found under {}",
-        dir.display()
-    );
+    assert!(count > 0, "no golden fixtures found under {}", dir.display());
     assert!(
         failures.is_empty(),
         "{}/{} golden fixture(s) failed:\n{}",

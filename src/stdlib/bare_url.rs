@@ -48,15 +48,12 @@ impl LintRule for BareUrl {
                 if url.is_empty() {
                     continue;
                 }
-                let message =
-                    format!("bare URL `{url}` — wrap as `<{url}>` for a portable autolink");
+                let message = format!("bare URL `{url}` — wrap as `<{url}>` for a portable autolink");
                 let fix = Fix {
                     replacement: format!("<{url}>"),
                     safe: true,
                 };
-                if let Some(d) =
-                    Diagnostic::at(doc, chunk.byte_offset, m.start()..end, message, Some(fix))
-                {
+                if let Some(d) = Diagnostic::at(doc, chunk.byte_offset, m.start()..end, message, Some(fix)) {
                     out.push(d);
                 }
             }

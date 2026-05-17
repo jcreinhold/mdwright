@@ -67,9 +67,7 @@ impl InlineRun {
         // path; a lone break maps to its corresponding part directly.
         if inputs.len() == 1 {
             let part = match inputs.into_iter().next() {
-                Some(RunInput::Text { payload, source }) => {
-                    RunPart::Text(escape_singleton(&payload, source, scope))
-                }
+                Some(RunInput::Text { payload, source }) => RunPart::Text(escape_singleton(&payload, source, scope)),
                 Some(RunInput::SoftBreak) => RunPart::SoftBreak,
                 Some(RunInput::HardBreak) => hard_break_part(scope),
                 None => return Self { parts: Vec::new() },
@@ -218,9 +216,7 @@ fn hard_break_part(scope: EscapeScope) -> RunPart {
 /// holds independent of how pulldown split the run.
 fn escape_singleton(payload: &str, source: Option<&str>, scope: EscapeScope) -> String {
     let forced = match source {
-        Some(src) if payload_has_source_escape(payload, src) => {
-            forced_escapes_from_source(payload, src)
-        }
+        Some(src) if payload_has_source_escape(payload, src) => forced_escapes_from_source(payload, src),
         _ => {
             if !any_byte_needs_escape(payload, scope) {
                 return payload.to_owned();

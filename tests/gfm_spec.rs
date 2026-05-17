@@ -85,8 +85,7 @@ fn load_allowlist() -> Vec<AllowEntry> {
     if text.trim().is_empty() {
         return Vec::new();
     }
-    let parsed: AllowFile =
-        toml::from_str(&text).unwrap_or_else(|e| panic!("parse allowlist.toml: {e}"));
+    let parsed: AllowFile = toml::from_str(&text).unwrap_or_else(|e| panic!("parse allowlist.toml: {e}"));
     parsed.cases
 }
 
@@ -214,21 +213,13 @@ fn normalise_tag(tag: &Tag<'_>) -> String {
             dest_url,
             title,
             ..
-        } => format!(
-            "Link({link_type:?},{},{})",
-            dest_url.as_ref(),
-            title.as_ref()
-        ),
+        } => format!("Link({link_type:?},{},{})", dest_url.as_ref(), title.as_ref()),
         Tag::Image {
             link_type,
             dest_url,
             title,
             ..
-        } => format!(
-            "Image({link_type:?},{},{})",
-            dest_url.as_ref(),
-            title.as_ref()
-        ),
+        } => format!("Image({link_type:?},{},{})", dest_url.as_ref(), title.as_ref()),
         Tag::HtmlBlock => "HtmlBlock".to_owned(),
         Tag::MetadataBlock(kind) => format!("MetadataBlock({kind:?})"),
         Tag::DefinitionList => "DefinitionList".to_owned(),
@@ -292,10 +283,7 @@ fn collect_failures(cases: &[SpecCase]) -> BTreeMap<u32, (String, Vec<&'static s
 }
 
 /// One-line-per-failing-kind format. Stable, sortable, diff-friendly.
-fn render_snapshot(
-    failures: &BTreeMap<u32, (String, Vec<&'static str>)>,
-    allowlist: &BTreeSet<u32>,
-) -> String {
+fn render_snapshot(failures: &BTreeMap<u32, (String, Vec<&'static str>)>, allowlist: &BTreeSet<u32>) -> String {
     let mut out = String::from(
         "# GFM spec snapshot. Auto-generated; one line per (case, kind) failure.\n\
          # Regenerate after a deliberate fix with:\n\
@@ -306,11 +294,7 @@ fn render_snapshot(
         if allowlist.contains(num) {
             continue;
         }
-        let section = if section.is_empty() {
-            "?"
-        } else {
-            section.as_str()
-        };
+        let section = if section.is_empty() { "?" } else { section.as_str() };
         for kind in kinds {
             let _ = writeln!(out, "{num:<5} {kind:<11} {section}");
         }

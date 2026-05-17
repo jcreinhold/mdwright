@@ -116,11 +116,7 @@ fn resolve_initial(source_delim: u8, style: ItalicStyle) -> EmphasisDelim {
 mod tests {
     use super::*;
 
-    fn ctx(
-        style: ItalicStyle,
-        left: Option<EmphasisDelim>,
-        child: Option<EmphasisDelim>,
-    ) -> ResolveCtx {
+    fn ctx(style: ItalicStyle, left: Option<EmphasisDelim>, child: Option<EmphasisDelim>) -> ResolveCtx {
         ResolveCtx {
             style,
             left_sibling_delim: left,
@@ -167,22 +163,14 @@ mod tests {
     #[test]
     fn sibling_collision_flips() {
         let run = EmphasisRun::from_source(b'*');
-        let d = run.resolve(ctx(
-            ItalicStyle::Asterisk,
-            Some(EmphasisDelim::Asterisk),
-            None,
-        ));
+        let d = run.resolve(ctx(ItalicStyle::Asterisk, Some(EmphasisDelim::Asterisk), None));
         assert_eq!(d, EmphasisDelim::Underscore);
     }
 
     #[test]
     fn nested_child_collision_flips() {
         let run = EmphasisRun::from_source(b'*');
-        let d = run.resolve(ctx(
-            ItalicStyle::Asterisk,
-            None,
-            Some(EmphasisDelim::Asterisk),
-        ));
+        let d = run.resolve(ctx(ItalicStyle::Asterisk, None, Some(EmphasisDelim::Asterisk)));
         assert_eq!(d, EmphasisDelim::Underscore);
     }
 
@@ -210,13 +198,7 @@ mod tests {
 
     #[test]
     fn flip_is_involutive() {
-        assert_eq!(
-            EmphasisDelim::Asterisk.flip().flip(),
-            EmphasisDelim::Asterisk
-        );
-        assert_eq!(
-            EmphasisDelim::Underscore.flip().flip(),
-            EmphasisDelim::Underscore
-        );
+        assert_eq!(EmphasisDelim::Asterisk.flip().flip(), EmphasisDelim::Asterisk);
+        assert_eq!(EmphasisDelim::Underscore.flip().flip(), EmphasisDelim::Underscore);
     }
 }

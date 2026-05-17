@@ -49,11 +49,9 @@ impl LintRule for ListTightnessFlipped {
                 continue;
             }
             let message = if typed_tight {
-                "list reads as tight from typed items but source has a blank line between items"
-                    .to_owned()
+                "list reads as tight from typed items but source has a blank line between items".to_owned()
             } else {
-                "list reads as loose from typed items but source has no blank line between items"
-                    .to_owned()
+                "list reads as loose from typed items but source has no blank line between items".to_owned()
             };
             let start = group.raw_range.start;
             let local = 0..1;

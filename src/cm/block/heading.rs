@@ -12,8 +12,7 @@ use crate::tree::NodeId;
 /// First byte of `s` after skipping spaces, tabs, and line-feeds.
 /// `None` iff `s` is whitespace-only.
 fn first_significant_byte(s: &str) -> Option<u8> {
-    s.bytes()
-        .find(|&b| !matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
+    s.bytes().find(|&b| !matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
 }
 
 /// Split a setext heading's source bytes into (body, underline). The
@@ -102,9 +101,7 @@ impl Heading {
     #[tracing::instrument(level = "trace")]
     pub(crate) fn try_new(level: HeadingLevel, style: HeadingStyle) -> Result<Self, HeadingError> {
         if matches!(style, HeadingStyle::Setext) && level.as_u8() > 2 {
-            return Err(HeadingError::SetextLevelTooHigh {
-                level: level.as_u8(),
-            });
+            return Err(HeadingError::SetextLevelTooHigh { level: level.as_u8() });
         }
         Ok(Self { level, style })
     }
@@ -162,15 +159,10 @@ impl Heading {
                 // treats `\n` as ASCII whitespace, joining lines with
                 // spaces and collapsing a multi-line setext body to a
                 // single line — exactly the bug this fix targets).
-                let first_line_width = canonical_body
-                    .lines()
-                    .next()
-                    .map_or(3, |l| l.chars().count())
-                    .max(3);
+                let first_line_width = canonical_body.lines().next().map_or(3, |l| l.chars().count()).max(3);
                 let body_doc = unbreakable(text(canonical_body));
                 let underline_char = if level == 1 { '=' } else { '-' };
-                let underline: String =
-                    std::iter::repeat_n(underline_char, first_line_width).collect();
+                let underline: String = std::iter::repeat_n(underline_char, first_line_width).collect();
                 drop(body);
                 return concat([body_doc, hard_line(), text(underline), hard_line()]);
             }

@@ -90,11 +90,7 @@ fn disable_all_silences_every_rule() -> Result<()> {
     // No non-advisory diagnostics should remain (the `suppression`
     // pseudo-rule itself is advisory, so it would be allowed even if
     // it fires — but here there's nothing to flag).
-    let non_advisory: Vec<&str> = d
-        .iter()
-        .filter(|d| !d.advisory)
-        .map(|d| d.rule.as_ref())
-        .collect();
+    let non_advisory: Vec<&str> = d.iter().filter(|d| !d.advisory).map(|d| d.rule.as_ref()).collect();
     assert!(
         non_advisory.is_empty(),
         "expected no diagnostics; got: {non_advisory:?}"
@@ -122,10 +118,7 @@ fn unknown_rule_name_surfaces_advisory() -> Result<()> {
         1,
         "expected one suppression diag; got: {advisories:?}"
     );
-    let adv = advisories
-        .first()
-        .copied()
-        .ok_or_else(|| anyhow::anyhow!("missing"))?;
+    let adv = advisories.first().copied().ok_or_else(|| anyhow::anyhow!("missing"))?;
     assert!(adv.advisory, "suppression diagnostic must be advisory");
     assert!(
         adv.message.contains("nonexistent-rule"),

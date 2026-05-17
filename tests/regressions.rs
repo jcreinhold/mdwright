@@ -74,8 +74,7 @@ fn regression_inputs_preserve_html() {
         if is_idempotence_only(&path) {
             continue;
         }
-        let src = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
+        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
         let doc = Document::parse(&src);
         if let Err(FormatError::HtmlDivergence {
             source_html,
@@ -104,8 +103,7 @@ fn regression_inputs_are_idempotent() {
     let opts = FmtOptions::default();
     let mut failures: Vec<(PathBuf, String, String)> = Vec::new();
     for path in input_files(&regressions_dir()) {
-        let src = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
+        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
         let once = Document::parse(&src).format(&opts);
         let twice = Document::parse(&once).format(&opts);
         if once != twice {
@@ -117,10 +115,7 @@ fn regression_inputs_are_idempotent() {
         "non-idempotent regression inputs:\n{}",
         failures
             .iter()
-            .map(|(p, a, b)| format!(
-                "--- {} ---\n=== once ===\n{a}\n=== twice ===\n{b}\n",
-                p.display()
-            ))
+            .map(|(p, a, b)| format!("--- {} ---\n=== once ===\n{a}\n=== twice ===\n{b}\n", p.display()))
             .collect::<String>(),
     );
 }

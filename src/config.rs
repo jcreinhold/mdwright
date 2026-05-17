@@ -324,28 +324,16 @@ impl FmtOptions {
         Self {
             wrap: schema.wrap.map_or(default.wrap, Wrap::from),
             italic: schema.italic.map_or(default.italic, ItalicStyle::from),
-            list_marker: schema
-                .list_marker
-                .map_or(default.list_marker, ListMarkerStyle::from),
-            ordered_list: schema
-                .ordered_list
-                .map_or(default.ordered_list, OrderedListStyle::from),
+            list_marker: schema.list_marker.map_or(default.list_marker, ListMarkerStyle::from),
+            ordered_list: schema.ordered_list.map_or(default.ordered_list, OrderedListStyle::from),
             trailing_newline: schema
                 .trailing_newline
                 .map_or(default.trailing_newline, TrailingNewline::from),
-            end_of_line: schema
-                .end_of_line
-                .map_or(default.end_of_line, EndOfLine::from),
+            end_of_line: schema.end_of_line.map_or(default.end_of_line, EndOfLine::from),
             exclude_globs: schema.exclude,
-            link_def_placement: refs
-                .placement
-                .map_or(default.link_def_placement, Placement::from),
-            link_def_style: refs
-                .style
-                .map_or(default.link_def_style, LinkDefStyle::from),
-            footnote_placement: footnotes
-                .placement
-                .map_or(default.footnote_placement, Placement::from),
+            link_def_placement: refs.placement.map_or(default.link_def_placement, Placement::from),
+            link_def_style: refs.style.map_or(default.link_def_style, LinkDefStyle::from),
+            footnote_placement: footnotes.placement.map_or(default.footnote_placement, Placement::from),
             preserve_frontmatter: frontmatter.preserve.unwrap_or(default.preserve_frontmatter),
             thematic_break_style: default.thematic_break_style,
             mode: default.mode,
@@ -867,8 +855,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema,
-        TrailingNewline, Wrap,
+        Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema, TrailingNewline, Wrap,
     };
 
     fn with_cwd<R>(p: &Path, f: impl FnOnce() -> Result<R>) -> Result<R> {
@@ -876,9 +863,7 @@ mod tests {
         // must serialise against each other.
         static M: OnceLock<Mutex<()>> = OnceLock::new();
         let mutex = M.get_or_init(|| Mutex::new(()));
-        let _g = mutex
-            .lock()
-            .map_err(|e| anyhow!("cwd mutex poisoned: {e}"))?;
+        let _g = mutex.lock().map_err(|e| anyhow!("cwd mutex poisoned: {e}"))?;
         let saved = env::current_dir()?;
         env::set_current_dir(p)?;
         let result = f();
@@ -934,10 +919,7 @@ exclude = ["docs/generated/**"]
             .err()
             .ok_or_else(|| anyhow!("expected error"))?;
         let rendered = err.to_string();
-        assert!(
-            rendered.contains("lnt"),
-            "error should name 'lnt': {rendered}"
-        );
+        assert!(rendered.contains("lnt"), "error should name 'lnt': {rendered}");
         Ok(())
     }
 
@@ -948,10 +930,7 @@ exclude = ["docs/generated/**"]
             .err()
             .ok_or_else(|| anyhow!("expected error"))?;
         let rendered = err.to_string();
-        assert!(
-            rendered.contains("rulez"),
-            "error should name 'rulez': {rendered}"
-        );
+        assert!(rendered.contains("rulez"), "error should name 'rulez': {rendered}");
         Ok(())
     }
 
@@ -1001,10 +980,7 @@ exclude = ["docs/generated/**"]
     #[test]
     fn pyproject_without_tool_table_falls_through_to_defaults() -> Result<()> {
         let dir = tempdir()?;
-        fs::write(
-            dir.path().join("pyproject.toml"),
-            "[project]\nname = \"unrelated\"\n",
-        )?;
+        fs::write(dir.path().join("pyproject.toml"), "[project]\nname = \"unrelated\"\n")?;
         with_cwd(dir.path(), || {
             let cfg = Config::load(None).map_err(|e| anyhow!("load: {e}"))?;
             assert_eq!(cfg.rules_spec(), "default");
@@ -1028,8 +1004,7 @@ exclude = ["docs/generated/**"]
 
     #[test]
     fn resolvers_honour_style() -> Result<()> {
-        let preserve =
-            config_from_str("[fmt]\nitalic = \"preserve\"\nlist-marker = \"preserve\"\n")?;
+        let preserve = config_from_str("[fmt]\nitalic = \"preserve\"\nlist-marker = \"preserve\"\n")?;
         let fmt = preserve.fmt_options();
         assert_eq!(fmt.resolve_italic(b'_'), b'_');
         assert_eq!(fmt.resolve_italic(b'*'), b'*');

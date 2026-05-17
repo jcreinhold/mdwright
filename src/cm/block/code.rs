@@ -91,25 +91,17 @@ impl FencedCodeBlock {
         open.push_str(info);
         if body.is_empty() {
             return concat([
-                unbreakable(concat([
-                    text(open),
-                    hard_line(),
-                    text(fence_string.clone()),
-                ])),
+                unbreakable(concat([text(open), hard_line(), text(fence_string.clone())])),
                 hard_line(),
             ]);
         }
-        let mut tail =
-            String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
+        let mut tail = String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
         tail.push_str(body);
         if !tail.ends_with('\n') {
             tail.push('\n');
         }
         tail.push_str(fence_str);
-        concat([
-            unbreakable(concat([text(open), hard_line(), text(tail)])),
-            hard_line(),
-        ])
+        concat([unbreakable(concat([text(open), hard_line(), text(tail)])), hard_line()])
     }
 }
 
@@ -131,9 +123,7 @@ fn source_fence_len(ctx: &PrettyCtx<'_>, id: NodeId, fence_char: char) -> Option
     let fc = fence_char as u8;
     let raw = ctx.tree.raw_text(ctx.source, id);
     let bytes = raw.as_bytes();
-    let start = bytes
-        .iter()
-        .position(|b| !matches!(*b, b' ' | b'\t' | b'\n' | b'\r'))?;
+    let start = bytes.iter().position(|b| !matches!(*b, b' ' | b'\t' | b'\n' | b'\r'))?;
     if bytes.get(start).copied() != Some(fc) {
         return None;
     }
@@ -182,19 +172,14 @@ impl IndentedCodeBlock {
                 hard_line(),
             ]);
         }
-        let mut tail =
-            String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
+        let mut tail = String::with_capacity(body.len().saturating_add(fence_str.len()).saturating_add(1));
         tail.push_str(body);
         if !tail.ends_with('\n') {
             tail.push('\n');
         }
         tail.push_str(fence_str);
         concat([
-            unbreakable(concat([
-                text(fence_string.clone()),
-                hard_line(),
-                text(tail),
-            ])),
+            unbreakable(concat([text(fence_string.clone()), hard_line(), text(tail)])),
             hard_line(),
         ])
     }

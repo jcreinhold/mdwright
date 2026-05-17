@@ -64,13 +64,7 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                 let body = pretty_inline_children(ctx, cid);
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
                 let flank = flank_ctx_for(ctx, cid);
-                parts.push(emit_emphasis_safely(
-                    body,
-                    delim,
-                    RunKind::Strong,
-                    source_slice,
-                    flank,
-                ));
+                parts.push(emit_emphasis_safely(body, delim, RunKind::Strong, source_slice, flank));
             }
             NodeKind::Strikethrough => {
                 let body = pretty_inline_children(ctx, cid);

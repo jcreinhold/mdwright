@@ -54,10 +54,7 @@ impl ByteSpan {
     /// out of scope for the library.
     #[must_use]
     pub fn from_range(r: Range<usize>) -> Self {
-        debug_assert!(
-            u32::try_from(r.end).is_ok(),
-            "ByteSpan offset overflows u32"
-        );
+        debug_assert!(u32::try_from(r.end).is_ok(), "ByteSpan offset overflows u32");
         Self {
             start: r.start as u32,
             end: r.end as u32,
@@ -168,9 +165,7 @@ impl OffsetMap {
             e.original.start
         } else {
             // p sits in the identity-run after this rewrite.
-            e.original
-                .end
-                .saturating_add(p.saturating_sub(e.canonical.end))
+            e.original.end.saturating_add(p.saturating_sub(e.canonical.end))
         }
     }
 
@@ -203,9 +198,7 @@ impl OffsetMap {
             e.original.end
         } else {
             // p sits in the identity-run after this rewrite.
-            e.original
-                .end
-                .saturating_add(p.saturating_sub(e.canonical.end))
+            e.original.end.saturating_add(p.saturating_sub(e.canonical.end))
         }
     }
 }

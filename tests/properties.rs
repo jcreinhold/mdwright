@@ -50,11 +50,7 @@ fn arb_reference_triple() -> impl Strategy<Value = (String, String, String, &'st
         "[a-zA-Z0-9 .,!?-]{0,32}",
         prop_oneof![Just("full"), Just("collapsed"), Just("shortcut")],
     )
-        .prop_map(
-            |(label, dest, title, kind): (String, String, String, &'static str)| {
-                (label, dest, title, kind)
-            },
-        )
+        .prop_map(|(label, dest, title, kind): (String, String, String, &'static str)| (label, dest, title, kind))
 }
 
 proptest! {

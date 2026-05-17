@@ -103,11 +103,7 @@ fn rewrite_lines<'a>(doc: Doc<'a>, r: Replace) -> Doc<'a> {
         Doc::Atomic(inner) => Doc::Atomic(Box::new(rewrite_lines(*inner, r))),
         Doc::Prefix(p, inner) => Doc::Prefix(p, Box::new(rewrite_lines(*inner, r))),
         Doc::Concat(items) => {
-            let v: Vec<Doc<'a>> = items
-                .into_vec()
-                .into_iter()
-                .map(|i| rewrite_lines(i, r))
-                .collect();
+            let v: Vec<Doc<'a>> = items.into_vec().into_iter().map(|i| rewrite_lines(i, r)).collect();
             Doc::Concat(v.into_boxed_slice())
         }
     }
@@ -160,8 +156,7 @@ fn process_stream<'a>(stream: Vec<Doc<'a>>, target: u32) -> Vec<Doc<'a>> {
                 // the prefix's column cost.
                 Doc::Prefix(p, inner) => {
                     let shrink =
-                        u32::try_from(unicode_width::UnicodeWidthStr::width(p.content.as_ref()))
-                            .unwrap_or(u32::MAX);
+                        u32::try_from(unicode_width::UnicodeWidthStr::width(p.content.as_ref())).unwrap_or(u32::MAX);
                     let new_target = target.saturating_sub(shrink).max(1);
                     let wrapped = wrap_at(*inner, new_target);
                     out.push(Doc::Prefix(p, Box::new(wrapped)));
@@ -538,8 +533,7 @@ fn rebuild<'a>(boxes: Vec<Bx<'a>>, breaks: &[usize]) -> Vec<Doc<'a>> {
 mod tests {
     use super::{Wrap, wrap_doc};
     use crate::format::doc::{
-        Doc, LinePrefix, RenderOptions, concat, hard_line, line, prefix_lines, render, text,
-        unbreakable,
+        Doc, LinePrefix, RenderOptions, concat, hard_line, line, prefix_lines, render, text, unbreakable,
     };
 
     fn render_wrapped(doc: Doc<'_>, wrap: Wrap) -> String {
@@ -592,13 +586,7 @@ mod tests {
 
     #[test]
     fn hard_line_terminates_run() {
-        let d = concat([
-            text("foo"),
-            line(),
-            text("bar"),
-            hard_line(),
-            text("baz qux"),
-        ]);
+        let d = concat([text("foo"), line(), text("bar"), hard_line(), text("baz qux")]);
         let out = render_wrapped(d, Wrap::At(80));
         assert_eq!(out, "foo bar\nbaz qux");
     }

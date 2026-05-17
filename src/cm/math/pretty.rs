@@ -49,8 +49,7 @@ impl MathSpan {
     /// `region` is the **outer** range (including delimiter tokens).
     pub(crate) fn pretty<'a>(&self, ctx: &PrettyCtx<'a>, region: &Range<usize>) -> Doc<'a> {
         let source = ctx.source;
-        let normalise =
-            ctx.opts.mode() != crate::config::FormatMode::Verbatim && ctx.opts.math().normalise;
+        let normalise = ctx.opts.mode() != crate::config::FormatMode::Verbatim && ctx.opts.math().normalise;
         let body = self.body().as_str(source);
         let has_transparent = self.body().has_transparent_runs();
 
@@ -156,11 +155,7 @@ fn is_line_standalone(source: &str, region: &Range<usize>) -> bool {
 /// whitespace transformation. The body is the cleaned [`MathBody::as_str`]
 /// content (container prefixes already stripped).
 fn verbatim_inline<'a>(delim: InlineDelim, body: &str) -> Doc<'a> {
-    concat([
-        text(delim.open()),
-        text(body.to_owned()),
-        text(delim.close()),
-    ])
+    concat([text(delim.open()), text(body.to_owned()), text(delim.close())])
 }
 
 /// Verbatim display math. The body is split at `\n` so the surrounding
@@ -227,11 +222,7 @@ pub(crate) fn body_braces_balanced(body: &str) -> Result<(), usize> {
 fn pretty_inline<'a>(delim: InlineDelim, body: &str) -> Doc<'a> {
     let normalised = collapse_inline_ws(body);
     let trimmed = normalised.trim();
-    concat([
-        text(delim.open()),
-        text(trimmed.to_owned()),
-        text(delim.close()),
-    ])
+    concat([text(delim.open()), text(trimmed.to_owned()), text(delim.close())])
 }
 
 /// Render a display math region. The body keeps its newlines but
@@ -329,12 +320,7 @@ fn align_env_body(body: &str) -> String {
     }
     let rows: Vec<Vec<String>> = raw_rows
         .iter()
-        .map(|row| {
-            split_cells(row)
-                .into_iter()
-                .map(|c| c.trim().to_owned())
-                .collect()
-        })
+        .map(|row| split_cells(row).into_iter().map(|c| c.trim().to_owned()).collect())
         .collect();
 
     let n_cols = rows.iter().map(Vec::len).max().unwrap_or(0);

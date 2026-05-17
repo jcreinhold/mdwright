@@ -19,8 +19,7 @@ fn opts_for(stem: &str) -> FmtOptions {
     if stem == "stripped" {
         let dir = tempfile::tempdir().unwrap_or_else(|e| panic!("tempdir: {e}"));
         let path = dir.path().join("mdwright.toml");
-        std::fs::write(&path, "[fmt.frontmatter]\npreserve = false\n")
-            .unwrap_or_else(|e| panic!("write: {e}"));
+        std::fs::write(&path, "[fmt.frontmatter]\npreserve = false\n").unwrap_or_else(|e| panic!("write: {e}"));
         let cfg = Config::load(Some(&path)).unwrap_or_else(|e| panic!("load config: {e}"));
         cfg.fmt_options().clone()
     } else {
@@ -48,10 +47,9 @@ fn golden_frontmatter() {
             continue;
         };
         let expected_path = dir.join(format!("{stem}.out"));
-        let input =
-            fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        let expected = fs::read_to_string(&expected_path)
-            .unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
+        let input = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let expected =
+            fs::read_to_string(&expected_path).unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
         let doc = Document::parse(&input);
         let opts = opts_for(stem);
         let got = doc.format(&opts);
@@ -62,11 +60,7 @@ fn golden_frontmatter() {
             ));
         }
     }
-    assert!(
-        count > 0,
-        "no golden fixtures found under {}",
-        dir.display()
-    );
+    assert!(count > 0, "no golden fixtures found under {}", dir.display());
     assert!(
         failures.is_empty(),
         "{}/{} golden fixture(s) failed:\n{}",

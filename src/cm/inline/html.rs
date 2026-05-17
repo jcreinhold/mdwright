@@ -28,9 +28,7 @@ impl InlineHtmlSpan {
             joined.push_str(raw);
             return Self { bytes: joined };
         }
-        Self {
-            bytes: raw.to_owned(),
-        }
+        Self { bytes: raw.to_owned() }
     }
 
     #[cfg(test)]

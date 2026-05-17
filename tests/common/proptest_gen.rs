@@ -10,12 +10,7 @@
 //! test binaries) and is pulled in via `#[path]` from the
 //! consuming test.
 
-#![allow(
-    dead_code,
-    unreachable_pub,
-    clippy::format_collect,
-    clippy::arithmetic_side_effects
-)]
+#![allow(dead_code, unreachable_pub, clippy::format_collect, clippy::arithmetic_side_effects)]
 
 use std::fmt::Write as _;
 
@@ -131,10 +126,8 @@ fn arb_list() -> impl Strategy<Value = String> {
         // Once back-to-back lists with different source markers no
         // longer merge after normalization, restore the
         // `prop_oneof!` over `-`, `*`, `+`.
-        vec(arb_inline_run(), 1..=4).prop_map(|items| items
-            .into_iter()
-            .map(|it| format!("- {it}\n"))
-            .collect::<String>()),
+        vec(arb_inline_run(), 1..=4)
+            .prop_map(|items| items.into_iter().map(|it| format!("- {it}\n")).collect::<String>()),
         // Ordered.
         vec(arb_inline_run(), 1..=4).prop_map(|items| items
             .into_iter()
@@ -153,8 +146,7 @@ fn arb_code_block() -> impl Strategy<Value = String> {
 }
 
 fn arb_blockquote() -> impl Strategy<Value = String> {
-    vec(arb_inline_run(), 1..=3)
-        .prop_map(|lines| lines.into_iter().map(|l| format!("> {l}\n")).collect())
+    vec(arb_inline_run(), 1..=3).prop_map(|lines| lines.into_iter().map(|l| format!("> {l}\n")).collect())
 }
 
 fn arb_thematic_break() -> impl Strategy<Value = String> {
@@ -269,11 +261,7 @@ pub fn arb_strong_src() -> impl Strategy<Value = String> {
 /// * destination with allowed punctuation (`-`, `_`, `.`),
 /// * label with whitespace (text-style label, no nested markup).
 pub fn arb_link_inline_src() -> impl Strategy<Value = String> {
-    (
-        arb_text(),
-        arb_word(),
-        prop_oneof![Just(""), Just(" \"t\"")],
-    )
+    (arb_text(), arb_word(), prop_oneof![Just(""), Just(" \"t\"")])
         .prop_map(|(label, dest, title)| format!("[{label}](https://example.com/{dest}{title})\n"))
 }
 
@@ -360,8 +348,7 @@ pub fn arb_fenced_code_src() -> impl Strategy<Value = String> {
 pub fn arb_quote_src() -> impl Strategy<Value = String> {
     prop_oneof![
         // Every line prefixed.
-        vec(arb_inline_run(), 1..=3)
-            .prop_map(|lines| lines.into_iter().map(|l| format!("> {l}\n")).collect()),
+        vec(arb_inline_run(), 1..=3).prop_map(|lines| lines.into_iter().map(|l| format!("> {l}\n")).collect()),
         // Lazy continuation: only the first line carries the marker.
         (arb_inline_run(), arb_inline_run()).prop_map(|(a, b)| format!("> {a}\n{b}\n")),
     ]
@@ -377,11 +364,9 @@ pub fn arb_quote_src() -> impl Strategy<Value = String> {
 pub fn arb_list_src() -> impl Strategy<Value = String> {
     prop_oneof![
         // Unordered tight.
-        vec(arb_inline_run(), 1..=3)
-            .prop_map(|items| items.into_iter().map(|it| format!("- {it}\n")).collect()),
+        vec(arb_inline_run(), 1..=3).prop_map(|items| items.into_iter().map(|it| format!("- {it}\n")).collect()),
         // Unordered loose.
-        vec(arb_inline_run(), 1..=3)
-            .prop_map(|items| items.into_iter().map(|it| format!("- {it}\n\n")).collect()),
+        vec(arb_inline_run(), 1..=3).prop_map(|items| items.into_iter().map(|it| format!("- {it}\n\n")).collect()),
         // Ordered tight.
         vec(arb_inline_run(), 1..=3).prop_map(|items| items
             .into_iter()
@@ -408,27 +393,11 @@ pub fn arb_table_src() -> impl Strategy<Value = String> {
     )
         .prop_map(|(headers, aligns, body)| {
             let cols = headers.len().min(aligns.len());
-            let head = headers
-                .iter()
-                .take(cols)
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(" | ");
-            let sep = aligns
-                .iter()
-                .take(cols)
-                .copied()
-                .collect::<Vec<_>>()
-                .join(" | ");
+            let head = headers.iter().take(cols).cloned().collect::<Vec<_>>().join(" | ");
+            let sep = aligns.iter().take(cols).copied().collect::<Vec<_>>().join(" | ");
             let mut out = format!("| {head} |\n| {sep} |\n");
             for row in body {
-                let cells = row
-                    .iter()
-                    .cycle()
-                    .take(cols)
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(" | ");
+                let cells = row.iter().cycle().take(cols).cloned().collect::<Vec<_>>().join(" | ");
                 let _ = writeln!(out, "| {cells} |");
             }
             out

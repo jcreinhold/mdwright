@@ -208,12 +208,9 @@ mod tests {
 
     #[test]
     fn names_match_all_boxed() {
-        let from_rules: std::collections::BTreeSet<String> = super::all_boxed()
-            .iter()
-            .map(|r| r.name().to_owned())
-            .collect();
-        let from_const: std::collections::BTreeSet<String> =
-            super::NAMES.iter().map(|s| (*s).to_owned()).collect();
+        let from_rules: std::collections::BTreeSet<String> =
+            super::all_boxed().iter().map(|r| r.name().to_owned()).collect();
+        let from_const: std::collections::BTreeSet<String> = super::NAMES.iter().map(|s| (*s).to_owned()).collect();
         assert_eq!(from_rules, from_const, "stdlib::NAMES drift");
     }
 }

@@ -37,8 +37,7 @@ impl LintRule for MathUnbalancedBraces {
                 continue;
             };
             let span = (*offset)..offset.saturating_add(1).min(region.end);
-            let message =
-                "unbalanced `{` / `}` inside math body — pretty-printer emits this region verbatim";
+            let message = "unbalanced `{` / `}` inside math body — pretty-printer emits this region verbatim";
             if let Some(d) = Diagnostic::at(doc, 0, span, message.to_owned(), None) {
                 out.push(d);
             }

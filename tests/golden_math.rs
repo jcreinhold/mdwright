@@ -37,10 +37,9 @@ fn golden_math() {
             continue;
         };
         let expected_path = dir.join(format!("{stem}.out"));
-        let input =
-            fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        let expected = fs::read_to_string(&expected_path)
-            .unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
+        let input = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        let expected =
+            fs::read_to_string(&expected_path).unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
         let doc = Document::parse(&input);
         let got = doc.format(&opts);
         count = count.saturating_add(1);
@@ -50,11 +49,7 @@ fn golden_math() {
             ));
         }
     }
-    assert!(
-        count > 0,
-        "no golden fixtures found under {}",
-        dir.display()
-    );
+    assert!(count > 0, "no golden fixtures found under {}", dir.display());
     assert!(
         failures.is_empty(),
         "{}/{} golden fixture(s) failed:\n{}",

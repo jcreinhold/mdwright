@@ -27,13 +27,7 @@ impl LintRule for UnbalancedBacktick {
                 let message = "unclosed inline code span — pulldown-cmark could not pair \
                      this backtick with a closing fence"
                     .to_owned();
-                if let Some(d) = Diagnostic::at(
-                    doc,
-                    chunk.byte_offset,
-                    idx..idx.saturating_add(1),
-                    message,
-                    None,
-                ) {
+                if let Some(d) = Diagnostic::at(doc, chunk.byte_offset, idx..idx.saturating_add(1), message, None) {
                     out.push(d);
                 }
             }

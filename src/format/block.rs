@@ -63,8 +63,7 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
         // Admonition overlay.
         if let Some(node) = ctx.tree.node(child) {
             let cr = node.raw_range.clone();
-            while adm_idx < ctx.admonitions.len()
-                && ctx.admonitions.get(adm_idx).map_or(0, |a| a.range.end) <= cr.start
+            while adm_idx < ctx.admonitions.len() && ctx.admonitions.get(adm_idx).map_or(0, |a| a.range.end) <= cr.start
             {
                 adm_idx = adm_idx.saturating_add(1);
             }
@@ -150,10 +149,7 @@ pub(crate) fn pretty_block<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
     }
     match &node.typed {
         Some(typed) => typed.pretty(ctx, id),
-        None => concat([
-            text(ctx.tree.raw_text(ctx.source, id).to_owned()),
-            hard_line(),
-        ]),
+        None => concat([text(ctx.tree.raw_text(ctx.source, id).to_owned()), hard_line()]),
     }
 }
 
@@ -169,10 +165,7 @@ fn root_verbatim_safe(ctx: &PrettyCtx<'_>, id: NodeId) -> bool {
     let Some(node) = ctx.tree.node(id) else {
         return false;
     };
-    !ctx.source
-        .get(node.raw_range.clone())
-        .unwrap_or("")
-        .contains('\r')
+    !ctx.source.get(node.raw_range.clone()).unwrap_or("").contains('\r')
 }
 
 /// Build a `Doc` for `raw` that emits the input byte-verbatim with a
@@ -242,12 +235,7 @@ fn append_link_def_tail<'a>(ctx: &PrettyCtx<'a>, parts: &mut Vec<Doc<'a>>) {
     }
 }
 
-fn render_link_ref_def<'a>(
-    label: &str,
-    dest: &str,
-    title: Option<&str>,
-    style: LinkDefStyle,
-) -> Doc<'a> {
+fn render_link_ref_def<'a>(label: &str, dest: &str, title: Option<&str>, style: LinkDefStyle) -> Doc<'a> {
     let dest_rendered = crate::cm::inline::link::render_url_destination_owned(dest, style);
     let line = match title {
         Some(t) => format!("[{label}]: {dest_rendered} \"{t}\""),

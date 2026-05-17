@@ -66,11 +66,7 @@ impl TableRow {
     /// synthetic arena node; emitters render an empty cell whenever
     /// [`TableRow::is_pad`] returns `true`. Truncated cells are
     /// dropped silently.
-    pub(crate) fn from_raw(
-        row_id: NodeId,
-        raw_cells: Vec<TableCell>,
-        expected_columns: usize,
-    ) -> Self {
+    pub(crate) fn from_raw(row_id: NodeId, raw_cells: Vec<TableCell>, expected_columns: usize) -> Self {
         let mut cells = raw_cells;
         cells.truncate(expected_columns);
         while cells.len() < expected_columns {
@@ -113,11 +109,7 @@ pub(crate) enum TableError {
     HeadColumnCountMismatch { expected: usize, got: usize },
     /// A body row's cell count does not match `align.len()`. Same
     /// caveat as [`TableError::HeadColumnCountMismatch`].
-    BodyColumnCountMismatch {
-        row: usize,
-        expected: usize,
-        got: usize,
-    },
+    BodyColumnCountMismatch { row: usize, expected: usize, got: usize },
 }
 
 impl TableBlock {
@@ -126,11 +118,7 @@ impl TableBlock {
         skip_all,
         fields(columns = align.len(), body_rows = body.len())
     )]
-    pub(crate) fn try_new(
-        align: Vec<TableAlign>,
-        head: TableRow,
-        body: Vec<TableRow>,
-    ) -> Result<Self, TableError> {
+    pub(crate) fn try_new(align: Vec<TableAlign>, head: TableRow, body: Vec<TableRow>) -> Result<Self, TableError> {
         if align.is_empty() {
             return Err(TableError::NoColumns);
         }
@@ -191,8 +179,7 @@ impl TableBlock {
                         if row.is_pad(*cell) {
                             String::new()
                         } else {
-                            let inline =
-                                crate::format::inline::pretty_inline_children(ctx, cell.cell_id);
+                            let inline = crate::format::inline::pretty_inline_children(ctx, cell.cell_id);
                             let raw = render(&inline, &RenderOptions);
                             normalize_table_cell(&raw)
                         }
@@ -204,8 +191,7 @@ impl TableBlock {
         let n_cols = self.align.len();
         let widths = compute_column_widths(&rows, &self.align, n_cols, ctx.opts.wrap());
 
-        let mut parts: Vec<Doc<'b>> =
-            Vec::with_capacity(rows.len().saturating_mul(2).saturating_add(1));
+        let mut parts: Vec<Doc<'b>> = Vec::with_capacity(rows.len().saturating_mul(2).saturating_add(1));
         if let Some(head) = rows.first() {
             parts.push(text(format_table_row(head, &widths)));
             parts.push(hard_line());
@@ -356,31 +342,18 @@ mod tests {
     fn try_new_rejects_head_mismatch() {
         // Hand-built row to defeat from_raw's reconciliation.
         let head = TableRow::from_raw(nid(1), vec![TableCell::new(nid(2))], 1);
-        let err = TableBlock::try_new(vec![TableAlign::None, TableAlign::None], head, vec![])
-            .unwrap_err();
+        let err = TableBlock::try_new(vec![TableAlign::None, TableAlign::None], head, vec![]).unwrap_err();
         assert!(matches!(
             err,
-            TableError::HeadColumnCountMismatch {
-                expected: 2,
-                got: 1
-            }
+            TableError::HeadColumnCountMismatch { expected: 2, got: 1 }
         ));
     }
 
     #[test]
     fn try_new_rejects_body_mismatch() {
-        let head = TableRow::from_raw(
-            nid(1),
-            vec![TableCell::new(nid(2)), TableCell::new(nid(3))],
-            2,
-        );
+        let head = TableRow::from_raw(nid(1), vec![TableCell::new(nid(2)), TableCell::new(nid(3))], 2);
         let body_row = TableRow::from_raw(nid(4), vec![TableCell::new(nid(5))], 1);
-        let err = TableBlock::try_new(
-            vec![TableAlign::None, TableAlign::None],
-            head,
-            vec![body_row],
-        )
-        .unwrap_err();
+        let err = TableBlock::try_new(vec![TableAlign::None, TableAlign::None], head, vec![body_row]).unwrap_err();
         assert!(matches!(
             err,
             TableError::BodyColumnCountMismatch {
@@ -395,11 +368,7 @@ mod tests {
     fn from_raw_truncates() {
         let row = TableRow::from_raw(
             nid(1),
-            vec![
-                TableCell::new(nid(2)),
-                TableCell::new(nid(3)),
-                TableCell::new(nid(4)),
-            ],
+            vec![TableCell::new(nid(2)), TableCell::new(nid(3)), TableCell::new(nid(4))],
             2,
         );
         assert_eq!(row.cells().len(), 2);
@@ -420,11 +389,7 @@ mod tests {
 
     #[test]
     fn from_raw_exact_passes_through() {
-        let row = TableRow::from_raw(
-            nid(1),
-            vec![TableCell::new(nid(2)), TableCell::new(nid(3))],
-            2,
-        );
+        let row = TableRow::from_raw(nid(1), vec![TableCell::new(nid(2)), TableCell::new(nid(3))], 2);
         assert_eq!(row.cells().len(), 2);
         assert!(!row.is_pad(row.cells()[0]));
         assert!(!row.is_pad(row.cells()[1]));
@@ -432,11 +397,7 @@ mod tests {
 
     #[test]
     fn try_new_accepts_well_formed_table() {
-        let head = TableRow::from_raw(
-            nid(1),
-            vec![TableCell::new(nid(2)), TableCell::new(nid(3))],
-            2,
-        );
+        let head = TableRow::from_raw(nid(1), vec![TableCell::new(nid(2)), TableCell::new(nid(3))], 2);
         let body = vec![TableRow::from_raw(
             nid(4),
             vec![TableCell::new(nid(5)), TableCell::new(nid(6))],

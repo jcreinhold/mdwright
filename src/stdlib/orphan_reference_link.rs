@@ -32,11 +32,7 @@ impl LintRule for OrphanReferenceLink {
     }
 
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
-        let defs: HashSet<String> = doc
-            .link_defs()
-            .iter()
-            .map(|d| d.label.to_ascii_lowercase())
-            .collect();
+        let defs: HashSet<String> = doc.link_defs().iter().map(|d| d.label.to_ascii_lowercase()).collect();
 
         for chunk in doc.prose_chunks() {
             for cap in pattern().captures_iter(&chunk.text) {
@@ -61,8 +57,7 @@ impl LintRule for OrphanReferenceLink {
                 } else {
                     raw_label.to_owned()
                 };
-                let message =
-                    format!("reference link `{display}` has no `[{display}]:` definition");
+                let message = format!("reference link `{display}` has no `[{display}]:` definition");
                 if let Some(d) = Diagnostic::at(doc, chunk.byte_offset, m.range(), message, None) {
                     out.push(d);
                 }
