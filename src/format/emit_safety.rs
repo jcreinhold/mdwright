@@ -29,17 +29,106 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use crate::cm::inline::emphasis::EmphasisDelim;
 use crate::format::doc::{Doc, RenderOptions, concat, render, text};
 
-/// Does pulldown, given `wrapped` bytes, parse them as a single
-/// top-level emphasis or strong run? When `false`, the caller's
-/// choice of delimiter would let pulldown re-segment the bytes
-/// differently from the source's IR.
+/// Surrounding bytes that should flank `wrapped` during the validation
+/// reparse. Pulldown's emphasis-flanking rule (CM §6.2) inspects the
+/// single character on each side of an opening / closing run; passing
+/// the source neighbours lets `parses_as_single_run` reach the same
+/// decision pulldown will reach when the emission is embedded in the
+/// real document, not in isolation.
+///
+/// `left` is the byte immediately before the run's source range; `right`
+/// is the byte immediately after. `None` means "start / end of document"
+/// (or "neighbour not available"), which the predicate treats as
+/// whitespace — pulldown's neutral case.
+#[derive(Copy, Clone, Debug, Default)]
+pub(crate) struct FlankCtx<'a> {
+    pub left: Option<&'a str>,
+    pub right: Option<&'a str>,
+}
+
+/// Does pulldown, given `wrapped` bytes embedded in `ctx` neighbours,
+/// parse them as a single top-level emphasis or strong run? When
+/// `false`, the caller's choice of delimiter would let pulldown
+/// re-segment the bytes differently from the source's IR.
 ///
 /// The check is structural — it does NOT compare body content, only
 /// that exactly one outer run of the requested kind opens at the
 /// start, closes at the end, and is the only top-level sibling. The
 /// body's correctness is the IR's responsibility; this function
 /// guards only the wrapping decision.
-pub(crate) fn parses_as_single_run(wrapped: &str, kind: RunKind) -> bool {
+pub(crate) fn parses_as_single_run(wrapped: &str, kind: RunKind, ctx: FlankCtx<'_>) -> bool {
+    let left = ctx.left.unwrap_or("");
+    let right = ctx.right.unwrap_or("");
+    let embedded;
+    let input = if left.is_empty() && right.is_empty() {
+        wrapped
+    } else {
+        embedded = format!("{left}{wrapped}{right}");
+        &embedded
+    };
+    parses_with_outer_run_at(input, kind, left.len(), wrapped.len())
+}
+
+fn parses_with_outer_run_at(
+    input: &str,
+    kind: RunKind,
+    skip_left: usize,
+    run_len: usize,
+) -> bool {
+    use pulldown_cmark::OffsetIter;
+
+    let (open_tag, close_tag) = kind.tags();
+    let parser: OffsetIter<'_> =
+        Parser::new_ext(input, Options::ENABLE_STRIKETHROUGH).into_offset_iter();
+
+    let target_open = skip_left;
+    let target_close = skip_left.saturating_add(run_len);
+
+    let mut depth: u32 = 0;
+    let mut found_open = false;
+    for (ev, range) in parser {
+        match ev {
+            Event::Start(ref t)
+                if !found_open
+                    && range.start == target_open
+                    && std::mem::discriminant(t) == std::mem::discriminant(&open_tag) =>
+            {
+                found_open = true;
+            }
+            Event::Start(_) if found_open => depth = depth.saturating_add(1),
+            Event::End(ref t)
+                if found_open
+                    && depth == 0
+                    && range.end == target_close
+                    && std::mem::discriminant(t) == std::mem::discriminant(&close_tag) =>
+            {
+                return true;
+            }
+            Event::End(_) if found_open => depth = depth.saturating_sub(1),
+            Event::Start(_)
+            | Event::End(_)
+            | Event::Text(_)
+            | Event::Code(_)
+            | Event::Html(_)
+            | Event::InlineHtml(_)
+            | Event::FootnoteReference(_)
+            | Event::SoftBreak
+            | Event::HardBreak
+            | Event::Rule
+            | Event::TaskListMarker(_)
+            | Event::InlineMath(_)
+            | Event::DisplayMath(_) => {}
+        }
+    }
+    false
+}
+
+/// Legacy isolation-only validation — kept only for the unit tests in
+/// this module, which exercise paths that don't need neighbour
+/// context. Production callers should pass real flanking context via
+/// [`parses_as_single_run`].
+#[cfg(test)]
+fn parses_as_single_run_isolated(wrapped: &str, kind: RunKind) -> bool {
     let mut events = Parser::new_ext(wrapped, Options::ENABLE_STRIKETHROUGH);
 
     let (open_tag, close_tag) = kind.tags();
@@ -164,24 +253,45 @@ pub(crate) fn emit_emphasis_safely<'a>(
     delim: EmphasisDelim,
     kind: RunKind,
     source_slice: &str,
+    flank: FlankCtx<'_>,
 ) -> Doc<'a> {
     let body_str = render(&body_doc, &RenderOptions);
     let wrapping = kind.wrap_str(delim);
 
     let candidate = format!("{wrapping}{body_str}{wrapping}");
-    if parses_as_single_run(&candidate, kind) {
+    if parses_as_single_run(&candidate, kind, flank) {
         return wrap_in_delim(body_doc, kind, delim);
     }
 
     if let Some(escaped) = escape_body_for_emphasis(&body_str, delim) {
         let cand2 = format!("{wrapping}{escaped}{wrapping}");
-        if parses_as_single_run(&cand2, kind) {
+        if parses_as_single_run(&cand2, kind, flank) {
             // Escaping rewrote body bytes; the original Doc is
             // discarded in favour of the escaped string. Structural
             // attributes (Atomic / Prefix) inside the body don't
             // survive — acceptable because escaping has to operate
             // at byte level.
             return wrap_in_delim(text(escaped), kind, delim);
+        }
+    }
+
+    // The other delimiter, with the same escape-or-not logic. This
+    // catches cases where the configured style + flanking neighbours
+    // conspire against emission, but the *other* style would be
+    // safe (`foo***bar***baz` is the canonical example: the inner
+    // strong collision flips the outer emphasis from `*` to `_`, but
+    // `foo_..._baz` is intraword underscore. The unflipped `*` would
+    // work here).
+    let other = delim.flip();
+    let other_wrap = kind.wrap_str(other);
+    let candidate3 = format!("{other_wrap}{body_str}{other_wrap}");
+    if parses_as_single_run(&candidate3, kind, flank) {
+        return wrap_in_delim(body_doc, kind, other);
+    }
+    if let Some(escaped) = escape_body_for_emphasis(&body_str, other) {
+        let cand4 = format!("{other_wrap}{escaped}{other_wrap}");
+        if parses_as_single_run(&cand4, kind, flank) {
+            return wrap_in_delim(text(escaped), kind, other);
         }
     }
 
@@ -202,32 +312,32 @@ mod tests {
     fn star_wrap_around_literal_star_rejected() {
         // bug H: `_*_` source produces body=`*`, delim=Asterisk →
         // `***`. Pulldown sees three literal asterisks, no emphasis.
-        assert!(!parses_as_single_run("***", RunKind::Emphasis));
+        assert!(!parses_as_single_run_isolated("***", RunKind::Emphasis));
     }
 
     #[test]
     fn star_wrap_around_plain_text_accepted() {
-        assert!(parses_as_single_run("*hello*", RunKind::Emphasis));
+        assert!(parses_as_single_run_isolated("*hello*", RunKind::Emphasis));
     }
 
     #[test]
     fn underscore_wrap_around_literal_star_accepted() {
-        assert!(parses_as_single_run("_*_", RunKind::Emphasis));
+        assert!(parses_as_single_run_isolated("_*_", RunKind::Emphasis));
     }
 
     #[test]
     fn star_wrap_around_escaped_star_accepted() {
-        assert!(parses_as_single_run(r"*\**", RunKind::Emphasis));
+        assert!(parses_as_single_run_isolated(r"*\**", RunKind::Emphasis));
     }
 
     #[test]
     fn strong_double_wrap_around_literal_star_rejected() {
-        assert!(!parses_as_single_run("*****", RunKind::Strong));
+        assert!(!parses_as_single_run_isolated("*****", RunKind::Strong));
     }
 
     #[test]
     fn strong_double_wrap_around_plain_text_accepted() {
-        assert!(parses_as_single_run("**hi**", RunKind::Strong));
+        assert!(parses_as_single_run_isolated("**hi**", RunKind::Strong));
     }
 
     #[test]
@@ -235,7 +345,7 @@ mod tests {
         // GFM spec example 378: *(*foo*)* is nested emphasis. The
         // outer wrap must survive even though the body contains
         // another emphasis run.
-        assert!(parses_as_single_run("*(*foo*)*", RunKind::Emphasis));
+        assert!(parses_as_single_run_isolated("*(*foo*)*", RunKind::Emphasis));
     }
 
     #[test]
@@ -264,6 +374,6 @@ mod tests {
             .unwrap_or_default();
         assert_eq!(escaped, r"a\*b");
         let wrapped = format!("*{escaped}*");
-        assert!(parses_as_single_run(&wrapped, RunKind::Emphasis));
+        assert!(parses_as_single_run_isolated(&wrapped, RunKind::Emphasis));
     }
 }

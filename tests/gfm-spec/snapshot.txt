@@ -12,11 +12,7 @@
 293   idempotence Lists
 298   html        Lists
 298   ast         Lists
-425   html        Emphasis and strong emphasis
-425   ast         Emphasis and strong emphasis
 435   idempotence Emphasis and strong emphasis
-470   html        Emphasis and strong emphasis
-470   ast         Emphasis and strong emphasis
 472   html        Emphasis and strong emphasis
 472   ast         Emphasis and strong emphasis
 473   idempotence Emphasis and strong emphasis

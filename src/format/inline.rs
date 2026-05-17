@@ -12,7 +12,7 @@ use crate::cm::inline::emphasis::{EmphasisDelim, EmphasisRun, ResolveCtx, Strong
 use crate::cm::inline::link::flatten_body_doc;
 use crate::cm::inline::strikethrough::Strikethrough;
 use crate::format::doc::{Doc, concat, text};
-use crate::format::emit_safety::{RunKind, emit_emphasis_safely};
+use crate::format::emit_safety::{FlankCtx, RunKind, emit_emphasis_safely};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::{NodeId, NodeKind};
 
@@ -45,11 +45,13 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                 });
                 let body = pretty_inline_children(ctx, cid);
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
+                let flank = flank_ctx_for(ctx, cid);
                 parts.push(emit_emphasis_safely(
                     body,
                     delim,
                     RunKind::Emphasis,
                     source_slice,
+                    flank,
                 ));
                 let _ = run;
                 let _ = EmphasisRun::pretty;
@@ -64,11 +66,13 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                 });
                 let body = pretty_inline_children(ctx, cid);
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
+                let flank = flank_ctx_for(ctx, cid);
                 parts.push(emit_emphasis_safely(
                     body,
                     delim,
                     RunKind::Strong,
                     source_slice,
+                    flank,
                 ));
                 let _ = run;
                 let _ = StrongRun::pretty;
@@ -153,4 +157,37 @@ fn first_child_emphasis_delim(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<Emphasi
         left_sibling_delim: None,
         first_child_delim: None,
     }))
+}
+
+/// Source bytes immediately before / after the node's `raw_range`,
+/// truncated to a single codepoint each side. Pulldown's emphasis-
+/// flanking rule (CM §6.2) only inspects one character on each side
+/// of a delimiter run, so a single neighbouring codepoint is enough
+/// to reach the same decision.
+fn flank_ctx_for<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> FlankCtx<'a> {
+    let Some(node) = ctx.tree.node(id) else {
+        return FlankCtx::default();
+    };
+    let range = &node.raw_range;
+    let left = preceding_codepoint(ctx.source, range.start);
+    let right = following_codepoint(ctx.source, range.end);
+    FlankCtx { left, right }
+}
+
+/// `&source[..start]`'s last codepoint, if any. Returns `None` at
+/// document start.
+fn preceding_codepoint(source: &str, start: usize) -> Option<&str> {
+    let prefix = source.get(..start)?;
+    let mut iter = prefix.char_indices();
+    iter.next_back().map(|(i, _)| &prefix[i..])
+}
+
+/// `&source[end..]`'s first codepoint, if any. Returns `None` at
+/// document end.
+fn following_codepoint(source: &str, end: usize) -> Option<&str> {
+    let suffix = source.get(end..)?;
+    let mut iter = suffix.char_indices();
+    let first = iter.next()?;
+    let next_offset = iter.next().map_or(suffix.len(), |(i, _)| i);
+    Some(&suffix[first.0..next_offset])
 }
