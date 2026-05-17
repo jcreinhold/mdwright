@@ -1,64 +1,69 @@
-//! Byte-offset → (line, column) mapping for a single source string.
+//! Byte-offset → (line, column) mapping over a Markdown source string.
 //!
 //! pulldown-cmark hands us byte ranges; lint diagnostics report
 //! `file:line:col` in the editor convention (both 1-indexed, columns
-//! counted in Unicode codepoints, not bytes). This helper builds the
-//! line-start table once per document and answers every offset lookup
-//! in O(log n).
+//! counted in Unicode codepoints, not bytes). This helper records the
+//! line-start table once and answers every offset lookup in O(log n).
+//!
+//! The index owns no borrow on the source; callers pass the source
+//! `&str` at query time. This lets [`crate::source::Source`] keep
+//! ownership of the bytes without forcing a lifetime parameter on
+//! every type that holds a `LineIndex`. The intended pattern is one
+//! `LineIndex` built from `Source::original` at parse time, shared
+//! by reference for the document's lifetime.
 
 use anyhow::{Result, bail};
 
 /// Maps byte offsets in a source string to 1-indexed (line, column)
 /// pairs. Columns count Unicode codepoints, matching what `grep -n`
 /// and most editors display.
-#[derive(Debug)]
-pub struct LineIndex<'a> {
-    source: &'a str,
+#[derive(Debug, Clone)]
+pub struct LineIndex {
     /// `line_starts[i]` is the byte offset of the first byte of line
     /// `i + 1`. `line_starts[0]` is always `0`. The table has one
     /// entry per newline plus one for the document start, so a final
     /// non-terminated line still has a start entry.
-    line_starts: Vec<usize>,
+    line_starts: Vec<u32>,
 }
 
-impl<'a> LineIndex<'a> {
+impl LineIndex {
+    /// Build from `source` bytes. The index does not hold the
+    /// reference — it captures only the newline offsets.
     #[must_use]
-    pub fn new(source: &'a str) -> Self {
-        let mut line_starts = Vec::with_capacity(source.len() / 40);
+    pub fn new(source: &str) -> Self {
+        let mut line_starts: Vec<u32> = Vec::with_capacity(source.len() / 40);
         line_starts.push(0);
         for (i, b) in source.bytes().enumerate() {
             if b == b'\n' {
-                line_starts.push(i.saturating_add(1));
+                let next = (i + 1) as u32;
+                line_starts.push(next);
             }
         }
-        Self {
-            source,
-            line_starts,
-        }
+        Self { line_starts }
     }
 
     /// 1-indexed (line, column) for the codepoint starting at `byte`.
     ///
+    /// `source` must be the same buffer the index was built from
+    /// (otherwise codepoint counting will use the wrong bytes).
+    ///
     /// # Errors
     ///
-    /// Returns `Err` if `byte` lies past the end of the source or not
+    /// Returns `Err` if `byte` lies past the end of `source` or not
     /// on a UTF-8 boundary. Callers should pass offsets produced by
     /// pulldown-cmark, which always satisfy both conditions.
-    pub fn locate(&self, byte: usize) -> Result<(usize, usize)> {
-        if byte > self.source.len() {
-            bail!(
-                "byte offset {byte} past source length {}",
-                self.source.len()
-            );
+    pub fn locate(&self, source: &str, byte: usize) -> Result<(usize, usize)> {
+        if byte > source.len() {
+            bail!("byte offset {byte} past source length {}", source.len());
         }
+        let byte_u32 = u32::try_from(byte).map_err(|_| anyhow::anyhow!("byte offset > u32"))?;
         // Binary search for the largest line_start ≤ byte.
-        let idx = match self.line_starts.binary_search(&byte) {
+        let idx = match self.line_starts.binary_search(&byte_u32) {
             Ok(i) => i,
             Err(i) => i.saturating_sub(1),
         };
-        let line_start = self.line_starts.get(idx).copied().unwrap_or(0);
-        let prefix = self
-            .source
+        let line_start = self.line_starts.get(idx).copied().unwrap_or(0) as usize;
+        let prefix = source
             .get(line_start..byte)
             .ok_or_else(|| anyhow::anyhow!("byte {byte} not on UTF-8 boundary"))?;
         let column = prefix.chars().count().saturating_add(1);
@@ -74,30 +79,32 @@ mod tests {
 
     #[test]
     fn locate_start_of_first_line() -> Result<()> {
-        let idx = LineIndex::new("hello\nworld\n");
-        assert_eq!(idx.locate(0)?, (1, 1));
+        let src = "hello\nworld\n";
+        let idx = LineIndex::new(src);
+        assert_eq!(idx.locate(src, 0)?, (1, 1));
         Ok(())
     }
 
     #[test]
     fn locate_after_newline() -> Result<()> {
-        let idx = LineIndex::new("hello\nworld\n");
-        assert_eq!(idx.locate(6)?, (2, 1));
+        let src = "hello\nworld\n";
+        let idx = LineIndex::new(src);
+        assert_eq!(idx.locate(src, 6)?, (2, 1));
         Ok(())
     }
 
     #[test]
     fn locate_codepoint_column() -> Result<()> {
-        // `αβ` is 4 bytes (2 chars × 2 bytes), so byte 4 is the start
-        // of the third codepoint on line 1.
-        let idx = LineIndex::new("αβγ\n");
-        assert_eq!(idx.locate(4)?, (1, 3));
+        let src = "αβγ\n";
+        let idx = LineIndex::new(src);
+        assert_eq!(idx.locate(src, 4)?, (1, 3));
         Ok(())
     }
 
     #[test]
     fn rejects_out_of_range() {
-        let idx = LineIndex::new("hi\n");
-        assert!(idx.locate(99).is_err());
+        let src = "hi\n";
+        let idx = LineIndex::new(src);
+        assert!(idx.locate(src, 99).is_err());
     }
 }

@@ -122,7 +122,7 @@ impl<'a> Document<'a> {
     ///
     /// [`Diagnostic::at`]: crate::Diagnostic::at
     #[must_use]
-    pub fn line_index(&self) -> &LineIndex<'a> {
+    pub fn line_index(&self) -> &LineIndex {
         self.ir.line_index()
     }
 

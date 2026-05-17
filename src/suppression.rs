@@ -60,7 +60,8 @@ impl SuppressionMap {
             // nothing but doesn't break anything else either.
             for name in &sup.rules {
                 if !known_rules.contains(name)
-                    && let Ok((line, column)) = ir.line_index.locate(sup.raw_range.start)
+                    && let Ok((line, column)) =
+                        ir.line_index.locate(ir.source, sup.raw_range.start)
                 {
                     unknown.push(Diagnostic {
                         rule: Cow::Borrowed("suppression"),

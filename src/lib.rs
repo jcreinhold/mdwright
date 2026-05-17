@@ -63,6 +63,7 @@ mod ir;
 mod line_index;
 mod rule;
 mod rule_set;
+mod source;
 pub mod stdlib;
 mod suppression;
 mod tree;

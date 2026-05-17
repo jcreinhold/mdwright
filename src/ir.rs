@@ -207,7 +207,7 @@ pub(crate) struct Ir<'a> {
     pub(crate) admonitions: Vec<AdmonitionRegion<'a>>,
     pub(crate) math_regions: Vec<MathRegion>,
     pub(crate) math_errors: Vec<MathError>,
-    pub(crate) line_index: LineIndex<'a>,
+    pub(crate) line_index: LineIndex,
     pub(crate) tree: Tree<'a>,
 }
 
@@ -310,7 +310,7 @@ impl<'a> Ir<'a> {
         }
     }
 
-    pub(crate) fn line_index(&self) -> &LineIndex<'a> {
+    pub(crate) fn line_index(&self) -> &LineIndex {
         &self.line_index
     }
 }

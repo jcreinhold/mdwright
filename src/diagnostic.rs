@@ -60,7 +60,7 @@ impl Diagnostic {
     ) -> Option<Self> {
         let start = byte_offset.saturating_add(local.start);
         let end = byte_offset.saturating_add(local.end);
-        let (line, column) = doc.line_index().locate(start).ok()?;
+        let (line, column) = doc.line_index().locate(doc.source(), start).ok()?;
         Some(Self {
             rule: Cow::Borrowed(""),
             line,
