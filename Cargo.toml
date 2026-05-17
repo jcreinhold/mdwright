@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 name = "mdwright"
 readme = "README.md"
 repository = "https://github.com/jcreinhold/mdwright"
+rust-version = "1.91"
 version = "0.3.0"
 
 [[bin]]

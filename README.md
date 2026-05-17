@@ -1,5 +1,7 @@
 # mdwright
 
+[![ci](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml/badge.svg)](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml)
+
 A math-resilient Markdown linter for Kan documentation. It flags the control-sequence patterns that generic Markdown
 formatters routinely mangle in mathematical prose — `\_` escapes left behind by an emphasis pass, stray `$` from
 would-be code spans, LaTeX commands in Unicode-mathematics documents, and damaged subscripts like `Hom*{cart}`.
@@ -218,3 +220,11 @@ cargo clippy --all-features --all-targets -- -D warnings
 ```
 
 The crate sits outside the main Cargo workspace by design; build it from this directory.
+
+mdwright requires Rust ≥ 1.91 (declared in `Cargo.toml` as `rust-version`).
+
+## Platform support
+
+mdwright is tested on Linux, macOS, and Windows against both stable Rust and the MSRV (1.91) on every push and pull
+request. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for the matrix and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the MSRV-bump policy.

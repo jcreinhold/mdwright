@@ -1,0 +1,16 @@
+# Normalise text fixtures so Windows checkouts don't break golden comparisons.
+* text=auto eol=lf
+
+*.in   text eol=lf
+*.out  text eol=lf
+*.md   text eol=lf
+*.rs   text eol=lf
+*.toml text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+tests/gfm-spec/spec.txt text eol=lf
+
+# Fuzz corpus entries are byte-exact reproducers; never transform them.
+fuzz/corpus/** binary
+fuzz/artifacts/** binary
