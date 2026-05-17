@@ -24,10 +24,12 @@
 //! reparse count is bounded by the count of emphasis runs whose body
 //! contains the rewritten delimiter character.
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, Tag, TagEnd};
 
 use crate::cm::inline::emphasis::EmphasisDelim;
 use crate::format::doc::{Doc, RenderOptions, concat, render, text};
+use crate::parse;
+use crate::source::{CanonicalSource, Source};
 
 /// Surrounding bytes that should flank `wrapped` during the validation
 /// reparse. Pulldown's emphasis-flanking rule (CM §6.2) inspects the
@@ -70,10 +72,14 @@ pub(crate) fn parses_as_single_run(wrapped: &str, kind: RunKind, ctx: FlankCtx<'
 }
 
 fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_len: usize) -> bool {
-    use pulldown_cmark::OffsetIter;
-
+    // See docs/architecture/pulldown-model.md §6 — emphasis event ranges
+    // span open-delim through close-delim; `target_open == range.start`
+    // and `target_close == range.end` is the contract this match relies on.
+    // See also §7 for the strong/nested-emphasis discriminant the outer
+    // wrap predicate keeps the formatter from collapsing.
     let (open_tag, close_tag) = kind.tags();
-    let parser: OffsetIter<'_> = Parser::new_ext(input, Options::ENABLE_STRIKETHROUGH).into_offset_iter();
+    let src = Source::new(input);
+    let parser = parse::events_with_offsets(CanonicalSource::from_source(&src), parse::FORMATTER_OPTIONS);
 
     let target_open = skip_left;
     let target_close = skip_left.saturating_add(run_len);
@@ -153,7 +159,8 @@ fn is_inline_wrap_end(tag: TagEnd) -> bool {
 /// [`parses_as_single_run`].
 #[cfg(test)]
 fn parses_as_single_run_isolated(wrapped: &str, kind: RunKind) -> bool {
-    let mut events = Parser::new_ext(wrapped, Options::ENABLE_STRIKETHROUGH);
+    let src = Source::new(wrapped);
+    let mut events = parse::events(CanonicalSource::from_source(&src), parse::FORMATTER_OPTIONS);
 
     let (open_tag, close_tag) = kind.tags();
 

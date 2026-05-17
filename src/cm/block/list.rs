@@ -559,7 +559,7 @@ mod tests {
         // deterministically.
         use crate::ir::Ir;
         let src = "- a\n- b\n- c\n- d\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         ir.tree
             .descendants(ir.tree.root())
             .nth(i as usize)

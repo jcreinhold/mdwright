@@ -11,6 +11,8 @@
 //!
 //! This module is the *sole* site of CM §4.7 label normalisation
 //! ([`NormalisedLabel::from_raw`]). Every lookup goes through that type.
+//! See `docs/architecture/pulldown-model.md` §4 for the rule and the
+//! drift test that pins down what pulldown surfaces in `Tag::Link::id`.
 //!
 //! ## Building the table from pulldown events
 //!
@@ -322,19 +324,13 @@ fn label_prefix_regex() -> &'static Regex {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use pulldown_cmark::{Options, Parser};
-
-    fn parse_events(src: &str) -> Vec<Event<'_>> {
-        let mut opts = Options::empty();
-        opts.insert(Options::ENABLE_STRIKETHROUGH);
-        opts.insert(Options::ENABLE_FOOTNOTES);
-        opts.insert(Options::ENABLE_TABLES);
-        opts.insert(Options::ENABLE_TASKLISTS);
-        Parser::new_ext(src, opts).collect()
-    }
+    use crate::parse;
+    use crate::source::{CanonicalSource, Source};
 
     fn build(src: &str) -> ReferenceTable {
-        let events = parse_events(src);
+        let source = Source::new(src);
+        let events: Vec<Event<'_>> =
+            parse::events(CanonicalSource::from_source(&source), parse::FORMATTER_OPTIONS).collect();
         build_reference_table(&events, src)
     }
 

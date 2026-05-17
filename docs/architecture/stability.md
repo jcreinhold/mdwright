@@ -39,20 +39,23 @@ The underlying cause is structural. Three properties together would make the bug
 
 ## The four moves
 
-### Prompt 46 — Canonical-source chokepoint + pulldown-quirks model
+### Prompt 46 — Canonical-source chokepoint + pulldown-quirks model [LANDED]
 
-Lift every `Parser::new_ext` site through a single `parse(canonical: CanonicalSource, opts: Options) ->
-EventStream` helper in (or beside) `src/source.rs`. `CanonicalSource` is a newtype wrapper around `String` whose
-only public constructor is `Source::canonical()` (or a synthesised-input variant for the safety ladder). Eliminates
-pattern #1.
+Every `pulldown_cmark::Parser` invocation in `src/` now goes through `src/parse.rs::events` (or
+`events_with_offsets`), both of which take a `CanonicalSource<'_>` (`src/source.rs`). The newtype's only public
+constructor (`CanonicalSource::from_source`) routes through `Source::canonicalise`, so the type system enforces the
+chokepoint discipline. Verified: `rg 'Parser::new_ext|Parser::new\(' src/` returns exactly two hits, both in
+`src/parse.rs`. Pattern #1 eliminated.
 
-Ship `docs/architecture/pulldown-quirks.md` alongside: the per-construct invariants every emit site relies on
-(emphasis pairing boundaries, indented-code `Text` event terminators, HTML-block CR sensitivity, reference-label
-CM-normalisation). The model becomes the document each subsequent move cites — bugs in this class get one fix at
-the model, not N fixes at N consumers.
+`docs/architecture/pulldown-model.md` documents the per-construct invariants the formatter relies on (line endings,
+trailing blank lines, emphasis pairing scope, ref-label normalisation, HTML block boundaries, emphasis-event range
+semantics, strong vs nested emphasis). Drift-tested by `tests/pulldown_model.rs`: one test per rule, each failing
+with a message that names the doc section to update *before* changing mdwright code.
 
-Deletes nothing; redirects four production hits (`document.rs:70`, `ir.rs:264`, `format/emit_safety.rs:76`,
-`format/semantic.rs:167`). Adds a `#[deny]` lint that flags new `Parser::new_ext` outside the chokepoint module.
+Side benefits: the per-event CR scrub in `format::semantic::canonical_events` is gone (input is provably CR-free);
+the per-site `Options::empty() + insert()` boilerplate collapses to one `parse::FORMATTER_OPTIONS` constant; the
+options drift between the safety ladder's strikethrough-only set and the full formatter set is fixed. `render_html`
+now also canonicalises (CR→LF, NUL→U+FFFD), matching `Document::parse`.
 
 ### Prompt 47 — Output-derived emit (two-pass)
 

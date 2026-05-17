@@ -129,23 +129,23 @@ fn build(body: &str, scope: EscapeScope) -> String {
 /// a paragraph. Compiled away in release builds.
 #[cfg(debug_assertions)]
 fn reparses_to(bytes: &str, body: &str, scope: EscapeScope) -> bool {
-    use pulldown_cmark::{Event, Options, Parser};
+    use pulldown_cmark::Event;
 
-    let (input, opts): (String, Options) = if scope.in_table_cell {
-        // Wrap the bytes in a minimal GFM table so pulldown's table
-        // parser runs over them and applies the escape rules the
-        // formatter relied on. The first row is the header; the
-        // second is the delimiter line; the third is the data row
-        // that carries our code span.
-        let mut opts = Options::empty();
-        opts.insert(Options::ENABLE_TABLES);
-        (format!("|h|\n|---|\n|{bytes}|\n"), opts)
+    use crate::parse;
+    use crate::source::{CanonicalSource, Source};
+
+    // The table wrap is needed so pulldown's table parser decodes
+    // `\|` before the inline parser sees the cell content; outside a
+    // table cell, the bytes parse as a plain paragraph.
+    let input: String = if scope.in_table_cell {
+        format!("|h|\n|---|\n|{bytes}|\n")
     } else {
-        (bytes.to_owned(), Options::empty())
+        bytes.to_owned()
     };
 
+    let source = Source::new(&input);
     let mut found: Option<String> = None;
-    for ev in Parser::new_ext(&input, opts) {
+    for ev in parse::events(CanonicalSource::from_source(&source), parse::FORMATTER_OPTIONS) {
         if let Event::Code(s) = ev {
             if found.is_some() {
                 return false;

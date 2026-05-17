@@ -10,7 +10,7 @@ use std::borrow::Cow;
 use std::fmt;
 use std::ops::Range;
 
-use pulldown_cmark::{Options, Parser, html};
+use pulldown_cmark::html;
 
 use crate::cm::block::TypedBlock;
 use crate::cm::block::list::ListBlock;
@@ -21,8 +21,9 @@ use crate::ir::{
     CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup, Suppression, TextSlice,
 };
 use crate::line_index::LineIndex;
+use crate::parse;
 use crate::rule_set::RuleSet;
-use crate::source::Source;
+use crate::source::{CanonicalSource, Source};
 use crate::stdlib;
 use crate::suppression::SuppressionMap;
 use crate::tree::Tree;
@@ -60,15 +61,17 @@ impl std::error::Error for FormatError {}
 /// harness needs the spec's reference HTML for non-formatter
 /// purposes). The runtime gate itself no longer renders HTML — see
 /// [`crate::format::semantic::semantically_equivalent`].
+///
+/// Inputs are routed through [`Source`] canonicalisation before
+/// pulldown sees them (CM §2.1 CR / CRLF → LF, CM §2.3 NUL → U+FFFD),
+/// matching what [`Document::parse`] does. Callers that need to render
+/// raw bytes verbatim should reach for `pulldown_cmark::html` directly.
 #[must_use]
 pub fn render_html(source: &str) -> String {
-    let mut opts = Options::empty();
-    opts.insert(Options::ENABLE_STRIKETHROUGH);
-    opts.insert(Options::ENABLE_FOOTNOTES);
-    opts.insert(Options::ENABLE_TABLES);
-    opts.insert(Options::ENABLE_TASKLISTS);
-    let parser = Parser::new_ext(source, opts);
-    let mut out = String::with_capacity(source.len());
+    let src = Source::new(source);
+    let canonical = CanonicalSource::from_source(&src);
+    let parser = parse::events(canonical, parse::FORMATTER_OPTIONS);
+    let mut out = String::with_capacity(canonical.as_str().len());
     html::push_html(&mut out, parser);
     out
 }
@@ -119,7 +122,7 @@ impl Document {
     #[tracing::instrument(level = "info", name = "Document::parse", skip(source), fields(len = source.len()))]
     pub fn parse(source: &str) -> Self {
         let source = Source::new(source);
-        let ir = Ir::parse(source.canonical());
+        let ir = Ir::parse(CanonicalSource::from_source(&source));
         Self { source, ir }
     }
 

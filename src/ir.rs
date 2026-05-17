@@ -22,11 +22,13 @@
 use std::ops::Range;
 use std::sync::OnceLock;
 
-use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use regex::Regex;
 
 use crate::cm::refs::{ReferenceTable, build_reference_table};
 use crate::line_index::LineIndex;
+use crate::parse;
+use crate::source::CanonicalSource;
 use crate::tree::{Tree, TreeBuilder};
 use crate::util::regex::compile_static;
 
@@ -225,17 +227,12 @@ use crate::cm::math::scan::{MathConfig, scan_math_regions};
 use crate::cm::math::span::MathError;
 
 impl Ir {
-    #[tracing::instrument(level = "info", name = "Ir::parse", skip(source), fields(len = source.len()))]
-    pub(crate) fn parse(source: &str) -> Self {
+    #[tracing::instrument(level = "info", name = "Ir::parse", skip(src), fields(len = src.as_str().len()))]
+    pub(crate) fn parse(src: CanonicalSource<'_>) -> Self {
+        let source = src.as_str();
         let line_index = LineIndex::new(source);
         let (fm_end, frontmatter) = split_frontmatter(source);
-        let body = source.get(fm_end..).unwrap_or("");
-
-        let mut opts = Options::empty();
-        opts.insert(Options::ENABLE_STRIKETHROUGH);
-        opts.insert(Options::ENABLE_FOOTNOTES);
-        opts.insert(Options::ENABLE_TABLES);
-        opts.insert(Options::ENABLE_TASKLISTS);
+        let body = src.trusted_subrange(fm_end..source.len());
 
         let mut builder = Builder {
             source,
@@ -261,8 +258,7 @@ impl Ir {
         // collects), then math regions are computed, then the tree
         // is built — the tree builder needs math regions so it can
         // splice `NodeKind::Math` leaves at recognised positions.
-        let events: Vec<(Event<'_>, Range<usize>)> = Parser::new_ext(body, opts)
-            .into_offset_iter()
+        let events: Vec<(Event<'_>, Range<usize>)> = parse::events_with_offsets(body, parse::FORMATTER_OPTIONS)
             .map(|(e, r)| {
                 let abs = r.start.saturating_add(fm_end)..r.end.saturating_add(fm_end);
                 (e, abs)
@@ -323,6 +319,19 @@ impl Ir {
 
     pub(crate) fn line_index(&self) -> &LineIndex {
         &self.line_index
+    }
+
+    /// Test-only convenience that builds a [`Source`] from `src` and
+    /// then parses through the chokepoint. Production code constructs
+    /// a [`CanonicalSource`] once at [`crate::Document::parse`] and
+    /// passes it down.
+    ///
+    /// [`Source`]: crate::source::Source
+    /// [`CanonicalSource`]: crate::source::CanonicalSource
+    #[cfg(test)]
+    pub(crate) fn parse_str(src: &str) -> Self {
+        let source = crate::source::Source::new(src);
+        Self::parse(CanonicalSource::from_source(&source))
     }
 }
 
@@ -995,7 +1004,7 @@ mod tests {
 
     #[test]
     fn prose_chunks_include_backslash_escapes() {
-        let ir = Ir::parse(r"a \_b\_ c");
+        let ir = Ir::parse_str(r"a \_b\_ c");
         let texts: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(
             texts.iter().any(|t| t.contains(r"\_")),
@@ -1006,7 +1015,7 @@ mod tests {
     #[test]
     fn fenced_code_excluded_from_prose() {
         let src = "before\n```\nx \\_y\\_ z\n```\nafter \\_outside\\_\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         // No chunk should contain the code-block body.
         for c in &ir.prose_chunks {
             assert!(!c.text.contains("\\_y"), "prose chunk leaked code body: {:?}", c.text);
@@ -1026,7 +1035,7 @@ mod tests {
 
     #[test]
     fn inline_code_strips_fences() -> Result<()> {
-        let ir = Ir::parse("see `foo_bar` here\n");
+        let ir = Ir::parse_str("see `foo_bar` here\n");
         assert_eq!(ir.inline_codes.len(), 1);
         let code = ir.inline_codes.first().ok_or_else(|| anyhow!("missing"))?;
         assert_eq!(code.text, "foo_bar");
@@ -1036,7 +1045,7 @@ mod tests {
     #[test]
     fn frontmatter_split() -> Result<()> {
         let src = "---\ntitle: T\n---\nbody text\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let fm = ir.frontmatter.as_ref().ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Yaml);
         let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
@@ -1047,7 +1056,7 @@ mod tests {
     #[test]
     fn frontmatter_toml_split() -> Result<()> {
         let src = "+++\ntitle = \"T\"\n+++\nbody text\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let fm = ir.frontmatter.as_ref().ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Toml);
         let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
@@ -1058,7 +1067,7 @@ mod tests {
     #[test]
     fn admonition_scan_basic() -> Result<()> {
         let src = "!!! note\n    hello\n    world\n\nafter\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert_eq!(ir.admonitions.len(), 1);
         let region = ir.admonitions.first().ok_or_else(|| anyhow!("region"))?;
         assert_eq!(region.text, "!!! note\n    hello\n    world\n");
@@ -1068,20 +1077,20 @@ mod tests {
     #[test]
     fn admonition_scan_with_title_and_collapsible() {
         let src = "??? warning \"Be careful\"\n    body line\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert_eq!(ir.admonitions.len(), 1);
     }
 
     #[test]
     fn admonition_scan_inside_code_block_skipped() {
         let src = "```\n!!! note\n    body\n```\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert!(ir.admonitions.is_empty());
     }
 
     #[test]
     fn headings_trimmed_and_levelled() {
-        let ir = Ir::parse("# One\n\n## Two ##\n\n### Three\n");
+        let ir = Ir::parse_str("# One\n\n## Two ##\n\n### Three\n");
         assert_eq!(ir.headings.len(), 3);
         let texts: Vec<(&str, u32)> = ir.headings.iter().map(|h| (h.text.as_str(), h.level)).collect();
         assert_eq!(texts, vec![("One", 1), ("Two", 2), ("Three", 3)]);
@@ -1090,7 +1099,7 @@ mod tests {
     #[test]
     fn list_groups_record_markers() -> Result<()> {
         let src = "- one\n- two\n* three\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert_eq!(ir.list_groups.len(), 2);
         let g1 = ir.list_groups.first().ok_or_else(|| anyhow!("first list"))?;
         assert!(!g1.ordered);
@@ -1105,7 +1114,7 @@ mod tests {
     #[test]
     fn link_defs_scanned() -> Result<()> {
         let src = "[bar]: https://example.com\n\nSee [ref][bar].\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let target = ir.refs.iter().next().ok_or_else(|| anyhow!("expected one target"))?;
         assert_eq!(target.label_raw, "bar");
         assert_eq!(target.dest, "https://example.com");
@@ -1115,14 +1124,14 @@ mod tests {
     #[test]
     fn link_defs_skipped_inside_code_block() {
         let src = "```\n[bar]: https://example.com\n```\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert!(ir.refs.is_empty());
     }
 
     #[test]
     fn inline_html_collected() {
         let src = "before <span>x</span> after\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert!(ir.inline_html.iter().any(|h| h.text == "<span>"));
         assert!(ir.inline_html.iter().any(|h| h.text == "</span>"));
     }
@@ -1130,7 +1139,7 @@ mod tests {
     #[test]
     fn code_block_info_string() -> Result<()> {
         let src = "```rust\nfn x() {}\n```\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert_eq!(ir.code_blocks.len(), 1);
         let cb = ir.code_blocks.first().ok_or_else(|| anyhow!("cb"))?;
         assert_eq!(cb.info, "rust");
@@ -1143,7 +1152,7 @@ mod tests {
     #[test]
     fn suppression_allow_parses() -> Result<()> {
         let src = "<!-- mdwright: allow heading-punctuation -->\n# Title.\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert_eq!(ir.suppressions.len(), 1);
         let s = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;
         assert_eq!(
@@ -1159,7 +1168,7 @@ mod tests {
     #[test]
     fn suppression_allow_next_line_parses() -> Result<()> {
         let src = "<!-- mdwright: allow-next-line trailing-whitespace -->\nfoo \n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let s = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;
         assert_eq!(
             s.kind,
@@ -1173,7 +1182,7 @@ mod tests {
     #[test]
     fn suppression_multiple_rules_parses() -> Result<()> {
         let src = "<!-- mdwright: allow rule-a, rule-b, rule-c -->\nbody\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let s = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;
         assert_eq!(s.rules, vec!["rule-a", "rule-b", "rule-c"]);
         Ok(())
@@ -1182,7 +1191,7 @@ mod tests {
     #[test]
     fn suppression_disable_enable_parse() -> Result<()> {
         let src = "<!-- mdwright: disable bare-url -->\n\nfoo\n\n<!-- mdwright: enable bare-url -->\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert_eq!(ir.suppressions.len(), 2);
         let first = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;
         let second = ir.suppressions.get(1).ok_or_else(|| anyhow!("second"))?;
@@ -1194,7 +1203,7 @@ mod tests {
     #[test]
     fn suppression_disable_all_alias_parses() -> Result<()> {
         let src = "<!-- mdwright: disable-all -->\nfoo\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let s = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;
         assert_eq!(s.kind, SuppressionKind::Disable);
         assert!(s.rules.is_empty());
@@ -1205,7 +1214,7 @@ mod tests {
     fn suppression_bare_allow_rejected() {
         // `allow` with no names is malformed; silently dropped.
         let src = "<!-- mdwright: allow -->\n# Title\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert!(ir.suppressions.is_empty());
     }
 
@@ -1215,7 +1224,7 @@ mod tests {
         // so the scanner doesn't see it. This preserves the "own
         // source line" requirement.
         let src = "Some text <!-- mdwright: allow bare-url --> more text.\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         assert!(ir.suppressions.is_empty());
     }
 
@@ -1223,7 +1232,7 @@ mod tests {
     fn suppression_with_indent_parses() -> Result<()> {
         // Up to three spaces of indentation are allowed.
         let src = "   <!-- mdwright: allow heading-punctuation -->\n# Title.\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let s = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;
         assert_eq!(s.rules, vec!["heading-punctuation"]);
         Ok(())

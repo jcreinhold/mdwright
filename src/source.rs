@@ -307,6 +307,56 @@ impl Source {
     }
 }
 
+/// Type-level proof that a `&str` has gone through [`Source`]
+/// canonicalisation (CM §2.1 CR/CRLF→LF + CM §2.3 NUL→U+FFFD).
+///
+/// The only public constructor is [`CanonicalSource::from_source`], so
+/// every byte fed to `pulldown_cmark::Parser` via the [`crate::parse`]
+/// chokepoint is guaranteed to be CR-free and NUL-free. Sub-views over
+/// already-canonical buffers are produced by
+/// [`CanonicalSource::trusted_subrange`] (the math-region builder and
+/// the frontmatter split both need a slice of a parent canonical buffer
+/// without re-running canonicalisation).
+///
+/// `Copy` so callers can pass it by value into the chokepoint without
+/// disturbing borrow scopes.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct CanonicalSource<'a> {
+    bytes: &'a str,
+}
+
+impl<'a> CanonicalSource<'a> {
+    /// The only way to build a `CanonicalSource` from arbitrary bytes:
+    /// route them through [`Source`] first.
+    #[must_use]
+    pub(crate) fn from_source(s: &'a Source) -> Self {
+        Self { bytes: s.canonical() }
+    }
+
+    /// Child view over a sub-range of an already-canonical buffer.
+    /// Used by `Ir::parse` (frontmatter split) and the math-region
+    /// builder, both of which receive ranges into a parent canonical
+    /// buffer that has already been proven canonical.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `range` is not on a UTF-8 boundary or extends past
+    /// the buffer.
+    #[must_use]
+    pub(crate) fn trusted_subrange(self, range: Range<usize>) -> Self {
+        Self {
+            bytes: &self.bytes[range],
+        }
+    }
+
+    /// The canonical bytes. Use only at the parser chokepoint; rule
+    /// and emit code should keep working with `&str` or `Source`.
+    #[must_use]
+    pub(crate) fn as_str(self) -> &'a str {
+        self.bytes
+    }
+}
+
 /// One linear scan of `raw` that (1) detects whether canonicalisation
 /// is a no-op, returning an owned clone with an identity map, or
 /// (2) produces the canonical buffer and a change-point map.

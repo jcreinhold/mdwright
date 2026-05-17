@@ -28,6 +28,8 @@ use crate::config::{EndOfLine, TrailingNewline};
 /// `Document::format_validated` on inputs ending in an indented or
 /// fenced code block, where any LF the post-pass introduces lands
 /// inside the code body on re-parse and changes the rendered HTML.
+/// See `docs/architecture/pulldown-model.md` §2 for the trailing-blank-
+/// line rule this post-pass exists to defend against.
 ///
 /// The "did the source end with `\n`?" probe ignores trailing
 /// horizontal whitespace (`' '` / `'\t'`). Pulldown treats a final

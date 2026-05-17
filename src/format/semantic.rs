@@ -35,7 +35,10 @@
 //!   summary. Used to populate `FormatError::SemanticDivergence
 //!   { diff_summary }`.
 
-use pulldown_cmark::{CowStr, Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CowStr, Event, Tag, TagEnd};
+
+use crate::parse;
+use crate::source::{CanonicalSource, Source};
 
 /// A canonicalised pulldown event used for equality comparison. The
 /// only transformations from `Event` are:
@@ -128,23 +131,18 @@ pub(crate) enum EndTag {
     MetadataBlock,
 }
 
-/// Parser options shared with the formatter's own walk in
-/// `src/ir.rs:234`. Keeping these in lockstep means the gate sees the
-/// same event stream the formatter built its IR from.
-fn options() -> Options {
-    let mut o = Options::empty();
-    o.insert(Options::ENABLE_STRIKETHROUGH);
-    o.insert(Options::ENABLE_FOOTNOTES);
-    o.insert(Options::ENABLE_TABLES);
-    o.insert(Options::ENABLE_TASKLISTS);
-    o
-}
-
 /// Build the canonical event stream for a Markdown source. The
 /// returned vector compares equal between two semantically-equivalent
 /// sources regardless of where they put their soft line breaks.
+///
+/// The input is already canonical, so pulldown cannot emit `CowStr`
+/// payloads containing CR — the per-event `into_string_lf` defensive
+/// pass that used to live here is unnecessary after the
+/// [`crate::parse`] chokepoint became the only path into pulldown.
+/// See `docs/architecture/pulldown-model.md` §1 for the byte-level
+/// contract this depends on.
 #[must_use]
-pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
+pub(crate) fn canonical_events(src: CanonicalSource<'_>) -> Vec<CanonicalEvent> {
     let mut out: Vec<CanonicalEvent> = Vec::new();
     let mut code_block_depth: u32 = 0;
     let mut pending: Option<String> = None;
@@ -164,7 +162,7 @@ pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
         }
     };
 
-    for ev in Parser::new_ext(source, options()) {
+    for ev in parse::events(src, parse::FORMATTER_OPTIONS) {
         match ev {
             Event::Start(tag) => {
                 if matches!(tag, Tag::CodeBlock(_)) {
@@ -182,7 +180,7 @@ pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
             }
             Event::Text(s) if code_block_depth > 0 => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::VerbatimText(into_string_lf(s)));
+                out.push(CanonicalEvent::VerbatimText(s.into_string()));
             }
             Event::Text(s) => {
                 pending.get_or_insert_with(String::new).push_str(&s);
@@ -199,23 +197,23 @@ pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
             }
             Event::Code(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::Code(into_string_lf(s)));
+                out.push(CanonicalEvent::Code(s.into_string()));
             }
             Event::InlineMath(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::InlineMath(into_string_lf(s)));
+                out.push(CanonicalEvent::InlineMath(s.into_string()));
             }
             Event::DisplayMath(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::DisplayMath(into_string_lf(s)));
+                out.push(CanonicalEvent::DisplayMath(s.into_string()));
             }
             Event::Html(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::Html(into_string_lf(s)));
+                out.push(CanonicalEvent::Html(s.into_string()));
             }
             Event::InlineHtml(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::InlineHtml(into_string_lf(s)));
+                out.push(CanonicalEvent::InlineHtml(s.into_string()));
             }
             Event::FootnoteReference(s) => {
                 flush(&mut pending, &mut out);
@@ -237,24 +235,6 @@ pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
 
 fn cow_to_string(c: CowStr<'_>) -> String {
     c.into_string()
-}
-
-/// Convert a `CowStr` to an owned `String` with CRLF / CR collapsed
-/// to LF.
-///
-/// Pulldown normalises line endings for prose text (CM §2.2 — CR,
-/// CRLF, LF are equivalent) but preserves the raw bytes inside
-/// `Html`, `InlineHtml`, code blocks, and math regions. The
-/// formatter, in contrast, runs every output through
-/// `normalize_line_endings_lf`, so a source `<?\r` (Html with CR)
-/// emits as `<?\n` (Html with LF). Without this collapse the
-/// canonical event comparator treats the two byte streams as
-/// distinct, generating a spurious semantic-divergence report even
-/// though CM considers them equivalent.
-fn into_string_lf(s: CowStr<'_>) -> String {
-    let mut s = s.into_string();
-    super::normalize_line_endings_lf(&mut s);
-    s
 }
 
 #[allow(clippy::too_many_lines, reason = "one-to-one variant mapping")]
@@ -393,21 +373,16 @@ fn collapse_whitespace(s: &str) -> String {
 /// property tests, the GFM-spec runner, and the `fuzz_parse_format`
 /// oracle all route through this single definition.
 ///
-/// Both inputs are line-ending-normalised before parsing. CR / CRLF /
-/// LF are equivalent by CM §2.2, but pulldown preserves raw bytes in
-/// some constructs (lone `\r` inside an HTML block surfaces as one
-/// event-stream shape; the same source with `\n` surfaces as another
-/// — see `fuzz_html_block_cr_event_split.in`). Normalising both sides
-/// to LF before the canonical walk mirrors what `Source::canonicalise`
-/// does for the IR pipeline, so the gate's domain matches the
-/// formatter's.
+/// Both inputs are canonicalised through [`Source`] before the event
+/// walk (CM §2.1 CR / CRLF → LF, CM §2.3 NUL → U+FFFD), matching what
+/// the IR pipeline does. The pulldown chokepoint then sees CR-free,
+/// NUL-free bytes on both sides — the gate's domain matches the
+/// formatter's exactly.
 #[must_use]
 pub fn semantically_equivalent(source: &str, formatted: &str) -> bool {
-    let mut a = source.to_owned();
-    super::normalize_line_endings_lf(&mut a);
-    let mut b = formatted.to_owned();
-    super::normalize_line_endings_lf(&mut b);
-    canonical_events(&a) == canonical_events(&b)
+    let a = Source::new(source);
+    let b = Source::new(formatted);
+    canonical_events(CanonicalSource::from_source(&a)) == canonical_events(CanonicalSource::from_source(&b))
 }
 
 /// If `source` and `formatted` are not semantically equivalent,
@@ -419,12 +394,10 @@ pub fn semantically_equivalent(source: &str, formatted: &str) -> bool {
 /// of dumping two HTML strings.
 #[must_use]
 pub(crate) fn first_divergence(source: &str, formatted: &str) -> Option<String> {
-    let mut src_lf = source.to_owned();
-    super::normalize_line_endings_lf(&mut src_lf);
-    let mut fmt_lf = formatted.to_owned();
-    super::normalize_line_endings_lf(&mut fmt_lf);
-    let a = canonical_events(&src_lf);
-    let b = canonical_events(&fmt_lf);
+    let src = Source::new(source);
+    let fmt = Source::new(formatted);
+    let a = canonical_events(CanonicalSource::from_source(&src));
+    let b = canonical_events(CanonicalSource::from_source(&fmt));
     if a == b {
         return None;
     }

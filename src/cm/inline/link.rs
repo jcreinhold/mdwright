@@ -532,14 +532,11 @@ mod tests {
     /// document so pulldown emits the resolved Reference event the
     /// table consumes.
     fn table_with(label: &str) -> crate::cm::refs::ReferenceTable {
-        use pulldown_cmark::{Options, Parser};
+        use crate::parse;
+        use crate::source::{CanonicalSource, Source};
         let src = format!("[{label}]: https://example.com\n\n[{label}][{label}]\n");
-        let mut opts = Options::empty();
-        opts.insert(Options::ENABLE_STRIKETHROUGH);
-        opts.insert(Options::ENABLE_FOOTNOTES);
-        opts.insert(Options::ENABLE_TABLES);
-        opts.insert(Options::ENABLE_TASKLISTS);
-        let events: Vec<_> = Parser::new_ext(&src, opts).collect();
+        let source = Source::new(&src);
+        let events: Vec<_> = parse::events(CanonicalSource::from_source(&source), parse::FORMATTER_OPTIONS).collect();
         build_reference_table(&events, &src)
     }
 

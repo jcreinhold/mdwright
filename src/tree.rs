@@ -1330,7 +1330,7 @@ mod tests {
 
     #[test]
     fn empty_doc_has_root_only() {
-        let ir = Ir::parse("");
+        let ir = Ir::parse_str("");
         let tree = &ir.tree;
         assert_eq!(tree.root(), NodeId(0));
         assert!(tree.is_empty());
@@ -1342,7 +1342,7 @@ mod tests {
 
     #[test]
     fn paragraph_and_text_present() {
-        let ir = Ir::parse("Hello world\n");
+        let ir = Ir::parse_str("Hello world\n");
         let tree = &ir.tree;
         let kinds: Vec<&NodeKind> = tree
             .descendants(tree.root())
@@ -1355,7 +1355,7 @@ mod tests {
     #[test]
     fn raw_ranges_are_well_formed() {
         let src = "# Title\n\nA paragraph.\n\n- one\n- two\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let tree = &ir.tree;
         for id in tree.descendants(tree.root()) {
             let n = tree.node(id).expect("descendants only yields valid ids");
@@ -1382,7 +1382,7 @@ let x = 1;
 ---
 <!-- html block -->
 ";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let tree = &ir.tree;
         for id in tree.descendants(tree.root()) {
             let n = tree.node(id).expect("descendants yields valid ids");
@@ -1441,7 +1441,7 @@ let x = 1;
         // wholly covers all of its children, so nested re-emission
         // would double-print but never lose information.
         let src = "# H\n\n> quote with *em*\n\n- item one\n- item two\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let tree = &ir.tree;
         for id in tree.descendants(tree.root()) {
             if id == tree.root() {
@@ -1465,7 +1465,7 @@ let x = 1;
 
     #[test]
     fn parent_chain_terminates_at_root() {
-        let ir = Ir::parse("> a quote\n");
+        let ir = Ir::parse_str("> a quote\n");
         let tree = &ir.tree;
         let last = NodeId(u32::try_from(tree.len().saturating_sub(1)).unwrap_or(0));
         let mut cur = last;
@@ -1489,19 +1489,19 @@ let x = 1;
 
     #[test]
     fn tight_list_one_text_child() {
-        let ir = Ir::parse("- one\n- two\n");
+        let ir = Ir::parse_str("- one\n- two\n");
         assert_eq!(find_list_tight(&ir.tree), Some(true));
     }
 
     #[test]
     fn loose_list_with_blank_line_between_items() {
-        let ir = Ir::parse("- one\n\n- two\n");
+        let ir = Ir::parse_str("- one\n\n- two\n");
         assert_eq!(find_list_tight(&ir.tree), Some(false));
     }
 
     #[test]
     fn nested_blockquote_under_list() {
-        let ir = Ir::parse("- item\n\n  > quote\n");
+        let ir = Ir::parse_str("- item\n\n  > quote\n");
         let tree = &ir.tree;
         let bq = tree
             .descendants(tree.root())
@@ -1512,7 +1512,7 @@ let x = 1;
     #[test]
     fn reference_link_records_label() {
         let src = "[foo][bar]\n\n[bar]: https://example.com\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let tree = &ir.tree;
         let link = tree
             .descendants(tree.root())
@@ -1528,7 +1528,7 @@ let x = 1;
     #[test]
     fn collapsed_reference_link() {
         let src = "[foo][]\n\n[foo]: https://example.com\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let tree = &ir.tree;
         let kind = tree
             .descendants(tree.root())
@@ -1543,7 +1543,7 @@ let x = 1;
     #[test]
     fn shortcut_reference_link() {
         let src = "[foo]\n\n[foo]: https://example.com\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let tree = &ir.tree;
         let kind = tree
             .descendants(tree.root())
@@ -1583,7 +1583,7 @@ let x = 1;
 
     #[test]
     fn every_printable_block_has_some_typed() {
-        let ir = Ir::parse(TYPED_COVERAGE_KITCHEN);
+        let ir = Ir::parse_str(TYPED_COVERAGE_KITCHEN);
         let tree = &ir.tree;
         for id in tree.descendants(tree.root()) {
             let node = tree.node(id).expect("descendant id is valid");
@@ -1603,7 +1603,7 @@ let x = 1;
         // matches as a single typed payload. Adding a new inline
         // variant without a typed wrapper forces this match to be
         // updated.
-        let ir = Ir::parse(TYPED_COVERAGE_KITCHEN);
+        let ir = Ir::parse_str(TYPED_COVERAGE_KITCHEN);
         let tree = &ir.tree;
         for id in tree.descendants(tree.root()) {
             let node = tree.node(id).expect("descendant id is valid");
@@ -1646,7 +1646,7 @@ let x = 1;
         // "emit unused defs verbatim" behaviour because unused defs
         // never affect HTML output anyway).
         let src = "[a]: https://a.example\n[b]: https://b.example\n\n[a] and [b].\n";
-        let ir = Ir::parse(src);
+        let ir = Ir::parse_str(src);
         let mut labels: Vec<String> = ir.refs.iter().map(|t| t.label_raw().to_owned()).collect();
         labels.sort();
         assert_eq!(labels, vec!["a".to_owned(), "b".to_owned()]);
@@ -1654,7 +1654,7 @@ let x = 1;
 
     #[test]
     fn autolink_preserves_url() {
-        let ir = Ir::parse("<https://example.com>\n");
+        let ir = Ir::parse_str("<https://example.com>\n");
         let tree = &ir.tree;
         let url = tree
             .descendants(tree.root())
@@ -1668,7 +1668,7 @@ let x = 1;
 
     #[test]
     fn task_list_marker_sets_item_task() {
-        let ir = Ir::parse("- [x] done\n- [ ] todo\n");
+        let ir = Ir::parse_str("- [x] done\n- [ ] todo\n");
         let tree = &ir.tree;
         let items: Vec<Option<bool>> = tree
             .descendants(tree.root())
@@ -1682,7 +1682,7 @@ let x = 1;
 
     #[test]
     fn code_block_info_string() {
-        let ir = Ir::parse("```rust\nfn x() {}\n```\n");
+        let ir = Ir::parse_str("```rust\nfn x() {}\n```\n");
         let tree = &ir.tree;
         let info = tree
             .descendants(tree.root())

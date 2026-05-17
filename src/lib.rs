@@ -61,6 +61,7 @@ mod document;
 mod format;
 mod ir;
 mod line_index;
+mod parse;
 mod rule;
 mod rule_set;
 mod source;

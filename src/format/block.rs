@@ -137,6 +137,9 @@ pub(crate) fn pretty_block<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
     if ctx.tree.parent(id) == Some(ctx.tree.root()) && root_verbatim_safe(ctx, id) {
         #[allow(clippy::wildcard_enum_match_arm)]
         match &node.kind {
+            // See docs/architecture/pulldown-model.md §5 — HTML-block boundaries
+            // are per-line type-dependent, so we stamp the captured source slice
+            // byte-verbatim rather than rebuilding from events.
             NodeKind::HtmlBlock { .. } => return emit_verbatim(ctx.source, ctx.tree, id),
             NodeKind::CodeBlock { fenced: false, .. } => {
                 return emit_verbatim(ctx.source, ctx.tree, id);
