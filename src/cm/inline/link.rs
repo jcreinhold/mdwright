@@ -27,14 +27,15 @@ use std::borrow::Cow;
 use crate::cm::refs::ReferenceTable;
 use crate::format::doc::Doc;
 
-/// Source CM grammar variant pulldown classified the link as.
-///
-/// `Inline` is reached only through `from_pulldown_inline`; the three
-/// reference variants are reached through `try_new_reference`.
+/// Source CM grammar variant for a reference link. Inline links never
+/// reach this enum — production constructs them via
+/// `from_pulldown_inline` directly. The `Reference` prefix is
+/// intentional and parallels [`LinkSource`]'s variant names: clippy's
+/// "all variants share a prefix" suggestion would erase the structural
+/// correspondence.
+#[allow(clippy::enum_variant_names)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum LinkSourceKind {
-    #[cfg_attr(not(test), allow(dead_code))]
-    Inline,
     ReferenceFull,
     ReferenceCollapsed,
     ReferenceShortcut,
@@ -53,13 +54,16 @@ pub(crate) enum LinkSource {
 }
 
 impl LinkSource {
+    /// `None` for [`LinkSource::Inline`] (which has no reference
+    /// kind); `Some(kind)` for the three reference variants. Test-only:
+    /// production code dispatches on the variants directly.
     #[cfg(test)]
-    pub(crate) fn kind(&self) -> LinkSourceKind {
+    pub(crate) fn kind(&self) -> Option<LinkSourceKind> {
         match self {
-            Self::Inline => LinkSourceKind::Inline,
-            Self::ReferenceFull(_) => LinkSourceKind::ReferenceFull,
-            Self::ReferenceCollapsed(_) => LinkSourceKind::ReferenceCollapsed,
-            Self::ReferenceShortcut(_) => LinkSourceKind::ReferenceShortcut,
+            Self::Inline => None,
+            Self::ReferenceFull(_) => Some(LinkSourceKind::ReferenceFull),
+            Self::ReferenceCollapsed(_) => Some(LinkSourceKind::ReferenceCollapsed),
+            Self::ReferenceShortcut(_) => Some(LinkSourceKind::ReferenceShortcut),
         }
     }
 
@@ -162,7 +166,6 @@ impl LinkRun {
     ) -> Self {
         let resolved = ResolvedRef { label };
         let source = match kind {
-            LinkSourceKind::Inline => LinkSource::Inline,
             LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
             LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
             LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),
@@ -259,7 +262,6 @@ impl ImageRun {
     ) -> Self {
         let resolved = ResolvedRef { label };
         let source = match kind {
-            LinkSourceKind::Inline => LinkSource::Inline,
             LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
             LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
             LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),
@@ -329,7 +331,6 @@ fn resolve_kind(
     table.resolve(&label).ok_or(LinkError::UnresolvedReference)?;
     let resolved = ResolvedRef { label };
     Ok(match kind {
-        LinkSourceKind::Inline => LinkSource::Inline,
         LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),
         LinkSourceKind::ReferenceCollapsed => LinkSource::ReferenceCollapsed(resolved),
         LinkSourceKind::ReferenceShortcut => LinkSource::ReferenceShortcut(resolved),

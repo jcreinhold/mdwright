@@ -877,10 +877,10 @@ fn link_kind(
 ) -> NodeKind {
     let ref_kind = match lt {
         LinkType::Autolink => {
-            return NodeKind::Autolink(AutolinkRun::from_cmark_uri(dest_url.to_string()));
+            return NodeKind::Autolink(AutolinkRun::new(dest_url.to_string()));
         }
         LinkType::Email => {
-            return NodeKind::Autolink(AutolinkRun::from_cmark_email(dest_url.to_string()));
+            return NodeKind::Autolink(AutolinkRun::new(dest_url.to_string()));
         }
         LinkType::WikiLink { .. } => return NodeKind::Unknown { tag: "WikiLink" },
         LinkType::Inline => None,
@@ -1232,7 +1232,6 @@ fn source_fence_char(source: &str, raw_range: Range<usize>) -> Option<CodeFenceC
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
-    use crate::cm::inline::autolink::AutolinkKind;
     use crate::ir::Ir;
 
     #[test]
@@ -1432,7 +1431,7 @@ let x = 1;
                 _ => None,
             })
             .expect("link present");
-        assert_eq!(link.0, LinkSourceKind::ReferenceFull);
+        assert_eq!(link.0, Some(LinkSourceKind::ReferenceFull));
         assert_eq!(link.1.as_deref(), Some("bar"));
     }
 
@@ -1448,7 +1447,7 @@ let x = 1;
                 _ => None,
             })
             .expect("link present");
-        assert_eq!(kind, LinkSourceKind::ReferenceCollapsed);
+        assert_eq!(kind, Some(LinkSourceKind::ReferenceCollapsed));
     }
 
     #[test]
@@ -1463,7 +1462,7 @@ let x = 1;
                 _ => None,
             })
             .expect("link present");
-        assert_eq!(kind, LinkSourceKind::ReferenceShortcut);
+        assert_eq!(kind, Some(LinkSourceKind::ReferenceShortcut));
     }
 
     // Load-bearing invariant for prompt 27's total dispatcher: every
@@ -1564,19 +1563,17 @@ let x = 1;
     }
 
     #[test]
-    fn autolink_kind() {
+    fn autolink_preserves_url() {
         let ir = Ir::parse("<https://example.com>\n");
         let tree = &ir.tree;
         let url = tree
             .descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
-                Some(NodeKind::Autolink(run)) if run.kind() == AutolinkKind::Uri => {
-                    Some(run.url().to_owned())
-                }
+                Some(NodeKind::Autolink(run)) => Some(run.url().to_owned()),
                 _ => None,
             })
             .expect("autolink present");
-        assert!(url.starts_with("https://"));
+        assert_eq!(url, "https://example.com");
     }
 
     #[test]
