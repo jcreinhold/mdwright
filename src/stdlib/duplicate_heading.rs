@@ -60,7 +60,7 @@ impl LintRule for DuplicateHeading {
             }
             // Open this heading at its level; close deeper levels.
             if let Some(slot) = path.get_mut(level.saturating_sub(1)) {
-                *slot = Some(h.text.to_owned());
+                *slot = Some(h.text.clone());
             }
             for i in level..path.len() {
                 if let Some(slot) = path.get_mut(i) {

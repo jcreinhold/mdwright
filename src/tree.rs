@@ -504,7 +504,7 @@ impl<'a> TreeBuilder<'a> {
             // Math is not enabled in Options; if it ever appears,
             // record the bytes inline as text.
             Event::InlineMath(cow) | Event::DisplayMath(cow) => {
-                let raw_range = range.clone();
+                let raw_range = range;
                 let src = self.source.get(raw_range.clone());
                 self.push_inline_text(cow_to_cow(cow), src, raw_range);
             }
@@ -1602,7 +1602,7 @@ let x = 1;
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
                 Some(NodeKind::CodeBlock {
                     fenced: true, info, ..
-                }) => Some(info.to_string()),
+                }) => Some(info.clone()),
                 _ => None,
             })
             .expect("fenced code block");

@@ -157,7 +157,7 @@ impl Heading {
             let raw = ctx
                 .tree
                 .node(id)
-                .map(|n| ctx.source.get(n.raw_range.clone()).unwrap_or(""))
+                .and_then(|n| ctx.source.get(n.raw_range.clone()))
                 .unwrap_or("");
             if let Some((body_source, _underline_source)) = split_setext_source(raw)
                 && setext_body_safe(body_source)

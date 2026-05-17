@@ -157,16 +157,20 @@ impl OffsetMap {
         {
             Ok(i) => i,
             Err(0) => return p, // p sits before any rewrite — identity
-            Err(i) => i - 1,
+            Err(i) => i.saturating_sub(1),
         };
-        let e = self.events[idx];
+        let Some(e) = self.events.get(idx).copied() else {
+            return p;
+        };
         if p < e.canonical.end {
             // p sits inside the rewrite's canonical range — round
             // down to the original event's start.
             e.original.start
         } else {
             // p sits in the identity-run after this rewrite.
-            e.original.end + (p - e.canonical.end)
+            e.original
+                .end
+                .saturating_add(p.saturating_sub(e.canonical.end))
         }
     }
 
@@ -189,18 +193,22 @@ impl OffsetMap {
             // p == e.canonical.start: the bound sits at the rewrite's
             // canonical start — bound encloses zero rewritten bytes,
             // so the original bound also sits at e.original.start.
-            Ok(i) => return self.events[i].original.start,
+            Ok(i) => return self.events.get(i).map_or(p, |e| e.original.start),
             Err(0) => return p, // p sits before any rewrite — identity
-            Err(i) => i - 1,
+            Err(i) => i.saturating_sub(1),
         };
-        let e = self.events[idx];
+        let Some(e) = self.events.get(idx).copied() else {
+            return p;
+        };
         if p <= e.canonical.end {
             // p is inside or right at the end of the rewrite — round
             // up to include the entire original event.
             e.original.end
         } else {
             // p sits in the identity-run after this rewrite.
-            e.original.end + (p - e.canonical.end)
+            e.original
+                .end
+                .saturating_add(p.saturating_sub(e.canonical.end))
         }
     }
 }
@@ -334,17 +342,17 @@ fn canonicalise(raw: &str) -> (String, OffsetMap) {
     let mut events: Vec<Rewrite> = Vec::new();
     let mut i = 0usize;
     while i < bytes.len() {
-        let b = bytes[i];
+        let Some(&b) = bytes.get(i) else { break };
         if b == b'\r' {
             let orig_start = i as u32;
             let canon_start = canonical.len() as u32;
             canonical.push('\n');
-            let consumed_cr = if i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
+            let consumed_cr = if bytes.get(i.saturating_add(1)).copied() == Some(b'\n') {
                 2
             } else {
                 1
             };
-            i += consumed_cr;
+            i = i.saturating_add(consumed_cr);
             events.push(Rewrite {
                 canonical: ByteSpan {
                     start: canon_start,
@@ -352,14 +360,14 @@ fn canonicalise(raw: &str) -> (String, OffsetMap) {
                 },
                 original: OriginalSpan {
                     start: orig_start,
-                    end: orig_start + consumed_cr as u32,
+                    end: orig_start.saturating_add(consumed_cr as u32),
                 },
             });
         } else if b == b'\0' {
             let orig_start = i as u32;
             let canon_start = canonical.len() as u32;
             canonical.push_str(REPLACEMENT_UTF8);
-            i += 1;
+            i = i.saturating_add(1);
             events.push(Rewrite {
                 canonical: ByteSpan {
                     start: canon_start,
@@ -367,7 +375,7 @@ fn canonicalise(raw: &str) -> (String, OffsetMap) {
                 },
                 original: OriginalSpan {
                     start: orig_start,
-                    end: orig_start + 1,
+                    end: orig_start.saturating_add(1),
                 },
             });
         } else {
@@ -376,7 +384,9 @@ fn canonicalise(raw: &str) -> (String, OffsetMap) {
             // non-ASCII; instead, locate the codepoint boundary and
             // push the &str slice.
             let cp_end = utf8_codepoint_end(bytes, i);
-            canonical.push_str(&raw[i..cp_end]);
+            if let Some(slice) = raw.get(i..cp_end) {
+                canonical.push_str(slice);
+            }
             i = cp_end;
         }
     }
@@ -387,7 +397,9 @@ fn canonicalise(raw: &str) -> (String, OffsetMap) {
 /// Length of the UTF-8 codepoint starting at `bytes[i]`. Assumes
 /// well-formed UTF-8 — `raw` arrived as `&str`, so this holds.
 fn utf8_codepoint_end(bytes: &[u8], i: usize) -> usize {
-    let b = bytes[i];
+    let Some(&b) = bytes.get(i) else {
+        return i;
+    };
     let len = if b < 0x80 {
         1
     } else if b < 0xC0 {
@@ -400,7 +412,7 @@ fn utf8_codepoint_end(bytes: &[u8], i: usize) -> usize {
     } else {
         4
     };
-    (i + len).min(bytes.len())
+    i.saturating_add(len).min(bytes.len())
 }
 
 #[cfg(test)]

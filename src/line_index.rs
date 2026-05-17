@@ -35,7 +35,7 @@ impl LineIndex {
         line_starts.push(0);
         for (i, b) in source.bytes().enumerate() {
             if b == b'\n' {
-                let next = (i + 1) as u32;
+                let next = u32::try_from(i.saturating_add(1)).unwrap_or(u32::MAX);
                 line_starts.push(next);
             }
         }
