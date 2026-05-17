@@ -86,6 +86,7 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
             }
             NodeKind::Autolink(run) => parts.push(run.pretty()),
             NodeKind::FootnoteReference(r) => parts.push(r.pretty()),
+            NodeKind::Math(span) => parts.push(span.pretty(ctx, &node.raw_range)),
             NodeKind::TaskListMarker(_) => {
                 // The list-item renderer prepends `[x] ` / `[ ] `; skip
                 // the leaf so we don't emit it twice.

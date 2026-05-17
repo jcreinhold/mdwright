@@ -339,7 +339,6 @@ impl Document {
             self.tree(),
             self.ir.frontmatter.as_ref(),
             &self.ir.admonitions,
-            &self.ir.math_regions,
             &self.ir.refs,
         );
         tracing::Span::current().record("out_len", out.len());

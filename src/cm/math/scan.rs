@@ -155,6 +155,24 @@ pub(crate) fn scan_math_regions(
         let content_start = i.saturating_add(open_len);
         match find_close(bytes, content_start, delim, &exclusions, transparent_runs) {
             Some(close_start) => {
+                // Reject bodies with no alphanumeric content. Real
+                // math always carries a variable, constant, or
+                // command name. A `\(...\)` or `\[...\]` whose body
+                // is only backslashes, brackets, or whitespace is
+                // almost certainly a sequence of CM backslash escapes
+                // — GFM §6.1 ex. 308's `\!\"...\(\)...\[\\\]...` is
+                // the canonical case. Without this guard, the block-
+                // overlay deletion in phase 4 would regress that
+                // example: the recogniser would treat `\(\)` (empty)
+                // and `\[\\\]` (body `\\`) as math, the formatter
+                // would normalise them, and the round-trip HTML
+                // would diverge from the source's escape-sequence
+                // rendering.
+                let body_slice = bytes.get(content_start..close_start).unwrap_or(&[]);
+                if !body_slice.iter().any(u8::is_ascii_alphanumeric) {
+                    i = i.saturating_add(1);
+                    continue;
+                }
                 let close_len = delim.close().len();
                 let region_end = close_start.saturating_add(close_len);
                 let region = i..region_end;

@@ -55,6 +55,8 @@ use crate::cm::inline::html::InlineHtmlSpan;
 use crate::cm::inline::link::{ImageRun, LinkRun, LinkSourceKind};
 use crate::cm::inline::run::{InlineRun, RunInput};
 use crate::cm::inline::task::TaskMarker;
+use crate::cm::math::MathRegion;
+use crate::cm::math::span::MathSpan;
 use crate::cm::refs::ReferenceTable;
 
 /// Index into [`Tree`]'s arena. Stable for the life of the tree;
@@ -179,6 +181,19 @@ pub enum NodeKind {
     HtmlSpan(InlineHtmlSpan),
     FootnoteReference(FootnoteReference),
     TaskListMarker(TaskMarker),
+    /// One recognised math region. Sibling to [`CodeRun`](NodeKind::CodeRun);
+    /// the typed payload is the variant + body produced by the math
+    /// recogniser. Rendered via [`MathSpan::pretty`] against the node's
+    /// `raw_range` (the outer region range, delimiters included).
+    ///
+    /// The `Box` is a deliberate layout choice: `MathSpan` is the
+    /// largest inline payload (≈56 B; `MathBody` carries a sorted
+    /// `Box<[Range<usize>]>` of transparent runs), and inlining it
+    /// here would grow every `Node` by the same margin even though
+    /// most trees have zero or one math leaf. Math leaves are rare
+    /// enough that the per-leaf heap allocation is not a hot-path
+    /// cost.
+    Math(Box<MathSpan>),
 
     /// Forward-compatibility fallback. Pulldown-cmark may emit tags
     /// we don't recognise (math when enabled, definition lists,
@@ -354,6 +369,18 @@ pub(crate) struct TreeBuilder<'a> {
     /// Source byte range covered by the buffered inline events;
     /// `None` when `inline_buf` is empty.
     inline_range: Option<Range<usize>>,
+    /// Recognised math regions, sorted by `range.start`. The text
+    /// handler splices a [`NodeKind::Math`] leaf at each region and
+    /// drops subsequent pulldown events whose bytes were already
+    /// covered by the emitted leaf.
+    math_regions: &'a [MathRegion],
+    /// Monotonic index into [`Self::math_regions`]; advances past
+    /// regions whose end is before the next event we process.
+    math_cursor: usize,
+    /// Exclusive end byte of the most recently emitted math leaf.
+    /// Any pulldown event whose range ends at or before this byte was
+    /// already covered by the leaf and must be swallowed.
+    math_emitted_until: usize,
 }
 
 #[derive(Debug)]
@@ -369,7 +396,7 @@ struct OpenFrame {
 }
 
 impl<'a> TreeBuilder<'a> {
-    pub(crate) fn new(source: &'a str) -> Self {
+    pub(crate) fn new(source: &'a str, math_regions: &'a [MathRegion]) -> Self {
         // Allocate the Document root at index 0 up front, then open
         // a frame for it; `finalize` closes the frame.
         let root = Node {
@@ -394,11 +421,32 @@ impl<'a> TreeBuilder<'a> {
             scope_stack: vec![EscapeScope::default()],
             inline_buf: Vec::new(),
             inline_range: None,
+            math_regions,
+            math_cursor: 0,
+            math_emitted_until: 0,
         }
+    }
+
+    /// Number of nodes allocated in the arena so far. Used only by
+    /// `Ir::parse` for trace output; not part of the builder's
+    /// formal interface.
+    pub(crate) fn arena_len(&self) -> usize {
+        self.arena.len()
     }
 
     #[allow(clippy::wildcard_enum_match_arm)]
     pub(crate) fn handle(&mut self, event: &Event<'a>, range: Range<usize>) {
+        // Math-overlay swallow guard. Any event whose bytes were
+        // already covered by a previously-emitted `NodeKind::Math`
+        // leaf is dropped — its content is part of the math region's
+        // outer range and will be rendered via `MathSpan::pretty`.
+        // Multi-line display math (`$$\nx=1\n$$`) emits several
+        // `Event::Text` / `Event::SoftBreak` events whose ranges all
+        // fall inside the math region; this guard drops them after
+        // the first text event has emitted the leaf.
+        if self.math_emitted_until > range.start && range.end <= self.math_emitted_until {
+            return;
+        }
         match event {
             Event::Start(tag) => {
                 self.flush_inline_run();
@@ -450,9 +498,32 @@ impl<'a> TreeBuilder<'a> {
                     buf.push_str(cow);
                     return;
                 }
+                // If the event starts inside an already-emitted math
+                // region (because pulldown emitted the `\)` closer as
+                // a decoded `)` and `extend_for_backslash` would pull
+                // the range back into the leaf), trim the leading
+                // in-math portion and re-derive the trailing prose
+                // from source bytes — the decoded `cow` doesn't align
+                // with the trimmed range.
+                if range.start < self.math_emitted_until {
+                    let trimmed = self.math_emitted_until..range.end;
+                    if trimmed.is_empty() {
+                        return;
+                    }
+                    if self.text_overlaps_math(&trimmed) {
+                        self.splice_text_with_math(trimmed);
+                    } else {
+                        self.push_source_prose(trimmed);
+                    }
+                    return;
+                }
                 let raw_range = self.extend_for_backslash(range);
-                let src = self.source.get(raw_range.clone());
-                self.push_inline_text(cow_to_cow(cow), src, raw_range);
+                if self.text_overlaps_math(&raw_range) {
+                    self.splice_text_with_math(raw_range);
+                } else {
+                    let src = self.source.get(raw_range.clone());
+                    self.push_inline_text(cow_to_cow(cow), src, raw_range);
+                }
             }
             Event::Code(cow) => {
                 self.flush_inline_run();
@@ -520,6 +591,80 @@ impl<'a> TreeBuilder<'a> {
     ) {
         self.extend_inline_range(&range);
         self.inline_buf.push(RunInput::Text { payload, source });
+    }
+
+    /// `true` iff any math region overlaps `range`. Advances
+    /// `math_cursor` past regions entirely before `range.start` as a
+    /// side effect so the answer is `O(matching regions)` amortised.
+    fn text_overlaps_math(&mut self, range: &Range<usize>) -> bool {
+        while self.math_cursor < self.math_regions.len()
+            && self
+                .math_regions
+                .get(self.math_cursor)
+                .is_some_and(|r| r.range.end <= range.start)
+        {
+            self.math_cursor = self.math_cursor.saturating_add(1);
+        }
+        self.math_regions
+            .get(self.math_cursor)
+            .is_some_and(|r| r.range.start < range.end)
+    }
+
+    /// Splice `Event::Text` whose `raw_range` overlaps one or more
+    /// math regions. Prose chunks outside math become
+    /// `RunInput::Text` slices drawn from source bytes (not the
+    /// decoded `cow`); each math region flushes the current inline
+    /// run and emits a `NodeKind::Math` leaf. Pulldown's decoded
+    /// payload is dropped for the overlapping event because (a) for
+    /// dollar-form math the source bytes equal the decoded payload
+    /// (no decoding happens for `$`), and (b) for backslash-delimited
+    /// math (`\(` / `\[`) pulldown emits the decoded delimiter as a
+    /// separate, single-character event whose bytes lie fully inside
+    /// the math region — that event is dropped by the swallow guard
+    /// at the top of `handle`, never reaching this splice.
+    ///
+    /// `extend_for_backslash` can pull an event's start back to the
+    /// `\` byte of a delimiter pulldown already consumed (e.g., the
+    /// `\)` closing a `\(…\)` inline math); the cursor is clamped to
+    /// `math_emitted_until` and regions already past are skipped via
+    /// `math_cursor` so the leaf is not re-emitted.
+    fn splice_text_with_math(&mut self, raw_range: Range<usize>) {
+        let mut cursor = raw_range.start.max(self.math_emitted_until);
+        while self.math_cursor < self.math_regions.len() {
+            let Some(region) = self.math_regions.get(self.math_cursor) else {
+                break;
+            };
+            if region.range.start >= raw_range.end {
+                break;
+            }
+            if region.range.end <= cursor {
+                self.math_cursor = self.math_cursor.saturating_add(1);
+                continue;
+            }
+            if cursor < region.range.start {
+                let chunk = cursor..region.range.start;
+                self.push_source_prose(chunk);
+            }
+            self.flush_inline_run();
+            let span = region.span.clone();
+            let region_range = region.range.clone();
+            tracing::trace!(?region_range, "math leaf");
+            self.push_leaf(NodeKind::Math(Box::new(span)), region_range.clone());
+            self.math_emitted_until = region_range.end;
+            cursor = region_range.end;
+            self.math_cursor = self.math_cursor.saturating_add(1);
+        }
+        if cursor < raw_range.end {
+            self.push_source_prose(cursor..raw_range.end);
+        }
+    }
+
+    /// Push a prose chunk drawn directly from source bytes. Used by
+    /// the math splice for the prose segments around math regions.
+    fn push_source_prose(&mut self, range: Range<usize>) {
+        let src = self.source.get(range.clone());
+        let payload = src.map_or(Cow::Borrowed(""), Cow::Borrowed);
+        self.push_inline_text(payload, src, range);
     }
 
     /// Push a break event into the inline accumulator.
@@ -1516,7 +1661,8 @@ let x = 1;
                 | NodeKind::Image(_)
                 | NodeKind::Autolink(_)
                 | NodeKind::FootnoteReference(_)
-                | NodeKind::TaskListMarker(_) => {}
+                | NodeKind::TaskListMarker(_)
+                | NodeKind::Math(_) => {}
                 NodeKind::Document
                 | NodeKind::Paragraph
                 | NodeKind::Heading { .. }

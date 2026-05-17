@@ -17,7 +17,7 @@ use std::ops::Range;
 /// source so callers can recover the original spelling without
 /// allocating; see [`super::span::MathSpan`] for the consumer side.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum EnvKind {
+pub enum EnvKind {
     Known(KnownEnv),
     /// Byte range of the environment name in source. The matching
     /// `\end{name}` carries the same name; we store the opening one
@@ -29,7 +29,7 @@ pub(crate) enum EnvKind {
 /// follow `amsmath` conventions; the starred variants are the
 /// unnumbered forms.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum KnownEnv {
+pub enum KnownEnv {
     Align,
     AlignStar,
     Aligned,

@@ -3,15 +3,19 @@
 //!
 //! `PrettyCtx` carries the source, the resolved formatter options, the
 //! tree IR, the reference table, and the overlay-region inputs
-//! (frontmatter, admonitions, math regions). It is a `Copy` value
-//! object — no mutable state. Pass by `&PrettyCtx<'a>`.
+//! (frontmatter, admonitions). It is a `Copy` value object — no
+//! mutable state. Pass by `&PrettyCtx<'a>`.
+//!
+//! Math is **not** here: math regions are materialised into
+//! [`NodeKind::Math`](crate::tree::NodeKind::Math) leaves during tree
+//! construction, so the formatter dispatches on them through the
+//! normal per-node path rather than consulting an overlay.
 //!
 //! Indent state is **not** here: container constructs that need to
 //! prefix their body's emitted lines (blockquote, list item, footnote
 //! definition) own the prefix decision and apply it inside their own
 //! `pretty()` method.
 
-use crate::cm::math::MathRegion;
 use crate::cm::refs::ReferenceTable;
 use crate::config::FmtOptions;
 use crate::ir::{AdmonitionRegion, Frontmatter};
@@ -24,12 +28,6 @@ pub(crate) struct PrettyCtx<'a> {
     pub tree: &'a Tree,
     pub frontmatter: Option<&'a Frontmatter>,
     pub admonitions: &'a [AdmonitionRegion],
-    /// Math regions in source order. Any block whose `raw_range`
-    /// overlaps a region is emitted byte-verbatim from `source`,
-    /// short-circuiting normal IR-driven emission. This keeps
-    /// `\[ ... \]` (and the prose around it within the same block)
-    /// pulldown-byte-identical between source and formatted output.
-    pub math_regions: &'a [MathRegion],
     /// Resolved link reference definitions in insertion order.
     /// `LinkReferenceDefinition` is not a tree node — the table is
     /// the single source of truth.

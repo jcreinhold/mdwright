@@ -6,7 +6,6 @@
 //! `pretty()` method), and post-processes the rendered string for the
 //! configured trailing-newline + EOL policies.
 
-use crate::cm::math::MathRegion;
 use crate::cm::refs::ReferenceTable;
 use crate::config::{FmtOptions, FormatMode};
 use crate::format::block;
@@ -25,7 +24,6 @@ pub(crate) fn format_document<'a>(
     tree: &'a Tree,
     frontmatter: Option<&'a Frontmatter>,
     admonitions: &'a [AdmonitionRegion],
-    math_regions: &'a [MathRegion],
     refs: &'a ReferenceTable,
 ) -> String {
     let ctx = PrettyCtx {
@@ -34,7 +32,6 @@ pub(crate) fn format_document<'a>(
         tree,
         frontmatter,
         admonitions,
-        math_regions,
         refs,
     };
     let doc = if opts.mode() == FormatMode::Verbatim {

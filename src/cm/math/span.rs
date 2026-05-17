@@ -56,7 +56,7 @@ impl AnyDelim {
 
 /// Inline delimiter pair carried on [`MathSpan::Inline`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum InlineDelim {
+pub enum InlineDelim {
     /// `\(` / `\)`
     Paren,
     /// `$` / `$`
@@ -81,7 +81,7 @@ impl InlineDelim {
 
 /// Display delimiter pair carried on [`MathSpan::Display`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum DisplayDelim {
+pub enum DisplayDelim {
     /// `\[` / `\]`
     Bracket,
     /// `$$` / `$$`
@@ -112,7 +112,7 @@ impl DisplayDelim {
 /// The pretty-printer dispatches on the variant and reads the body
 /// via [`MathBody::as_str`].
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum MathSpan {
+pub enum MathSpan {
     Inline { delim: InlineDelim, body: MathBody },
     Display { delim: DisplayDelim, body: MathBody },
     Environment { env: EnvKind, body: MathBody },
@@ -143,7 +143,7 @@ impl MathSpan {
 /// common case (no container) keeps the [`Cow::Borrowed`] fast path;
 /// container-nested math allocates one `String` per region.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct MathBody {
+pub struct MathBody {
     range: Range<usize>,
     /// Sorted, non-overlapping ranges that intersect `range`. Stored
     /// unclipped — `as_str` and `clean_offset_to_source` clip against
@@ -154,6 +154,16 @@ pub(crate) struct MathBody {
 impl MathBody {
     pub(crate) fn new(range: Range<usize>, transparent: Box<[Range<usize>]>) -> Self {
         Self { range, transparent }
+    }
+
+    /// `true` iff the body has any transparent (container-prefix)
+    /// runs. The pretty-printer uses this as a fast probe: container-
+    /// nested math is rendered structurally so the surrounding
+    /// `Doc::Prefix` cascade can re-apply the prefixes; the
+    /// alternative line-standalone byte check only matters when the
+    /// math is at the document root.
+    pub(crate) fn has_transparent_runs(&self) -> bool {
+        !self.transparent.is_empty()
     }
 
     /// Materialised body content with transparent runs removed.

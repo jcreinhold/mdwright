@@ -256,8 +256,11 @@ impl Ir {
         };
         // Collect pulldown events once with absolute byte ranges. The
         // reference table is built from this event stream (pulldown's
-        // own §4.7 resolution is authoritative); the flat IR and the
-        // tree are then built in lockstep from the same vector.
+        // own §4.7 resolution is authoritative); the flat IR is built
+        // first (the math scanner depends on the exclusion zones it
+        // collects), then math regions are computed, then the tree
+        // is built — the tree builder needs math regions so it can
+        // splice `NodeKind::Math` leaves at recognised positions.
         let events: Vec<(Event<'_>, Range<usize>)> = Parser::new_ext(body, opts)
             .into_offset_iter()
             .map(|(e, r)| {
@@ -265,20 +268,17 @@ impl Ir {
                 (e, abs)
             })
             .collect();
-        let mut tree_builder = TreeBuilder::new(source);
         for (event, abs) in &events {
-            tree_builder.handle(event, abs.clone());
             builder.handle(event.clone(), abs.clone());
         }
-        tracing::debug!(events = events.len(), "pulldown walk complete");
+        tracing::debug!(events = events.len(), "flat-IR walk complete");
 
-        // Math regions are computed after pulldown's structure pass
-        // so the scanner can exclude code spans / blocks / HTML
-        // blocks / inline HTML (regions where `\[` / `\(` / `$` are
-        // not math). Transparent runs (blockquote `>` markers and
-        // list-item continuation indents) let the recogniser scan
-        // across container prefixes without those bytes leaking into
-        // the math body.
+        // Math regions: the scanner excludes code spans / blocks /
+        // HTML blocks / inline HTML (regions where `\[` / `\(` / `$`
+        // are not math). Transparent runs (blockquote `>` markers
+        // and list-item continuation indents) let the recogniser
+        // scan across container prefixes without those bytes leaking
+        // into the math body.
         let transparent_runs = compute_transparent_runs(
             source,
             &builder.blockquote_ranges,
@@ -293,6 +293,12 @@ impl Ir {
             &transparent_runs,
             MathConfig::default(),
         );
+
+        let mut tree_builder = TreeBuilder::new(source, &math_regions);
+        for (event, abs) in &events {
+            tree_builder.handle(event, abs.clone());
+        }
+        tracing::debug!(nodes = tree_builder.arena_len(), "tree walk complete");
 
         let bare_events: Vec<Event<'_>> = events.into_iter().map(|(e, _)| e).collect();
         let refs = build_reference_table(&bare_events, source);

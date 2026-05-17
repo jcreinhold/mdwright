@@ -30,31 +30,167 @@ use super::env::EnvKind;
 use super::span::{DisplayDelim, InlineDelim, MathSpan};
 
 impl MathSpan {
-    /// Render this math region as a [`Doc`]. The `region` parameter is
-    /// the **outer** range (including delimiter tokens) so verbatim
-    /// fallback can emit source-byte-perfect output.
+    /// Render this math region as a [`Doc`]. The body is sourced
+    /// through [`super::span::MathBody::as_str`] (container prefixes
+    /// stripped) so the surrounding [`Doc::Prefix`] cascade can re-add
+    /// blockquote `>` markers and list-item indent without doubling.
+    ///
+    /// Display and environment math whose source neighbours are prose
+    /// on the same line (e.g. `... the operation \[ A ... \] is
+    /// stable.`) are emitted byte-verbatim from source as a single
+    /// [`Doc::Text`]. The author treated the delimiters as literal
+    /// text; breaking the source bytes onto separate lines would
+    /// rewrite the paragraph's HTML. Standalone display / environment
+    /// math (the math is the only non-whitespace content on its
+    /// source lines, modulo container prefixes) is rendered with
+    /// hard-line boundaries around the body so the layout reads as a
+    /// visual block.
+    ///
+    /// `region` is the **outer** range (including delimiter tokens).
     pub(crate) fn pretty<'a>(&self, ctx: &PrettyCtx<'a>, region: &Range<usize>) -> Doc<'a> {
         let source = ctx.source;
-        let verbatim = || -> Doc<'a> {
-            let slice = source.get(region.clone()).unwrap_or("");
-            unbreakable(text(slice.to_owned()))
-        };
+        let normalise =
+            ctx.opts.mode() != crate::config::FormatMode::Verbatim && ctx.opts.math().normalise;
+        let body = self.body().as_str(source);
+        let has_transparent = self.body().has_transparent_runs();
 
-        if ctx.opts.mode() == crate::config::FormatMode::Verbatim || !ctx.opts.math().normalise {
-            return verbatim();
+        // Display / environment math whose source neighbours are
+        // prose (no transparent runs, opener / closer are mid-line)
+        // is emitted source-byte-verbatim. The author wrote it as
+        // inline text; pulldown parsed it as such; we preserve the
+        // exact bytes so HTML stays identical.
+        if matches!(self, Self::Display { .. } | Self::Environment { .. })
+            && !has_transparent
+            && !is_line_standalone(source, region)
+        {
+            let slice = source.get(region.clone()).unwrap_or("");
+            return unbreakable(text(slice.to_owned()));
         }
 
-        let body = self.body().as_str(source);
-        if body_braces_balanced(body.as_ref()).is_err() {
-            return verbatim();
+        if normalise && body_braces_balanced(body.as_ref()).is_err() {
+            // Brace-imbalanced bodies cannot be safely normalised
+            // (whitespace collapse / column padding might cross a
+            // half-open group). Fall through to the verbatim path,
+            // which emits body bytes unchanged.
+            return self.pretty_verbatim(body.as_ref(), source);
         }
 
         match self {
-            Self::Inline { delim, .. } => unbreakable(pretty_inline(*delim, body.as_ref())),
-            Self::Display { delim, .. } => pretty_display(*delim, body.as_ref()),
-            Self::Environment { env, .. } => pretty_env(env, body.as_ref(), source),
+            Self::Inline { delim, .. } => {
+                if normalise {
+                    unbreakable(pretty_inline(*delim, body.as_ref()))
+                } else {
+                    unbreakable(verbatim_inline(*delim, body.as_ref()))
+                }
+            }
+            Self::Display { delim, .. } => {
+                if normalise {
+                    pretty_display(*delim, body.as_ref())
+                } else {
+                    verbatim_display(*delim, body.as_ref())
+                }
+            }
+            Self::Environment { env, .. } => {
+                if normalise {
+                    pretty_env(env, body.as_ref(), source)
+                } else {
+                    verbatim_env(env, body.as_ref(), source)
+                }
+            }
         }
     }
+
+    /// Verbatim fallback used when the normalisation path detects
+    /// brace imbalance. Emits the variant's canonical structure with
+    /// body bytes unmodified.
+    fn pretty_verbatim<'a>(&self, body: &str, source: &str) -> Doc<'a> {
+        match self {
+            Self::Inline { delim, .. } => unbreakable(verbatim_inline(*delim, body)),
+            Self::Display { delim, .. } => verbatim_display(*delim, body),
+            Self::Environment { env, .. } => verbatim_env(env, body, source),
+        }
+    }
+}
+
+/// `true` iff the math region's opener and closer are line-standalone
+/// in source: only whitespace (or nothing) sits between the opener
+/// and the previous line break, and between the closer and the next
+/// line break. Used by `MathSpan::pretty` to decide between
+/// structural layout and source-byte-verbatim emission for display
+/// and environment math.
+///
+/// Container-nested math (whose body carries transparent runs) is
+/// treated as standalone by `MathSpan::pretty` directly — this helper
+/// is only consulted when no transparent runs exist, so the simple
+/// "ASCII whitespace until line boundary" check is sufficient.
+fn is_line_standalone(source: &str, region: &Range<usize>) -> bool {
+    let bytes = source.as_bytes();
+    let leading_ok = {
+        let mut j = region.start;
+        loop {
+            if j == 0 {
+                break true;
+            }
+            let prev = j.saturating_sub(1);
+            match bytes.get(prev).copied() {
+                Some(b'\n') => break true,
+                Some(b' ' | b'\t') => j = prev,
+                _ => break false,
+            }
+        }
+    };
+    if !leading_ok {
+        return false;
+    }
+    let mut j = region.end;
+    loop {
+        match bytes.get(j).copied() {
+            None | Some(b'\n') => return true,
+            Some(b' ' | b'\t') => j = j.saturating_add(1),
+            _ => return false,
+        }
+    }
+}
+
+/// Verbatim inline math: concatenate opener + body + closer with no
+/// whitespace transformation. The body is the cleaned [`MathBody::as_str`]
+/// content (container prefixes already stripped).
+fn verbatim_inline<'a>(delim: InlineDelim, body: &str) -> Doc<'a> {
+    concat([
+        text(delim.open()),
+        text(body.to_owned()),
+        text(delim.close()),
+    ])
+}
+
+/// Verbatim display math. The body is split at `\n` so the surrounding
+/// `Doc::Prefix` cascade re-applies container prefixes per line; leading
+/// and trailing newlines are trimmed because they are already encoded
+/// by the structural `hard_line` separators around the body.
+fn verbatim_display<'a>(delim: DisplayDelim, body: &str) -> Doc<'a> {
+    let trimmed = body.trim_matches('\n');
+    unbreakable(concat([
+        text(delim.open()),
+        hard_line(),
+        text(trimmed.to_owned()),
+        hard_line(),
+        text(delim.close()),
+    ]))
+}
+
+/// Verbatim environment. Same shape as [`verbatim_display`], with the
+/// `\begin{name}` / `\end{name}` tokens computed from the resolved
+/// environment name.
+fn verbatim_env<'a>(env: &EnvKind, body: &str, source: &str) -> Doc<'a> {
+    let name = env.name(source).to_owned();
+    let trimmed = body.trim_matches('\n');
+    unbreakable(concat([
+        text(format!("\\begin{{{name}}}")),
+        hard_line(),
+        text(trimmed.to_owned()),
+        hard_line(),
+        text(format!("\\end{{{name}}}")),
+    ]))
 }
 
 /// Walk `body` and confirm `{` / `}` balance. `\{` and `\}` are
