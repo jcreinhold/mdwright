@@ -23,7 +23,6 @@
 //! at `Tag::TableCell` start; the typed view inherits the escape
 //! choices for free.
 
-
 use unicode_width::UnicodeWidthStr;
 
 use crate::tree::{NodeId, TableAlign};

@@ -69,12 +69,7 @@ pub(crate) fn parses_as_single_run(wrapped: &str, kind: RunKind, ctx: FlankCtx<'
     parses_with_outer_run_at(input, kind, left.len(), wrapped.len())
 }
 
-fn parses_with_outer_run_at(
-    input: &str,
-    kind: RunKind,
-    skip_left: usize,
-    run_len: usize,
-) -> bool {
+fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_len: usize) -> bool {
     use pulldown_cmark::OffsetIter;
 
     let (open_tag, close_tag) = kind.tags();
@@ -345,7 +340,10 @@ mod tests {
         // GFM spec example 378: *(*foo*)* is nested emphasis. The
         // outer wrap must survive even though the body contains
         // another emphasis run.
-        assert!(parses_as_single_run_isolated("*(*foo*)*", RunKind::Emphasis));
+        assert!(parses_as_single_run_isolated(
+            "*(*foo*)*",
+            RunKind::Emphasis
+        ));
     }
 
     #[test]
@@ -370,8 +368,7 @@ mod tests {
 
     #[test]
     fn escape_then_wrap_reparses_correctly() {
-        let escaped = escape_body_for_emphasis("a*b", EmphasisDelim::Asterisk)
-            .unwrap_or_default();
+        let escaped = escape_body_for_emphasis("a*b", EmphasisDelim::Asterisk).unwrap_or_default();
         assert_eq!(escaped, r"a\*b");
         let wrapped = format!("*{escaped}*");
         assert!(parses_as_single_run_isolated(&wrapped, RunKind::Emphasis));

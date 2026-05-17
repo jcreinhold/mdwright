@@ -30,11 +30,7 @@ use crate::config::{EndOfLine, TrailingNewline};
 ///
 /// `Strip` drops every trailing `\n`. `Ensure` forces exactly one
 /// trailing `\n` — the pre-Preserve behaviour, now opt-in.
-pub(crate) fn normalize_trailing_newline(
-    out: &mut String,
-    policy: TrailingNewline,
-    source: &str,
-) {
+pub(crate) fn normalize_trailing_newline(out: &mut String, policy: TrailingNewline, source: &str) {
     while out.ends_with('\n') {
         let _ = out.pop();
     }

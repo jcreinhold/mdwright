@@ -54,7 +54,10 @@ impl ByteSpan {
     /// out of scope for the library.
     #[must_use]
     pub fn from_range(r: Range<usize>) -> Self {
-        debug_assert!(u32::try_from(r.end).is_ok(), "ByteSpan offset overflows u32");
+        debug_assert!(
+            u32::try_from(r.end).is_ok(),
+            "ByteSpan offset overflows u32"
+        );
         Self {
             start: r.start as u32,
             end: r.end as u32,
@@ -151,10 +154,7 @@ impl OffsetMap {
             return p;
         }
         // Find the last event whose canonical.start <= p.
-        let idx = match self
-            .events
-            .binary_search_by_key(&p, |e| e.canonical.start)
-        {
+        let idx = match self.events.binary_search_by_key(&p, |e| e.canonical.start) {
             Ok(i) => i,
             Err(0) => return p, // p sits before any rewrite — identity
             Err(i) => i.saturating_sub(1),
@@ -186,10 +186,7 @@ impl OffsetMap {
         // or past its start). Searching by canonical.start with the
         // same protocol as start_to_original keeps the two paths
         // consistent.
-        let idx = match self
-            .events
-            .binary_search_by_key(&p, |e| e.canonical.start)
-        {
+        let idx = match self.events.binary_search_by_key(&p, |e| e.canonical.start) {
             // p == e.canonical.start: the bound sits at the rewrite's
             // canonical start — bound encloses zero rewritten bytes,
             // so the original bound also sits at e.original.start.

@@ -648,12 +648,7 @@ impl<'a> TreeBuilder<'a> {
         id
     }
 
-    fn open_container(
-        &mut self,
-        kind: NodeKind,
-        range: Range<usize>,
-        body_accum: Option<String>,
-    ) {
+    fn open_container(&mut self, kind: NodeKind, range: Range<usize>, body_accum: Option<String>) {
         let raw_start = range.start;
         let id = self.alloc_node(kind, range);
         let pending_start = u32::try_from(self.pending.len()).unwrap_or(u32::MAX);
@@ -989,11 +984,7 @@ fn widen_to_line_start_through_ws(source: &str, range: Range<usize>) -> Range<us
 /// drives emission. The typed value's existence is a witness that the
 /// data round-trips under the relevant `CommonMark` §4 rule.
 #[allow(clippy::wildcard_enum_match_arm)]
-fn build_typed_block(
-    kind: &NodeKind,
-    source: &str,
-    raw_range: Range<usize>,
-) -> Option<TypedBlock> {
+fn build_typed_block(kind: &NodeKind, source: &str, raw_range: Range<usize>) -> Option<TypedBlock> {
     use crate::config::ThematicStyle;
     match kind {
         NodeKind::Heading { level, setext } => {
@@ -1106,11 +1097,7 @@ fn build_list_block(
 /// fails — pulldown-cmark does not produce such tables from valid
 /// input. The legacy `NodeKind::Table` keeps driving emission until
 /// prompt 27's printer swap.
-fn build_table_block(
-    arena: &[Node],
-    child_ids: &[NodeId],
-    table_id: NodeId,
-) -> Option<TableBlock> {
+fn build_table_block(arena: &[Node], child_ids: &[NodeId], table_id: NodeId) -> Option<TableBlock> {
     let table_node = arena.get(table_id.idx())?;
     let NodeKind::Table { alignments } = &table_node.kind else {
         return None;

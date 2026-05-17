@@ -35,7 +35,6 @@ impl EmphasisDelim {
             Self::Underscore => Self::Asterisk,
         }
     }
-
 }
 
 /// Typed emphasis run. Carries the source delimiter byte pulldown saw

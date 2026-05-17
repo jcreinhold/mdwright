@@ -328,7 +328,9 @@ fn resolve_kind(
     label: String,
     table: &ReferenceTable,
 ) -> Result<LinkSource, LinkError> {
-    table.resolve(&label).ok_or(LinkError::UnresolvedReference)?;
+    table
+        .resolve(&label)
+        .ok_or(LinkError::UnresolvedReference)?;
     let resolved = ResolvedRef { label };
     Ok(match kind {
         LinkSourceKind::ReferenceFull => LinkSource::ReferenceFull(resolved),

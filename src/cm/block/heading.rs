@@ -54,16 +54,7 @@ fn setext_body_safe(body_source: &str) -> bool {
     }
     !matches!(
         first,
-        b'#' | b'>'
-            | b'-'
-            | b'+'
-            | b'*'
-            | b'='
-            | b'~'
-            | b'`'
-            | b'<'
-            | b'\t'
-            | b'0'..=b'9'
+        b'#' | b'>' | b'-' | b'+' | b'*' | b'=' | b'~' | b'`' | b'<' | b'\t' | b'0'..=b'9'
     )
 }
 

@@ -40,11 +40,7 @@ impl SuppressionMap {
     /// in the IR's suppression comments — the dispatcher folds these
     /// into its output so users see syntax mistakes the same way they
     /// see other lints.
-    pub(crate) fn build(
-        source: &str,
-        ir: &Ir,
-        known_rules: &[&str],
-    ) -> (Self, Vec<Diagnostic>) {
+    pub(crate) fn build(source: &str, ir: &Ir, known_rules: &[&str]) -> (Self, Vec<Diagnostic>) {
         let mut by_rule: HashMap<String, Vec<Range<usize>>> = HashMap::new();
         let mut all: Vec<Range<usize>> = Vec::new();
         let mut unknown: Vec<Diagnostic> = Vec::new();
@@ -64,8 +60,7 @@ impl SuppressionMap {
             // nothing but doesn't break anything else either.
             for name in &sup.rules {
                 if !known_rules.contains(&name.as_str())
-                    && let Ok((line, column)) =
-                        ir.line_index.locate(source, sup.raw_range.start)
+                    && let Ok((line, column)) = ir.line_index.locate(source, sup.raw_range.start)
                 {
                     unknown.push(Diagnostic {
                         rule: Cow::Borrowed("suppression"),
@@ -111,10 +106,7 @@ impl SuppressionMap {
                     } else {
                         for name in &sup.rules {
                             if let Some(start) = open_per_rule.remove(name.as_str()) {
-                                by_rule
-                                    .entry(name.clone())
-                                    .or_default()
-                                    .push(start..end);
+                                by_rule.entry(name.clone()).or_default().push(start..end);
                             }
                         }
                     }
