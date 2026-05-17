@@ -32,6 +32,14 @@ impl LintRule for LatexCommand {
         "LaTeX control sequence in prose (opt-in for Unicode-math projects)."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/latex_command.md")
+    }
+
+    fn produces_fix(&self) -> bool {
+        true
+    }
+
     fn is_default(&self) -> bool {
         false
     }

@@ -24,6 +24,10 @@ impl LintRule for DuplicateHeading {
         "Two headings at the same level under the same parent with the same text."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/duplicate_heading.md")
+    }
+
     fn is_advisory(&self) -> bool {
         // Math / theorem documents legitimately repeat `### Proof`,
         // `### Corollary`, etc. under one chapter heading. Useful

@@ -37,6 +37,14 @@ impl LintRule for SubscriptDamage {
         "Identifier with `*` where a `_` subscript was expected (formatter damage)."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/subscript_damage.md")
+    }
+
+    fn produces_fix(&self) -> bool {
+        true
+    }
+
     fn is_default(&self) -> bool {
         false
     }

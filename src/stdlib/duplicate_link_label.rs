@@ -21,6 +21,10 @@ impl LintRule for DuplicateLinkLabel {
         "Two `[label]:` definitions with the same label."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/duplicate_link_label.md")
+    }
+
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let mut seen: HashMap<String, usize> = HashMap::new();
         for def in doc.link_defs() {

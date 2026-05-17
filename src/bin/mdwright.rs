@@ -40,10 +40,12 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use mdwright::{
-    Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LintOptions, RuleSet, discover_markdown, stdlib,
+    Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LineIndex, LintOptions, RuleSet, Severity,
+    Snippet, discover_markdown, stdlib,
 };
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
+use serde::Serialize;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -94,6 +96,11 @@ enum Command {
     FmtCheck(FmtArgs),
     /// Print the rule catalogue.
     ListRules,
+    /// Print the long-form explanation of one lint rule.
+    Explain {
+        /// Kebab-case rule name (e.g. `bare-url`, `math/unbalanced-delim`).
+        rule: String,
+    },
 }
 
 #[derive(Args, Debug)]
@@ -117,6 +124,12 @@ struct LintArgs {
     #[arg(long, value_enum, default_value_t = OutputFormat::Pretty)]
     format: OutputFormat,
 
+    /// When to colour pretty output. `auto` (default) colours when
+    /// stdout is a TTY; `always` forces colour; `never` disables it.
+    /// Compact and JSON output are never coloured regardless.
+    #[arg(long, value_enum, default_value_t = ColorChoice::Auto)]
+    color: ColorChoice,
+
     /// Worker threads; 0 = rayon default (one per logical CPU).
     #[arg(short = 'j', long, default_value_t = 0)]
     jobs: usize,
@@ -125,6 +138,14 @@ struct LintArgs {
     /// Use to audit which diagnostics are silenced and where.
     #[arg(long)]
     no_suppress: bool,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum, Default)]
+enum ColorChoice {
+    #[default]
+    Auto,
+    Always,
+    Never,
 }
 
 #[derive(Args, Debug)]
@@ -193,8 +214,12 @@ enum OutputFormat {
     Pretty,
     /// `file:line:col: rule: message` per line.
     Compact,
-    /// JSON Lines (one object per line).
+    /// JSON Lines, v2 schema. See `docs/diagnostic-schema.md`.
     Json,
+    /// JSON Lines, v1 schema. Deprecated; emits a deprecation
+    /// warning on stderr. Will be removed in a future release.
+    #[value(name = "json-v1")]
+    JsonV1,
 }
 
 fn main() -> ExitCode {
@@ -218,6 +243,7 @@ fn run() -> Result<ExitCode> {
             print_rule_catalogue()?;
             Ok(ExitCode::SUCCESS)
         }
+        Command::Explain { rule } => run_explain(&rule),
         Command::Check(args) => run_lint(&args, false, config_path.as_deref(), cap),
         Command::Fix(args) => run_lint(&args, true, config_path.as_deref(), cap),
         Command::Fmt(args) => run_fmt(&args, false, config_path.as_deref(), cap),
@@ -226,6 +252,51 @@ fn run() -> Result<ExitCode> {
             run_fmt(&args, true, config_path.as_deref(), cap)
         }
     }
+}
+
+/// Print the long-form explanation of one stdlib rule. Returns a
+/// non-zero exit code with a "did you mean" suggestion when the
+/// rule name is unknown.
+fn run_explain(name: &str) -> Result<ExitCode> {
+    if let Some(rule) = stdlib::by_name(name) {
+        let stdout = io::stdout();
+        let mut out = stdout.lock();
+        let body = rule.explain().trim();
+        if body.is_empty() {
+            writeln!(
+                out,
+                "{}: {}\n\nNo long-form explanation registered. Run `mdwright list-rules` for the one-line summary.",
+                rule.name(),
+                rule.description(),
+            )?;
+        } else {
+            writeln!(out, "{}: {}\n", rule.name(), rule.description())?;
+            writeln!(out, "{body}")?;
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let mut stderr = io::stderr().lock();
+    writeln!(stderr, "mdwright: error: unknown rule '{name}'")?;
+    if let Some(suggestion) = closest_rule_name(name) {
+        writeln!(stderr, "  help: did you mean '{suggestion}'?")?;
+    }
+    writeln!(stderr, "  see `mdwright list-rules` for the full catalogue.")?;
+    Ok(ExitCode::from(1))
+}
+
+/// Jaro-Winkler similarity over every stdlib rule name. Returns the
+/// closest match if its similarity exceeds 0.7, else `None`.
+fn closest_rule_name(query: &str) -> Option<&'static str> {
+    let mut best: Option<(&'static str, f64)> = None;
+    for name in stdlib::names() {
+        let score = strsim::jaro_winkler(query, name);
+        match best {
+            Some((_, b)) if score <= b => {}
+            _ => best = Some((name, score)),
+        }
+    }
+    best.and_then(|(name, score)| if score > 0.7 { Some(name) } else { None })
 }
 
 /// Return an error if `len` exceeds the configured cap. `cap == 0`
@@ -443,7 +514,11 @@ fn run_lint(
     let mut rules = parse_rules_spec(rules_spec)?;
     apply_config_to_rules(&mut rules, &cfg)?;
 
-    let use_color = matches!(args.format, OutputFormat::Pretty) && io::stdout().is_terminal();
+    let use_color = match args.color {
+        ColorChoice::Always => matches!(args.format, OutputFormat::Pretty),
+        ColorChoice::Never => false,
+        ColorChoice::Auto => matches!(args.format, OutputFormat::Pretty) && io::stdout().is_terminal(),
+    };
     let lint_opts = LintOptions {
         respect_suppressions: !args.no_suppress,
     };
@@ -489,15 +564,16 @@ fn run_lint(
             let count = diags.len();
             let non_adv = diags.iter().filter(|d| !d.advisory).count();
 
-            let (final_diags, applied) = if apply_fixes && !diags.is_empty() {
+            let (final_source, final_diags, applied) = if apply_fixes && !diags.is_empty() {
                 let (new_src, n) = doc.apply_safe_fixes(&diags);
                 if n > 0 && new_src != source {
                     fs::write(path, &new_src).with_context(|| format!("write {}", path.display()))?;
                 }
                 let post_doc = Document::parse(&new_src);
-                (post_doc.lint_with(&rules, lint_opts), n)
+                let post_diags = post_doc.lint_with(&rules, lint_opts);
+                (new_src, post_diags, n)
             } else {
-                (diags, 0)
+                (source, diags, 0)
             };
 
             totals.fetch_add(count, Ordering::Relaxed);
@@ -508,13 +584,23 @@ fn run_lint(
                 return Ok(());
             }
 
+            let line_index = LineIndex::new(&final_source);
             let path_display = path.display().to_string();
             let guard = stdout_lock
                 .lock()
                 .map_err(|_| anyhow::anyhow!("stdout lock poisoned"))?;
             let stdout = io::stdout();
             let mut out = stdout.lock();
-            emit(&mut out, &path_display, &final_diags, args.format, use_color, applied)?;
+            emit(
+                &mut out,
+                &path_display,
+                &final_source,
+                &line_index,
+                &final_diags,
+                args.format,
+                use_color,
+                applied,
+            )?;
             drop(guard);
             Ok(())
         })
@@ -629,9 +715,10 @@ fn run_stdin(
         let mut out = stdout.lock();
         out.write_all(fixed.as_bytes())?;
     } else {
+        let line_index = LineIndex::new(&buf);
         let stdout = io::stdout();
         let mut out = stdout.lock();
-        emit(&mut out, "<stdin>", &diags, format, use_color, 0)?;
+        emit(&mut out, "<stdin>", &buf, &line_index, &diags, format, use_color, 0)?;
     }
 
     if check && non_adv > 0 {
@@ -686,47 +773,233 @@ fn parse_rules_spec(spec: &str) -> Result<RuleSet> {
 fn emit<W: Write>(
     out: &mut W,
     path: &str,
+    source: &str,
+    line_index: &LineIndex,
     diags: &[Diagnostic],
     fmt: OutputFormat,
     color: bool,
     fixed: usize,
 ) -> Result<()> {
     match fmt {
-        OutputFormat::Pretty => emit_pretty(out, path, diags, color, fixed),
+        OutputFormat::Pretty => emit_pretty(out, path, source, line_index, diags, color, fixed),
         OutputFormat::Compact => emit_compact(out, path, diags),
-        OutputFormat::Json => emit_json(out, path, diags),
+        OutputFormat::Json => emit_json_v2(out, path, source, line_index, diags),
+        OutputFormat::JsonV1 => {
+            // Deprecation warning per phase-4 plan; printed before the
+            // first record so downstream tools that stream output see
+            // the warning even when stdout is not flushed.
+            let mut stderr = io::stderr().lock();
+            writeln!(
+                stderr,
+                "mdwright: warning: --format=json-v1 is deprecated; switch to --format=json (v2 schema)."
+            )?;
+            drop(stderr);
+            emit_json_v1(out, path, diags)
+        }
     }
 }
 
-fn emit_pretty<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic], color: bool, fixed: usize) -> Result<()> {
-    let banner = if color {
-        format!("{}", path.bold().underline())
-    } else {
-        path.to_owned()
-    };
-    writeln!(out, "{banner}")?;
+/// rustc-style frame: severity tag, file location, source snippet
+/// with caret underline, help line, and a pointer to `mdwright
+/// explain`.
+fn emit_pretty<W: Write>(
+    out: &mut W,
+    path: &str,
+    source: &str,
+    line_index: &LineIndex,
+    diags: &[Diagnostic],
+    color: bool,
+    fixed: usize,
+) -> Result<()> {
     if fixed > 0 {
         let tag = if color {
-            format!("{}", "fixed".green())
+            format!("{}", "fixed".green().bold())
         } else {
             "fixed".to_owned()
         };
-        writeln!(out, "  {tag}: {fixed} issue(s) auto-repaired")?;
+        writeln!(out, "{tag}: {fixed} issue(s) auto-repaired in {path}")?;
     }
+    // Right-align the line gutter to the widest line number across
+    // this file's diagnostics so the `|` column stays vertical.
+    let gutter_width = diags.iter().map(|d| digit_width(d.line)).max().unwrap_or(1).max(2);
+
     for d in diags {
-        let rule_tag = if color {
-            if d.advisory {
-                format!("{}", d.rule.yellow())
-            } else {
-                format!("{}", d.rule.red().bold())
+        emit_one_pretty(out, path, source, line_index, d, color, gutter_width)?;
+    }
+    Ok(())
+}
+
+fn digit_width(mut n: usize) -> usize {
+    let mut w = 1usize;
+    while n >= 10 {
+        n /= 10;
+        w = w.saturating_add(1);
+    }
+    w
+}
+
+fn emit_one_pretty<W: Write>(
+    out: &mut W,
+    path: &str,
+    source: &str,
+    line_index: &LineIndex,
+    d: &Diagnostic,
+    color: bool,
+    gutter_width: usize,
+) -> Result<()> {
+    // Header: `error[rule]: message` (severity-coloured)
+    let severity = d.severity();
+    let sev_str = severity.as_str();
+    let rule_brackets = format!("[{}]", d.rule);
+    if color {
+        let sev_painted = match severity {
+            Severity::Error => format!("{}", sev_str.red().bold()),
+            Severity::Warning => format!("{}", sev_str.yellow().bold()),
+            Severity::Advisory => format!("{}", sev_str.cyan().bold()),
+        };
+        writeln!(out, "{sev_painted}{}: {}", rule_brackets.bold(), d.message)?;
+    } else {
+        writeln!(out, "{sev_str}{rule_brackets}: {}", d.message)?;
+    }
+
+    // Arrow line: `   --> path:line:col`
+    let arrow_pad = " ".repeat(gutter_width);
+    let arrow = if color {
+        format!("{}", "-->".blue().bold())
+    } else {
+        "-->".to_owned()
+    };
+    writeln!(out, "{arrow_pad}{arrow} {path}:{}:{}", d.line, d.column)?;
+
+    // Source frame
+    if let Some(snippet) = Snippet::from_span(line_index, source, &d.span) {
+        let bar = if color {
+            format!("{}", "|".blue().bold())
+        } else {
+            "|".to_owned()
+        };
+        // Blank gutter line before the source.
+        writeln!(out, "{arrow_pad} {bar}")?;
+        // Source line with right-aligned line number.
+        let line_no_str = format!("{:>width$}", snippet.line_no, width = gutter_width);
+        let line_no_painted = if color {
+            format!("{}", line_no_str.blue().bold())
+        } else {
+            line_no_str
+        };
+        writeln!(out, "{line_no_painted} {bar} {}", snippet.line_text)?;
+        // Caret line: spaces up to col_start, then '^' repeated.
+        let caret_count = snippet.col_end.saturating_sub(snippet.col_start).max(1) as usize;
+        let pad_count = snippet.col_start.saturating_sub(1) as usize;
+        let pad = " ".repeat(pad_count);
+        let carets_raw: String = std::iter::repeat_n('^', caret_count).collect();
+        let carets = if color {
+            match severity {
+                Severity::Error => format!("{}", carets_raw.red().bold()),
+                Severity::Warning => format!("{}", carets_raw.yellow().bold()),
+                Severity::Advisory => format!("{}", carets_raw.cyan().bold()),
             }
         } else {
-            d.rule.to_string()
+            carets_raw
         };
-        writeln!(out, "  {}:{}: {rule_tag}: {}", d.line, d.column, d.message)?;
+        writeln!(out, "{arrow_pad} {bar} {pad}{carets}")?;
+        writeln!(out, "{arrow_pad} {bar}")?;
     }
+
+    // Help line: first short paragraph of `explain()` if we can
+    // recover the rule, falling back to the description. (Rule
+    // lookup is `O(n)` over the stdlib; the pretty path is cold.)
+    if let Some(help) = help_line_for(&d.rule) {
+        let eq = if color {
+            format!("{}", "=".blue().bold())
+        } else {
+            "=".to_owned()
+        };
+        let help_tag = if color {
+            format!("{}", "help".bold())
+        } else {
+            "help".to_owned()
+        };
+        writeln!(out, "{arrow_pad} {eq} {help_tag}: {help}")?;
+    }
+
+    if let Some(fix) = d.fix.as_ref() {
+        let eq = if color {
+            format!("{}", "=".blue().bold())
+        } else {
+            "=".to_owned()
+        };
+        let tag = if color {
+            format!("{}", "fix".bold())
+        } else {
+            "fix".to_owned()
+        };
+        let safety = if fix.safe { "safe" } else { "suggestion" };
+        writeln!(
+            out,
+            "{arrow_pad} {eq} {tag} ({safety}): {}",
+            single_line_preview(&fix.replacement)
+        )?;
+    }
+
+    // Footer
+    let eq = if color {
+        format!("{}", "=".blue().bold())
+    } else {
+        "=".to_owned()
+    };
+    let note_tag = if color {
+        format!("{}", "note".bold())
+    } else {
+        "note".to_owned()
+    };
+    writeln!(out, "{arrow_pad} {eq} {note_tag}: see `mdwright explain {}`", d.rule)?;
     writeln!(out)?;
     Ok(())
+}
+
+/// Collapse a multi-line replacement into a one-line preview so the
+/// pretty frame stays readable. Full replacement is still emitted in
+/// JSON.
+fn single_line_preview(s: &str) -> String {
+    let trimmed = s.trim_end_matches('\n');
+    if let Some(idx) = trimmed.find('\n') {
+        let head = trimmed.get(..idx).unwrap_or("");
+        format!("{head} …")
+    } else {
+        trimmed.to_owned()
+    }
+}
+
+/// First short paragraph of the rule's `explain()`, used as the
+/// `help:` line. Returns `None` for unknown or unexplained rules.
+fn help_line_for(rule_name: &str) -> Option<String> {
+    let rule = stdlib::by_name(rule_name)?;
+    let body = rule.explain().trim();
+    if body.is_empty() {
+        return Some(rule.description().to_owned());
+    }
+    // Take the first paragraph under "## What it does", or — if the
+    // template wasn't followed — the first non-heading paragraph.
+    let mut lines = body.lines();
+    while let Some(line) = lines.next() {
+        let t = line.trim();
+        if t.starts_with("## ") || t.is_empty() {
+            continue;
+        }
+        // Found a non-heading, non-blank line; collect until blank.
+        let mut buf = String::from(t);
+        for next in lines.by_ref() {
+            let n = next.trim();
+            if n.is_empty() {
+                break;
+            }
+            buf.push(' ');
+            buf.push_str(n);
+        }
+        return Some(buf);
+    }
+    Some(rule.description().to_owned())
 }
 
 fn emit_compact<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic]) -> Result<()> {
@@ -736,7 +1009,97 @@ fn emit_compact<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic]) -> Resu
     Ok(())
 }
 
-fn emit_json<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic]) -> Result<()> {
+// --- JSON Lines v2 -----------------------------------------------------
+
+#[derive(Serialize)]
+struct JsonV2Record<'a> {
+    schema_version: u32,
+    path: &'a str,
+    severity: &'static str,
+    rule: JsonV2Rule<'a>,
+    source: JsonV2Source<'a>,
+    message: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fix: Option<JsonV2Fix<'a>>,
+}
+
+#[derive(Serialize)]
+struct JsonV2Rule<'a> {
+    name: &'a str,
+    description: &'a str,
+    url: String,
+}
+
+#[derive(Serialize)]
+struct JsonV2Source<'a> {
+    line: u32,
+    column: u32,
+    span_start: usize,
+    span_end: usize,
+    snippet: &'a str,
+}
+
+#[derive(Serialize)]
+struct JsonV2Fix<'a> {
+    replacement: &'a str,
+    safe: bool,
+}
+
+fn emit_json_v2<W: Write>(
+    out: &mut W,
+    path: &str,
+    source: &str,
+    line_index: &LineIndex,
+    diags: &[Diagnostic],
+) -> Result<()> {
+    for d in diags {
+        let snippet = Snippet::from_span(line_index, source, &d.span);
+        let (line, column, snippet_text, span_start, span_end) = match snippet {
+            Some(s) => (s.line_no, s.col_start, s.line_text, d.span.start, d.span.end),
+            None => (
+                u32::try_from(d.line).unwrap_or(u32::MAX),
+                u32::try_from(d.column).unwrap_or(u32::MAX),
+                "",
+                d.span.start,
+                d.span.end,
+            ),
+        };
+        let rule_name = d.rule.as_ref();
+        let rule_desc = stdlib::by_name(rule_name)
+            .map(|r| r.description().to_owned())
+            .unwrap_or_default();
+        let url = format!("docs/rules/{rule_name}.md");
+        let record = JsonV2Record {
+            schema_version: 2,
+            path,
+            severity: d.severity().as_str(),
+            rule: JsonV2Rule {
+                name: rule_name,
+                description: &rule_desc,
+                url,
+            },
+            source: JsonV2Source {
+                line,
+                column,
+                span_start,
+                span_end,
+                snippet: snippet_text,
+            },
+            message: &d.message,
+            fix: d.fix.as_ref().map(|f| JsonV2Fix {
+                replacement: &f.replacement,
+                safe: f.safe,
+            }),
+        };
+        serde_json::to_writer(&mut *out, &record).context("serialize v2 diagnostic")?;
+        writeln!(out)?;
+    }
+    Ok(())
+}
+
+// --- JSON Lines v1 (deprecated) ---------------------------------------
+
+fn emit_json_v1<W: Write>(out: &mut W, path: &str, diags: &[Diagnostic]) -> Result<()> {
     for d in diags {
         let path_esc = json_escape(path);
         let msg = json_escape(&d.message);
@@ -818,6 +1181,9 @@ fn print_rule_catalogue() -> Result<()> {
         }
         if rule.is_advisory() {
             tags.push("advisory");
+        }
+        if rule.produces_fix() {
+            tags.push("fixable");
         }
         let tag_str = if tags.is_empty() {
             String::new()

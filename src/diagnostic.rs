@@ -4,6 +4,77 @@ use std::borrow::Cow;
 use std::ops::Range;
 
 use crate::document::Document;
+use crate::line_index::LineIndex;
+
+/// Diagnostic severity for serialised output.
+///
+/// `Error` is the default for non-advisory rules; `Advisory` reflects
+/// [`Diagnostic::advisory`]. `Warning` is reserved for future use
+/// (no current rule emits it) and is included so the JSON Lines
+/// schema can name all three levels up front.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Severity {
+    Error,
+    Warning,
+    Advisory,
+}
+
+impl Severity {
+    /// Lowercase string form used by the v2 JSON Lines emitter and
+    /// the rustc-style pretty header.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Error => "error",
+            Self::Warning => "warning",
+            Self::Advisory => "advisory",
+        }
+    }
+}
+
+/// Source-snippet view shared by the pretty and JSON renderers:
+/// the one line of source covering a diagnostic's span, plus the
+/// column range of the underlined region.
+///
+/// For multi-line spans the underlined region is clamped to the
+/// first line — both renderers point at the start of the offence.
+#[derive(Clone, Debug)]
+pub struct Snippet<'a> {
+    /// 1-indexed line number.
+    pub line_no: u32,
+    /// 1-indexed codepoint column of the span's first character.
+    pub col_start: u32,
+    /// 1-indexed codepoint column one past the span's last character
+    /// on this line (so `col_end - col_start` codepoints are
+    /// underlined). Always ≥ `col_start + 1` so the caret is visible.
+    pub col_end: u32,
+    /// The line text, without the trailing `\n`.
+    pub line_text: &'a str,
+}
+
+impl<'a> Snippet<'a> {
+    /// Build a snippet for `span` inside `source`. Returns `None` if
+    /// `span.start` lies outside `source` or off a UTF-8 boundary —
+    /// the same fallback as [`Diagnostic::at`].
+    #[must_use]
+    pub fn from_span(line_index: &LineIndex, source: &'a str, span: &Range<usize>) -> Option<Self> {
+        let (line_no_usize, col_start_usize) = line_index.locate(source, span.start).ok()?;
+        let line_no = u32::try_from(line_no_usize).ok()?;
+        let col_start = u32::try_from(col_start_usize).ok()?;
+        let bounds = line_index.line_bounds(source, span.start)?;
+        let line_text = source.get(bounds.clone())?;
+        let end_on_line = span.end.min(bounds.end);
+        let after = source.get(bounds.start..end_on_line)?;
+        let after_cols = u32::try_from(after.chars().count().saturating_add(1)).ok()?;
+        let col_end = after_cols.max(col_start.saturating_add(1));
+        Some(Self {
+            line_no,
+            col_start,
+            col_end,
+            line_text,
+        })
+    }
+}
 
 /// One issue at one source location, optionally with an automatic
 /// [`Fix`]. Spans are byte ranges into the original source string.
@@ -78,5 +149,16 @@ impl Diagnostic {
     #[must_use]
     pub fn suppress_via(&self) -> String {
         format!("mdwright: allow {}", self.rule)
+    }
+
+    /// Diagnostic severity derived from [`Self::advisory`]. Used by
+    /// the v2 JSON Lines emitter and the rustc-style pretty header.
+    #[must_use]
+    pub fn severity(&self) -> Severity {
+        if self.advisory {
+            Severity::Advisory
+        } else {
+            Severity::Error
+        }
     }
 }

@@ -20,6 +20,10 @@ impl LintRule for InconsistentListMarker {
         "Mixed `-` / `*` / `+` markers in one bullet list."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/inconsistent_list_marker.md")
+    }
+
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for group in doc.list_groups() {
             if group.ordered || group.items.is_empty() {

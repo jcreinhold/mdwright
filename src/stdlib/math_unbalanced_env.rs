@@ -26,6 +26,10 @@ impl LintRule for MathUnbalancedEnv {
         "LaTeX `\\begin{env}` with no matching `\\end{env}` at the same nesting depth."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/math__unbalanced_env.md")
+    }
+
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for err in doc.math_errors() {
             let MathError::UnbalancedEnv { name, range } = err else {

@@ -28,6 +28,8 @@ rayon = "1"
 regex = "1"
 rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+strsim = "0.11"
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = [
@@ -42,8 +44,10 @@ unicode-width = "0.2"
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tempfile = "3"
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+xtask = { path = "xtask" }
 
 [[bench]]
 harness = false
@@ -54,6 +58,7 @@ harness = false
 name = "format_bench"
 
 [workspace]
+members = [".", "xtask"]
 exclude = ["fuzz"]
 
 [lints.rust]

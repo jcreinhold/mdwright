@@ -21,6 +21,10 @@ impl LintRule for UnbalancedBacktick {
         "Backtick in prose that could not be paired with a closing fence."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/unbalanced_backtick.md")
+    }
+
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for chunk in doc.prose_chunks() {
             for (idx, _) in chunk.text.match_indices('`') {

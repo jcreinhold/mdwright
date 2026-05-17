@@ -21,6 +21,14 @@ impl LintRule for StrayDollar {
         "Literal `$` in prose (opt-in for projects that don't use $…$ math)."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/stray_dollar.md")
+    }
+
+    fn produces_fix(&self) -> bool {
+        true
+    }
+
     fn is_default(&self) -> bool {
         false
     }

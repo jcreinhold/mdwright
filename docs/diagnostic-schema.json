@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jcreinhold/mdwright/docs/diagnostic-schema.json",
+  "title": "mdwright diagnostic (JSON Lines, v2)",
+  "description": "One record per line in the output of `mdwright check --format=json`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "path", "severity", "rule", "source", "message"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2,
+      "description": "Schema version. The literal `2` for this schema; future incompatible changes will bump this number."
+    },
+    "path": {
+      "type": "string",
+      "description": "Path of the file being linted, as supplied on the CLI. For stdin input the value is `<stdin>`."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warning", "advisory"],
+      "description": "Diagnostic severity. `error` is non-advisory and fails `mdwright check --check`; `advisory` does not. `warning` is reserved for future use."
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "url"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Kebab-case rule identifier (e.g. `bare-url`, `math/unbalanced-delim`)."
+        },
+        "description": {
+          "type": "string",
+          "description": "One-line summary of what the rule flags."
+        },
+        "url": {
+          "type": "string",
+          "description": "Repository-relative path to the rule's long-form documentation page."
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["line", "column", "span_start", "span_end", "snippet"],
+      "properties": {
+        "line": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed line number of the diagnostic's first byte."
+        },
+        "column": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "1-indexed codepoint column of the diagnostic's first byte."
+        },
+        "span_start": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Byte offset (0-indexed) of the first byte of the offending region."
+        },
+        "span_end": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Byte offset one past the last byte of the offending region."
+        },
+        "snippet": {
+          "type": "string",
+          "description": "The source line containing the diagnostic, without its trailing newline. Multi-line spans are clipped to the first line."
+        }
+      }
+    },
+    "message": {
+      "type": "string",
+      "description": "Human-readable, single-sentence description of the problem."
+    },
+    "fix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replacement", "safe"],
+      "properties": {
+        "replacement": {
+          "type": "string",
+          "description": "Text to substitute for the source region `source.span_start..source.span_end`."
+        },
+        "safe": {
+          "type": "boolean",
+          "description": "Whether the replacement is safe to apply without manual review. `mdwright fix` applies only safe fixes; unsafe ones are surfaced as suggestions."
+        }
+      },
+      "description": "Optional automatic fix. Omitted when no fix is available."
+    }
+  }
+}

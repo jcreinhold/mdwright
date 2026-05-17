@@ -69,6 +69,40 @@ impl LineIndex {
         let column = prefix.chars().count().saturating_add(1);
         Ok((idx.saturating_add(1), column))
     }
+
+    /// Byte range of the line containing `byte`, with the trailing
+    /// `\n` trimmed. Returns `None` if `byte` is past the source end.
+    ///
+    /// The slice `source[range]` is exactly the line text the
+    /// rustc-style pretty renderer and the JSON Lines `snippet` field
+    /// quote back to the user.
+    #[must_use]
+    pub fn line_bounds(&self, source: &str, byte: usize) -> Option<std::ops::Range<usize>> {
+        if byte > source.len() {
+            return None;
+        }
+        let byte_u32 = u32::try_from(byte).ok()?;
+        let idx = match self.line_starts.binary_search(&byte_u32) {
+            Ok(i) => i,
+            Err(i) => i.saturating_sub(1),
+        };
+        let start = self.line_starts.get(idx).copied()? as usize;
+        let raw_end = self
+            .line_starts
+            .get(idx.saturating_add(1))
+            .copied()
+            .map_or(source.len(), |n| n as usize);
+        // Trim the trailing `\n` (and a preceding `\r`, if present)
+        // so callers get just the visible line text.
+        let mut end = raw_end;
+        if end > start && source.as_bytes().get(end.saturating_sub(1)) == Some(&b'\n') {
+            end = end.saturating_sub(1);
+            if end > start && source.as_bytes().get(end.saturating_sub(1)) == Some(&b'\r') {
+                end = end.saturating_sub(1);
+            }
+        }
+        Some(start..end)
+    }
 }
 
 #[cfg(test)]

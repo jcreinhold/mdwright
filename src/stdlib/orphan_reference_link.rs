@@ -31,6 +31,10 @@ impl LintRule for OrphanReferenceLink {
         "Reference-style link with no matching `[label]:` definition."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/orphan_reference_link.md")
+    }
+
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let defs: HashSet<String> = doc.link_defs().iter().map(|d| d.label.to_ascii_lowercase()).collect();
 

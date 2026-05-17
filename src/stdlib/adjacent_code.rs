@@ -22,6 +22,10 @@ impl LintRule for AdjacentCodeNoSpace {
         "Inline code span adjacent to a letter without whitespace."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/adjacent_code_no_space.md")
+    }
+
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let bytes = doc.source().as_bytes();
         for code in doc.inline_codes() {

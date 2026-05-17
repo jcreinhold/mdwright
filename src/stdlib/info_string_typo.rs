@@ -137,6 +137,10 @@ impl LintRule for InfoStringTypo {
         "Fenced code block info string not in the known-languages allowlist."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/info_string_typo.md")
+    }
+
     fn is_advisory(&self) -> bool {
         true
     }

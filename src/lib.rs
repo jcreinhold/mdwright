@@ -73,7 +73,7 @@ pub use config::{
     Config, ConfigError, EndOfLine, FmtOptions, FormatMode, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions,
     OrderedListStyle, Placement, TrailingNewline, Wrap,
 };
-pub use diagnostic::{Diagnostic, Fix};
+pub use diagnostic::{Diagnostic, Fix, Severity, Snippet};
 pub use discover::discover_markdown;
 pub use document::{Document, FormatError, LintOptions, render_html};
 pub use ir::{

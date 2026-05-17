@@ -35,6 +35,14 @@ impl LintRule for EscapedEmphasis {
         "Literal `\\_`, `\\*`, or `` \\` `` escape in prose (mdformat damage)."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/escaped_emphasis.md")
+    }
+
+    fn produces_fix(&self) -> bool {
+        true
+    }
+
     fn is_default(&self) -> bool {
         false
     }

@@ -34,6 +34,14 @@ impl LintRule for UnicodeableSubscript {
         "Braced super/subscript that has a single-codepoint Unicode form."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/unicodeable_subscript.md")
+    }
+
+    fn produces_fix(&self) -> bool {
+        true
+    }
+
     fn is_advisory(&self) -> bool {
         true
     }

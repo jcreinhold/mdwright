@@ -32,6 +32,10 @@ impl LintRule for ListTightnessFlipped {
         "list tightness from typed items disagrees with tightness from source bytes"
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/list_tightness_flipped.md")
+    }
+
     fn is_default(&self) -> bool {
         false
     }

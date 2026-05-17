@@ -540,11 +540,14 @@ dependencies = [
  "regex",
  "rustc-hash",
  "serde",
+ "serde_json",
+ "strsim",
  "tempfile",
  "toml",
  "tracing",
  "tracing-subscriber",
  "unicode-width",
+ "xtask",
 ]
 
 [[package]]
@@ -1360,6 +1363,15 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
+]
+
+[[package]]
+name = "xtask"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "mdwright",
 ]
 
 [[package]]

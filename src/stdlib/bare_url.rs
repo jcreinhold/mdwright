@@ -32,6 +32,14 @@ impl LintRule for BareUrl {
         "Bare URL in prose; wrap in `<…>` for a CommonMark autolink."
     }
 
+    fn explain(&self) -> &str {
+        include_str!("explain/bare_url.md")
+    }
+
+    fn produces_fix(&self) -> bool {
+        true
+    }
+
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for chunk in doc.prose_chunks() {
             for m in pattern().find_iter(&chunk.text) {

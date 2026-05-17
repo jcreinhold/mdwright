@@ -48,6 +48,22 @@ pub trait LintRule: Send + Sync {
         false
     }
 
+    /// Whether this rule can emit a [`crate::Fix`]. Used by
+    /// `mdwright list-rules` and the generated rule docs. Defaults
+    /// to `false`; stdlib rules that emit fixes override.
+    fn produces_fix(&self) -> bool {
+        false
+    }
+
+    /// Long-form explanation used by `mdwright explain <rule>` and
+    /// the per-rule pages under `docs/rules/`. Returns an empty
+    /// string by default so existing third-party rules continue to
+    /// compile; stdlib rules override with a multi-paragraph
+    /// markdown body (no frontmatter).
+    fn explain(&self) -> &str {
+        ""
+    }
+
     /// Run the check against a parsed document. Append diagnostics
     /// to `out`. The dispatcher fills in each diagnostic's `rule`
     /// and `advisory` fields from `self.name()` and
