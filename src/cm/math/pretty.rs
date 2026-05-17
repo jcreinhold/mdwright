@@ -63,7 +63,7 @@ impl MathSpan {
             && !is_line_standalone(source, region)
         {
             let slice = source.get(region.clone()).unwrap_or("");
-            return unbreakable(text(slice.to_owned()));
+            return text(slice.to_owned());
         }
 
         if normalise && body_braces_balanced(body.as_ref()).is_err() {

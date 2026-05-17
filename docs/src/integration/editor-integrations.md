@@ -1,7 +1,7 @@
 # Editor integrations
 
-> **Status:** First-class LSP support and editor extensions are tracked under prompt 29. Until
-> then, run mdwright on save via your editor's generic external-command hook.
+> **Status:** First-class LSP support and editor extensions are tracked under prompt 29. Until then, run mdwright on
+> save via your editor's generic external-command hook.
 
 ## VS Code
 

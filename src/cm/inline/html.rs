@@ -36,11 +36,12 @@ impl InlineHtmlSpan {
         &self.bytes
     }
 
-    /// Emit the raw HTML span as an `unbreakable` doc.
+    /// Emit the raw HTML span as a single `Doc::Text`. Text is atomic
+    /// by the Wadler/Lindig discipline; the span stays on one line.
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
-        use crate::format::doc::{text, unbreakable};
-        unbreakable(text(self.bytes.clone()))
+        use crate::format::doc::text;
+        text(self.bytes.clone())
     }
 }
 

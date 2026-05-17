@@ -76,6 +76,7 @@ pub use config::{
 pub use diagnostic::{DOCS_URL_DEFAULT, Diagnostic, Fix, Severity, Snippet, docs_url, rule_doc_url};
 pub use discover::discover_markdown;
 pub use document::{Document, FormatError, LintOptions, render_html};
+pub use format::semantic::semantically_equivalent;
 pub use ir::{
     AllowScope, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode, InlineHtml, LinkDef,
     ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,

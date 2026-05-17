@@ -1,7 +1,7 @@
 # Pre-commit
 
-> **Status:** Native `pre-commit` hook ships in a later prompt. The recipe below is the manual
-> equivalent — works today, no plugin required.
+> **Status:** Native `pre-commit` hook ships in a later prompt. The recipe below is the manual equivalent — works today,
+> no plugin required.
 
 ## Manual hook
 
@@ -20,8 +20,8 @@ mdwright check $files
 mdwright fmt-check $files
 ```
 
-`fmt-check` exits non-zero if any staged file would be reformatted; `check` exits non-zero on any
-non-advisory diagnostic.
+`fmt-check` exits non-zero if any staged file would be reformatted; `check` exits non-zero on any non-advisory
+diagnostic.
 
 ## With `pre-commit` (the framework)
 

@@ -7,17 +7,34 @@
 //!
 //! ## Semantics
 //!
-//! - [`Doc::Text(s)`](Doc::Text) — literal text; must not contain `\n`.
-//! - [`Doc::Line`] — soft break. Renders as a single space; the wrap
-//!   pass converts the soft breaks it chose to keep as line breaks
-//!   into [`Doc::HardLine`] before render time, so any `Doc::Line`
-//!   left at render time is intentionally flat.
+//! - [`Doc::Text(s)`](Doc::Text) — literal text; must not contain
+//!   `\n`. **Atomic**: the wrap pass treats every `Text` as one
+//!   indivisible box of `UnicodeWidthStr::width(s)` columns and never
+//!   inspects its contents. Producers that want word-level
+//!   wrappability call [`prose`] to emit a stream of
+//!   `text + soft_space + text + soft_space + …` boxes; emitters
+//!   whose syntax must stay on one line (table rows, ATX heading
+//!   bodies, fenced-code info strings) use plain `text(...)` and
+//!   inherit its atomicity by default.
+//! - [`Doc::Line`] — source soft break. In `Wrap::Keep` it promotes
+//!   to a `HardLine` (preserving the source's newline); in
+//!   `Wrap::No` it collapses to a literal `" "`; in `Wrap::At(n)`
+//!   it is a break candidate. The wrap pass converts soft breaks
+//!   chosen as breaks into `HardLine` before render time.
+//! - [`Doc::SoftSpace`] — word-boundary glue introduced by
+//!   [`prose`]. Always renders as a single space in `Wrap::Keep` and
+//!   `Wrap::No` (the source had a literal space, not a newline); in
+//!   `Wrap::At(n)` it is a break candidate. The distinction from
+//!   `Line` is what lets `Keep` mode preserve source line shape
+//!   without exploding every prose word onto its own line.
 //! - [`Doc::HardLine`] — newline. Subsequent content on the new line
 //!   may carry any enclosing [`Doc::Prefix`] drains.
-//! - [`Doc::Atomic`] — atomic box; the wrap pass refuses to split
-//!   its contents across lines. Used for inline code, URLs,
-//!   autolinks, raw HTML — anything whose syntax breaks if split.
-//!   The renderer just recurses into it.
+//! - [`Doc::Atomic`] — atomic group; the wrap pass refuses to break
+//!   at any `Line` or `SoftSpace` inside the wrapped subtree. Used
+//!   for *multi-element* atomic groups (link form `[text](dest)`,
+//!   fenced code block whose interior `HardLine`s are syntactic).
+//!   Single `Text` strings do not need `Atomic` — they are already
+//!   atomic.
 //! - [`Doc::Concat`] — render children in order.
 //! - [`Doc::Prefix(p, inner)`](Doc::Prefix) — every hard line inside
 //!   `inner` is prepended with `p.content` (or `p.blank` for the
@@ -47,6 +64,7 @@ pub(crate) struct LinePrefix {
 pub(crate) enum Doc<'a> {
     Text(Cow<'a, str>),
     Line,
+    SoftSpace,
     HardLine,
     Atomic(Box<Self>),
     Concat(Box<[Self]>),
@@ -106,6 +124,68 @@ pub(crate) fn concat<'a>(items: impl IntoIterator<Item = Doc<'a>>) -> Doc<'a> {
     Doc::Concat(items.into_iter().collect::<Vec<_>>().into_boxed_slice())
 }
 
+/// Tokenise prose into a wrap-friendly `Doc`: every whitespace-
+/// separated word becomes a [`Doc::Text`] box, with [`Doc::SoftSpace`]
+/// (word-boundary glue) between them. Source whitespace runs collapse
+/// to a single `SoftSpace`; leading and trailing whitespace are
+/// preserved as boundary `SoftSpace`s so the result composes with
+/// neighbouring constructs without losing the gap.
+///
+/// This is the single point where prose producers communicate "the
+/// wrap pass may break between these words." Producers whose syntax
+/// forbids mid-line breaks (table rows, ATX heading bodies,
+/// fenced-code info strings) keep using [`text`] directly and inherit
+/// `Text`'s atomicity.
+pub(crate) fn prose<'a>(s: &str) -> Doc<'a> {
+    // Whitespace set deliberately narrower than `char::is_ascii_whitespace`:
+    // we treat only space, tab, newline, and carriage return as word
+    // separators. Form-feed (`\f`) and vertical-tab (`\x0B`) bytes
+    // appear in text payloads (CommonMark §2.1 leaves them as data
+    // bytes; pulldown surfaces them inside `Event::Text`) and must
+    // pass through as literal content — folding them to spaces would
+    // break round-trip on inputs that contain control bytes.
+    fn is_word_break(b: u8) -> bool {
+        matches!(b, b' ' | b'\t' | b'\n' | b'\r')
+    }
+    let bytes = s.as_bytes();
+    let leading = bytes.first().is_some_and(|b| is_word_break(*b));
+    let trailing = bytes.len() > 1 && bytes.last().is_some_and(|b| is_word_break(*b));
+    let mut parts: Vec<Doc<'a>> = Vec::new();
+    if leading {
+        parts.push(Doc::SoftSpace);
+    }
+    let mut first = true;
+    let mut i = 0;
+    while i < bytes.len() {
+        while i < bytes.len() && bytes.get(i).is_some_and(|b| is_word_break(*b)) {
+            i = i.saturating_add(1);
+        }
+        if i >= bytes.len() {
+            break;
+        }
+        let w_start = i;
+        while i < bytes.len() && bytes.get(i).is_some_and(|b| !is_word_break(*b)) {
+            i = i.saturating_add(1);
+        }
+        if !first {
+            parts.push(Doc::SoftSpace);
+        }
+        first = false;
+        let word = s.get(w_start..i).unwrap_or("");
+        parts.push(Doc::Text(Cow::Owned(word.to_owned())));
+    }
+    if trailing && !first {
+        parts.push(Doc::SoftSpace);
+    }
+    if parts.is_empty() {
+        Doc::Concat(Box::new([]))
+    } else if parts.len() == 1 {
+        parts.into_iter().next().unwrap_or_else(|| Doc::Concat(Box::new([])))
+    } else {
+        Doc::Concat(parts.into_boxed_slice())
+    }
+}
+
 pub(crate) fn prefix_lines(p: LinePrefix, inner: Doc<'_>) -> Doc<'_> {
     Doc::Prefix(p, Box::new(inner))
 }
@@ -150,7 +230,11 @@ pub(crate) fn render(doc: &Doc<'_>, _opts: &RenderOptions) -> String {
                 Doc::Text(s) => {
                     emit_text(&mut out, s, &prefixes, &mut pending);
                 }
-                Doc::Line => {
+                Doc::Line | Doc::SoftSpace => {
+                    // Both render as a single space at render time.
+                    // `SoftSpace` is always a literal space; `Line`
+                    // is what the wrap pass left as flat (the breaks
+                    // it chose were already converted to `HardLine`).
                     drain_content(&mut out, &prefixes, &mut pending);
                     out.push(' ');
                 }

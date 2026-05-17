@@ -78,7 +78,7 @@ fn escape_body_tildes<'a>(body: Doc<'a>) -> Doc<'a> {
                 }
             }
             Doc::Text(s) => parts.push(Doc::Text(escape_tildes_in(s))),
-            leaf @ (Doc::Line | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
+            leaf @ (Doc::Line | Doc::SoftSpace | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
                 parts.push(leaf);
             }
         }
@@ -149,7 +149,7 @@ fn body_has_no_unescaped_tilde(body: &Doc<'_>) -> bool {
                     stack.push(item);
                 }
             }
-            Doc::Line | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _) => {}
+            Doc::Line | Doc::SoftSpace | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _) => {}
         }
     }
     true

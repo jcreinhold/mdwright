@@ -444,7 +444,6 @@ fn indent_cow(n: usize) -> Cow<'static, str> {
 /// the parent list is loose, item-internal blocks are separated by a
 /// blank line.
 fn render_item_body<'a>(ctx: &crate::format::pretty::PrettyCtx<'a>, id: NodeId) -> crate::format::doc::Doc<'a> {
-    use crate::cm::block::paragraph::ParagraphBody;
     use crate::format::doc::{concat, hard_line};
     use crate::tree::NodeKind;
 
@@ -465,8 +464,7 @@ fn render_item_body<'a>(ctx: &crate::format::pretty::PrettyCtx<'a>, id: NodeId) 
         if *emitted > 0 && parent_loose {
             parts.push(hard_line());
         }
-        let inline = crate::format::inline::pretty_inline_children_for_ids(ctx, run);
-        let body = ParagraphBody::from_inline(inline).into_doc();
+        let body = crate::format::inline::pretty_paragraph_inline_for_ids(ctx, run);
         parts.push(concat([body, hard_line()]));
         *emitted = emitted.saturating_add(1);
         run.clear();

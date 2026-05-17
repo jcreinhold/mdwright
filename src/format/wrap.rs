@@ -31,10 +31,16 @@
 //!
 //! ## Tokenisation
 //!
-//! `Doc::Text` is split on ASCII whitespace into one box per word.
-//! This makes wrap insensitive to whether the source used a soft
-//! break or a space between two words — both produce identical box
-//! streams.
+//! `Doc::Text` is one atomic box of `UnicodeWidthStr::width` — the
+//! wrap pass never inspects text contents. Break candidates are
+//! explicit: `Doc::Line` (source soft break) and `Doc::SoftSpace`
+//! (word-boundary glue). Producers that want word-level wrappability
+//! call [`crate::format::doc::prose`], which emits
+//! `text(word) + SoftSpace + text(word) + …`. Producers whose syntax
+//! forbids mid-line breaks (table rows, ATX heading bodies,
+//! fenced-code info strings) emit plain `text(...)` and inherit
+//! `Text`'s atomicity by construction — there is no "remember to
+//! mark atomic" rule for callers to forget.
 
 use std::borrow::Cow;
 use std::time::{Duration, Instant};
@@ -99,6 +105,11 @@ fn rewrite_lines<'a>(doc: Doc<'a>, r: Replace) -> Doc<'a> {
             Replace::HardLine => Doc::HardLine,
             Replace::Space => Doc::Text(Cow::Borrowed(" ")),
         },
+        // SoftSpace is word-boundary glue from `prose(...)`; it always
+        // renders as a literal space in non-wrap modes (the source had
+        // a space, not a newline). Only `Wrap::At(n)` treats it as a
+        // break candidate.
+        Doc::SoftSpace => Doc::Text(Cow::Borrowed(" ")),
         Doc::Text(_) | Doc::HardLine => doc,
         Doc::Atomic(inner) => Doc::Atomic(Box::new(rewrite_lines(*inner, r))),
         Doc::Prefix(p, inner) => Doc::Prefix(p, Box::new(rewrite_lines(*inner, r))),
@@ -136,7 +147,7 @@ fn linearize<'a>(doc: Doc<'a>, out: &mut Vec<Doc<'a>>) {
                 linearize(item, out);
             }
         }
-        leaf @ (Doc::Text(_) | Doc::Line | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
+        leaf @ (Doc::Text(_) | Doc::Line | Doc::SoftSpace | Doc::HardLine | Doc::Atomic(_) | Doc::Prefix(_, _)) => {
             out.push(leaf);
         }
     }
@@ -167,7 +178,7 @@ fn process_stream<'a>(stream: Vec<Doc<'a>>, target: u32) -> Vec<Doc<'a>> {
                 other @ (Doc::HardLine | Doc::Concat(_)) => out.push(other),
                 // Wrap-tokens cannot reach the `else` branch — they
                 // were filtered into the run above. Drop defensively.
-                Doc::Text(_) | Doc::Line | Doc::Atomic(_) => {}
+                Doc::Text(_) | Doc::Line | Doc::SoftSpace | Doc::Atomic(_) => {}
             }
         }
     }
@@ -176,9 +187,9 @@ fn process_stream<'a>(stream: Vec<Doc<'a>>, target: u32) -> Vec<Doc<'a>> {
 }
 
 /// A "wrap token" is one that participates in a run: text, soft
-/// break, or atomic box.
+/// break, word-boundary glue, or atomic box.
 fn is_wrap_token(d: &Doc<'_>) -> bool {
-    matches!(d, Doc::Text(_) | Doc::Line | Doc::Atomic(_))
+    matches!(d, Doc::Text(_) | Doc::Line | Doc::SoftSpace | Doc::Atomic(_))
 }
 
 fn flush_run<'a>(run: &mut Vec<Doc<'a>>, target: u32, out: &mut Vec<Doc<'a>>) {
@@ -254,28 +265,31 @@ fn rebuild_unwrapped<'a>(boxes: Vec<Bx<'a>>) -> Vec<Doc<'a>> {
 
 /// Split a run into boxes with implicit glue between them.
 ///
-/// A `Doc::Text` is split on ASCII whitespace; every maximal
-/// non-whitespace span becomes a word-box, every whitespace span
-/// marks pending glue between boxes. A `Doc::Line` is glue. An
-/// unbreakable `Doc::Group` is one whole box. Adjacent content with
-/// no intervening glue is coalesced into one box — there is no
-/// breakpoint between them anyway.
+/// Every `Doc::Text` is one atomic box of its display width — the
+/// wrap pass never inspects text contents. `Doc::Line` and
+/// `Doc::SoftSpace` are glue (break candidates). An unbreakable
+/// `Doc::Atomic` is one whole box. Adjacent text/atomic nodes with
+/// no intervening glue coalesce into one box — there is no break
+/// candidate between them anyway, and coalescing keeps the DP cost
+/// linear in the number of break candidates rather than in raw
+/// `Text` count.
 fn tokenize_run<'a>(run: Vec<Doc<'a>>) -> Vec<Bx<'a>> {
     let mut boxes: Vec<Bx<'a>> = Vec::new();
     let mut pending_glue = false;
     for item in run {
         match item {
-            Doc::Line => pending_glue = true,
-            Doc::Text(s) => {
-                // Borrowed Cow: each word becomes a Cow::Borrowed
-                // slice into the original source — zero allocs per
-                // word. Owned Cow (rare; pulldown delivers it for
-                // entity-decoded text): fall back to per-word
-                // `to_owned`. See `format/corpus/wrap-100` bench.
-                match s {
-                    Cow::Borrowed(src) => tokenize_borrowed(src, &mut boxes, &mut pending_glue),
-                    Cow::Owned(owned) => tokenize_owned(&owned, &mut boxes, &mut pending_glue),
-                }
+            Doc::Line | Doc::SoftSpace => pending_glue = true,
+            text @ Doc::Text(_) => {
+                let width = doc_flat_width(&text);
+                append_box(
+                    &mut boxes,
+                    Bx {
+                        parts: vec![text],
+                        width,
+                    },
+                    pending_glue,
+                );
+                pending_glue = false;
             }
             other @ Doc::Atomic(_) => {
                 let width = doc_flat_width(&other);
@@ -309,68 +323,6 @@ fn tokenize_run<'a>(run: Vec<Doc<'a>>) -> Vec<Bx<'a>> {
     boxes
 }
 
-/// Tokenize a borrowed source slice into boxes — each word is a
-/// `Cow::Borrowed` substring (no allocation).
-fn tokenize_borrowed<'a>(src: &'a str, boxes: &mut Vec<Bx<'a>>, pending_glue: &mut bool) {
-    let bytes = src.as_bytes();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        let ws_start = i;
-        while i < bytes.len() && is_ws(bytes.get(i).copied().unwrap_or(0)) {
-            i = i.saturating_add(1);
-        }
-        if i > ws_start {
-            *pending_glue = true;
-        }
-        if i >= bytes.len() {
-            break;
-        }
-        let w_start = i;
-        while i < bytes.len() && !is_ws(bytes.get(i).copied().unwrap_or(0)) {
-            i = i.saturating_add(1);
-        }
-        let word: &'a str = src.get(w_start..i).unwrap_or("");
-        let width = u32::try_from(UnicodeWidthStr::width(word)).unwrap_or(u32::MAX);
-        let bx = Bx {
-            parts: vec![Doc::Text(Cow::Borrowed(word))],
-            width,
-        };
-        append_box(boxes, bx, *pending_glue);
-        *pending_glue = false;
-    }
-}
-
-/// Tokenize an owned String: each word must be cloned out since the
-/// String dies with the call. Kept for parity with the borrowed path.
-fn tokenize_owned(src: &str, boxes: &mut Vec<Bx<'_>>, pending_glue: &mut bool) {
-    let bytes = src.as_bytes();
-    let mut i = 0usize;
-    while i < bytes.len() {
-        let ws_start = i;
-        while i < bytes.len() && is_ws(bytes.get(i).copied().unwrap_or(0)) {
-            i = i.saturating_add(1);
-        }
-        if i > ws_start {
-            *pending_glue = true;
-        }
-        if i >= bytes.len() {
-            break;
-        }
-        let w_start = i;
-        while i < bytes.len() && !is_ws(bytes.get(i).copied().unwrap_or(0)) {
-            i = i.saturating_add(1);
-        }
-        let word = src.get(w_start..i).unwrap_or("");
-        let width = u32::try_from(UnicodeWidthStr::width(word)).unwrap_or(u32::MAX);
-        let bx = Bx {
-            parts: vec![Doc::Text(Cow::Owned(word.to_owned()))],
-            width,
-        };
-        append_box(boxes, bx, *pending_glue);
-        *pending_glue = false;
-    }
-}
-
 /// Append `b` to `boxes`. If `break_before` (a glue position
 /// preceded this box) and `boxes` is non-empty, `b` starts a new
 /// box; otherwise it is coalesced into the previous box.
@@ -386,12 +338,8 @@ fn append_box<'a>(boxes: &mut Vec<Bx<'a>>, b: Bx<'a>, break_before: bool) {
     }
 }
 
-fn is_ws(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\r')
-}
-
 /// Compute the flat display width of a `Doc` subtree, treating soft
-/// breaks as single spaces.
+/// breaks and soft-spaces as single spaces.
 fn doc_flat_width(d: &Doc<'_>) -> u32 {
     fn walk(d: &Doc<'_>, acc: &mut u32) {
         match d {
@@ -399,7 +347,7 @@ fn doc_flat_width(d: &Doc<'_>) -> u32 {
                 let w = u32::try_from(UnicodeWidthStr::width(s.as_ref())).unwrap_or(u32::MAX);
                 *acc = acc.saturating_add(w);
             }
-            Doc::Line => *acc = acc.saturating_add(1),
+            Doc::Line | Doc::SoftSpace => *acc = acc.saturating_add(1),
             Doc::HardLine => {}
             Doc::Atomic(inner) | Doc::Prefix(_, inner) => walk(inner, acc),
             Doc::Concat(items) => {
@@ -568,14 +516,33 @@ mod tests {
     }
 
     #[test]
-    fn at_target_breaks_long_single_text_on_whitespace() {
-        // Source has no soft break, only spaces in one text node.
+    fn at_target_does_not_split_a_single_text() {
+        // `Doc::Text` is atomic by the Wadler/Lindig discipline: the
+        // wrap pass never inspects its contents. A long text with
+        // internal spaces stays on one line (forced overflow) when
+        // no `Doc::Line` / `Doc::SoftSpace` declares break
+        // opportunities. Producers expressing word-level wrappability
+        // use `crate::format::doc::prose`; see the next test.
         let d = text("aaa bbb ccc ddd eee");
-        // Target 8 lets at most two 3-letter words per line.
-        let out = render_wrapped(d, Wrap::At(8));
-        // Knuth-Plass minimises squared slack; with target 8 every
-        // line of "aaa bbb" (width 7) has slack 1 (cost 1).
-        assert_eq!(out, "aaa bbb\nccc ddd\neee");
+        assert_eq!(render_wrapped(d, Wrap::At(8)), "aaa bbb ccc ddd eee");
+    }
+
+    #[test]
+    fn at_target_breaks_prose_at_explicit_soft_spaces() {
+        use crate::format::doc::prose;
+        let d = prose("aaa bbb ccc ddd eee");
+        assert_eq!(render_wrapped(d, Wrap::At(8)), "aaa bbb\nccc ddd\neee");
+    }
+
+    #[test]
+    fn keep_renders_soft_space_as_literal_space() {
+        use crate::format::doc::prose;
+        // `Wrap::Keep` must NOT promote `SoftSpace` to `HardLine`
+        // (only `Line`, the source soft break, does that). A prose
+        // tokenisation that all fits on one line in source must stay
+        // on one line in output.
+        let d = prose("aaa bbb ccc");
+        assert_eq!(render_wrapped(d, Wrap::Keep), "aaa bbb ccc");
     }
 
     #[test]

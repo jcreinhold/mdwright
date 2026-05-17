@@ -345,7 +345,7 @@ fn walk(doc: &Doc<'_>, out: &mut String) {
     while let Some(node) = stack.pop() {
         match node {
             Doc::Text(s) => out.push_str(s),
-            Doc::Line | Doc::HardLine => out.push(' '),
+            Doc::Line | Doc::SoftSpace | Doc::HardLine => out.push(' '),
             Doc::Atomic(inner) | Doc::Prefix(_, inner) => stack.push(inner),
             Doc::Concat(items) => {
                 for item in items.iter().rev() {

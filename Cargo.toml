@@ -60,8 +60,8 @@ harness = false
 name = "format_bench"
 
 [workspace]
-members = [".", "xtask"]
 exclude = ["fuzz"]
+members = [".", "xtask"]
 
 [lints.rust]
 future-incompatible = "warn"

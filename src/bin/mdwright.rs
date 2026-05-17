@@ -375,22 +375,17 @@ fn run_fmt(
             let doc = Document::parse(&source);
             let formatted = match (validate, doc.format_validated(&opts)) {
                 (true, Ok(s)) => s,
-                (true, Err(FormatError::HtmlDivergence { formatted, source_html, formatted_html })) => {
+                (true, Err(FormatError::SemanticDivergence { source: src, formatted, diff_summary })) => {
                     divergent.fetch_add(1, Ordering::Relaxed);
                     let guard = stderr_lock.lock().map_err(|_| anyhow!("stderr lock poisoned"))?;
                     let mut err = io::stderr().lock();
                     writeln!(
                         err,
-                        "mdwright: refusing to write {}: format changes HTML rendering (rerun with --no-validate to override)",
+                        "mdwright: refusing to write {}: format changes meaning ({diff_summary}) (rerun with --no-validate to override)",
                         path.display()
                     )?;
                     if args.explain_divergence {
-                        write_unified_diff(
-                            &mut err,
-                            &format!("{}.html", path.display()),
-                            &source_html,
-                            &formatted_html,
-                        )?;
+                        write_unified_diff(&mut err, &path.display().to_string(), &src, &formatted)?;
                     }
                     drop(guard);
                     drop(formatted);
@@ -442,11 +437,11 @@ fn run_fmt_stdin(opts: &FmtOptions, args: &FmtArgs, check: bool, max_input_bytes
     } else {
         match doc.format_validated(opts) {
             Ok(s) => s,
-            Err(FormatError::HtmlDivergence { .. }) => {
+            Err(FormatError::SemanticDivergence { diff_summary, .. }) => {
                 let mut err = io::stderr().lock();
                 writeln!(
                     err,
-                    "mdwright: refusing to format {name}: format changes HTML rendering (rerun with --no-validate to override)",
+                    "mdwright: refusing to format {name}: format changes meaning ({diff_summary}) (rerun with --no-validate to override)",
                 )?;
                 return Ok(ExitCode::from(2));
             }

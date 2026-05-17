@@ -31,8 +31,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use mdwright::{Document, FmtOptions, render_html};
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use mdwright::{Document, FmtOptions, semantically_equivalent};
 use serde::Deserialize;
 
 #[derive(Debug)]
@@ -153,93 +152,11 @@ fn strip_anchor(s: &str) -> String {
     s.split(" {#").next().unwrap_or(s).trim().to_owned()
 }
 
-fn parser_options() -> Options {
-    let mut opts = Options::empty();
-    opts.insert(Options::ENABLE_STRIKETHROUGH);
-    opts.insert(Options::ENABLE_FOOTNOTES);
-    opts.insert(Options::ENABLE_TABLES);
-    opts.insert(Options::ENABLE_TASKLISTS);
-    opts
-}
-
-/// Strings-only normalisation of a pulldown-cmark event stream. Drops
-/// byte ranges and `CowStr` provenance so structurally-equivalent
-/// streams from different sources compare equal.
-fn ast_events(source: &str) -> Vec<String> {
-    let parser = Parser::new_ext(source, parser_options());
-    let mut out = Vec::new();
-    for ev in parser {
-        out.push(normalise_event(ev));
-    }
-    out
-}
-
-fn normalise_event(ev: Event<'_>) -> String {
-    match ev {
-        Event::Start(tag) => format!("Start({})", normalise_tag(&tag)),
-        Event::End(tag) => format!("End({})", normalise_tag_end(tag)),
-        Event::Text(s) => format!("Text({})", s.as_ref()),
-        Event::Code(s) => format!("Code({})", s.as_ref()),
-        Event::Html(s) => format!("Html({})", s.as_ref()),
-        Event::InlineHtml(s) => format!("InlineHtml({})", s.as_ref()),
-        Event::FootnoteReference(s) => format!("FootnoteReference({})", s.as_ref()),
-        Event::SoftBreak => "SoftBreak".to_owned(),
-        Event::HardBreak => "HardBreak".to_owned(),
-        Event::Rule => "Rule".to_owned(),
-        Event::TaskListMarker(b) => format!("TaskListMarker({b})"),
-        Event::InlineMath(s) => format!("InlineMath({})", s.as_ref()),
-        Event::DisplayMath(s) => format!("DisplayMath({})", s.as_ref()),
-    }
-}
-
-fn normalise_tag(tag: &Tag<'_>) -> String {
-    match tag {
-        Tag::Paragraph => "Paragraph".to_owned(),
-        Tag::Heading { level, .. } => format!("Heading({level:?})"),
-        Tag::BlockQuote(_) => "BlockQuote".to_owned(),
-        Tag::CodeBlock(kind) => format!("CodeBlock({kind:?})"),
-        Tag::List(start) => format!("List({start:?})"),
-        Tag::Item => "Item".to_owned(),
-        Tag::FootnoteDefinition(label) => format!("FootnoteDefinition({})", label.as_ref()),
-        Tag::Table(alignments) => format!("Table({alignments:?})"),
-        Tag::TableHead => "TableHead".to_owned(),
-        Tag::TableRow => "TableRow".to_owned(),
-        Tag::TableCell => "TableCell".to_owned(),
-        Tag::Emphasis => "Emphasis".to_owned(),
-        Tag::Strong => "Strong".to_owned(),
-        Tag::Strikethrough => "Strikethrough".to_owned(),
-        Tag::Link {
-            link_type,
-            dest_url,
-            title,
-            ..
-        } => format!("Link({link_type:?},{},{})", dest_url.as_ref(), title.as_ref()),
-        Tag::Image {
-            link_type,
-            dest_url,
-            title,
-            ..
-        } => format!("Image({link_type:?},{},{})", dest_url.as_ref(), title.as_ref()),
-        Tag::HtmlBlock => "HtmlBlock".to_owned(),
-        Tag::MetadataBlock(kind) => format!("MetadataBlock({kind:?})"),
-        Tag::DefinitionList => "DefinitionList".to_owned(),
-        Tag::DefinitionListTitle => "DefinitionListTitle".to_owned(),
-        Tag::DefinitionListDefinition => "DefinitionListDefinition".to_owned(),
-        Tag::Subscript => "Subscript".to_owned(),
-        Tag::Superscript => "Superscript".to_owned(),
-    }
-}
-
-fn normalise_tag_end(tag: TagEnd) -> String {
-    format!("{tag:?}")
-}
-
 /// Kind labels are part of the snapshot file's stable surface; the
 /// order here doubles as the sort order when multiple kinds fail for
 /// one case.
 const KIND_IDEMPOTENCE: &str = "idempotence";
-const KIND_HTML: &str = "html";
-const KIND_AST: &str = "ast";
+const KIND_SEMANTIC: &str = "semantic";
 
 #[tracing::instrument(level = "info", name = "run_case", skip(case), fields(case = case.number, section = %case.section))]
 fn run_case(case: &SpecCase) -> Vec<&'static str> {
@@ -250,21 +167,13 @@ fn run_case(case: &SpecCase) -> Vec<&'static str> {
     let refmt = Document::parse(&formatted).format(&opts);
     if refmt != formatted {
         kinds.push(KIND_IDEMPOTENCE);
-        // If the formatter is not idempotent on this case, the HTML /
-        // AST comparisons are noise — bail.
+        // If the formatter is not idempotent on this case, the
+        // semantic comparison below is noise — bail.
         return kinds;
     }
 
-    let src_html = render_html(&case.source);
-    let fmt_html = render_html(&formatted);
-    if src_html != fmt_html {
-        kinds.push(KIND_HTML);
-    }
-
-    let src_ast = ast_events(&case.source);
-    let fmt_ast = ast_events(&formatted);
-    if src_ast != fmt_ast {
-        kinds.push(KIND_AST);
+    if !semantically_equivalent(&case.source, &formatted) {
+        kinds.push(KIND_SEMANTIC);
     }
     kinds
 }

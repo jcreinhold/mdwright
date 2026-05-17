@@ -121,11 +121,16 @@ fn gen_document(u: &mut Unstructured<'_>) -> arbitrary::Result<String> {
 /// mode, and math. Italic / list-marker / placement live behind the
 /// schema and aren't reachable from a programmatic builder yet.
 fn opts_from_byte(byte: u8) -> FmtOptions {
-    let wrap = match byte & 0b11 {
+    // Mirrors `fuzz_idempotence.rs::opts_from_byte`. `At(120)` is in
+    // the rotation specifically to exercise the atomicity contract
+    // — table rows, ATX heading bodies, and fenced info strings
+    // must stay on one line at every wrap budget.
+    let wrap = match byte & 0b111 {
         0 => Wrap::Keep,
         1 => Wrap::No,
         2 => Wrap::At(60),
-        _ => Wrap::At(80),
+        3 => Wrap::At(80),
+        _ => Wrap::At(120),
     };
     let mode = if byte & 0b100 != 0 {
         FormatMode::Verbatim

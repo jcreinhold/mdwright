@@ -191,6 +191,12 @@ impl TableBlock {
         let n_cols = self.align.len();
         let widths = compute_column_widths(&rows, &self.align, n_cols, ctx.opts.wrap());
 
+        // Each row emits as a single `Doc::Text`, which is atomic by
+        // the Wadler/Lindig discipline — the wrap pass never inspects
+        // its contents — so a pipe-table row whose width exceeds the
+        // wrap budget stays on one source line. Over-budget rows
+        // become forced-overflow lines (intentional: a broken table
+        // is worse than a long one).
         let mut parts: Vec<Doc<'b>> = Vec::with_capacity(rows.len().saturating_mul(2).saturating_add(1));
         if let Some(head) = rows.first() {
             parts.push(text(format_table_row(head, &widths)));

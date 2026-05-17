@@ -76,22 +76,22 @@ fn regression_inputs_preserve_html() {
         }
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
         let doc = Document::parse(&src);
-        if let Err(FormatError::HtmlDivergence {
-            source_html,
-            formatted_html,
+        if let Err(FormatError::SemanticDivergence {
+            formatted,
+            diff_summary,
             ..
         }) = doc.format_validated(&opts)
         {
-            failures.push((path, source_html, formatted_html));
+            failures.push((path, diff_summary, formatted));
         }
     }
     assert!(
         failures.is_empty(),
-        "regression inputs whose formatted HTML diverges from source HTML:\n{}",
+        "regression inputs whose formatted output diverges semantically from source:\n{}",
         failures
             .iter()
-            .map(|(p, a, b)| format!(
-                "--- {} ---\n=== source HTML ===\n{a}\n=== formatted HTML ===\n{b}\n",
+            .map(|(p, summary, formatted)| format!(
+                "--- {} ---\n{summary}\n=== formatted ===\n{formatted}\n",
                 p.display()
             ))
             .collect::<String>(),

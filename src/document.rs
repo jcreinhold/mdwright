@@ -30,22 +30,23 @@ use crate::tree::Tree;
 /// Errors returned by [`Document::format_validated`].
 #[derive(Debug, Clone)]
 pub enum FormatError {
-    /// Source and formatted output rendered to different HTML — the
-    /// formatter changed the document's meaning. Carries both renders
-    /// and the formatted text so callers can diff and decide how to
-    /// surface the discrepancy.
-    HtmlDivergence {
-        source_html: String,
-        formatted_html: String,
+    /// The formatter changed the document's meaning — the formatted
+    /// output's canonical pulldown-cmark event stream differs from the
+    /// source's. Carries the formatted text and a one-line description
+    /// of the first divergent event pair so callers can surface a
+    /// useful diagnostic without re-running the comparison.
+    SemanticDivergence {
+        source: String,
         formatted: String,
+        diff_summary: String,
     },
 }
 
 impl fmt::Display for FormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::HtmlDivergence { .. } => {
-                write!(f, "formatter changed the document's HTML rendering")
+            Self::SemanticDivergence { diff_summary, .. } => {
+                write!(f, "formatter changed the document's meaning: {diff_summary}")
             }
         }
     }
@@ -54,7 +55,11 @@ impl fmt::Display for FormatError {
 impl std::error::Error for FormatError {}
 
 /// Render Markdown to HTML using the same parser options the IR uses.
-/// Shared by the runtime gate and the GFM spec runner.
+///
+/// Kept as a public utility for callers (e.g. the GFM-spec test
+/// harness needs the spec's reference HTML for non-formatter
+/// purposes). The runtime gate itself no longer renders HTML — see
+/// [`crate::format::semantic::semantically_equivalent`].
 #[must_use]
 pub fn render_html(source: &str) -> String {
     let mut opts = Options::empty();
@@ -343,31 +348,35 @@ impl Document {
         out
     }
 
-    /// Reformat the document and verify the result renders to the same
-    /// HTML as the source. The runtime gate catches accidental semantic
-    /// drift (raw HTML insertion, dropped emphasis, malformed tables)
-    /// that the cheap [`Document::format`] path cannot.
+    /// Reformat the document and verify the result is semantically
+    /// equivalent to the source. The runtime gate catches accidental
+    /// semantic drift (raw HTML insertion, dropped emphasis, malformed
+    /// tables) that the cheap [`Document::format`] path cannot.
     ///
-    /// Returns [`FormatError::HtmlDivergence`] when the formatted output
-    /// renders to different HTML than the source. The caller should
-    /// surface the error and skip writing the file.
+    /// Equivalence is defined on canonicalised pulldown-cmark event
+    /// streams (see [`crate::format::semantic`]) — soft-break
+    /// positions and prose whitespace runs are normalised; verbatim
+    /// regions (code blocks, inline code, raw HTML, math) compare
+    /// byte-for-byte.
+    ///
+    /// Returns [`FormatError::SemanticDivergence`] with a short
+    /// summary of the first differing event when the gate fails. The
+    /// caller should surface the error and skip writing the file.
     ///
     /// # Errors
     ///
-    /// Returns an error if rendering source and formatted output to
-    /// HTML produces different strings.
+    /// Returns an error if the source and formatted output produce
+    /// different canonical event streams.
     pub fn format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError> {
         let formatted = self.format(opts);
-        let source_html = render_html(self.source());
-        let formatted_html = render_html(&formatted);
-        if source_html == formatted_html {
-            Ok(formatted)
-        } else {
-            Err(FormatError::HtmlDivergence {
-                source_html,
-                formatted_html,
+        let source = self.source();
+        match crate::format::semantic::first_divergence(source, &formatted) {
+            None => Ok(formatted),
+            Some(diff_summary) => Err(FormatError::SemanticDivergence {
+                source: source.to_owned(),
                 formatted,
-            })
+                diff_summary,
+            }),
         }
     }
 

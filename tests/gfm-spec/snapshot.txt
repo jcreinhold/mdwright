@@ -3,19 +3,10 @@
 #   MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot
 # Allowlisted (editorial deviation) cases are filtered out — see allowlist.toml.
 31    idempotence Thematic breaks
-169   html        Link reference definitions
-169   ast         Link reference definitions
-171   html        Link reference definitions
-171   ast         Link reference definitions
+169   semantic    Link reference definitions
+171   semantic    Link reference definitions
 235   idempotence List items
 280   idempotence Task list items (extension)
 293   idempotence Lists
-298   html        Lists
-298   ast         Lists
-435   idempotence Emphasis and strong emphasis
-472   html        Emphasis and strong emphasis
-472   ast         Emphasis and strong emphasis
-473   idempotence Emphasis and strong emphasis
-474   idempotence Emphasis and strong emphasis
-475   idempotence Emphasis and strong emphasis
-479   ast         Emphasis and strong emphasis
+298   semantic    Lists
+472   semantic    Emphasis and strong emphasis

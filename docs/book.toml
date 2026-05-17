@@ -1,9 +1,9 @@
 [book]
-title = "mdwright"
 authors = ["Jacob Reinhold"]
 description = "Math-resilient Markdown linter and round-trip formatter."
-src = "src"
 language = "en"
+src = "src"
+title = "mdwright"
 
 [build]
 build-dir = "book"
@@ -11,9 +11,9 @@ create-missing = false
 
 [output.html]
 default-theme = "rust"
-preferred-dark-theme = "ayu"
-git-repository-url = "https://github.com/jcreinhold/mdwright"
 edit-url-template = "https://github.com/jcreinhold/mdwright/edit/main/docs/{path}"
+git-repository-url = "https://github.com/jcreinhold/mdwright"
+preferred-dark-theme = "ayu"
 
 [output.html.search]
 enable = true

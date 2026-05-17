@@ -25,9 +25,8 @@ jobs:
       - run: mdwright fmt-check .
 ```
 
-The two `cargo install` and `Swatinem/rust-cache@v2` steps make subsequent runs fast (~5 s
-warm). `--locked` pins the version recorded in `Cargo.lock` once the project is added as a
-dependency.
+The two `cargo install` and `Swatinem/rust-cache@v2` steps make subsequent runs fast (~5 s warm). `--locked` pins the
+version recorded in `Cargo.lock` once the project is added as a dependency.
 
 ## With pre-built binaries
 
@@ -43,10 +42,9 @@ This skips the compile step entirely — runs cold in under 10 seconds.
 
 ## Reading the output in PR annotations
 
-mdwright's pretty output is human-readable in the Actions log. For PR annotations (squiggles in
-the GitHub UI), pipe JSON v2 through a converter — there is no first-class action yet, but the
-schema is documented at [Diagnostic schema](../reference/diagnostic-schema.md) and stable across
-0.x.
+mdwright's pretty output is human-readable in the Actions log. For PR annotations (squiggles in the GitHub
+UI), pipe JSON v2 through a converter — there is no first-class action yet, but the schema is documented at
+[Diagnostic schema](../reference/diagnostic-schema.md) and stable across 0.x.
 
 ## See also
 

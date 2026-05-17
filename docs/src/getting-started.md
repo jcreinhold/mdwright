@@ -1,7 +1,7 @@
 # Getting started
 
-This walkthrough takes ten minutes. By the end you will have linted a Markdown file, fixed a
-diagnostic, reformatted the file, and configured one rule.
+This walkthrough takes ten minutes. By the end you will have linted a Markdown file, fixed a diagnostic, reformatted the
+file, and configured one rule.
 
 ## Set up
 
@@ -64,8 +64,8 @@ The bottom line is the documentation URL — open it for the same content render
 mdwright fix README.md
 ```
 
-Re-run `mdwright check`; the bare-URL diagnostic is gone. The unbalanced-backtick diagnostic
-remains because closing a fence cannot be inferred safely.
+Re-run `mdwright check`; the bare-URL diagnostic is gone. The unbalanced-backtick diagnostic remains because closing a
+fence cannot be inferred safely.
 
 ## Fix the hard one by hand
 
@@ -87,23 +87,21 @@ Re-run `mdwright check`. Output is empty: the file is clean.
 mdwright fmt README.md
 ```
 
-`fmt` rewrites the file in place. Run `git diff` (in a real project) to see what changed. The
-defaults: ATX headings, dash list markers, tight lists, no trailing whitespace, hard-wrap at 100
-columns. Display math, inline math, and fenced code blocks are preserved verbatim.
+`fmt` rewrites the file in place. Run `git diff` (in a real project) to see what changed. The defaults: ATX headings,
+dash list markers, tight lists, no trailing whitespace, hard-wrap at 100 columns. Display math, inline math, and fenced
+code blocks are preserved verbatim.
 
 ## Configure one rule
 
-mdwright reads configuration from the nearest `.mdwright.toml`, `mdwright.toml`, or
-`pyproject.toml` with a `[tool.mdwright]` table, walking up from `$PWD` until it hits a `.git/`
-directory. Create `.mdwright.toml`:
+mdwright reads configuration from the nearest `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` with a
+`[tool.mdwright]` table, walking up from `$PWD` until it hits a `.git/` directory. Create `.mdwright.toml`:
 
 ```toml
 [lint]
 rules = "default,-bare-url"
 ```
 
-Now `mdwright check` does not flag bare URLs. See [Configuration](configuration.md) for the
-complete schema.
+Now `mdwright check` does not flag bare URLs. See [Configuration](configuration.md) for the complete schema.
 
 ## Where to go next
 

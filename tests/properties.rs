@@ -16,7 +16,7 @@
 use std::collections::HashSet;
 use std::io::Write;
 
-use mdwright::{Document, FmtOptions, RuleSet, Wrap, render_html};
+use mdwright::{Document, FmtOptions, RuleSet, Wrap, semantically_equivalent};
 use proptest::prelude::*;
 
 #[path = "common/proptest_gen.rs"]
@@ -71,7 +71,7 @@ proptest! {
         let once = Document::parse(&src).format(&opts);
         let twice = Document::parse(&once).format(&opts);
         prop_assert_eq!(&once, &twice);
-        prop_assert_eq!(render_html(&src), render_html(&once));
+        prop_assert!(semantically_equivalent(&src, &once));
     }
 
     #[test]
@@ -87,14 +87,13 @@ proptest! {
 
     #[test]
     fn html_preserving(src in generators::arb_document()) {
-        let opts = FmtOptions::default();
-        let formatted = Document::parse(&src).format(&opts);
-        let before = render_html(&src);
-        let after = render_html(&formatted);
-        if before != after {
-            dump_counterexample("html", &src);
+        for opts in opts_matrix() {
+            let formatted = Document::parse(&src).format(&opts);
+            if !semantically_equivalent(&src, &formatted) {
+                dump_counterexample("html", &src);
+            }
+            prop_assert!(semantically_equivalent(&src, &formatted));
         }
-        prop_assert_eq!(before, after);
     }
 
     #[test]
@@ -155,15 +154,33 @@ fn check_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
 }
 
 fn check_html_preserving(label: &str, src: &str) -> Result<(), TestCaseError> {
-    let opts = FmtOptions::default();
-    let formatted = Document::parse(src).format(&opts);
-    let before = render_html(src);
-    let after = render_html(&formatted);
-    if before != after {
-        dump_counterexample(label, src);
+    for opts in opts_matrix() {
+        let formatted = Document::parse(src).format(&opts);
+        if !semantically_equivalent(src, &formatted) {
+            dump_counterexample(label, src);
+        }
+        prop_assert!(semantically_equivalent(src, &formatted));
     }
-    prop_assert_eq!(before, after);
     Ok(())
+}
+
+/// Exercise every wrap mode the property tests should cover.
+///
+/// The semantic-equivalence gate accepts each mode by construction
+/// (it operates on canonical event streams), and `Doc::Text` is
+/// atomic by the Wadler/Lindig discipline, so syntactically-atomic
+/// emitters (table rows, ATX heading bodies, fenced-code info
+/// strings) stay on one line at every wrap mode. The matrix below
+/// is the regression fence for that contract: a future change that
+/// makes any emitter break under `Wrap::At(n)` fails one of these
+/// properties.
+fn opts_matrix() -> Vec<FmtOptions> {
+    vec![
+        FmtOptions::default(),
+        FmtOptions::default().with_wrap(Wrap::At(80)),
+        FmtOptions::default().with_wrap(Wrap::At(120)),
+        FmtOptions::default().with_wrap(Wrap::No),
+    ]
 }
 
 proptest! {
@@ -304,7 +321,7 @@ proptest! {
     fn html_preserving_sweep(src in generators::arb_document()) {
         let opts = FmtOptions::default();
         let formatted = Document::parse(&src).format(&opts);
-        prop_assert_eq!(render_html(&src), render_html(&formatted));
+        prop_assert!(semantically_equivalent(&src, &formatted));
     }
 
     #[test]

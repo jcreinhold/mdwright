@@ -28,11 +28,13 @@ impl AutolinkRun {
         &self.url
     }
 
-    /// Emit `<url>` as a single unbreakable token.
+    /// Emit `<url>` as a single `Doc::Text`. Text is atomic by the
+    /// Wadler/Lindig discipline; the autolink stays on one line by
+    /// construction.
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
-        use crate::format::doc::{text, unbreakable};
-        unbreakable(text(format!("<{}>", self.url)))
+        use crate::format::doc::text;
+        text(format!("<{}>", self.url))
     }
 }
 

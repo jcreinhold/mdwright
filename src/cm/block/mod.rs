@@ -19,6 +19,7 @@ pub(crate) mod heading;
 pub(crate) mod html;
 pub(crate) mod list;
 pub(crate) mod paragraph;
+pub(crate) mod paragraph_safety;
 pub(crate) mod quote;
 pub(crate) mod table;
 pub(crate) mod thematic;

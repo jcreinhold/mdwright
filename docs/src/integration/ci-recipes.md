@@ -81,8 +81,7 @@ jq -s 'length' /tmp/mdwright-report.jsonl | xargs -I {} \
   echo "mdwright: {} diagnostics in $DOCS_REPO"
 ```
 
-The JSON v2 schema is stable; consume it programmatically (see
-[Diagnostic schema](../reference/diagnostic-schema.md)).
+The JSON v2 schema is stable; consume it programmatically (see [Diagnostic schema](../reference/diagnostic-schema.md)).
 
 ## See also
 
