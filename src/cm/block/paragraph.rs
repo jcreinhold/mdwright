@@ -35,18 +35,20 @@ impl Paragraph {
         concat([body, hard_line()])
     }
 
-    /// True iff `pass1_bytes` — the bytes the IR-driven emit would
-    /// produce for this paragraph — match the paragraph's source
-    /// bytes (modulo trailing newline). The caller is expected to
-    /// render the paragraph through the normal IR path first and
-    /// pass the resulting string in.
+    /// True iff `pass1_bytes` — the bytes the IR-driven emit produced
+    /// for this paragraph — match the paragraph's source bytes
+    /// (modulo trailing newline). The caller renders the paragraph
+    /// through the normal IR path first and passes the resulting
+    /// string in.
     ///
-    /// This is the output-derived form of the eligibility check: a
-    /// paragraph is verbatim-equivalent iff the IR-emit happens to
-    /// produce source-equal bytes. Pass-1 emits everything through
-    /// the IR; the short-circuit to source-byte emission is only
-    /// taken when bytes already agree, which means it can never
-    /// silently lose a normalisation.
+    /// Under structural preservation most well-formed paragraphs hit
+    /// this short-circuit by construction (the typed emitters emit
+    /// source bytes). It is **not** universal: math-region alignment,
+    /// inline-code minification, and any other typed inline whose
+    /// `.pretty()` performs a content rewrite legitimately produce
+    /// bytes different from source. The byte comparison is what keeps
+    /// those rewrites in the output instead of being clobbered by a
+    /// verbatim short-circuit.
     ///
     /// Verbatim emission is gated on [`Wrap::Keep`]; [`Wrap::No`] and
     /// [`Wrap::At`] are width policies the verbatim path cannot

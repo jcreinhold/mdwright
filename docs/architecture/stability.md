@@ -3,6 +3,16 @@
 > **Invariant.** Every output of `Document::format` is a fixed point of `format` and is semantically equivalent to
 > its source. The runtime gate enforces both.
 
+> **Sweep status (post-deletion).** Prompt 51 made structural emit pure preservation: every `.pretty()` reads source
+> bytes and never consults `FmtOptions`. With perturbation gone, the iterative-draft loop introduced in prompt 47
+> was a trivial fixed point on its first iteration. A follow-up deletion (this sweep) removed `src/format/emit_safety.rs`,
+> `FlankSource` / `DraftView` / `FlankCtx`, `Tree::corresponding_node_map`, the `ConvergenceError` /
+> `FormatError::DidNotConverge` pair, the `MAX_PASSES` loop, and the `verbatim_source_fallback` path —
+> single-pass `format_document` returns `String` directly. The per-construct safety ladder no longer exists; future
+> style canonicalisation (asterisk-only, underscore-only, marker normalisation) lands as a separate verified
+> byte-rewrite pass over the structural output. The Type sketch and Risk register sections below describe state as
+> of prompt 47 and are kept for historical reference only.
+
 mdwright's correctness today rests on a circle of agreements between the IR builder, the formatter's per-construct
 emitters, the safety ladder in `format::emit_safety`, and the runtime semantic gate. Each agreement is correct in
 isolation, but the circle is held together by **every consumer re-deriving pulldown's behaviour from source bytes**.

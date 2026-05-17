@@ -189,14 +189,16 @@ fn emphasis_event_range_spans_delimiters() {
     assert_eq!(
         (start_range.start, start_range.end),
         (2, 7),
-        "Start(Emphasis) range changed; update {MODEL_DOC} §6 and revisit \
-         src/format/emit_safety.rs::parses_with_outer_run_at"
+        "Start(Emphasis) range changed; update {MODEL_DOC} §6 — \
+         any future canonicalisation pass that rewrites delimiters \
+         depends on this byte-range contract"
     );
     assert_eq!(
         (end_range.start, end_range.end),
         (2, 7),
-        "End(Emphasis) range changed; update {MODEL_DOC} §6 and revisit \
-         src/format/emit_safety.rs::parses_with_outer_run_at"
+        "End(Emphasis) range changed; update {MODEL_DOC} §6 — \
+         any future canonicalisation pass that rewrites delimiters \
+         depends on this byte-range contract"
     );
 }
 
@@ -217,7 +219,8 @@ fn strong_distinct_from_nested_emphasis() {
     assert_eq!(
         inner_count, 2,
         "*_foo_* expected two nested Emphasis runs; got {nested:?}. \
-         Update {MODEL_DOC} §7 and revisit \
-         src/format/emit_safety.rs::emit_emphasis_safely"
+         Update {MODEL_DOC} §7 — any future canonicalisation pass \
+         that rewrites emphasis delimiters depends on the Strong / \
+         nested-Emphasis discriminant staying stable."
     );
 }

@@ -116,13 +116,16 @@ pub(crate) fn pretty_block<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
                 return emit_verbatim(ctx.source, ctx.tree, id);
             }
             NodeKind::Paragraph => {
-                // Output-derived verbatim eligibility: render the
-                // paragraph through the IR path, compare the bytes
-                // to the source paragraph, and short-circuit to
-                // verbatim emission only when the two agree. Pre-
-                // rendering is the predicate; the resulting Doc is
-                // reused on the "not eligible" branch so the
-                // paragraph body is only built once.
+                // Render the paragraph through the IR, then short-
+                // circuit to verbatim emission iff the rendered bytes
+                // match source. Structural emit reads source bytes
+                // for most paragraphs, but typed inlines that perform
+                // a content rewrite (math-region alignment, inline-
+                // code minification) legitimately produce non-source
+                // bytes; the byte comparison keeps those rewrites in
+                // the output. The rendered Doc is reused on the
+                // "not eligible" branch so the body is only built
+                // once.
                 let para_doc = match &node.typed {
                     Some(TypedBlock::Paragraph(p)) => p.pretty(ctx, id),
                     _ => Paragraph::new().pretty(ctx, id),

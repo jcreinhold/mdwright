@@ -11,7 +11,6 @@
 pub(crate) mod block;
 pub(crate) mod doc;
 pub(crate) mod document;
-pub(crate) mod emit_safety;
 pub(crate) mod inline;
 pub(crate) mod pretty;
 pub(crate) mod semantic;
@@ -19,17 +18,6 @@ pub(crate) mod verbatim;
 pub(crate) mod wrap;
 
 use crate::config::{EndOfLine, TrailingNewline};
-
-/// Internal error from [`format_document`] when the two-pass loop
-/// exhausts `MAX_PASSES` without reaching a fixed point. The public
-/// entry points (`Document::format`, `Document::format_validated`)
-/// translate this into their own UX — silent verbatim fallback for
-/// the infallible path, typed `FormatError::DidNotConverge` for the
-/// validating path. See `docs/architecture/two-pass.md` §4.
-#[derive(Debug, Clone)]
-pub(crate) enum ConvergenceError {
-    DidNotConverge { last_draft: String },
-}
 
 /// Apply the trailing-newline policy at the document boundary.
 ///

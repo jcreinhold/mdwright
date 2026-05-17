@@ -1,9 +1,7 @@
 //! Typed emphasis / strong values.
 //!
 //! [`EmphasisRun`] and [`StrongRun`] capture the source delimiter byte
-//! pulldown saw (`*` or `_`) at parse time. The format walker maps that
-//! byte to [`EmphasisDelim`] via [`EmphasisRun::resolve`] /
-//! [`StrongRun::resolve`] and feeds the result to the safety ladder.
+//! pulldown saw (`*` or `_`) at parse time and emit it back on render.
 //!
 //! Resolution is pure preservation of the parse-time byte: structural
 //! emit never consults `FmtOptions`. Style canonicalisation
@@ -13,6 +11,8 @@
 //! Pulldown only emits an emphasis event when at least one of `*` / `_`
 //! is admissible by CM §6.2 in the source position, so the source byte
 //! always names a valid delimiter.
+
+use crate::format::doc::{Doc, concat, text};
 
 /// Resolved delimiter byte for an emphasis or strong run.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -26,18 +26,6 @@ impl EmphasisDelim {
         match byte {
             b'_' => Self::Underscore,
             _ => Self::Asterisk,
-        }
-    }
-
-    /// Swap to the other delimiter. Used by the safety ladder's
-    /// collision-avoidance escape strategy when the source delimiter
-    /// cannot be emitted safely at this site; the alternative byte is
-    /// tried before falling back to body-escaping. Not a style
-    /// canonicalisation knob.
-    pub(crate) fn flip(self) -> Self {
-        match self {
-            Self::Asterisk => Self::Underscore,
-            Self::Underscore => Self::Asterisk,
         }
     }
 }
@@ -67,6 +55,15 @@ impl EmphasisRun {
     pub(crate) fn resolve(self) -> EmphasisDelim {
         EmphasisDelim::from_byte(self.source_delim)
     }
+
+    /// Wrap `body` in the source delimiter byte (`*` or `_`).
+    pub(crate) fn pretty(self, body: Doc<'_>) -> Doc<'_> {
+        let delim = match self.resolve() {
+            EmphasisDelim::Asterisk => "*",
+            EmphasisDelim::Underscore => "_",
+        };
+        concat([text(delim), body, text(delim)])
+    }
 }
 
 impl StrongRun {
@@ -78,6 +75,15 @@ impl StrongRun {
     /// Never consults `FmtOptions`.
     pub(crate) fn resolve(self) -> EmphasisDelim {
         EmphasisDelim::from_byte(self.source_delim)
+    }
+
+    /// Wrap `body` in the doubled source delimiter (`**` or `__`).
+    pub(crate) fn pretty(self, body: Doc<'_>) -> Doc<'_> {
+        let delim = match self.resolve() {
+            EmphasisDelim::Asterisk => "**",
+            EmphasisDelim::Underscore => "__",
+        };
+        concat([text(delim), body, text(delim)])
     }
 }
 

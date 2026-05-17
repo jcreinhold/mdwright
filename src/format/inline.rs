@@ -16,12 +16,6 @@
 //! escape decisions operating on full text payloads (so a `# foo`
 //! continuation line still escapes correctly) while moving the
 //! decision down a layer from the old Doc-tree walker.
-//!
-//! Flank context for the emphasis safety ladder comes from
-//! [`PrettyCtx::flank`](crate::format::pretty::PrettyCtx::flank) —
-//! pass 1 sees [`FlankSource::Isolated`] (every site decided as if
-//! surrounded by whitespace); pass 2+ sees [`FlankSource::Draft`]
-//! and the safety ladder reads the actual bytes pass 1 emitted.
 
 use crate::cm::block::paragraph_safety::{
     LineContext, escape_for_block_start, escape_for_paragraph_interrupt, escape_setext_underline,
@@ -29,7 +23,6 @@ use crate::cm::block::paragraph_safety::{
 use crate::cm::inline::run::{InlineRun, RunPart};
 use crate::cm::inline::strikethrough::Strikethrough;
 use crate::format::doc::{Doc, concat, hard_line, line, prose, text};
-use crate::format::emit_safety::{RunKind, emit_emphasis_safely};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::{NodeId, NodeKind};
 
@@ -51,24 +44,12 @@ fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Do
             NodeKind::CodeRun(code) => parts.push(code.pretty()),
             NodeKind::HtmlSpan(span) => parts.push(span.pretty()),
             NodeKind::Emphasis(run) => {
-                let delim = run.resolve();
                 let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
-                let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let flank = ctx.flank.flank_for(cid);
-                parts.push(emit_emphasis_safely(
-                    body,
-                    delim,
-                    RunKind::Emphasis,
-                    source_slice,
-                    flank,
-                ));
+                parts.push(run.pretty(body));
             }
             NodeKind::Strong(run) => {
-                let delim = run.resolve();
                 let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
-                let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let flank = ctx.flank.flank_for(cid);
-                parts.push(emit_emphasis_safely(body, delim, RunKind::Strong, source_slice, flank));
+                parts.push(run.pretty(body));
             }
             NodeKind::Strikethrough => {
                 let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
@@ -241,24 +222,12 @@ fn walk_paragraph_inline<'a>(
                 state.note_content();
             }
             NodeKind::Emphasis(run) => {
-                let delim = run.resolve();
                 let body = build_inline_body_with_safety(ctx, cid, state);
-                let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let flank = ctx.flank.flank_for(cid);
-                out.push(emit_emphasis_safely(
-                    body,
-                    delim,
-                    RunKind::Emphasis,
-                    source_slice,
-                    flank,
-                ));
+                out.push(run.pretty(body));
             }
             NodeKind::Strong(run) => {
-                let delim = run.resolve();
                 let body = build_inline_body_with_safety(ctx, cid, state);
-                let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let flank = ctx.flank.flank_for(cid);
-                out.push(emit_emphasis_safely(body, delim, RunKind::Strong, source_slice, flank));
+                out.push(run.pretty(body));
             }
             NodeKind::Strikethrough => {
                 let body = build_inline_body_with_safety(ctx, cid, state);
