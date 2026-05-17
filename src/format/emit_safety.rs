@@ -229,7 +229,7 @@ impl RunKind {
         }
     }
 
-    fn wrap_str(self, delim: EmphasisDelim) -> &'static str {
+    pub(crate) fn wrap_str(self, delim: EmphasisDelim) -> &'static str {
         match (self, delim) {
             (Self::Emphasis, EmphasisDelim::Asterisk) => "*",
             (Self::Emphasis, EmphasisDelim::Underscore) => "_",
