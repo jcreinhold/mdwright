@@ -52,10 +52,7 @@ fn discover_finds_mdwright_toml_in_ancestor() -> Result<()> {
     fs::create_dir(dir.path().join(".git"))?;
     let sub = dir.path().join("sub").join("nested");
     fs::create_dir_all(&sub)?;
-    write(
-        &dir.path().join("mdwright.toml"),
-        "[lint]\nrules = \"bare-url\"\n",
-    )?;
+    write(&dir.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
     assert_eq!(cfg.rules_spec(), "bare-url");
     Ok(())
@@ -91,12 +88,13 @@ fn discover_stops_at_git_boundary() -> Result<()> {
     let sub = proj.join("sub");
     fs::create_dir_all(&sub)?;
     fs::create_dir(proj.join(".git"))?;
-    write(
-        &outer.path().join("mdwright.toml"),
-        "[lint]\nrules = \"bare-url\"\n",
-    )?;
+    write(&outer.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "default", "outer config must not leak past the .git/ boundary");
+    assert_eq!(
+        cfg.rules_spec(),
+        "default",
+        "outer config must not leak past the .git/ boundary"
+    );
     Ok(())
 }
 
@@ -108,12 +106,13 @@ fn discover_prefers_dotfile_over_plain_in_same_dir() -> Result<()> {
         &dir.path().join(".mdwright.toml"),
         "[lint]\nrules = \"unbalanced-backtick\"\n",
     )?;
-    write(
-        &dir.path().join("mdwright.toml"),
-        "[lint]\nrules = \"bare-url\"\n",
-    )?;
+    write(&dir.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
     let cfg = Config::discover(dir.path()).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "unbalanced-backtick", ".mdwright.toml must win over mdwright.toml");
+    assert_eq!(
+        cfg.rules_spec(),
+        "unbalanced-backtick",
+        ".mdwright.toml must win over mdwright.toml"
+    );
     Ok(())
 }
 
@@ -154,14 +153,8 @@ fn discover_skips_pyproject_without_tool_table() -> Result<()> {
     let proj = root.path().join("proj");
     let sub = proj.join("sub");
     fs::create_dir_all(&sub)?;
-    write(
-        &root.path().join("mdwright.toml"),
-        "[lint]\nrules = \"bare-url\"\n",
-    )?;
-    write(
-        &proj.join("pyproject.toml"),
-        "[project]\nname = \"unrelated\"\n",
-    )?;
+    write(&root.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
+    write(&proj.join("pyproject.toml"), "[project]\nname = \"unrelated\"\n")?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
     assert_eq!(cfg.rules_spec(), "bare-url");
     Ok(())
