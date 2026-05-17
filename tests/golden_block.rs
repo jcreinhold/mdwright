@@ -6,9 +6,11 @@
 //! Block-level formatter golden tests.
 //!
 //! Each fixture is an `*.in` / `*.out` pair under
-//! `tests/golden_block/`. The runner walks the directory; mismatches
-//! are aggregated into one assertion message so a single run reports
-//! every failure at once.
+//! `tests/golden_block/`, optionally with a paired
+//! `<stem>.config.toml` for per-fixture `FmtOptions` (uses the same
+//! TOML shape as `.mdwright.toml`). Absent config → `FmtOptions::default()`.
+//! The runner walks the directory; mismatches are aggregated into one
+//! assertion message so a single run reports every failure at once.
 //!
 //! Add the input/output pair **before** implementing the serializer
 //! for a new block kind. Watching the test fail, then pass, is the
@@ -17,7 +19,7 @@
 use std::fs;
 use std::path::Path;
 
-use mdwright::{Document, FmtOptions};
+use mdwright::{Config, Document, FmtOptions};
 
 #[test]
 fn golden_block() {
@@ -42,8 +44,16 @@ fn golden_block() {
         let input = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
         let expected =
             fs::read_to_string(&expected_path).unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
+        let config_path = dir.join(format!("{stem}.config.toml"));
+        let opts = if config_path.is_file() {
+            let cfg =
+                Config::load_explicit(&config_path).unwrap_or_else(|e| panic!("load {}: {e}", config_path.display()));
+            cfg.fmt_options().clone()
+        } else {
+            FmtOptions::default()
+        };
         let doc = Document::parse(&input);
-        let got = doc.format(&FmtOptions::default());
+        let got = doc.format(&opts);
         count = count.saturating_add(1);
         if got != expected {
             failures.push(format!(

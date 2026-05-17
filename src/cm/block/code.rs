@@ -71,14 +71,20 @@ impl FencedCodeBlock {
         self.fence
     }
 
-    /// Emit `FENCE INFO\nBODY\nFENCE\n` honouring source-derived fence
-    /// char and source-derived fence length when these are at least as
-    /// long as the body-minimum. The whole block is wrapped in
+    /// Emit `FENCE INFO\nBODY\nFENCE\n` honouring the source-derived
+    /// fence character and source-derived fence length when at least as
+    /// long as the body-minimum. Never consults `FmtOptions`; structural
+    /// fence-length growth (to escape an interior fence-char run) is
+    /// collision safety, not style. The whole block is wrapped in
     /// [`unbreakable`] so its embedded newlines never enter a wrap run.
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(&self, ctx: &PrettyCtx<'b>, id: NodeId) -> Doc<'b> {
         let body = self.body.trim_end_matches('\n');
         let source_char = source_fence_char(ctx, id);
+        debug_assert!(
+            source_char.is_some(),
+            "FencedCodeBlock source range did not begin with a fence character",
+        );
         let fence_char = source_char.unwrap_or_else(|| char::from(self.fence.char.as_byte()));
         let body_min = usize::from(self.fence.length);
         let source_len = source_fence_len(ctx, id, fence_char).unwrap_or(0);

@@ -1,11 +1,10 @@
 //! Thematic breaks (CM §4.1).
 //!
 //! A thematic break is one of three canonical lines: `---`, `***`, or
-//! `___`. The choice is a formatter policy (see
-//! [`crate::config::FmtOptions::thematic_break_style`]); the type
-//! records which the IR has committed to. Prompt-16's "always emit
-//! `---` regardless of source" rule is now the default value of that
-//! policy field, not a hard-coded constant in the emitter.
+//! `___`. The IR records the parse-time choice; structural emit
+//! echoes the source line verbatim and never consults
+//! [`crate::config::FmtOptions::thematic_break_style`]. Style
+//! canonicalisation (always-dash etc.) is a separate post-pass.
 
 use crate::config::ThematicStyle;
 use crate::format::doc::{Doc, concat, hard_line, text};
@@ -27,17 +26,14 @@ impl ThematicBreak {
         self.style
     }
 
-    /// Emit the CM §4.1 line: three repetitions of the configured byte,
-    /// terminated by a hard newline. The byte source is
-    /// [`PrettyCtx::opts`]'s `thematic_break_style`; the value carried
-    /// on `self` is the parse-time choice and is currently overridden
-    /// by the formatter setting.
+    /// Emit the source thematic-break line verbatim, terminated by a
+    /// hard newline. Reads source bytes via
+    /// [`crate::tree::Tree::raw_text`]; never consults `FmtOptions`.
     #[tracing::instrument(level = "trace", skip_all)]
     #[allow(clippy::unused_self)]
-    pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, _id: crate::tree::NodeId) -> Doc<'a> {
-        let b = ctx.opts.thematic_break_style().as_byte();
-        let line: String = std::iter::repeat_n(char::from(b), 3).collect();
-        concat([text(line), hard_line()])
+    pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, id: crate::tree::NodeId) -> Doc<'a> {
+        let raw = ctx.tree.raw_text(ctx.source, id).trim_end_matches('\n');
+        concat([text(raw.to_owned()), hard_line()])
     }
 }
 
@@ -47,7 +43,12 @@ mod tests {
 
     #[test]
     fn style_round_trips() {
-        for s in [ThematicStyle::Dash, ThematicStyle::Asterisk, ThematicStyle::Underscore] {
+        for s in [
+            ThematicStyle::Dash,
+            ThematicStyle::Asterisk,
+            ThematicStyle::Underscore,
+            ThematicStyle::Preserve,
+        ] {
             assert_eq!(ThematicBreak::new(s).style(), s);
         }
     }

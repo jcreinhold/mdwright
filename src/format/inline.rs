@@ -1,12 +1,12 @@
 //! Inline-content dispatcher: walks a parent's inline children and
 //! defers to each typed value's `pretty()` method.
 //!
-//! Emphasis delimiter resolution is contextual (it depends on the
-//! immediately-preceding sibling and the first child), so this module
-//! threads the resolution state through the walk before handing each
+//! Emphasis delimiter resolution is pure preservation of the source
+//! byte recorded at parse time, so the walker has no per-sibling state
+//! to thread: each
 //! [`EmphasisRun`](crate::cm::inline::emphasis::EmphasisRun) /
-//! [`StrongRun`](crate::cm::inline::emphasis::StrongRun) its chosen
-//! delimiter.
+//! [`StrongRun`](crate::cm::inline::emphasis::StrongRun) emits its
+//! source delimiter independently.
 //!
 //! Paragraph-context emitters (`Paragraph::pretty`, list-item virtual
 //! paragraphs) instead call [`pretty_paragraph_inline`], which walks
@@ -26,7 +26,6 @@
 use crate::cm::block::paragraph_safety::{
     LineContext, escape_for_block_start, escape_for_paragraph_interrupt, escape_setext_underline,
 };
-use crate::cm::inline::emphasis::{EmphasisDelim, ResolveCtx};
 use crate::cm::inline::run::{InlineRun, RunPart};
 use crate::cm::inline::strikethrough::Strikethrough;
 use crate::format::doc::{Doc, concat, hard_line, line, prose, text};
@@ -43,7 +42,6 @@ pub(crate) fn pretty_inline_children<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) ->
 
 fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
-    let mut left_emphasis_delim: Option<EmphasisDelim> = None;
     for &cid in ids {
         let Some(node) = ctx.tree.node(cid) else {
             continue;
@@ -53,11 +51,7 @@ fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Do
             NodeKind::CodeRun(code) => parts.push(code.pretty()),
             NodeKind::HtmlSpan(span) => parts.push(span.pretty()),
             NodeKind::Emphasis(run) => {
-                let delim = run.resolve(ResolveCtx {
-                    style: ctx.opts.italic(),
-                    left_sibling_delim: left_emphasis_delim,
-                    first_child_delim: first_child_strong_delim(ctx, cid),
-                });
+                let delim = run.resolve();
                 let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
                 let flank = ctx.flank.flank_for(cid);
@@ -68,15 +62,9 @@ fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Do
                     source_slice,
                     flank,
                 ));
-                left_emphasis_delim = Some(delim);
-                continue;
             }
             NodeKind::Strong(run) => {
-                let delim = run.resolve(ResolveCtx {
-                    style: ctx.opts.italic(),
-                    left_sibling_delim: None,
-                    first_child_delim: first_child_emphasis_delim(ctx, cid),
-                });
+                let delim = run.resolve();
                 let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
                 let flank = ctx.flank.flank_for(cid);
@@ -124,7 +112,6 @@ fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Do
                 parts.push(text(ctx.tree.raw_text(ctx.source, cid).to_owned()));
             }
         }
-        left_emphasis_delim = None;
     }
     concat(parts)
 }
@@ -157,8 +144,7 @@ pub(crate) fn pretty_paragraph_inline<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -
 pub(crate) fn pretty_paragraph_inline_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Doc<'a> {
     let mut state = ParagraphSafetyState::initial();
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
-    let mut left_emphasis_delim: Option<EmphasisDelim> = None;
-    walk_paragraph_inline(ctx, ids, &mut parts, &mut state, &mut left_emphasis_delim);
+    walk_paragraph_inline(ctx, ids, &mut parts, &mut state);
     trim_edge_breaks(&mut parts);
     concat(parts)
 }
@@ -235,7 +221,6 @@ fn walk_paragraph_inline<'a>(
     ids: &[NodeId],
     out: &mut Vec<Doc<'a>>,
     state: &mut ParagraphSafetyState,
-    left_emphasis_delim: &mut Option<EmphasisDelim>,
 ) {
     let last_idx = ids.len().saturating_sub(1);
     for (i, &cid) in ids.iter().enumerate() {
@@ -256,11 +241,7 @@ fn walk_paragraph_inline<'a>(
                 state.note_content();
             }
             NodeKind::Emphasis(run) => {
-                let delim = run.resolve(ResolveCtx {
-                    style: ctx.opts.italic(),
-                    left_sibling_delim: *left_emphasis_delim,
-                    first_child_delim: first_child_strong_delim(ctx, cid),
-                });
+                let delim = run.resolve();
                 let body = build_inline_body_with_safety(ctx, cid, state);
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
                 let flank = ctx.flank.flank_for(cid);
@@ -271,15 +252,9 @@ fn walk_paragraph_inline<'a>(
                     source_slice,
                     flank,
                 ));
-                *left_emphasis_delim = Some(delim);
-                continue;
             }
             NodeKind::Strong(run) => {
-                let delim = run.resolve(ResolveCtx {
-                    style: ctx.opts.italic(),
-                    left_sibling_delim: None,
-                    first_child_delim: first_child_emphasis_delim(ctx, cid),
-                });
+                let delim = run.resolve();
                 let body = build_inline_body_with_safety(ctx, cid, state);
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
                 let flank = ctx.flank.flank_for(cid);
@@ -334,7 +309,6 @@ fn walk_paragraph_inline<'a>(
                 state.note_content();
             }
         }
-        *left_emphasis_delim = None;
     }
 }
 
@@ -344,8 +318,7 @@ fn walk_paragraph_inline<'a>(
 fn build_inline_body_with_safety<'a>(ctx: &PrettyCtx<'a>, parent: NodeId, state: &mut ParagraphSafetyState) -> Doc<'a> {
     let ids: Vec<NodeId> = ctx.tree.children(parent).collect();
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
-    let mut left_emphasis_delim: Option<EmphasisDelim> = None;
-    walk_paragraph_inline(ctx, &ids, &mut parts, state, &mut left_emphasis_delim);
+    walk_paragraph_inline(ctx, &ids, &mut parts, state);
     concat(parts)
 }
 
@@ -438,36 +411,4 @@ fn trim_edge_breaks(parts: &mut Vec<Doc<'_>>) {
     while matches!(parts.last(), Some(Doc::Line | Doc::HardLine)) {
         parts.pop();
     }
-}
-
-/// `Some(d)` if the first child of `id` is a Strong run that will
-/// resolve to delimiter `d`. Used to flip the outer Emphasis delimiter
-/// so nested `*` / `**` do not fuse into `***`.
-fn first_child_strong_delim(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<EmphasisDelim> {
-    let first = ctx.tree.children(id).next()?;
-    let node = ctx.tree.node(first)?;
-    let NodeKind::Strong(run) = &node.kind else {
-        return None;
-    };
-    Some(run.resolve(ResolveCtx {
-        style: ctx.opts.italic(),
-        left_sibling_delim: None,
-        first_child_delim: None,
-    }))
-}
-
-/// Symmetric peer of [`first_child_strong_delim`] for the Strong
-/// renderer: flips `**` to `__` when the first child is an Emphasis
-/// that resolves to the same byte family.
-fn first_child_emphasis_delim(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<EmphasisDelim> {
-    let first = ctx.tree.children(id).next()?;
-    let node = ctx.tree.node(first)?;
-    let NodeKind::Emphasis(run) = &node.kind else {
-        return None;
-    };
-    Some(run.resolve(ResolveCtx {
-        style: ctx.opts.italic(),
-        left_sibling_delim: None,
-        first_child_delim: None,
-    }))
 }

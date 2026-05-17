@@ -1,12 +1,19 @@
 //! Typed link / image values.
 //!
 //! [`LinkRun`] and [`ImageRun`] capture the parse-time data pulldown saw
-//! and expose a single decision method, [`LinkRun::emit_style`] /
-//! [`ImageRun::emit_style`], that selects the final emission style from
-//! four previously-braided concerns: the CM grammar variant (`Inline` /
-//! `ReferenceFull` / `Collapsed` / `Shortcut`), the configured emission style,
-//! the CM label-text identity for collapsed/shortcut forms, and the
-//! post-format text drift that emphasis rewriting can introduce.
+//! and emit one source-form per CM grammar variant: inline stays inline,
+//! `ReferenceFull` stays full, `ReferenceCollapsed` stays collapsed,
+//! `ReferenceShortcut` stays shortcut. No `FmtOptions` style knob is
+//! consulted; under preserve defaults the body bytes also round-trip,
+//! so the collapsed / shortcut identity is preserved by construction
+//! (the body bytes that came from source still equal the source
+//! label).
+//!
+//! For inline links, the URL destination's source form (bare `url` vs
+//! angle-bracketed `<url>`) is recovered at emit time from the link's
+//! source range. Reference-definition emit (see
+//! [`crate::format::block`]) lacks a tracked source range for the
+//! destination and falls back to the existing `escape_url` inference.
 //!
 //! The IR builder ([`crate::tree::TreeBuilder`]) constructs values via
 //! the infallible `from_pulldown_inline` constructor for inline links,
@@ -16,10 +23,7 @@
 //! [`ReferenceTable`](crate::cm::refs::ReferenceTable) at IR-build
 //! time; unresolvable labels return [`LinkError::UnresolvedReference`]
 //! and the builder downgrades them to raw text per CM §4.7's
-//! "leave as text" rule. The format walker
-//! ([`crate::format::inline`]) renders the body, flattens it via
-//! [`flatten_body_doc`], and calls `emit_style` once — the sole site
-//! that decides the final style.
+//! "leave as text" rule.
 
 use std::borrow::Cow;
 
@@ -120,18 +124,9 @@ pub struct ImageRun {
     source: LinkSource,
 }
 
-/// Format-time context for [`LinkRun::emit_style`] /
-/// [`ImageRun::emit_style`]. Carries the actually-rendered body text
-/// the walker has computed by emitting child nodes; this is the only
-/// text the identity check sees, so post-emphasis-resolution drift
-/// (e.g. `_foo_` → `*foo*`) is folded in automatically.
-pub(crate) struct LinkResolveCtx<'a> {
-    pub body_text: &'a str,
-}
-
-/// Final emission style chosen by `emit_style`. Carries the label
-/// borrow when the chosen variant needs one, so the walker does not
-/// reach back into the source to retrieve it.
+/// Final emission style — one variant per `LinkSource` variant.
+/// Carries the label borrow when the chosen variant needs one, so the
+/// walker does not reach back into the source to retrieve it.
 #[derive(Debug)]
 pub(crate) enum EmitLinkStyle<'a> {
     Inline,
@@ -211,20 +206,20 @@ impl LinkRun {
         self.source.resolved().map(ResolvedRef::label)
     }
 
-    #[tracing::instrument(level = "trace", skip(self, ctx))]
-    pub(crate) fn emit_style<'s>(&'s self, ctx: &LinkResolveCtx<'_>) -> EmitLinkStyle<'s> {
-        decide_style(&self.source, ctx.body_text)
+    /// Choose the emit style from the source variant. `body_text` is
+    /// the rendered body's flattened bytes; for Collapsed/Shortcut
+    /// these must CM-normalise to the source label, otherwise the
+    /// link is demoted to Full so the re-parse still resolves. Never
+    /// consults `FmtOptions`.
+    #[tracing::instrument(level = "trace", skip(self, body_text))]
+    pub(crate) fn emit_style<'s>(&'s self, body_text: &str) -> EmitLinkStyle<'s> {
+        decide_style(&self.source, body_text)
     }
 
-    /// Emit this link with the resolved style.
-    ///
-    /// `source_id` is this link's node in the source tree. In pass 2
-    /// the body-vs-label identity check uses the bytes of the
-    /// corresponding draft node — what the previous pass actually
-    /// emitted between `[` and `]` — instead of the IR-flattened
-    /// body. That folds in any drift introduced by the emit pipeline
-    /// (escape passes, wrap reshaping) so the link-style decision
-    /// converges with the rest of the document.
+    /// Emit this link in its source CM form. `source_id` is this
+    /// link's node; we read the source bytes via
+    /// [`crate::tree::Tree::raw_text`] to recover the inline-link
+    /// destination's bare-vs-angle form so the output round-trips.
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(
         &self,
@@ -232,9 +227,10 @@ impl LinkRun {
         ctx: &crate::format::pretty::PrettyCtx<'b>,
         source_id: crate::tree::NodeId,
     ) -> Doc<'b> {
-        let body_text = body_text_for_decision(&body, ctx, source_id);
-        let style = self.emit_style(&LinkResolveCtx { body_text: &body_text });
-        assemble_link(ctx, body, self.dest(), self.title(), &style, false)
+        let body_text = flatten_body_doc(&body);
+        let style = self.emit_style(&body_text);
+        let dest_form = source_inline_dest_form(ctx, source_id);
+        assemble_link(body, self.dest(), self.title(), &style, false, dest_form)
     }
 }
 
@@ -285,12 +281,13 @@ impl ImageRun {
         self.source.resolved().map(ResolvedRef::label)
     }
 
-    #[tracing::instrument(level = "trace", skip(self, ctx))]
-    pub(crate) fn emit_style<'s>(&'s self, ctx: &LinkResolveCtx<'_>) -> EmitLinkStyle<'s> {
-        decide_style(&self.source, ctx.body_text)
+    /// See [`LinkRun::emit_style`].
+    #[tracing::instrument(level = "trace", skip(self, body_text))]
+    pub(crate) fn emit_style<'s>(&'s self, body_text: &str) -> EmitLinkStyle<'s> {
+        decide_style(&self.source, body_text)
     }
 
-    /// Emit this image with the resolved style. See [`LinkRun::pretty`]
+    /// Emit this image in its source CM form. See [`LinkRun::pretty`]
     /// for the `source_id` contract.
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(
@@ -299,9 +296,10 @@ impl ImageRun {
         ctx: &crate::format::pretty::PrettyCtx<'b>,
         source_id: crate::tree::NodeId,
     ) -> Doc<'b> {
-        let body_text = body_text_for_decision(&body, ctx, source_id);
-        let style = self.emit_style(&LinkResolveCtx { body_text: &body_text });
-        assemble_link(ctx, body, self.dest(), self.title(), &style, true)
+        let body_text = flatten_body_doc(&body);
+        let style = self.emit_style(&body_text);
+        let dest_form = source_inline_dest_form(ctx, source_id);
+        assemble_link(body, self.dest(), self.title(), &style, true, dest_form)
     }
 }
 
@@ -316,12 +314,15 @@ fn resolve_kind(kind: LinkSourceKind, label: String, table: &ReferenceTable) -> 
     })
 }
 
-/// Single decision site for the link-style choice. Inline stays inline;
-/// `ReferenceFull` stays full; `ReferenceCollapsed` / `ReferenceShortcut`
-/// keep their form when the body text CM-normalises to the same string
-/// as the label, and demote to `ReferenceFull` otherwise. The check
-/// runs on the actually-emitted body text supplied by the walker, so
-/// any post-format drift introduced by emphasis rewriting is folded in.
+/// Single decision site for the link-style choice. Inline → Inline,
+/// `ReferenceFull` → Full. `Collapsed` / `Shortcut` *normally* echo
+/// the source variant, but if the rendered body bytes' CM-normalised
+/// form no longer equals the source label's CM-normalised form, the
+/// link must be demoted to `ReferenceFull` — otherwise the
+/// collapsed/shortcut emit won't re-resolve. The mismatch is
+/// structural rather than stylistic: the inline escape policy (e.g.
+/// emphasis-safety `\_`) can perturb body bytes inside link text in
+/// ways that survive HTML-equivalence but change CM label resolution.
 fn decide_style<'s>(source: &'s LinkSource, body_text: &str) -> EmitLinkStyle<'s> {
     match source {
         LinkSource::Inline => EmitLinkStyle::Inline,
@@ -347,57 +348,35 @@ fn labels_match(a: &str, b: &str) -> bool {
     cm_normalise_label(a) == cm_normalise_label(b)
 }
 
-/// Body text to feed into the link-style identity check.
-///
-/// In pass 1 of the two-pass formatter ([`FlankSource::Isolated`])
-/// the body Doc is flattened — the only information available is what
-/// the IR walker just built. In pass 2 ([`FlankSource::Draft`]) the
-/// corresponding draft node's body bytes are used instead, so the
-/// identity check sees what the previous pass actually emitted
-/// between `[` and `]` after every emit decision was made. This
-/// closes the convergence loop for reference-collapsed and
-/// `-shortcut` links whose body bytes can drift across passes (e.g.
-/// emphasis-style renormalisation inside the body).
-///
-/// [`FlankSource::Isolated`]: crate::format::emit_safety::FlankSource::Isolated
-/// [`FlankSource::Draft`]: crate::format::emit_safety::FlankSource::Draft
-fn body_text_for_decision(
-    body: &Doc<'_>,
-    ctx: &crate::format::pretty::PrettyCtx<'_>,
-    source_id: crate::tree::NodeId,
-) -> String {
-    use crate::format::emit_safety::FlankSource;
-    if let FlankSource::Draft(view) = ctx.flank
-        && let Some(draft_id) = view.source_to_draft.get(source_id.idx()).copied().flatten()
-    {
-        let body_children: Vec<_> = view.tree.children(draft_id).collect();
-        if body_children.is_empty() {
-            return String::new();
-        }
-        let first = body_children.first().and_then(|id| view.tree.node(*id));
-        let last = body_children.last().and_then(|id| view.tree.node(*id));
-        if let (Some(first_node), Some(last_node)) = (first, last)
-            && let Some(slice) = view.bytes.get(first_node.raw_range.start..last_node.raw_range.end)
-        {
-            return slice.to_owned();
+/// `CommonMark` label normalisation: trim leading/trailing whitespace,
+/// collapse internal whitespace runs to a single ASCII space, then
+/// Unicode-lowercase. Matches `cmark::Util::normalize_label`.
+fn cm_normalise_label(s: &str) -> String {
+    let trimmed = s.trim();
+    let mut out = String::with_capacity(trimmed.len());
+    let mut prev_was_ws = false;
+    for ch in trimmed.chars() {
+        if ch.is_whitespace() {
+            if !prev_was_ws {
+                out.push(' ');
+                prev_was_ws = true;
+            }
+        } else {
+            for low in ch.to_lowercase() {
+                out.push(low);
+            }
+            prev_was_ws = false;
         }
     }
-    flatten_body_doc(body)
+    out
 }
 
 /// Flatten a [`Doc`] to a string for the body-vs-label identity check.
 /// Soft and hard breaks become a single space — CM label normalisation
 /// collapses internal whitespace anyway, so the difference does not
 /// survive the next stage.
-pub(crate) fn flatten_body_doc(doc: &Doc<'_>) -> String {
+fn flatten_body_doc(doc: &Doc<'_>) -> String {
     let mut out = String::new();
-    walk(doc, &mut out);
-    out
-}
-
-// Iterative to bound stack usage on adversarial inputs with deeply
-// nested `Doc::Concat` / `Doc::Atomic` chains.
-fn walk(doc: &Doc<'_>, out: &mut String) {
     let mut stack: Vec<&Doc<'_>> = vec![doc];
     while let Some(node) = stack.pop() {
         match node {
@@ -411,6 +390,36 @@ fn walk(doc: &Doc<'_>, out: &mut String) {
             }
         }
     }
+    out
+}
+
+/// Source-derived bare-vs-angle form of an inline link's destination.
+/// Returns [`DestForm::Angle`] iff the byte after `](` in the link's
+/// source is `<`. Reference-style links and any link with no
+/// recoverable `](` substring fall back to [`DestForm::Bare`]; the
+/// caller's escape path will still upgrade to angle if the URL bytes
+/// require it.
+fn source_inline_dest_form(ctx: &crate::format::pretty::PrettyCtx<'_>, source_id: crate::tree::NodeId) -> DestForm {
+    let raw = ctx.tree.raw_text(ctx.source, source_id).as_bytes();
+    let mut i: usize = 0;
+    while i.saturating_add(1) < raw.len() {
+        if raw.get(i).copied() == Some(b']') && raw.get(i.saturating_add(1)).copied() == Some(b'(') {
+            let next = i.saturating_add(2);
+            return match raw.get(next).copied() {
+                Some(b'<') => DestForm::Angle,
+                _ => DestForm::Bare,
+            };
+        }
+        i = i.saturating_add(1);
+    }
+    DestForm::Bare
+}
+
+/// Source-derived destination form for an inline link or image.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DestForm {
+    Bare,
+    Angle,
 }
 
 // ============================================================
@@ -419,20 +428,22 @@ fn walk(doc: &Doc<'_>, out: &mut String) {
 
 /// Shared between [`LinkRun::pretty`] and [`ImageRun::pretty`]:
 /// emits the body wrapped in `[…](…)` (inline), `[…][label]` (full),
-/// `[…][]` (collapsed), or `[…]` (shortcut) per `style`.
+/// `[…][]` (collapsed), or `[…]` (shortcut) per `style`. `dest_form`
+/// controls bare vs angle form for inline links; reference-style
+/// emit ignores it.
 fn assemble_link<'a>(
-    ctx: &crate::format::pretty::PrettyCtx<'a>,
     body_doc: Doc<'a>,
     dest: &str,
     title: &str,
     style: &EmitLinkStyle<'_>,
     is_image: bool,
+    dest_form: DestForm,
 ) -> Doc<'a> {
     use crate::format::doc::{concat, text, unbreakable};
     let prefix = if is_image { "![" } else { "[" };
     match style {
         EmitLinkStyle::Inline => {
-            let dest_str = render_url_destination_owned(dest, ctx.opts.link_def_style());
+            let dest_str = render_inline_destination(dest, dest_form);
             let mut parts: Vec<Doc<'a>> = Vec::with_capacity(6);
             parts.push(text(prefix));
             parts.push(body_doc);
@@ -452,13 +463,26 @@ fn assemble_link<'a>(
     }
 }
 
-/// Render a URL destination, choosing between the bare and angle
-/// forms. Public so the link-reference-definition emitter in
-/// `format/document.rs` can share the same escape policy.
-pub(crate) fn render_url_destination_owned(url: &str, style: crate::config::LinkDefStyle) -> String {
-    if matches!(style, crate::config::LinkDefStyle::Angle) {
+/// Render an inline link's URL using the source-derived bare-vs-angle
+/// form. Bare URLs that contain whitespace are still upgraded to angle
+/// form (CM grammar requirement); otherwise the source form wins.
+fn render_inline_destination(url: &str, dest_form: DestForm) -> String {
+    if matches!(dest_form, DestForm::Angle) {
         return format!("<{}>", escape_angle_url(url));
     }
+    match escape_url(url) {
+        EscapedUrl::Bare(s) => s.into_owned(),
+        EscapedUrl::Angle(s) => format!("<{s}>"),
+    }
+}
+
+/// Render a reference-definition URL destination. The reference table
+/// does not currently track the source's bare-vs-angle form, so this
+/// always falls back to the existing `escape_url` inference: bare
+/// when safe, angle when bytes require it. (A future canonicalisation
+/// pass will read [`crate::config::FmtOptions::link_def_style`] to
+/// override.)
+pub(crate) fn render_url_destination_owned(url: &str, _style: crate::config::LinkDefStyle) -> String {
     match escape_url(url) {
         EscapedUrl::Bare(s) => s.into_owned(),
         EscapedUrl::Angle(s) => format!("<{s}>"),
@@ -547,42 +571,14 @@ fn escape_title(title: &str) -> Cow<'_, str> {
     Cow::Owned(out)
 }
 
-/// `CommonMark` label normalisation: trim leading/trailing whitespace,
-/// collapse internal whitespace runs to a single ASCII space, then
-/// Unicode-lowercase. Matches `cmark::Util::normalize_label`.
-fn cm_normalise_label(s: &str) -> String {
-    let trimmed = s.trim();
-    let mut out = String::with_capacity(trimmed.len());
-    let mut prev_was_ws = false;
-    for ch in trimmed.chars() {
-        if ch.is_whitespace() {
-            if !prev_was_ws {
-                out.push(' ');
-                prev_was_ws = true;
-            }
-        } else {
-            for low in ch.to_lowercase() {
-                out.push(low);
-            }
-            prev_was_ws = false;
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
     use crate::cm::refs::build_reference_table;
-    use crate::format::doc::{concat, hard_line, line, text, unbreakable};
 
     fn cow(s: &str) -> String {
         s.to_owned()
-    }
-
-    fn ctx(body: &str) -> LinkResolveCtx<'_> {
-        LinkResolveCtx { body_text: body }
     }
 
     /// Build a single-label table by parsing a one-def, one-link
@@ -600,14 +596,14 @@ mod tests {
     #[test]
     fn inline_link_keeps_inline() {
         let run = LinkRun::from_pulldown_inline(cow("https://example.com"), cow(""));
-        assert!(matches!(run.emit_style(&ctx("text")), EmitLinkStyle::Inline));
+        assert!(matches!(run.emit_style("text"), EmitLinkStyle::Inline));
         assert_eq!(run.dest(), "https://example.com");
         assert!(run.title().is_empty());
         assert!(run.label().is_none());
     }
 
     #[test]
-    fn reference_full_stays_full() {
+    fn reference_full_emits_full() {
         let table = table_with("bar");
         let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceFull,
@@ -617,7 +613,7 @@ mod tests {
             &table,
         )
         .expect("resolves");
-        let style = run.emit_style(&ctx("body"));
+        let style = run.emit_style("body");
         assert!(
             matches!(style, EmitLinkStyle::ReferenceFull { label } if label == "bar"),
             "got {style:?}"
@@ -626,18 +622,18 @@ mod tests {
     }
 
     #[test]
-    fn collapsed_matches_keeps_collapsed() {
+    fn reference_collapsed_emits_collapsed_when_body_matches_label() {
         let table = table_with("foo");
         let run = LinkRun::try_new_reference(LinkSourceKind::ReferenceCollapsed, cow(""), cow(""), cow("foo"), &table)
             .expect("resolves");
-        let style = run.emit_style(&ctx("foo"));
-        assert!(matches!(style, EmitLinkStyle::ReferenceCollapsed));
+        assert!(matches!(run.emit_style("foo"), EmitLinkStyle::ReferenceCollapsed));
     }
 
     #[test]
-    fn collapsed_mismatch_demotes_to_full() {
-        // Emphasis rewriting changed body from `_foo_` to `*foo*`; the
-        // label is still `_foo_`, so collapsed cannot be used.
+    fn reference_collapsed_demotes_to_full_on_body_drift() {
+        // Inline escape policy may emit `\_foo\_` from a body whose
+        // source label was `_foo_`. Without demotion the emitted
+        // `[\_foo\_][]` would not re-resolve.
         let table = table_with("_foo_");
         let run = LinkRun::try_new_reference(
             LinkSourceKind::ReferenceCollapsed,
@@ -647,26 +643,16 @@ mod tests {
             &table,
         )
         .expect("resolves");
-        let style = run.emit_style(&ctx("*foo*"));
+        let style = run.emit_style("*foo*");
         assert!(matches!(style, EmitLinkStyle::ReferenceFull { label } if label == "_foo_"));
     }
 
     #[test]
-    fn shortcut_matches_keeps_shortcut() {
+    fn reference_shortcut_emits_shortcut_when_body_matches_label() {
         let table = table_with("foo");
         let run = LinkRun::try_new_reference(LinkSourceKind::ReferenceShortcut, cow(""), cow(""), cow("foo"), &table)
             .expect("resolves");
-        let style = run.emit_style(&ctx("foo"));
-        assert!(matches!(style, EmitLinkStyle::ReferenceShortcut));
-    }
-
-    #[test]
-    fn shortcut_mismatch_demotes_to_full() {
-        let table = table_with("a");
-        let run = LinkRun::try_new_reference(LinkSourceKind::ReferenceShortcut, cow(""), cow(""), cow("a"), &table)
-            .expect("resolves");
-        let style = run.emit_style(&ctx("b"));
-        assert!(matches!(style, EmitLinkStyle::ReferenceFull { .. }));
+        assert!(matches!(run.emit_style("foo"), EmitLinkStyle::ReferenceShortcut));
     }
 
     #[test]
@@ -674,11 +660,7 @@ mod tests {
         let table = table_with("alt");
         let run = ImageRun::try_new_reference(LinkSourceKind::ReferenceShortcut, cow(""), cow(""), cow("alt"), &table)
             .expect("resolves");
-        assert!(matches!(run.emit_style(&ctx("alt")), EmitLinkStyle::ReferenceShortcut));
-        assert!(matches!(
-            run.emit_style(&ctx("other")),
-            EmitLinkStyle::ReferenceFull { .. }
-        ));
+        assert!(matches!(run.emit_style("alt"), EmitLinkStyle::ReferenceShortcut));
     }
 
     #[test]
@@ -687,49 +669,5 @@ mod tests {
         let err = LinkRun::try_new_reference(LinkSourceKind::ReferenceFull, cow(""), cow(""), cow("missing"), &table)
             .unwrap_err();
         assert_eq!(err, LinkError::UnresolvedReference);
-    }
-
-    #[test]
-    fn cm_normalise_collapses_internal_ws() {
-        assert_eq!(cm_normalise_label("Foo  Bar\tBaz"), "foo bar baz");
-    }
-
-    #[test]
-    fn cm_normalise_trims_edges() {
-        assert_eq!(cm_normalise_label("  hello  "), "hello");
-    }
-
-    #[test]
-    fn cm_normalise_lowercases_ascii() {
-        assert_eq!(cm_normalise_label("XYZ"), "xyz");
-    }
-
-    #[test]
-    fn flatten_treats_breaks_as_space() {
-        let doc = concat([text("foo"), line(), text("bar"), hard_line(), text("baz")]);
-        // After flatten: "foo bar baz"; after CM-normalise: "foo bar baz".
-        assert_eq!(flatten_body_doc(&doc), "foo bar baz");
-    }
-
-    #[test]
-    fn flatten_descends_into_atomic() {
-        let doc = concat([text("a"), unbreakable(text("b")), text("c")]);
-        assert_eq!(flatten_body_doc(&doc), "abc");
-    }
-
-    #[test]
-    fn hard_break_in_label_normalises_to_space() {
-        let body_doc = concat([text("foo"), hard_line(), text("bar")]);
-        let body = flatten_body_doc(&body_doc);
-        let table = table_with("foo bar");
-        let run = LinkRun::try_new_reference(
-            LinkSourceKind::ReferenceShortcut,
-            cow(""),
-            cow(""),
-            cow("foo bar"),
-            &table,
-        )
-        .expect("resolves");
-        assert!(matches!(run.emit_style(&ctx(&body)), EmitLinkStyle::ReferenceShortcut));
     }
 }

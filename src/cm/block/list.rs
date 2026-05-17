@@ -250,15 +250,9 @@ impl ListBlock {
         self.tightness
     }
 
-    /// `true` iff this list uses an unordered marker (`-`, `*`, `+`).
-    /// Ordered lists distinguish themselves by `start`; bullet adjacency
-    /// resolution applies only to the unordered case.
-    pub(crate) fn is_unordered(&self) -> bool {
-        matches!(self.marker, ListMarker::Dash | ListMarker::Asterisk | ListMarker::Plus)
-    }
-
     /// Source bullet byte (`-`, `*`, or `+`) for unordered lists.
-    /// Panics on ordered lists — gate with [`Self::is_unordered`].
+    /// Panics on ordered lists — only called from the unordered emit
+    /// branch of [`Self::marker_for_index`].
     fn source_bullet_byte(&self) -> u8 {
         match self.marker {
             ListMarker::Dash => b'-',
@@ -269,37 +263,6 @@ impl ListBlock {
                 b'-'
             }
         }
-    }
-
-    /// Pick a bullet byte for emission that does not collide with the
-    /// immediately preceding adjacent unordered list's emitted bullet.
-    ///
-    /// CM §5.2: pulldown distinguishes adjacent lists by their marker
-    /// character. Per-list normalisation (`ListMarkerStyle::Dash` &c.)
-    /// can otherwise unify two source-distinct lists into one — the
-    /// fuzz-found `+\n-` case.
-    ///
-    /// Strategy: prefer the configured style; if that would collide
-    /// with `avoid`, fall back to the source bullet (guaranteed to
-    /// differ from any adjacent list's source bullet — otherwise
-    /// pulldown would have parsed them as a single list); if even the
-    /// source bullet collides, pick any byte from `{-, *, +}` that
-    /// avoids the collision.
-    pub(crate) fn resolve_unordered_bullet(&self, opts: &crate::config::FmtOptions, avoid: Option<u8>) -> u8 {
-        debug_assert!(self.is_unordered());
-        let source_byte = self.source_bullet_byte();
-        let candidate = opts.resolve_list_marker(source_byte);
-        if avoid != Some(candidate) {
-            return candidate;
-        }
-        if Some(source_byte) != avoid {
-            return source_byte;
-        }
-        // All three are valid CM bullets; pick any byte that avoids.
-        [b'-', b'*', b'+']
-            .into_iter()
-            .find(|&b| Some(b) != avoid)
-            .unwrap_or(b'-')
     }
 
     /// Lookup helper: typed view for the item whose arena id is
@@ -314,24 +277,16 @@ impl ListBlock {
     /// insert a blank line between items. Always terminates with one
     /// hard newline so the surrounding block-sequence separator
     /// produces a blank line between the list and whatever follows.
+    ///
+    /// Each item's marker comes from the item's own source bytes (via
+    /// [`crate::tree::Tree::raw_text`]); no `FmtOptions` style knob is
+    /// consulted. Bullet and ordered-marker canonicalisation move to a
+    /// separate post-pass.
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'a>(
         &self,
         ctx: &crate::format::pretty::PrettyCtx<'a>,
-        id: crate::tree::NodeId,
-    ) -> crate::format::doc::Doc<'a> {
-        self.pretty_with_bullet(ctx, id, None)
-    }
-
-    /// Same as [`Self::pretty`] but the caller (the block-sequence
-    /// loop) supplies an already-resolved unordered bullet so adjacent
-    /// lists can avoid collision. `None` ⇒ no adjacency constraint
-    /// (fresh sequence or ordered list).
-    pub(crate) fn pretty_with_bullet<'a>(
-        &self,
-        ctx: &crate::format::pretty::PrettyCtx<'a>,
         _id: crate::tree::NodeId,
-        unordered_bullet: Option<u8>,
     ) -> crate::format::doc::Doc<'a> {
         use crate::format::doc::{concat, hard_line};
         let tight = matches!(self.tightness, Tightness::Tight);
@@ -344,7 +299,7 @@ impl ListBlock {
             if idx > 0 && !tight {
                 parts.push(hard_line());
             }
-            let marker = self.marker_for_index(ctx, idx, item_kind, unordered_bullet);
+            let marker = self.marker_for_index(ctx, idx, item_kind);
             parts.push(render_item(ctx, item_kind, &marker));
         }
         concat(parts)
@@ -355,22 +310,25 @@ impl ListBlock {
         ctx: &crate::format::pretty::PrettyCtx<'_>,
         idx: usize,
         item_kind: &ListItemKind,
-        unordered_bullet: Option<u8>,
     ) -> String {
-        use crate::config::OrderedListStyle;
         match self.marker {
             ListMarker::Ordered { start, delim } => {
-                let n = match ctx.opts.ordered_list() {
-                    OrderedListStyle::Consistent => u64::from(start).saturating_add(idx as u64),
-                    OrderedListStyle::Preserve => source_ordered_marker_number(ctx, item_kind.item_id())
-                        .unwrap_or_else(|| u64::from(start).saturating_add(idx as u64)),
-                };
-                let punct = source_ordered_punct(ctx, item_kind.item_id()).unwrap_or_else(|| delim.as_char());
+                let source_n = source_ordered_marker_number(ctx, item_kind.item_id());
+                debug_assert!(
+                    source_n.is_some(),
+                    "ordered list item source range had no digits at offset 0",
+                );
+                let n = source_n.unwrap_or_else(|| u64::from(start).saturating_add(idx as u64));
+                let source_punct = source_ordered_punct(ctx, item_kind.item_id());
+                debug_assert!(
+                    source_punct.is_some(),
+                    "ordered list item source range had no `.`/`)` after digits",
+                );
+                let punct = source_punct.unwrap_or_else(|| delim.as_char());
                 format!("{n}{punct} ")
             }
             ListMarker::Dash | ListMarker::Asterisk | ListMarker::Plus => {
-                let b = unordered_bullet.unwrap_or_else(|| ctx.opts.resolve_list_marker(self.source_bullet_byte()));
-                format!("{} ", char::from(b))
+                format!("{} ", char::from(self.source_bullet_byte()))
             }
         }
     }

@@ -134,9 +134,15 @@ impl Config {
     }
 }
 
-/// Formatter knobs. Defaults are `wrap = keep`, `italic = asterisk`,
-/// `list-marker = dash`, `ordered-list = consistent`,
-/// `trailing-newline = true`, `end-of-line = lf`, empty exclude list.
+/// Formatter knobs.
+///
+/// Style knobs (`italic`, `list_marker`, `ordered_list`,
+/// `link_def_style`, `thematic_break_style`) default to `Preserve`;
+/// the structural-emit pipeline never consults them, so the defaults
+/// round-trip source bytes verbatim. Style rewrites arrive later as
+/// a separate post-pass that reads these knobs. Structural defaults:
+/// `wrap = keep`, `trailing-newline = preserve`, `end-of-line = lf`,
+/// empty exclude list.
 #[derive(Debug, Clone)]
 pub struct FmtOptions {
     wrap: Wrap,
@@ -244,7 +250,8 @@ impl FmtOptions {
     }
 
     /// Thematic-break canonicalisation policy. Defaults to
-    /// [`ThematicStyle::Dash`].
+    /// [`ThematicStyle::Preserve`]. The structural-emit path does not
+    /// consult this; a later canonicalisation post-pass will.
     #[must_use]
     pub fn thematic_break_style(&self) -> ThematicStyle {
         self.thematic_break_style
@@ -344,14 +351,18 @@ impl Default for FmtOptions {
     fn default() -> Self {
         Self {
             wrap: Wrap::Keep,
-            italic: ItalicStyle::Asterisk,
-            list_marker: ListMarkerStyle::Dash,
-            ordered_list: OrderedListStyle::Consistent,
+            // Style knobs default to Preserve so structural emit
+            // round-trips source bytes. A separate canonicalisation
+            // post-pass (future work) reads these knobs to opt in to
+            // rewrites.
+            italic: ItalicStyle::Preserve,
+            list_marker: ListMarkerStyle::Preserve,
+            ordered_list: OrderedListStyle::Preserve,
             trailing_newline: TrailingNewline::Preserve,
             end_of_line: EndOfLine::Lf,
             exclude_globs: Vec::new(),
             link_def_placement: Placement::End,
-            link_def_style: LinkDefStyle::Bare,
+            link_def_style: LinkDefStyle::Preserve,
             // Footnotes stay at their source position. Pulldown's HTML
             // renderer emits the `<div class="footnote-definition">`
             // block at the point of parsing, so moving definitions to
@@ -360,7 +371,7 @@ impl Default for FmtOptions {
             // [`crate::Document::format_validated`].
             footnote_placement: Placement::Preserve,
             preserve_frontmatter: true,
-            thematic_break_style: ThematicStyle::Dash,
+            thematic_break_style: ThematicStyle::Preserve,
             mode: FormatMode::Normalise,
             math: MathOptions::default(),
         }
@@ -425,11 +436,15 @@ pub enum Placement {
 }
 
 /// Destination style for link reference definitions and inline links.
-/// `Bare` emits `[label]: url`; `Angle` emits `[label]: <url>`.
+///
+/// `Bare` emits `[label]: url`; `Angle` emits `[label]: <url>`;
+/// `Preserve` (the default) emits whichever form the source used for
+/// each destination.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum LinkDefStyle {
     Bare,
     Angle,
+    Preserve,
 }
 
 /// Prose-wrap mode.
@@ -468,8 +483,9 @@ impl Wrap {
     }
 }
 
-/// Italic delimiter normalisation policy. The project default is
-/// `Asterisk` to match the house style `*…*` / never `_…_`.
+/// Italic delimiter normalisation policy. Defaults to `Preserve`:
+/// structural emit preserves each run's source delimiter. Fixed
+/// variants are consumed only by the future canonicalisation pass.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ItalicStyle {
     Asterisk,
@@ -477,7 +493,8 @@ pub enum ItalicStyle {
     Preserve,
 }
 
-/// Unordered-list bullet normalisation policy.
+/// Unordered-list bullet normalisation policy. Defaults to
+/// `Preserve`: structural emit keeps each list's source bullet.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ListMarkerStyle {
     Dash,
@@ -487,33 +504,37 @@ pub enum ListMarkerStyle {
 }
 
 /// Ordered-list number normalisation policy. `Consistent` renumbers
-/// from 1 (matches mdformat's default); `Preserve` keeps source
-/// numbering verbatim.
+/// from 1 (matches mdformat's default); `Preserve` (the default)
+/// keeps source numbering verbatim.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OrderedListStyle {
     Consistent,
     Preserve,
 }
 
-/// Thematic-break canonicalisation policy. The project default is
-/// `Dash` (the prompt-16 idempotence fix "always emit `---`"), now
-/// expressed as a [`FmtOptions`] field rather than a hard-coded
-/// constant in the emitter.
+/// Thematic-break canonicalisation policy. Defaults to `Preserve`:
+/// structural emit echoes the source `---` / `***` / `___` line
+/// verbatim. The fixed variants exist for the future canonicalisation
+/// pass.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ThematicStyle {
     Dash,
     Asterisk,
     Underscore,
+    Preserve,
 }
 
 impl ThematicStyle {
-    /// The repeated byte the thematic-break line is built from.
+    /// The repeated byte the thematic-break line is built from, when
+    /// the style names a single byte. `Preserve` returns `None`
+    /// because the byte to emit comes from the source itself.
     #[must_use]
-    pub fn as_byte(self) -> u8 {
+    pub fn as_byte(self) -> Option<u8> {
         match self {
-            Self::Dash => b'-',
-            Self::Asterisk => b'*',
-            Self::Underscore => b'_',
+            Self::Dash => Some(b'-'),
+            Self::Asterisk => Some(b'*'),
+            Self::Underscore => Some(b'_'),
+            Self::Preserve => None,
         }
     }
 }
@@ -661,6 +682,7 @@ enum PlacementSchema {
 enum LinkDefStyleSchema {
     Bare,
     Angle,
+    Preserve,
 }
 
 #[derive(Debug, Deserialize)]
@@ -793,6 +815,7 @@ impl From<LinkDefStyleSchema> for LinkDefStyle {
         match s {
             LinkDefStyleSchema::Bare => Self::Bare,
             LinkDefStyleSchema::Angle => Self::Angle,
+            LinkDefStyleSchema::Preserve => Self::Preserve,
         }
     }
 }
@@ -967,10 +990,13 @@ exclude = ["docs/generated/**"]
         assert_eq!(fmt.resolve_italic(b'_'), b'*');
         assert_eq!(fmt.resolve_list_marker(b'*'), b'-');
 
-        // Default config (no [fmt] table): italic = asterisk, list = dash.
+        // Default config (no [fmt] table): every style knob is Preserve,
+        // so resolvers pass the source byte through unchanged.
         let defaults = FmtOptions::default();
-        assert_eq!(defaults.resolve_italic(b'_'), b'*');
-        assert_eq!(defaults.resolve_list_marker(b'*'), b'-');
+        assert_eq!(defaults.resolve_italic(b'_'), b'_');
+        assert_eq!(defaults.resolve_italic(b'*'), b'*');
+        assert_eq!(defaults.resolve_list_marker(b'+'), b'+');
+        assert_eq!(defaults.resolve_list_marker(b'-'), b'-');
         Ok(())
     }
 

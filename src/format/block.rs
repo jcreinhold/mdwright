@@ -43,13 +43,6 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
 
     let mut adm_idx = 0usize;
     let mut emitted_adm: Option<usize> = None;
-    // The bullet character of the most recently emitted adjacent
-    // unordered list in this sequence, if any. Pulldown distinguishes
-    // adjacent lists by their marker char (CM §5.2); per-list
-    // bullet-style normalisation can otherwise merge what the source
-    // emitted as two separate lists. The state resets to `None`
-    // whenever any non-unordered-list block intervenes.
-    let mut prev_unordered_bullet: Option<u8> = None;
     for child in ctx.tree.children(parent) {
         if is_doc_root
             && footnote_end
@@ -78,37 +71,15 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
                     parts.push(unbreakable(verbatim_lines(&region.text)));
                     emitted = emitted.saturating_add(1);
                     emitted_adm = Some(adm_idx);
-                    prev_unordered_bullet = None;
                 }
                 continue;
             }
-        }
-        // Unordered-list adjacency: resolve the bullet against the
-        // previous adjacent unordered list's emitted bullet, so the
-        // formatter cannot merge two source-distinct lists into one
-        // by normalising both to the same marker. CM §5.2 ends a list
-        // when the marker character changes; bullet-style
-        // normalisation that ignored adjacency was the fuzz-found
-        // `+\n-` bug class.
-        if let Some(node) = ctx.tree.node(child)
-            && let Some(TypedBlock::ListBlock(list)) = &node.typed
-            && list.is_unordered()
-        {
-            if emitted > 0 {
-                parts.push(hard_line());
-            }
-            let bullet = list.resolve_unordered_bullet(ctx.opts, prev_unordered_bullet);
-            parts.push(list.pretty_with_bullet(ctx, child, Some(bullet)));
-            emitted = emitted.saturating_add(1);
-            prev_unordered_bullet = Some(bullet);
-            continue;
         }
         if emitted > 0 {
             parts.push(hard_line());
         }
         parts.push(pretty_block(ctx, child));
         emitted = emitted.saturating_add(1);
-        prev_unordered_bullet = None;
     }
     if is_doc_root {
         append_link_def_tail(ctx, &mut parts);
@@ -232,7 +203,12 @@ fn append_footnote_def_tail<'a>(ctx: &PrettyCtx<'a>, parts: &mut Vec<Doc<'a>>) {
 /// At the document root, append every resolved link reference
 /// definition in stable alphabetical order. [`ReferenceTable::insert`]
 /// already enforces CM §4.7's "first definition wins" rule, so no
-/// de-dup is needed here.
+/// de-dup is needed here. The reference table does not currently
+/// track each definition's source bare-vs-angle form, so
+/// [`render_url_destination_owned`] infers via `escape_url` — a
+/// known imperfect preservation. The
+/// [`crate::config::LinkDefStyle`] knob has no consumer after this
+/// prompt; a later canonicalisation pass will read it.
 fn append_link_def_tail<'a>(ctx: &PrettyCtx<'a>, parts: &mut Vec<Doc<'a>>) {
     if ctx.refs.is_empty() {
         return;
@@ -240,21 +216,15 @@ fn append_link_def_tail<'a>(ctx: &PrettyCtx<'a>, parts: &mut Vec<Doc<'a>>) {
     if !parts.is_empty() {
         parts.push(hard_line());
     }
-    let style = ctx.opts.link_def_style();
     let mut targets: Vec<_> = ctx.refs.iter().collect();
     targets.sort_by_key(|t| t.label_raw().to_ascii_lowercase());
     for target in targets {
-        parts.push(render_link_ref_def(
-            target.label_raw(),
-            target.dest(),
-            target.title(),
-            style,
-        ));
+        parts.push(render_link_ref_def(target.label_raw(), target.dest(), target.title()));
     }
 }
 
-fn render_link_ref_def<'a>(label: &str, dest: &str, title: Option<&str>, style: LinkDefStyle) -> Doc<'a> {
-    let dest_rendered = crate::cm::inline::link::render_url_destination_owned(dest, style);
+fn render_link_ref_def<'a>(label: &str, dest: &str, title: Option<&str>) -> Doc<'a> {
+    let dest_rendered = crate::cm::inline::link::render_url_destination_owned(dest, LinkDefStyle::Preserve);
     let line = match title {
         Some(t) => format!("[{label}]: {dest_rendered} \"{t}\""),
         None => format!("[{label}]: {dest_rendered}"),
