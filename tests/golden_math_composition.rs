@@ -44,7 +44,7 @@ fn golden_math_composition() {
         let config_path = dir.join(format!("{stem}.config.toml"));
         let opts = if config_path.is_file() {
             let cfg =
-                Config::load(Some(&config_path)).unwrap_or_else(|e| panic!("load {}: {e}", config_path.display()));
+                Config::load_explicit(&config_path).unwrap_or_else(|e| panic!("load {}: {e}", config_path.display()));
             cfg.fmt_options().clone()
         } else {
             FmtOptions::default()

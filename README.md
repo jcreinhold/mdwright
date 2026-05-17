@@ -103,6 +103,26 @@ Numbers vary by hardware and corpus shape; re-measure before quoting.
 - `compact`: `path:line:col: rule: message`, one per line.
 - `json`: JSON Lines, one object per diagnostic.
 
+## Configuration
+
+mdwright reads `--config PATH` if given; otherwise it walks up from the current directory looking, at each ancestor, for
+`.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` containing a `[tool.mdwright]` table (in that precedence). The
+walk stops at the first directory containing `.git/` (the workspace boundary). If nothing matches, built-in defaults
+apply.
+
+For projects that already use `pyproject.toml`, the whole configuration can live there:
+
+```toml
+# pyproject.toml
+[tool.mdwright]
+lint.rules = "default,+escaped-emphasis"
+
+[tool.mdwright.fmt]
+wrap = 100
+```
+
+See [`docs/configuration.md`](docs/configuration.md) for the complete schema reference.
+
 ## Exit codes
 
 | Code | Meaning                                                          |

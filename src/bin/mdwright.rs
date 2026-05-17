@@ -55,9 +55,13 @@ use rayon::prelude::*;
                   round-trip formatter follows in a later phase."
 )]
 struct Cli {
-    /// Path to an `mdwright.toml`. If omitted, mdwright searches
-    /// `$PWD`, then walks up the directory tree, and finally falls
-    /// back to `$PWD/pyproject.toml`'s `[tool.mdwright]` table.
+    /// Explicit path to a config file. When omitted, mdwright walks
+    /// up from `$PWD` looking, at each ancestor, for `.mdwright.toml`,
+    /// `mdwright.toml`, or `pyproject.toml` containing a
+    /// `[tool.mdwright]` table (in that precedence). The walk stops at
+    /// the filesystem root or the first directory containing `.git/`
+    /// (the workspace boundary). If nothing matches, built-in defaults
+    /// apply.
     #[arg(long, global = true)]
     config: Option<PathBuf>,
 
@@ -263,7 +267,7 @@ fn run_fmt(
     config_path: Option<&std::path::Path>,
     max_input_bytes: usize,
 ) -> Result<ExitCode> {
-    let cfg = Config::load(config_path).map_err(|e| anyhow!("{e}"))?;
+    let cfg = resolve_config(config_path)?;
     let opts = cfg.fmt_options().clone().with_mode(args.mode.into());
     let check = args.check || force_check;
 
@@ -434,7 +438,7 @@ fn run_lint(
             .context("configure rayon thread pool")?;
     }
 
-    let cfg = Config::load(config_path).map_err(|e| anyhow!("{e}"))?;
+    let cfg = resolve_config(config_path)?;
     let rules_spec = args.rules.as_deref().unwrap_or_else(|| cfg.rules_spec());
     let mut rules = parse_rules_spec(rules_spec)?;
     apply_config_to_rules(&mut rules, &cfg)?;
@@ -548,6 +552,19 @@ fn run_lint(
     } else {
         Ok(ExitCode::SUCCESS)
     }
+}
+
+/// Resolve the configuration: explicit `--config PATH` if given, else
+/// walk up from CWD. Errors from either path mention the file involved.
+fn resolve_config(explicit: Option<&std::path::Path>) -> Result<Config> {
+    let cfg = match explicit {
+        Some(p) => Config::load_explicit(p),
+        None => {
+            let cwd = std::env::current_dir().context("read current directory")?;
+            Config::discover(&cwd)
+        }
+    };
+    cfg.map_err(|e| anyhow!("{e}"))
 }
 
 /// Apply config-time rule modifications: extend `info-string-typo`'s

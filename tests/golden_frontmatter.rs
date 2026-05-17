@@ -20,7 +20,7 @@ fn opts_for(stem: &str) -> FmtOptions {
         let dir = tempfile::tempdir().unwrap_or_else(|e| panic!("tempdir: {e}"));
         let path = dir.path().join("mdwright.toml");
         std::fs::write(&path, "[fmt.frontmatter]\npreserve = false\n").unwrap_or_else(|e| panic!("write: {e}"));
-        let cfg = Config::load(Some(&path)).unwrap_or_else(|e| panic!("load config: {e}"));
+        let cfg = Config::load_explicit(&path).unwrap_or_else(|e| panic!("load config: {e}"));
         cfg.fmt_options().clone()
     } else {
         FmtOptions::default()

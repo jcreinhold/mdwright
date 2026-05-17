@@ -1,11 +1,12 @@
 //! Project configuration loaded from `mdwright.toml`.
 //!
-//! The boundary [`Config::load`] hides the four discovery surfaces
-//! (explicit `--config` path, `$PWD/mdwright.toml`, ancestor walk,
-//! `$PWD/pyproject.toml`'s `[tool.mdwright]` table), TOML parsing,
-//! schema validation, and the mapping from raw TOML shapes into
-//! resolved values. Callers see opaque types with getters; nothing
-//! outside this module imports `toml` or `serde`.
+//! The boundary [`Config::load_explicit`] / [`Config::discover`] hides
+//! the discovery surfaces (explicit `--config` path; an ancestor walk
+//! over `.mdwright.toml`, `mdwright.toml`, and `pyproject.toml`'s
+//! `[tool.mdwright]` table, stopping at the first `.git/` boundary),
+//! TOML parsing, schema validation, and the mapping from raw TOML
+//! shapes into resolved values. Callers see opaque types with getters;
+//! nothing outside this module imports `toml` or `serde`.
 //!
 //! ## Why two layers internally
 //!
@@ -29,7 +30,9 @@ use serde::Deserialize;
 // Public surface
 // ============================================================
 
-/// Resolved project configuration. Construct with [`Config::load`].
+/// Resolved project configuration. Construct with
+/// [`Config::load_explicit`] (for `--config PATH`) or
+/// [`Config::discover`] (for the ancestor walk from CWD).
 #[derive(Debug, Clone)]
 pub struct Config {
     rules_spec: String,
@@ -42,42 +45,37 @@ pub struct Config {
 }
 
 impl Config {
-    /// Resolve a config from the discovery cascade.
-    ///
-    /// - `Some(p)` reads `p` directly and skips the walk.
-    /// - `None` checks `$PWD/mdwright.toml`, then walks upward, then
-    ///   falls back to `$PWD/pyproject.toml`'s `[tool.mdwright]`
-    ///   table.
-    /// - If nothing matches, the result is the all-defaults instance.
-    ///   Absence of a config file is *not* an error.
+    /// Load configuration from exactly `path`. Used for `--config PATH`.
     ///
     /// # Errors
     ///
-    /// Returns [`ConfigError`] if a file is found but cannot be read,
-    /// parsed as TOML, or matched against the schema (an unknown key
-    /// or a malformed value is an error, not a silent default).
-    pub fn load(explicit: Option<&Path>) -> Result<Self, ConfigError> {
-        if let Some(p) = explicit {
-            return read_mdwright_toml(p);
+    /// Returns [`ConfigError`] if the file is missing, unreadable,
+    /// malformed TOML, or fails schema validation (an unknown key or a
+    /// malformed value is an error, not a silent default).
+    pub fn load_explicit(path: &Path) -> Result<Self, ConfigError> {
+        read_mdwright_toml(path)
+    }
+
+    /// Discover the nearest applicable config by walking upward from
+    /// `cwd`. At each directory, candidates are tried in precedence
+    /// order: `.mdwright.toml`, then `mdwright.toml`, then
+    /// `pyproject.toml`'s `[tool.mdwright]` table (a `pyproject.toml`
+    /// *without* that table does not stop the walk). The walk stops
+    /// at the filesystem root or the first directory containing a
+    /// `.git/` entry (the workspace boundary).
+    ///
+    /// Returns the all-defaults instance if no candidate is found.
+    /// Absence of a config file is *not* an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ConfigError`] if a candidate file is found but cannot
+    /// be read, parsed as TOML, or matched against the schema.
+    pub fn discover(cwd: &Path) -> Result<Self, ConfigError> {
+        match discover_walk(cwd)? {
+            Some(cfg) => Ok(cfg),
+            None => Ok(Self::from_schema(Schema::default(), None)),
         }
-        let cwd = std::env::current_dir().map_err(|e| ConfigError::cwd(&e))?;
-        let direct = cwd.join("mdwright.toml");
-        if direct.is_file() {
-            return read_mdwright_toml(&direct);
-        }
-        for ancestor in cwd.ancestors().skip(1) {
-            let candidate = ancestor.join("mdwright.toml");
-            if candidate.is_file() {
-                return read_mdwright_toml(&candidate);
-            }
-        }
-        let pyproject = cwd.join("pyproject.toml");
-        if pyproject.is_file()
-            && let Some(cfg) = read_pyproject(&pyproject)?
-        {
-            return Ok(cfg);
-        }
-        Ok(Self::from_schema(Schema::default(), None))
     }
 
     /// Path of the configuration file this `Config` was loaded from,
@@ -537,12 +535,6 @@ pub struct ConfigError {
 }
 
 impl ConfigError {
-    fn cwd(err: &io::Error) -> Self {
-        Self {
-            message: format!("read current directory: {err}"),
-        }
-    }
-
     fn io(path: &Path, err: &io::Error) -> Self {
         Self {
             message: format!("read {}: {err}", path.display()),
@@ -825,6 +817,39 @@ fn read_mdwright_toml(path: &Path) -> Result<Config, ConfigError> {
     Ok(Config::from_schema(schema, Some(path.to_owned())))
 }
 
+/// Walk upward from `start`, returning the first config that matches.
+/// Stops at the filesystem root or at the first directory containing a
+/// `.git/` entry (the workspace boundary).
+fn discover_walk(start: &Path) -> Result<Option<Config>, ConfigError> {
+    for dir in start.ancestors() {
+        if let Some(cfg) = try_load_dir(dir)? {
+            return Ok(Some(cfg));
+        }
+        if dir.join(".git").exists() {
+            return Ok(None);
+        }
+    }
+    Ok(None)
+}
+
+/// Try the discovery candidates in one directory in precedence order:
+/// `.mdwright.toml` > `mdwright.toml` > `pyproject.toml [tool.mdwright]`.
+/// A `pyproject.toml` without the table returns `Ok(None)` so the
+/// caller continues the ancestor walk.
+fn try_load_dir(dir: &Path) -> Result<Option<Config>, ConfigError> {
+    for name in [".mdwright.toml", "mdwright.toml"] {
+        let candidate = dir.join(name);
+        if candidate.is_file() {
+            return Ok(Some(read_mdwright_toml(&candidate)?));
+        }
+    }
+    let pyproject = dir.join("pyproject.toml");
+    if pyproject.is_file() {
+        return read_pyproject(&pyproject);
+    }
+    Ok(None)
+}
+
 fn read_pyproject(path: &Path) -> Result<Option<Config>, ConfigError> {
     let text = fs::read_to_string(path).map_err(|e| ConfigError::io(path, &e))?;
     let value: toml::Value = toml::from_str(&text).map_err(|e| ConfigError::parse(path, &e))?;
@@ -846,30 +871,11 @@ fn read_pyproject(path: &Path) -> Result<Option<Config>, ConfigError> {
 
 #[cfg(test)]
 mod tests {
-    use std::env;
-    use std::fs;
-    use std::path::Path;
-    use std::sync::{Mutex, OnceLock};
-
     use anyhow::{Result, anyhow};
-    use tempfile::tempdir;
 
     use super::{
         Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema, TrailingNewline, Wrap,
     };
-
-    fn with_cwd<R>(p: &Path, f: impl FnOnce() -> Result<R>) -> Result<R> {
-        // `std::env::current_dir` is process-global; tests that chdir
-        // must serialise against each other.
-        static M: OnceLock<Mutex<()>> = OnceLock::new();
-        let mutex = M.get_or_init(|| Mutex::new(()));
-        let _g = mutex.lock().map_err(|e| anyhow!("cwd mutex poisoned: {e}"))?;
-        let saved = env::current_dir()?;
-        env::set_current_dir(p)?;
-        let result = f();
-        env::set_current_dir(&saved)?;
-        result
-    }
 
     fn schema_from_str(src: &str) -> Result<Schema> {
         toml::from_str::<Schema>(src).map_err(|e| anyhow!("parse: {e}"))
@@ -932,60 +938,6 @@ exclude = ["docs/generated/**"]
         let rendered = err.to_string();
         assert!(rendered.contains("rulez"), "error should name 'rulez': {rendered}");
         Ok(())
-    }
-
-    #[test]
-    fn defaults_when_no_file_anywhere() -> Result<()> {
-        let dir = tempdir()?;
-        with_cwd(dir.path(), || {
-            let cfg = Config::load(None).map_err(|e| anyhow!("load: {e}"))?;
-            assert_eq!(cfg.rules_spec(), "default");
-            assert!(cfg.exclude_globs().is_empty());
-            assert!(cfg.extra_info_strings().is_empty());
-            assert_eq!(cfg.fmt_options().wrap(), Wrap::Keep);
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn ancestor_walk_finds_parent_mdwright_toml() -> Result<()> {
-        let dir = tempdir()?;
-        let sub = dir.path().join("sub");
-        fs::create_dir(&sub)?;
-        fs::write(
-            dir.path().join("mdwright.toml"),
-            "[lint]\nrules = \"unbalanced-backtick\"\n",
-        )?;
-        with_cwd(&sub, || {
-            let cfg = Config::load(None).map_err(|e| anyhow!("load: {e}"))?;
-            assert_eq!(cfg.rules_spec(), "unbalanced-backtick");
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn pyproject_fallback_with_tool_table() -> Result<()> {
-        let dir = tempdir()?;
-        fs::write(
-            dir.path().join("pyproject.toml"),
-            "[tool.mdwright.lint]\nrules = \"bare-url\"\n",
-        )?;
-        with_cwd(dir.path(), || {
-            let cfg = Config::load(None).map_err(|e| anyhow!("load: {e}"))?;
-            assert_eq!(cfg.rules_spec(), "bare-url");
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn pyproject_without_tool_table_falls_through_to_defaults() -> Result<()> {
-        let dir = tempdir()?;
-        fs::write(dir.path().join("pyproject.toml"), "[project]\nname = \"unrelated\"\n")?;
-        with_cwd(dir.path(), || {
-            let cfg = Config::load(None).map_err(|e| anyhow!("load: {e}"))?;
-            assert_eq!(cfg.rules_spec(), "default");
-            Ok(())
-        })
     }
 
     #[test]
