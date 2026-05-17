@@ -41,7 +41,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use mdwright::{
     Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LineIndex, LintOptions, RuleSet, Severity,
-    Snippet, discover_markdown, stdlib,
+    Snippet, discover_markdown, rule_doc_url, stdlib,
 };
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -214,7 +214,7 @@ enum OutputFormat {
     Pretty,
     /// `file:line:col: rule: message` per line.
     Compact,
-    /// JSON Lines, v2 schema. See `docs/diagnostic-schema.md`.
+    /// JSON Lines, v2 schema. See `docs/src/reference/diagnostic-schema.md`.
     Json,
     /// JSON Lines, v1 schema. Deprecated; emits a deprecation
     /// warning on stderr. Will be removed in a future release.
@@ -273,6 +273,7 @@ fn run_explain(name: &str) -> Result<ExitCode> {
             writeln!(out, "{}: {}\n", rule.name(), rule.description())?;
             writeln!(out, "{body}")?;
         }
+        writeln!(out, "\nSee: {}", rule_doc_url(rule.name()))?;
         return Ok(ExitCode::SUCCESS);
     }
 
@@ -1068,7 +1069,7 @@ fn emit_json_v2<W: Write>(
         let rule_desc = stdlib::by_name(rule_name)
             .map(|r| r.description().to_owned())
             .unwrap_or_default();
-        let url = format!("docs/rules/{rule_name}.md");
+        let url = rule_doc_url(rule_name);
         let record = JsonV2Record {
             schema_version: 2,
             path,

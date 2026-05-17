@@ -6,6 +6,32 @@ use std::ops::Range;
 use crate::document::Document;
 use crate::line_index::LineIndex;
 
+/// Published base URL of the mdwright documentation site.
+///
+/// Used by the JSON v2 emitter to fill the `rule.url` field and by
+/// `mdwright explain` to print a `See: <url>` cross-link. Override
+/// with the `MDWRIGHT_DOCS_URL` environment variable when previewing
+/// the site locally (e.g. `mdbook serve` on `http://localhost:3000`).
+pub const DOCS_URL_DEFAULT: &str = "https://jcreinhold.github.io/mdwright";
+
+/// Resolve the documentation site's base URL. Honours
+/// `MDWRIGHT_DOCS_URL` if set; otherwise returns [`DOCS_URL_DEFAULT`].
+/// The returned value has no trailing slash.
+#[must_use]
+pub fn docs_url() -> Cow<'static, str> {
+    match std::env::var("MDWRIGHT_DOCS_URL") {
+        Ok(s) => Cow::Owned(s.trim_end_matches('/').to_owned()),
+        Err(_) => Cow::Borrowed(DOCS_URL_DEFAULT),
+    }
+}
+
+/// Build the published URL of a rule's documentation page. Math rules
+/// preserve their `math/` prefix; the rendered file is `<name>.html`.
+#[must_use]
+pub fn rule_doc_url(rule_name: &str) -> String {
+    format!("{}/rules/{rule_name}.html", docs_url())
+}
+
 /// Diagnostic severity for serialised output.
 ///
 /// `Error` is the default for non-advisory rules; `Advisory` reflects

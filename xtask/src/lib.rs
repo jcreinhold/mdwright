@@ -1,4 +1,4 @@
-//! Generator for `docs/rules/<name>.md` and `docs/rules/index.md`.
+//! Generator for `docs/src/rules/<name>.md` and `docs/src/rules/index.md`.
 //!
 //! The library has two entry points:
 //!
@@ -17,10 +17,11 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use mdwright::{LintRule, RuleSet};
 
+pub mod cli_docs;
 pub mod since;
 
 /// Workspace-relative path to the per-rule docs directory.
-pub const RULES_DIR: &str = "docs/rules";
+pub const RULES_DIR: &str = "docs/src/rules";
 
 /// One drifted file: its repo-relative path and the expected
 /// contents. Returned by [`check`].
@@ -30,7 +31,7 @@ pub struct Drift {
     pub expected: String,
 }
 
-/// Compose the expected contents of `docs/rules/<name>.md` for one
+/// Compose the expected contents of `docs/src/rules/<name>.md` for one
 /// rule. The body is `frontmatter + "\n# <name>\n\n<description>\n\n
 /// <explain>"`. If `explain()` is empty (third-party rules), the
 /// body falls back to a stub directing the user at `list-rules`.
@@ -65,7 +66,7 @@ pub fn page_for(rule: &dyn LintRule) -> String {
     )
 }
 
-/// Compose the expected contents of `docs/rules/index.md` — one row
+/// Compose the expected contents of `docs/src/rules/index.md` — one row
 /// per stdlib rule with its description and a link to the page.
 #[must_use]
 pub fn index_page(rules: &RuleSet) -> String {
@@ -94,7 +95,7 @@ fn yes_no(b: bool) -> &'static str {
     if b { "yes" } else { "no" }
 }
 
-/// Relative path of `<name>.md` from inside `docs/rules/`.
+/// Relative path of `<name>.md` from inside `docs/src/rules/`.
 fn page_path_relative(name: &str) -> String {
     format!("{name}.md")
 }

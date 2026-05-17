@@ -23,12 +23,12 @@ numbers below are a snapshot of the current main branch.
 
 ## Coverage
 
-| Bucket                 | Examples |
-| ---------------------- | -------- |
-| Spec examples total    | 672      |
-| Matching               | 615      |
-| Editorial deviations   | 35       |
-| Tracked regressions    | 22       |
+| Bucket               | Examples |
+| -------------------- | -------- |
+| Spec examples total  | 672      |
+| Matching             | 615      |
+| Editorial deviations | 35       |
+| Tracked regressions  | 22       |
 
 A *case* may fail more than one comparison kind (`html`, `ast`,
 `idempotence`); the snapshot file is keyed by `(case, kind)` and
@@ -73,15 +73,15 @@ snapshot as a tracked regression.
 Counts below are `(case, kind)` failures from
 `tests/gfm-spec/snapshot.txt`.
 
-| Section                          | Spec ref       | Failures |
-| -------------------------------- | -------------- | -------- |
-| Emphasis and strong emphasis     | CM 0.30 §6.2   | 16       |
-| HTML blocks                      | CM 0.30 §4.6   | 8        |
-| Link reference definitions       | CM 0.30 §4.7   | 4        |
-| Lists                            | CM 0.30 §5.3   | 4        |
-| Thematic breaks                  | CM 0.30 §4.1   | 1        |
-| List items                       | CM 0.30 §5.2   | 1        |
-| Task list items (extension)      | GFM §5.3       | 1        |
+| Section                      | Spec ref     | Failures |
+| ---------------------------- | ------------ | -------- |
+| Emphasis and strong emphasis | CM 0.30 §6.2 | 16       |
+| HTML blocks                  | CM 0.30 §4.6 | 8        |
+| Link reference definitions   | CM 0.30 §4.7 | 4        |
+| Lists                        | CM 0.30 §5.3 | 4        |
+| Thematic breaks              | CM 0.30 §4.1 | 1        |
+| List items                   | CM 0.30 §5.2 | 1        |
+| Task list items (extension)  | GFM §5.3     | 1        |
 
 By comparison kind: 13 HTML mismatches, 13 AST mismatches,
 9 idempotence failures.

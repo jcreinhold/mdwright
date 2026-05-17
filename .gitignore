@@ -10,3 +10,6 @@
 /fuzz/corpus/
 /fuzz/artifacts/
 /fuzz/Cargo.lock
+
+# mdBook output — built site, not source.
+/docs/book/

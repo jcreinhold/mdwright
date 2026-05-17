@@ -72,11 +72,11 @@ fn v2_record_shape() {
         for k in ["name", "description", "url"] {
             assert!(rule.contains_key(k), "rule missing `{k}`");
         }
-        assert!(
-            rule["url"].as_str().unwrap_or("").starts_with("docs/rules/"),
-            "rule.url not under docs/rules/: {}",
-            rule["url"]
-        );
+        let url = rule["url"].as_str().unwrap_or("");
+        let looks_published = url.starts_with("https://")
+            && url.contains("/rules/")
+            && std::path::Path::new(url).extension().is_some_and(|e| e == "html");
+        assert!(looks_published, "rule.url should be a published-site URL: {url}");
 
         let source = obj["source"].as_object().expect("source object");
         for k in ["line", "column", "span_start", "span_end", "snippet"] {

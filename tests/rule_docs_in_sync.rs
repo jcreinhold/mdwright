@@ -4,9 +4,9 @@
     reason = "test harness; assertions surface as panics"
 )]
 
-//! CI gate: `docs/rules/<name>.md` and `docs/rules/index.md` must
-//! match what `cargo xtask doc-rules` produces from the current rule
-//! metadata. Drift fails the build; fix by running the xtask.
+//! CI gate: `docs/src/rules/<name>.md` and `docs/src/rules/index.md`
+//! must match what `cargo xtask doc-rules` produces from the current
+//! rule metadata. Drift fails the build; fix by running the xtask.
 
 use std::path::PathBuf;
 

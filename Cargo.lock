@@ -547,6 +547,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "unicode-width",
+ "walkdir",
  "xtask",
 ]
 

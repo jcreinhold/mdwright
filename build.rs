@@ -218,7 +218,7 @@ fn render_section(out: &mut String, heading: &str, prefix: &str) {
 
 fn main() -> std::io::Result<()> {
     let body = render_configuration_md();
-    let path = std::path::Path::new("docs/configuration.md");
+    let path = std::path::Path::new("docs/src/configuration.md");
     let current = std::fs::read_to_string(path).unwrap_or_default();
     if current != body {
         std::fs::write(path, body)?;
