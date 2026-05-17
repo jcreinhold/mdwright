@@ -182,7 +182,7 @@ pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
             }
             Event::Text(s) if code_block_depth > 0 => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::VerbatimText(s.into_string()));
+                out.push(CanonicalEvent::VerbatimText(into_string_lf(s)));
             }
             Event::Text(s) => {
                 pending.get_or_insert_with(String::new).push_str(&s);
@@ -199,23 +199,23 @@ pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
             }
             Event::Code(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::Code(s.into_string()));
+                out.push(CanonicalEvent::Code(into_string_lf(s)));
             }
             Event::InlineMath(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::InlineMath(s.into_string()));
+                out.push(CanonicalEvent::InlineMath(into_string_lf(s)));
             }
             Event::DisplayMath(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::DisplayMath(s.into_string()));
+                out.push(CanonicalEvent::DisplayMath(into_string_lf(s)));
             }
             Event::Html(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::Html(s.into_string()));
+                out.push(CanonicalEvent::Html(into_string_lf(s)));
             }
             Event::InlineHtml(s) => {
                 flush(&mut pending, &mut out);
-                out.push(CanonicalEvent::InlineHtml(s.into_string()));
+                out.push(CanonicalEvent::InlineHtml(into_string_lf(s)));
             }
             Event::FootnoteReference(s) => {
                 flush(&mut pending, &mut out);
@@ -237,6 +237,24 @@ pub(crate) fn canonical_events(source: &str) -> Vec<CanonicalEvent> {
 
 fn cow_to_string(c: CowStr<'_>) -> String {
     c.into_string()
+}
+
+/// Convert a `CowStr` to an owned `String` with CRLF / CR collapsed
+/// to LF.
+///
+/// Pulldown normalises line endings for prose text (CM §2.2 — CR,
+/// CRLF, LF are equivalent) but preserves the raw bytes inside
+/// `Html`, `InlineHtml`, code blocks, and math regions. The
+/// formatter, in contrast, runs every output through
+/// `normalize_line_endings_lf`, so a source `<?\r` (Html with CR)
+/// emits as `<?\n` (Html with LF). Without this collapse the
+/// canonical event comparator treats the two byte streams as
+/// distinct, generating a spurious semantic-divergence report even
+/// though CM considers them equivalent.
+fn into_string_lf(s: CowStr<'_>) -> String {
+    let mut s = s.into_string();
+    super::normalize_line_endings_lf(&mut s);
+    s
 }
 
 #[allow(clippy::too_many_lines, reason = "one-to-one variant mapping")]
