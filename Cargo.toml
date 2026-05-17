@@ -97,14 +97,14 @@ pedantic = { level = "warn", priority = -4 }
 style = { level = "warn", priority = -3 }
 
 # --- safety & reliability ---
-arithmetic_side_effects = "warn"
+arithmetic_side_effects = "deny"
 exit = "warn"
 expect_used = "deny"
 get_unwrap = "warn"
 indexing_slicing = "deny"
 mem_forget = "deny"
 mutex_integer = "warn"
-panic = "warn"
+panic = "deny"
 ptr_as_ptr = "warn"
 rc_mutex = "warn"
 todo = "warn"
