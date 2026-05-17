@@ -469,35 +469,65 @@ fn first_child_emphasis_delim(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<Emphasi
     }))
 }
 
-/// Source bytes immediately before / after the node's `raw_range`,
-/// truncated to a single codepoint each side. Pulldown's emphasis-
-/// flanking rule (CM §6.2) only inspects one character on each side
-/// of a delimiter run, so a single neighbouring codepoint is enough
-/// to reach the same decision.
+/// Source bytes inside the enclosing block, split around the node's
+/// `raw_range`.
+///
+/// Pulldown's emphasis pairing (CM §6.2 / §6.3) decides whether two
+/// `_`-or-`*` runs match by walking the *whole* block, not just the
+/// neighbours of one candidate delim. A single-codepoint context
+/// (the original `flank_ctx_for`) hid two distinct bug classes:
+///
+/// 1. The closing delimiter's flanking depends on bytes *past* the
+///    next codepoint when adjacent source bytes extend the run
+///    (`fuzz_emphasis_right_neighbour_run.in`).
+/// 2. Unpaired `_` / `*` text bytes earlier or later in the same
+///    block can pair with the formatter's chosen delim and form a
+///    *new* outer emphasis the source never had
+///    (`fuzz_emphasis_block_outer_pair.in`).
+///
+/// Passing the entire enclosing-block slice on each side lets
+/// `parses_as_single_run` reach the same pairing decision pulldown
+/// will reach in the real document. The companion fix in
+/// `format::emit_safety::parses_with_outer_run_at` tracks wrap-depth
+/// before the target offset so a target nested inside an outer
+/// match-by-coincidence is rejected.
 fn flank_ctx_for<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> FlankCtx<'a> {
     let Some(node) = ctx.tree.node(id) else {
         return FlankCtx::default();
     };
     let range = &node.raw_range;
-    let left = preceding_codepoint(ctx.source, range.start);
-    let right = following_codepoint(ctx.source, range.end);
+    let block_range = enclosing_block_range(ctx, id).unwrap_or_else(|| range.clone());
+    let left = ctx.source.get(block_range.start..range.start);
+    let right = ctx.source.get(range.end..block_range.end);
     FlankCtx { left, right }
 }
 
-/// `&source[..start]`'s last codepoint, if any. Returns `None` at
-/// document start.
-fn preceding_codepoint(source: &str, start: usize) -> Option<&str> {
-    let prefix = source.get(..start)?;
-    let mut iter = prefix.char_indices();
-    iter.next_back().map(|(i, _)| &prefix[i..])
+/// Walk up the tree from `id` to the first ancestor whose `NodeKind`
+/// names a *block container* whose raw bytes form a single CM
+/// container-block pairing context (paragraph, heading, table cell,
+/// link/image body — anything that emphasis pairing cannot escape).
+/// Returns that ancestor's `raw_range`; `None` only when the walk
+/// runs out of ancestors before finding such a container.
+fn enclosing_block_range(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<std::ops::Range<usize>> {
+    let mut cur = id;
+    while let Some(parent) = ctx.tree.parent(cur) {
+        let node = ctx.tree.node(parent)?;
+        if is_pairing_boundary(&node.kind) {
+            return Some(node.raw_range.clone());
+        }
+        cur = parent;
+    }
+    None
 }
 
-/// `&source[end..]`'s first codepoint, if any. Returns `None` at
-/// document end.
-fn following_codepoint(source: &str, end: usize) -> Option<&str> {
-    let suffix = source.get(end..)?;
-    let mut iter = suffix.char_indices();
-    let first = iter.next()?;
-    let next_offset = iter.next().map_or(suffix.len(), |(i, _)| i);
-    Some(&suffix[first.0..next_offset])
+fn is_pairing_boundary(kind: &NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::Paragraph
+            | NodeKind::Heading { .. }
+            | NodeKind::TableCell
+            | NodeKind::Link(_)
+            | NodeKind::Image(_)
+            | NodeKind::FootnoteDefinition { .. }
+    )
 }

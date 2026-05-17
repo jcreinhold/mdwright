@@ -78,6 +78,17 @@ fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_le
     let target_open = skip_left;
     let target_close = skip_left.saturating_add(run_len);
 
+    // `pre_wrap_depth` tracks Emphasis/Strong/Link/Image containers
+    // already open at the moment a candidate `Start(target_kind)`
+    // fires. If any are open, the candidate is *nested* inside an
+    // outer wrap that the wider input bytes formed — accepting it
+    // would lie about the wrap's top-levelness in the real document.
+    // See `fuzz_emphasis_block_outer_pair.in` for the bug class.
+    //
+    // `depth` (the post-`found_open` counter) keeps its old meaning:
+    // nested-depth inside the target so we know which `End` closes
+    // the run we're matching.
+    let mut pre_wrap_depth: u32 = 0;
     let mut depth: u32 = 0;
     let mut found_open = false;
     for (ev, range) in parser {
@@ -85,11 +96,11 @@ fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_le
             Event::Start(ref t)
                 if !found_open
                     && range.start == target_open
+                    && pre_wrap_depth == 0
                     && std::mem::discriminant(t) == std::mem::discriminant(&open_tag) =>
             {
                 found_open = true;
             }
-            Event::Start(_) if found_open => depth = depth.saturating_add(1),
             Event::End(ref t)
                 if found_open
                     && depth == 0
@@ -98,6 +109,17 @@ fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_le
             {
                 return true;
             }
+            Event::Start(ref t) if !found_open => {
+                if is_inline_wrap_start(t) {
+                    pre_wrap_depth = pre_wrap_depth.saturating_add(1);
+                }
+            }
+            Event::End(t) if !found_open => {
+                if is_inline_wrap_end(t) {
+                    pre_wrap_depth = pre_wrap_depth.saturating_sub(1);
+                }
+            }
+            Event::Start(_) if found_open => depth = depth.saturating_add(1),
             Event::End(_) if found_open => depth = depth.saturating_sub(1),
             Event::Start(_)
             | Event::End(_)
@@ -115,6 +137,20 @@ fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_le
         }
     }
     false
+}
+
+fn is_inline_wrap_start(tag: &Tag<'_>) -> bool {
+    matches!(
+        tag,
+        Tag::Emphasis | Tag::Strong | Tag::Link { .. } | Tag::Image { .. }
+    )
+}
+
+fn is_inline_wrap_end(tag: TagEnd) -> bool {
+    matches!(
+        tag,
+        TagEnd::Emphasis | TagEnd::Strong | TagEnd::Link | TagEnd::Image
+    )
 }
 
 /// Legacy isolation-only validation — kept only for the unit tests in
