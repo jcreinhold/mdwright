@@ -3,21 +3,12 @@
 #   MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot
 # Allowlisted (editorial deviation) cases are filtered out — see allowlist.toml.
 31    idempotence Thematic breaks
-120   html        HTML blocks
-120   ast         HTML blocks
-152   html        HTML blocks
-152   ast         HTML blocks
-153   html        HTML blocks
-153   ast         HTML blocks
-160   html        HTML blocks
-160   ast         HTML blocks
 169   html        Link reference definitions
 169   ast         Link reference definitions
 171   html        Link reference definitions
 171   ast         Link reference definitions
 235   idempotence List items
 280   idempotence Task list items (extension)
-281   idempotence Lists
 293   idempotence Lists
 298   html        Lists
 298   ast         Lists
