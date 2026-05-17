@@ -21,7 +21,7 @@ impl LintRule for DuplicateLinkLabel {
         "Two `[label]:` definitions with the same label."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let mut seen: HashMap<String, usize> = HashMap::new();
         for def in doc.link_defs() {
             let key = def.label.to_ascii_lowercase();

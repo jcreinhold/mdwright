@@ -21,7 +21,7 @@ impl LintRule for UnbalancedBacktick {
         "Backtick in prose that could not be paired with a closing fence."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for chunk in doc.prose_chunks() {
             for (idx, _) in chunk.text.match_indices('`') {
                 let message = "unclosed inline code span — pulldown-cmark could not pair \

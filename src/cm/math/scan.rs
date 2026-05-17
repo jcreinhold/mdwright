@@ -69,10 +69,10 @@ impl Default for MathConfig {
 #[tracing::instrument(level = "debug", skip_all, fields(len = source.len()))]
 pub(crate) fn scan_math_regions(
     source: &str,
-    inline_codes: &[InlineCode<'_>],
-    code_blocks: &[CodeBlock<'_>],
-    html_blocks: &[HtmlBlock<'_>],
-    inline_html: &[InlineHtml<'_>],
+    inline_codes: &[InlineCode],
+    code_blocks: &[CodeBlock],
+    html_blocks: &[HtmlBlock],
+    inline_html: &[InlineHtml],
     cfg: MathConfig,
 ) -> (Vec<MathRegion>, Vec<MathError>) {
     let exclusions = build_exclusions(inline_codes, code_blocks, html_blocks, inline_html);
@@ -194,10 +194,10 @@ fn record_brace_errors(
 /// Sorted, merged byte ranges where math regions cannot start or
 /// extend through.
 fn build_exclusions(
-    inline_codes: &[InlineCode<'_>],
-    code_blocks: &[CodeBlock<'_>],
-    html_blocks: &[HtmlBlock<'_>],
-    inline_html: &[InlineHtml<'_>],
+    inline_codes: &[InlineCode],
+    code_blocks: &[CodeBlock],
+    html_blocks: &[HtmlBlock],
+    inline_html: &[InlineHtml],
 ) -> Vec<Range<usize>> {
     let cap = inline_codes
         .len()

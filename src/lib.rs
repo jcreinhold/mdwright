@@ -36,7 +36,7 @@
 //! impl LintRule for NoBrTag {
 //!     fn name(&self) -> &str { "no-br-tag" }
 //!     fn description(&self) -> &str { "Disallow <br> tags in prose." }
-//!     fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+//!     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
 //!         for h in doc.inline_html() {
 //!             if h.text.eq_ignore_ascii_case("<br>") {
 //!                 if let Some(d) = Diagnostic::at(
@@ -159,7 +159,7 @@ mod tests {
             fn description(&self) -> &str {
                 ""
             }
-            fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+            fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
                 if doc.prose_chunks().iter().any(|c| c.text.contains("foo"))
                     && let Some(d) = Diagnostic::at(doc, 0, 0..1, "found foo".to_owned(), None)
                 {

@@ -21,7 +21,7 @@ impl LintRule for TrailingWhitespace {
         "Trailing whitespace at end of line."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let source = doc.source();
         let code_blocks = doc.code_blocks();
         let mut line_start: usize = 0;

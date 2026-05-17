@@ -90,11 +90,12 @@ impl Default for LintOptions {
 /// A parsed Markdown document. Construct with [`Document::parse`];
 /// query with the accessors; lint with [`Document::lint`].
 #[derive(Debug)]
-pub struct Document<'a> {
-    ir: Ir<'a>,
+pub struct Document {
+    source: String,
+    ir: Ir,
 }
 
-impl<'a> Document<'a> {
+impl Document {
     /// Parse `source` into the IR. Infallible — pulldown-cmark
     /// recognises every byte sequence as Markdown.
     ///
@@ -104,16 +105,16 @@ impl<'a> Document<'a> {
     /// 10 MB).
     #[must_use]
     #[tracing::instrument(level = "info", name = "Document::parse", skip(source), fields(len = source.len()))]
-    pub fn parse(source: &'a str) -> Self {
-        Self {
-            ir: Ir::parse(source),
-        }
+    pub fn parse(source: &str) -> Self {
+        let owned = source.to_owned();
+        let ir = Ir::parse(&owned);
+        Self { source: owned, ir }
     }
 
     /// The full source string the document was parsed from.
     #[must_use]
-    pub fn source(&self) -> &'a str {
-        self.ir.source
+    pub fn source(&self) -> &str {
+        &self.source
     }
 
     /// Byte-offset → (line, column) translator. Use to construct
@@ -130,14 +131,14 @@ impl<'a> Document<'a> {
     /// preserved. Each chunk is bounded by inline code, inline HTML,
     /// or a soft/hard line break — never crosses a code span.
     #[must_use]
-    pub fn prose_chunks(&self) -> &[TextSlice<'a>] {
+    pub fn prose_chunks(&self) -> &[TextSlice] {
         &self.ir.prose_chunks
     }
 
     /// Inline code spans in source order. `text` excludes the
     /// surrounding backticks; `raw_range` covers them.
     #[must_use]
-    pub fn inline_codes(&self) -> &[InlineCode<'a>] {
+    pub fn inline_codes(&self) -> &[InlineCode] {
         &self.ir.inline_codes
     }
 
@@ -162,25 +163,25 @@ impl<'a> Document<'a> {
 
     /// Fenced and indented code blocks in source order.
     #[must_use]
-    pub fn code_blocks(&self) -> &[CodeBlock<'a>] {
+    pub fn code_blocks(&self) -> &[CodeBlock] {
         &self.ir.code_blocks
     }
 
     /// HTML blocks (`CommonMark` §4.6).
     #[must_use]
-    pub fn html_blocks(&self) -> &[HtmlBlock<'a>] {
+    pub fn html_blocks(&self) -> &[HtmlBlock] {
         &self.ir.html_blocks
     }
 
     /// Inline HTML tags (open, close, self-closing, comment).
     #[must_use]
-    pub fn inline_html(&self) -> &[InlineHtml<'a>] {
+    pub fn inline_html(&self) -> &[InlineHtml] {
         &self.ir.inline_html
     }
 
     /// ATX and setext headings with trimmed text and level.
     #[must_use]
-    pub fn headings(&self) -> &[Heading<'a>] {
+    pub fn headings(&self) -> &[Heading] {
         &self.ir.headings
     }
 
@@ -234,7 +235,7 @@ impl<'a> Document<'a> {
     /// raw slice and a tag for which delimiter (YAML `---` or TOML
     /// `+++`) the source used.
     #[must_use]
-    pub fn frontmatter(&self) -> Option<&Frontmatter<'a>> {
+    pub fn frontmatter(&self) -> Option<&Frontmatter> {
         self.ir.frontmatter.as_ref()
     }
 
@@ -251,7 +252,7 @@ impl<'a> Document<'a> {
     /// [`Document::lint_with`]; exposed publicly so tooling can show
     /// users where their suppressions take effect.
     #[must_use]
-    pub fn suppressions(&self) -> &[Suppression<'a>] {
+    pub fn suppressions(&self) -> &[Suppression] {
         &self.ir.suppressions
     }
 
@@ -291,7 +292,7 @@ impl<'a> Document<'a> {
                     known.push(s);
                 }
             }
-            let (map, unknown) = SuppressionMap::build(&self.ir, &known);
+            let (map, unknown) = SuppressionMap::build(&self.source, &self.ir, &known);
             out.retain(|d| !map.suppresses(&d.rule, &d.span));
             out.extend(unknown);
         }
@@ -315,7 +316,7 @@ impl<'a> Document<'a> {
     #[tracing::instrument(level = "info", name = "Document::format", skip_all, fields(out_len = tracing::field::Empty))]
     pub fn format(&self, opts: &FmtOptions) -> String {
         let out = format::format_document(
-            self.source(),
+            &self.source,
             opts,
             self.tree(),
             self.ir.frontmatter.as_ref(),
@@ -355,13 +356,12 @@ impl<'a> Document<'a> {
         }
     }
 
-    /// Apply every safe fix from `diags` to `source`, returning the
-    /// repaired text and the count of edits applied. Overlapping
-    /// safe fixes resolve right-to-left; the later edit wins.
-    /// A free helper rather than a method because it doesn't need
-    /// parser state.
+    /// Apply every safe fix from `diags` to this document's source,
+    /// returning the repaired text and the count of edits applied.
+    /// Overlapping safe fixes resolve right-to-left; the later edit
+    /// wins.
     #[must_use]
-    pub fn apply_safe_fixes(source: &str, diags: &[Diagnostic]) -> (String, usize) {
+    pub fn apply_safe_fixes(&self, diags: &[Diagnostic]) -> (String, usize) {
         let mut edits: Vec<(Range<usize>, &str)> = diags
             .iter()
             .filter_map(|d| {
@@ -372,7 +372,7 @@ impl<'a> Document<'a> {
             })
             .collect();
         edits.sort_by_key(|e| std::cmp::Reverse(e.0.start));
-        let mut out = source.to_owned();
+        let mut out = self.source.clone();
         let mut applied = 0usize;
         let mut last_start = usize::MAX;
         for (range, replacement) in edits {

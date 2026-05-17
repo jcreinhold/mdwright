@@ -25,7 +25,7 @@ impl LintRule for StrayDollar {
         false
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for chunk in doc.prose_chunks() {
             for (idx, _) in chunk.text.match_indices('$') {
                 let message = "stray `$` — this project uses Unicode math in inline code \

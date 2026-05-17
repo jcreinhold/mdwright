@@ -26,7 +26,7 @@ impl LintRule for MathUnbalancedDelim {
         "TeX-style math open delimiter (`\\[`, `\\(`, `$$`, `$`) with no matching close."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for err in doc.math_errors() {
             let MathError::UnbalancedDelim { delim, range } = err else {
                 continue;

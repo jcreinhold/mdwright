@@ -22,8 +22,8 @@ pub(crate) struct PrettyCtx<'a> {
     pub source: &'a str,
     pub opts: &'a FmtOptions,
     pub tree: &'a Tree,
-    pub frontmatter: Option<&'a Frontmatter<'a>>,
-    pub admonitions: &'a [AdmonitionRegion<'a>],
+    pub frontmatter: Option<&'a Frontmatter>,
+    pub admonitions: &'a [AdmonitionRegion],
     /// Math regions in source order. Any block whose `raw_range`
     /// overlaps a region is emitted byte-verbatim from `source`,
     /// short-circuiting normal IR-driven emission. This keeps

@@ -31,7 +31,7 @@ impl LintRule for OrphanReferenceLink {
         "Reference-style link with no matching `[label]:` definition."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let defs: HashSet<String> = doc
             .link_defs()
             .iter()
@@ -39,7 +39,7 @@ impl LintRule for OrphanReferenceLink {
             .collect();
 
         for chunk in doc.prose_chunks() {
-            for cap in pattern().captures_iter(chunk.text) {
+            for cap in pattern().captures_iter(&chunk.text) {
                 let Some(m) = cap.get(0) else { continue };
                 let Some(text_match) = cap.name("text") else {
                     continue;

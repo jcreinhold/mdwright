@@ -39,9 +39,9 @@ impl LintRule for EscapedEmphasis {
         false
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for chunk in doc.prose_chunks() {
-            for m in pattern().find_iter(chunk.text) {
+            for m in pattern().find_iter(&chunk.text) {
                 let target = m.as_str().as_bytes().get(1).copied();
                 let (fix_char, label) = match target {
                     Some(b'_') => ("*", r"\_"),

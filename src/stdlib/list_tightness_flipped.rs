@@ -40,7 +40,7 @@ impl LintRule for ListTightnessFlipped {
         true
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let source = doc.source();
         for (group, lb) in doc.typed_list_blocks() {
             let typed_tight = matches!(lb.tightness(), Tightness::Tight);

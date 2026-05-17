@@ -32,7 +32,7 @@ impl LintRule for DuplicateHeading {
         true
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         // `path[i]` is the currently-open heading at level (i+1), or
         // None if no heading at that level is currently open. When a
         // heading at level L is seen, levels >= L are closed.

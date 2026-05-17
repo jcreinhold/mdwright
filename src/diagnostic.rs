@@ -52,7 +52,7 @@ impl Diagnostic {
     /// containing rule's `check` returns.
     #[must_use]
     pub fn at(
-        doc: &Document<'_>,
+        doc: &Document,
         byte_offset: usize,
         local: Range<usize>,
         message: String,

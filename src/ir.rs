@@ -34,8 +34,8 @@ use crate::util::regex::compile_static;
 /// A borrowed slice of source bytes plus its absolute byte range.
 /// The minimal record every rule needs to emit a diagnostic.
 #[derive(Clone, Debug)]
-pub struct TextSlice<'a> {
-    pub text: &'a str,
+pub struct TextSlice {
+    pub text: String,
     pub byte_offset: usize,
     pub raw_range: Range<usize>,
 }
@@ -43,8 +43,8 @@ pub struct TextSlice<'a> {
 /// One inline code span. `text` excludes the surrounding backticks;
 /// `raw_range` covers them.
 #[derive(Clone, Debug)]
-pub struct InlineCode<'a> {
-    pub text: &'a str,
+pub struct InlineCode {
+    pub text: String,
     pub byte_offset: usize,
     pub raw_range: Range<usize>,
 }
@@ -55,18 +55,18 @@ pub struct InlineCode<'a> {
 /// whole block including fences. `info` is the fence info string
 /// (the language tag); empty for indented blocks.
 #[derive(Clone, Debug)]
-pub struct CodeBlock<'a> {
-    pub text: &'a str,
+pub struct CodeBlock {
+    pub text: String,
     pub byte_offset: usize,
     pub raw_range: Range<usize>,
-    pub info: Cow<'a, str>,
+    pub info: String,
     pub fenced: bool,
 }
 
 /// One HTML block (`CommonMark` §4.6).
 #[derive(Clone, Debug)]
-pub struct HtmlBlock<'a> {
-    pub text: &'a str,
+pub struct HtmlBlock {
+    pub text: String,
     pub byte_offset: usize,
     pub raw_range: Range<usize>,
 }
@@ -74,8 +74,8 @@ pub struct HtmlBlock<'a> {
 /// One inline HTML tag (open, close, self-closing, comment, etc.)
 /// embedded in a paragraph.
 #[derive(Clone, Debug)]
-pub struct InlineHtml<'a> {
-    pub text: &'a str,
+pub struct InlineHtml {
+    pub text: String,
     pub byte_offset: usize,
     pub raw_range: Range<usize>,
 }
@@ -84,8 +84,8 @@ pub struct InlineHtml<'a> {
 /// (`#` markers and trailing whitespace stripped); `raw_range` covers
 /// the whole heading line(s).
 #[derive(Clone, Debug)]
-pub struct Heading<'a> {
-    pub text: &'a str,
+pub struct Heading {
+    pub text: String,
     pub byte_offset: usize,
     pub raw_range: Range<usize>,
     /// 1 through 6 for `H1`..`H6`.
@@ -114,8 +114,8 @@ pub struct ListItem {
 /// tag for which delimiter the source used so the formatter can emit
 /// the same opening and closing markers.
 #[derive(Clone, Debug)]
-pub struct Frontmatter<'a> {
-    pub slice: TextSlice<'a>,
+pub struct Frontmatter {
+    pub slice: TextSlice,
     pub delimiter: FrontmatterDelimiter,
 }
 
@@ -138,8 +138,8 @@ pub struct LinkDef<'a> {
     pub label: &'a str,
     pub dest: &'a str,
     /// Optional title from `"…"`, `'…'`, or `(…)` after the
-    /// destination. Borrowed from the source; surrounding quotes /
-    /// parens are excluded.
+    /// destination. Borrowed from the [`ReferenceTable`]; surrounding
+    /// quotes / parens are excluded.
     pub title: Option<&'a str>,
     pub raw_range: Range<usize>,
 }
@@ -165,12 +165,12 @@ pub struct LinkDef<'a> {
 /// - `<!-- mdwright: disable-all -->` / `<!-- mdwright: enable-all -->`
 ///   — convenience aliases for `disable` / `enable` with no names.
 #[derive(Clone, Debug)]
-pub struct Suppression<'a> {
+pub struct Suppression {
     pub kind: SuppressionKind,
     /// Rule names parsed from the comment body. Empty for the bare
     /// `disable` / `enable` forms and for `disable-all` / `enable-all`;
     /// the suppression map expands empty to "every known rule".
-    pub rules: Vec<&'a str>,
+    pub rules: Vec<String>,
     pub raw_range: Range<usize>,
 }
 
@@ -192,19 +192,18 @@ pub enum AllowScope {
 /// The parsed document. Owned by [`Document`](crate::Document); fields
 /// are `pub(crate)` so the façade can hand out borrowed views.
 #[derive(Debug)]
-pub(crate) struct Ir<'a> {
-    pub(crate) source: &'a str,
-    pub(crate) prose_chunks: Vec<TextSlice<'a>>,
-    pub(crate) inline_codes: Vec<InlineCode<'a>>,
-    pub(crate) code_blocks: Vec<CodeBlock<'a>>,
-    pub(crate) html_blocks: Vec<HtmlBlock<'a>>,
-    pub(crate) inline_html: Vec<InlineHtml<'a>>,
-    pub(crate) headings: Vec<Heading<'a>>,
+pub(crate) struct Ir {
+    pub(crate) prose_chunks: Vec<TextSlice>,
+    pub(crate) inline_codes: Vec<InlineCode>,
+    pub(crate) code_blocks: Vec<CodeBlock>,
+    pub(crate) html_blocks: Vec<HtmlBlock>,
+    pub(crate) inline_html: Vec<InlineHtml>,
+    pub(crate) headings: Vec<Heading>,
     pub(crate) list_groups: Vec<ListGroup>,
     pub(crate) refs: ReferenceTable,
-    pub(crate) suppressions: Vec<Suppression<'a>>,
-    pub(crate) frontmatter: Option<Frontmatter<'a>>,
-    pub(crate) admonitions: Vec<AdmonitionRegion<'a>>,
+    pub(crate) suppressions: Vec<Suppression>,
+    pub(crate) frontmatter: Option<Frontmatter>,
+    pub(crate) admonitions: Vec<AdmonitionRegion>,
     pub(crate) math_regions: Vec<MathRegion>,
     pub(crate) math_errors: Vec<MathError>,
     pub(crate) line_index: LineIndex,
@@ -217,18 +216,18 @@ pub(crate) struct Ir<'a> {
 /// The formatter emits the region's `text` byte-verbatim and skips
 /// the tree nodes whose `raw_range` falls inside `range`.
 #[derive(Clone, Debug)]
-pub(crate) struct AdmonitionRegion<'a> {
+pub(crate) struct AdmonitionRegion {
     pub(crate) range: Range<usize>,
-    pub(crate) text: &'a str,
+    pub(crate) text: String,
 }
 
 use crate::cm::math::MathRegion;
 use crate::cm::math::scan::{MathConfig, scan_math_regions};
 use crate::cm::math::span::MathError;
 
-impl<'a> Ir<'a> {
+impl Ir {
     #[tracing::instrument(level = "info", name = "Ir::parse", skip(source), fields(len = source.len()))]
-    pub(crate) fn parse(source: &'a str) -> Self {
+    pub(crate) fn parse(source: &str) -> Self {
         let line_index = LineIndex::new(source);
         let (fm_end, frontmatter) = split_frontmatter(source);
         let body = source.get(fm_end..).unwrap_or("");
@@ -257,7 +256,7 @@ impl<'a> Ir<'a> {
         // reference table is built from this event stream (pulldown's
         // own §4.7 resolution is authoritative); the flat IR and the
         // tree are then built in lockstep from the same vector.
-        let events: Vec<(Event<'a>, Range<usize>)> = Parser::new_ext(body, opts)
+        let events: Vec<(Event<'_>, Range<usize>)> = Parser::new_ext(body, opts)
             .into_offset_iter()
             .map(|(e, r)| {
                 let abs = r.start.saturating_add(fm_end)..r.end.saturating_add(fm_end);
@@ -284,14 +283,13 @@ impl<'a> Ir<'a> {
             MathConfig::default(),
         );
 
-        let bare_events: Vec<Event<'a>> = events.into_iter().map(|(e, _)| e).collect();
+        let bare_events: Vec<Event<'_>> = events.into_iter().map(|(e, _)| e).collect();
         let refs = build_reference_table(&bare_events, source);
         let suppressions = scan_suppressions(&builder.html_blocks);
         let admonitions = scan_admonitions(source, &builder.code_blocks);
         let tree = tree_builder.finalize(&refs);
 
         Self {
-            source,
             prose_chunks: builder.prose_chunks,
             inline_codes: builder.inline_codes,
             code_blocks: builder.code_blocks,
@@ -326,13 +324,13 @@ struct Builder<'a> {
     /// whether it is ordered, and items collected so far.
     list_stack: Vec<OpenList>,
     /// Stack of open code blocks: `(start_byte, info, fenced)`.
-    code_block_stack: Vec<(usize, Cow<'a, str>, bool)>,
-    prose_chunks: Vec<TextSlice<'a>>,
-    inline_codes: Vec<InlineCode<'a>>,
-    code_blocks: Vec<CodeBlock<'a>>,
-    html_blocks: Vec<HtmlBlock<'a>>,
-    inline_html: Vec<InlineHtml<'a>>,
-    headings: Vec<Heading<'a>>,
+    code_block_stack: Vec<(usize, String, bool)>,
+    prose_chunks: Vec<TextSlice>,
+    inline_codes: Vec<InlineCode>,
+    code_blocks: Vec<CodeBlock>,
+    html_blocks: Vec<HtmlBlock>,
+    inline_html: Vec<InlineHtml>,
+    headings: Vec<Heading>,
     list_groups: Vec<ListGroup>,
 }
 
@@ -344,7 +342,7 @@ struct OpenList {
 
 impl<'a> Builder<'a> {
     #[allow(clippy::wildcard_enum_match_arm)] // many irrelevant Event variants
-    fn handle(&mut self, event: Event<'a>, range: Range<usize>) {
+    fn handle(&mut self, event: Event<'_>, range: Range<usize>) {
         match event {
             Event::Start(tag) => self.start(tag, range),
             Event::End(tag) => self.end(tag, range),
@@ -361,7 +359,7 @@ impl<'a> Builder<'a> {
     }
 
     #[allow(clippy::wildcard_enum_match_arm)] // many irrelevant Tag variants
-    fn start(&mut self, tag: Tag<'a>, range: Range<usize>) {
+    fn start(&mut self, tag: Tag<'_>, range: Range<usize>) {
         match tag {
             Tag::Heading { level, .. } => {
                 self.heading_stack.push((range.start, level as u32));
@@ -369,8 +367,8 @@ impl<'a> Builder<'a> {
             Tag::CodeBlock(kind) => {
                 self.in_code_block = self.in_code_block.saturating_add(1);
                 let (info, fenced) = match kind {
-                    CodeBlockKind::Fenced(s) => (Cow::Owned(s.into_string()), true),
-                    CodeBlockKind::Indented => (Cow::Borrowed(""), false),
+                    CodeBlockKind::Fenced(s) => (s.into_string(), true),
+                    CodeBlockKind::Indented => (String::new(), false),
                 };
                 self.code_block_stack.push((range.start, info, fenced));
             }
@@ -405,7 +403,7 @@ impl<'a> Builder<'a> {
                     let raw = self.source.get(start..end).unwrap_or("");
                     let (trimmed, off) = trim_heading(raw);
                     self.headings.push(Heading {
-                        text: trimmed,
+                        text: trimmed.to_owned(),
                         byte_offset: start.saturating_add(off),
                         raw_range: start..end,
                         level,
@@ -418,7 +416,7 @@ impl<'a> Builder<'a> {
                     let end = range.end;
                     let raw = self.source.get(start..end).unwrap_or("");
                     self.code_blocks.push(CodeBlock {
-                        text: raw,
+                        text: raw.to_owned(),
                         byte_offset: start,
                         raw_range: start..end,
                         info,
@@ -458,7 +456,7 @@ impl<'a> Builder<'a> {
             return;
         };
         self.prose_chunks.push(TextSlice {
-            text,
+            text: text.to_owned(),
             byte_offset: start,
             raw_range: start..end,
         });
@@ -481,7 +479,7 @@ impl<'a> Builder<'a> {
             return;
         };
         self.inline_codes.push(InlineCode {
-            text,
+            text: text.to_owned(),
             byte_offset: content_start,
             raw_range: range,
         });
@@ -492,7 +490,7 @@ impl<'a> Builder<'a> {
             return;
         };
         self.html_blocks.push(HtmlBlock {
-            text,
+            text: text.to_owned(),
             byte_offset: range.start,
             raw_range: range,
         });
@@ -503,7 +501,7 @@ impl<'a> Builder<'a> {
             return;
         };
         self.inline_html.push(InlineHtml {
-            text,
+            text: text.to_owned(),
             byte_offset: range.start,
             raw_range: range,
         });
@@ -566,7 +564,7 @@ fn trim_heading(raw: &str) -> (&str, usize) {
 ///
 /// - `---\n…\n---\n` (or `…\n...\n`) — YAML.
 /// - `+++\n…\n+++\n` — TOML.
-fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter<'_>>) {
+fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter>) {
     let first_line_end = source.find('\n');
     let first_line = first_line_end.map_or(source, |n| source.get(..n).unwrap_or(""));
     let trimmed_first = first_line.trim_end();
@@ -614,7 +612,7 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter<'_>>) {
                 total,
                 Some(Frontmatter {
                     slice: TextSlice {
-                        text,
+                        text: text.to_owned(),
                         byte_offset: 0,
                         raw_range: 0..total,
                     },
@@ -628,7 +626,7 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter<'_>>) {
         source.len(),
         Some(Frontmatter {
             slice: TextSlice {
-                text: source,
+                text: source.to_owned(),
                 byte_offset: 0,
                 raw_range: 0..source.len(),
             },
@@ -697,10 +695,7 @@ fn admonition_header_regex() -> &'static Regex {
 ///
 /// Headers inside a code block (`!!! note` appearing in a code
 /// sample) are skipped via the `code_blocks` exclusion list.
-fn scan_admonitions<'a>(
-    source: &'a str,
-    code_blocks: &[CodeBlock<'a>],
-) -> Vec<AdmonitionRegion<'a>> {
+fn scan_admonitions(source: &str, code_blocks: &[CodeBlock]) -> Vec<AdmonitionRegion> {
     let mut out = Vec::new();
     let line_starts: Vec<usize> = std::iter::once(0)
         .chain(
@@ -763,7 +758,7 @@ fn scan_admonitions<'a>(
             let text = source.get(region_range.clone()).unwrap_or("");
             out.push(AdmonitionRegion {
                 range: region_range,
-                text,
+                text: text.to_owned(),
             });
             // Move past the last consumed line.
             idx = j;
@@ -794,7 +789,7 @@ fn suppression_regex() -> &'static Regex {
 /// HTML is consulted — pulldown-cmark already distinguishes a comment
 /// on its own line (`HtmlBlock`) from an inline comment (`InlineHtml`),
 /// which gives us the "own source line" requirement for free.
-fn scan_suppressions<'a>(html_blocks: &[HtmlBlock<'a>]) -> Vec<Suppression<'a>> {
+fn scan_suppressions(html_blocks: &[HtmlBlock]) -> Vec<Suppression> {
     let mut out = Vec::new();
     let re = suppression_regex();
     for block in html_blocks {
@@ -816,11 +811,12 @@ fn scan_suppressions<'a>(html_blocks: &[HtmlBlock<'a>]) -> Vec<Suppression<'a>> 
             "enable" | "enable-all" => SuppressionKind::Enable,
             _ => continue,
         };
-        let rules: Vec<&'a str> = caps
+        let rules: Vec<String> = caps
             .name("names")
             .map_or("", |m| m.as_str())
             .split([',', ' ', '\t'])
             .filter(|s| !s.is_empty())
+            .map(str::to_owned)
             .collect();
         // `allow` and `allow-next-line` require explicit names; a bare
         // form is malformed syntax and is silently dropped. `disable`
@@ -846,7 +842,7 @@ mod tests {
     #[test]
     fn prose_chunks_include_backslash_escapes() {
         let ir = Ir::parse(r"a \_b\_ c");
-        let texts: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text).collect();
+        let texts: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(
             texts.iter().any(|t| t.contains(r"\_")),
             "prose chunks should preserve `\\_`: {texts:?}"
@@ -869,7 +865,7 @@ mod tests {
         // chunk must contain `\_` and at least one must contain
         // `outside`. (Text events split at escape boundaries, so the
         // full literal `\_outside\_` is spread across multiple chunks.)
-        let texts: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text).collect();
+        let texts: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(
             texts.iter().any(|t| t.contains("\\_")),
             "no chunk has `\\_`: {texts:?}"
@@ -899,7 +895,7 @@ mod tests {
             .as_ref()
             .ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Yaml);
-        let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text).collect();
+        let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(body_chunks.iter().any(|t| t == &"body text"));
         Ok(())
     }
@@ -913,7 +909,7 @@ mod tests {
             .as_ref()
             .ok_or_else(|| anyhow!("frontmatter"))?;
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Toml);
-        let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text).collect();
+        let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(body_chunks.iter().any(|t| t == &"body text"));
         Ok(())
     }
@@ -946,7 +942,11 @@ mod tests {
     fn headings_trimmed_and_levelled() {
         let ir = Ir::parse("# One\n\n## Two ##\n\n### Three\n");
         assert_eq!(ir.headings.len(), 3);
-        let texts: Vec<(&str, u32)> = ir.headings.iter().map(|h| (h.text, h.level)).collect();
+        let texts: Vec<(&str, u32)> = ir
+            .headings
+            .iter()
+            .map(|h| (h.text.as_str(), h.level))
+            .collect();
         assert_eq!(texts, vec![("One", 1), ("Two", 2), ("Three", 3)]);
     }
 

@@ -19,7 +19,7 @@ impl LintRule for HeadingPunctuation {
         "Trailing `.` or `:` on a heading."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for h in doc.headings() {
             let last = h.text.chars().last();
             let Some(c) = last else { continue };

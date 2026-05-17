@@ -43,17 +43,17 @@ impl LintRule for SubscriptDamage {
         false
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for chunk in doc.prose_chunks() {
-            scan(chunk.text, chunk.byte_offset, doc, out);
+            scan(&chunk.text, chunk.byte_offset, doc, out);
         }
         for code in doc.inline_codes() {
-            scan(code.text, code.byte_offset, doc, out);
+            scan(&code.text, code.byte_offset, doc, out);
         }
     }
 }
 
-fn scan(text: &str, offset: usize, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+fn scan(text: &str, offset: usize, doc: &Document, out: &mut Vec<Diagnostic>) {
     for cap in pattern().captures_iter(text) {
         let Some(m) = cap.get(0) else { continue };
         let head = cap.name("head").map_or("", |x| x.as_str());

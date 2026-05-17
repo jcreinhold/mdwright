@@ -23,8 +23,8 @@ pub(crate) fn format_document<'a>(
     source: &'a str,
     opts: &'a FmtOptions,
     tree: &'a Tree,
-    frontmatter: Option<&'a Frontmatter<'a>>,
-    admonitions: &'a [AdmonitionRegion<'a>],
+    frontmatter: Option<&'a Frontmatter>,
+    admonitions: &'a [AdmonitionRegion],
     math_regions: &'a [MathRegion],
     refs: &'a ReferenceTable,
 ) -> String {

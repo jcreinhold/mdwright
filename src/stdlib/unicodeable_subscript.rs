@@ -38,9 +38,9 @@ impl LintRule for UnicodeableSubscript {
         true
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for chunk in doc.prose_chunks() {
-            for cap in pattern().captures_iter(chunk.text) {
+            for cap in pattern().captures_iter(&chunk.text) {
                 let Some(m) = cap.get(0) else { continue };
                 let matched = m.as_str();
                 let replacement = match matched {

@@ -128,7 +128,7 @@ mod tests {
         fn description(&self) -> &str {
             "noop"
         }
-        fn check(&self, _doc: &Document<'_>, _out: &mut Vec<Diagnostic>) {}
+        fn check(&self, _doc: &Document, _out: &mut Vec<Diagnostic>) {}
     }
 
     #[test]

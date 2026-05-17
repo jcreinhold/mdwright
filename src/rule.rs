@@ -52,5 +52,5 @@ pub trait LintRule: Send + Sync {
     /// to `out`. The dispatcher fills in each diagnostic's `rule`
     /// and `advisory` fields from `self.name()` and
     /// `self.is_advisory()` after the call returns.
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>);
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>);
 }

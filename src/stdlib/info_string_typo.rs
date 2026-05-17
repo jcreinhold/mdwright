@@ -141,12 +141,12 @@ impl LintRule for InfoStringTypo {
         true
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for cb in doc.code_blocks() {
             if !cb.fenced {
                 continue;
             }
-            let info = cb.info.as_ref();
+            let info: &str = cb.info.as_str();
             // Some renderers allow attributes after the language tag
             // (`rust,no_run`). Strip everything after the first comma
             // or whitespace before allowlist checking.

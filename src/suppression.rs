@@ -40,7 +40,11 @@ impl SuppressionMap {
     /// in the IR's suppression comments — the dispatcher folds these
     /// into its output so users see syntax mistakes the same way they
     /// see other lints.
-    pub(crate) fn build(ir: &Ir<'_>, known_rules: &[&str]) -> (Self, Vec<Diagnostic>) {
+    pub(crate) fn build(
+        source: &str,
+        ir: &Ir,
+        known_rules: &[&str],
+    ) -> (Self, Vec<Diagnostic>) {
         let mut by_rule: HashMap<String, Vec<Range<usize>>> = HashMap::new();
         let mut all: Vec<Range<usize>> = Vec::new();
         let mut unknown: Vec<Diagnostic> = Vec::new();
@@ -51,7 +55,7 @@ impl SuppressionMap {
         let mut open_per_rule: HashMap<String, usize> = HashMap::new();
         let mut open_all: Option<usize> = None;
 
-        let mut sorted: Vec<&crate::ir::Suppression<'_>> = ir.suppressions.iter().collect();
+        let mut sorted: Vec<&crate::ir::Suppression> = ir.suppressions.iter().collect();
         sorted.sort_by_key(|s| s.raw_range.start);
 
         for sup in sorted {
@@ -59,9 +63,9 @@ impl SuppressionMap {
             // suppression itself still applies — a typo silences
             // nothing but doesn't break anything else either.
             for name in &sup.rules {
-                if !known_rules.contains(name)
+                if !known_rules.contains(&name.as_str())
                     && let Ok((line, column)) =
-                        ir.line_index.locate(ir.source, sup.raw_range.start)
+                        ir.line_index.locate(source, sup.raw_range.start)
                 {
                     unknown.push(Diagnostic {
                         rule: Cow::Borrowed("suppression"),
@@ -78,15 +82,12 @@ impl SuppressionMap {
             match sup.kind {
                 SuppressionKind::Allow { scope } => {
                     let span = match scope {
-                        AllowScope::Block => next_block_span(ir.source, sup.raw_range.end),
-                        AllowScope::NextLine => next_line_span(ir.source, sup.raw_range.end),
+                        AllowScope::Block => next_block_span(source, sup.raw_range.end),
+                        AllowScope::NextLine => next_line_span(source, sup.raw_range.end),
                     };
                     let Some(span) = span else { continue };
                     for name in &sup.rules {
-                        by_rule
-                            .entry((*name).to_owned())
-                            .or_default()
-                            .push(span.clone());
+                        by_rule.entry(name.clone()).or_default().push(span.clone());
                     }
                 }
                 SuppressionKind::Disable => {
@@ -97,7 +98,7 @@ impl SuppressionMap {
                         }
                     } else {
                         for name in &sup.rules {
-                            open_per_rule.entry((*name).to_owned()).or_insert(start);
+                            open_per_rule.entry(name.clone()).or_insert(start);
                         }
                     }
                 }
@@ -109,9 +110,9 @@ impl SuppressionMap {
                         }
                     } else {
                         for name in &sup.rules {
-                            if let Some(start) = open_per_rule.remove(*name) {
+                            if let Some(start) = open_per_rule.remove(name.as_str()) {
                                 by_rule
-                                    .entry((*name).to_owned())
+                                    .entry(name.clone())
                                     .or_default()
                                     .push(start..end);
                             }
@@ -122,7 +123,7 @@ impl SuppressionMap {
         }
 
         // Close any still-open regions at EOF.
-        let eof = ir.source.len();
+        let eof = source.len();
         if let Some(start) = open_all {
             all.push(start..eof);
         }

@@ -37,7 +37,7 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
         && ctx.opts.preserve_frontmatter()
         && let Some(fm) = ctx.frontmatter
     {
-        parts.push(unbreakable(verbatim_lines(fm.slice.text)));
+        parts.push(unbreakable(verbatim_lines(&fm.slice.text)));
         emitted = emitted.saturating_add(1);
     }
 
@@ -76,7 +76,7 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
                     if emitted > 0 {
                         parts.push(hard_line());
                     }
-                    parts.push(unbreakable(verbatim_lines(region.text)));
+                    parts.push(unbreakable(verbatim_lines(&region.text)));
                     emitted = emitted.saturating_add(1);
                     emitted_adm = Some(adm_idx);
                     prev_unordered_bullet = None;

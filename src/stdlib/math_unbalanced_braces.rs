@@ -31,7 +31,7 @@ impl LintRule for MathUnbalancedBraces {
         "`{` / `}` inside a math body do not balance; the pretty-printer falls back to verbatim emission for that region."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         for err in doc.math_errors() {
             let MathError::UnbalancedBraces { offset, region } = err else {
                 continue;

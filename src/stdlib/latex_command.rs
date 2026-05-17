@@ -36,10 +36,10 @@ impl LintRule for LatexCommand {
         false
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let math = doc.math_regions();
         for chunk in doc.prose_chunks() {
-            for cap in pattern().captures_iter(chunk.text) {
+            for cap in pattern().captures_iter(&chunk.text) {
                 let Some(m) = cap.get(0) else { continue };
                 let Some(name_match) = cap.get(1) else {
                     continue;

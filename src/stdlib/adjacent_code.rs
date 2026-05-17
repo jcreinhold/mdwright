@@ -22,7 +22,7 @@ impl LintRule for AdjacentCodeNoSpace {
         "Inline code span adjacent to a letter without whitespace."
     }
 
-    fn check(&self, doc: &Document<'_>, out: &mut Vec<Diagnostic>) {
+    fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let bytes = doc.source().as_bytes();
         for code in doc.inline_codes() {
             let start = code.raw_range.start;
