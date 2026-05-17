@@ -243,6 +243,9 @@ impl Ir {
             heading_stack: Vec::new(),
             list_stack: Vec::new(),
             code_block_stack: Vec::new(),
+            blockquote_stack: Vec::new(),
+            blockquote_ranges: Vec::new(),
+            list_item_ranges: Vec::new(),
             prose_chunks: Vec::new(),
             inline_codes: Vec::new(),
             code_blocks: Vec::new(),
@@ -272,13 +275,22 @@ impl Ir {
         // Math regions are computed after pulldown's structure pass
         // so the scanner can exclude code spans / blocks / HTML
         // blocks / inline HTML (regions where `\[` / `\(` / `$` are
-        // not math).
+        // not math). Transparent runs (blockquote `>` markers and
+        // list-item continuation indents) let the recogniser scan
+        // across container prefixes without those bytes leaking into
+        // the math body.
+        let transparent_runs = compute_transparent_runs(
+            source,
+            &builder.blockquote_ranges,
+            &builder.list_item_ranges,
+        );
         let (math_regions, math_errors) = scan_math_regions(
             source,
             &builder.inline_codes,
             &builder.code_blocks,
             &builder.html_blocks,
             &builder.inline_html,
+            &transparent_runs,
             MathConfig::default(),
         );
 
@@ -324,6 +336,18 @@ struct Builder<'a> {
     list_stack: Vec<OpenList>,
     /// Stack of open code blocks: `(start_byte, info, fenced)`.
     code_block_stack: Vec<(usize, String, bool)>,
+    /// Stack of open blockquotes: `start_byte`. Closed entries are
+    /// drained into [`Self::blockquote_ranges`] for the
+    /// transparent-runs computation.
+    blockquote_stack: Vec<usize>,
+    /// Closed blockquote ranges, in close order. Used by
+    /// [`compute_transparent_runs`] to identify lines whose leading
+    /// `>` marker the math recogniser must treat as non-content.
+    blockquote_ranges: Vec<Range<usize>>,
+    /// Closed list-item ranges paired with their continuation-indent
+    /// width (from [`item_indent`]). Used by
+    /// [`compute_transparent_runs`] for continuation-line indentation.
+    list_item_ranges: Vec<(Range<usize>, u8)>,
     prose_chunks: Vec<TextSlice>,
     inline_codes: Vec<InlineCode>,
     code_blocks: Vec<CodeBlock>,
@@ -381,12 +405,17 @@ impl Builder<'_> {
             Tag::Item => {
                 let marker_byte =
                     first_non_whitespace_byte(self.source, range.start).unwrap_or(b'-');
+                let indent = item_continuation_width(self.source, &range);
+                self.list_item_ranges.push((range.clone(), indent));
                 if let Some(open) = self.list_stack.last_mut() {
                     open.items.push(ListItem {
                         raw_range: range,
                         marker_byte,
                     });
                 }
+            }
+            Tag::BlockQuote(_) => {
+                self.blockquote_stack.push(range.start);
             }
             #[allow(clippy::wildcard_enum_match_arm)]
             _ => {}
@@ -430,6 +459,11 @@ impl Builder<'_> {
                         ordered: open.ordered,
                         items: open.items,
                     });
+                }
+            }
+            TagEnd::BlockQuote(_) => {
+                if let Some(start) = self.blockquote_stack.pop() {
+                    self.blockquote_ranges.push(start..range.end);
                 }
             }
             #[allow(clippy::wildcard_enum_match_arm)]
@@ -517,6 +551,137 @@ fn first_non_whitespace_byte(source: &str, start: usize) -> Option<u8> {
         .iter()
         .copied()
         .find(|b| !matches!(b, b' ' | b'\t'))
+}
+
+/// Byte count from the start of the item's first non-blank line up
+/// to and including the single space after the marker. Drives the
+/// list-item branch of [`compute_transparent_runs`]: continuation
+/// lines of the item have this many leading bytes available to peel.
+///
+/// Counts the marker's own leading indentation (so a nested item
+/// whose marker sits at column 2 reports a width that includes those
+/// two spaces). This makes the result usable directly as a "strip
+/// this many bytes" instruction on continuation lines, even when
+/// the item is nested under another list or blockquote.
+fn item_continuation_width(source: &str, raw_range: &Range<usize>) -> u8 {
+    let bytes = source.as_bytes().get(raw_range.clone()).unwrap_or(&[]);
+    let mut i = 0usize;
+    loop {
+        let line_start = i;
+        while bytes.get(i).is_some_and(|&b| b != b'\n') {
+            i = i.saturating_add(1);
+        }
+        let line = bytes.get(line_start..i).unwrap_or(&[]);
+        if line.iter().any(|b| !matches!(*b, b' ' | b'\t' | b'\r')) {
+            let mut j = 0usize;
+            while line.get(j).is_some_and(|b| matches!(*b, b' ' | b'\t')) {
+                j = j.saturating_add(1);
+            }
+            if line.get(j).is_some_and(u8::is_ascii_digit) {
+                while line.get(j).is_some_and(u8::is_ascii_digit) {
+                    j = j.saturating_add(1);
+                }
+                if matches!(line.get(j), Some(b'.' | b')')) {
+                    j = j.saturating_add(1);
+                } else {
+                    return 0;
+                }
+            } else if matches!(line.get(j), Some(b'-' | b'*' | b'+')) {
+                j = j.saturating_add(1);
+            } else {
+                return 0;
+            }
+            if line.get(j) == Some(&b' ') {
+                j = j.saturating_add(1);
+            }
+            return u8::try_from(j).unwrap_or(u8::MAX);
+        }
+        if i >= bytes.len() {
+            return 0;
+        }
+        i = i.saturating_add(1);
+    }
+}
+
+/// Identify byte ranges the math recogniser must treat as if they
+/// don't exist: blockquote `>` markers (plus the optional following
+/// space) and list-item continuation indentation on continuation
+/// lines.
+///
+/// One run per line at most. Sorted by start, non-overlapping.
+/// Top-level prose (no container context) returns an empty `Vec`,
+/// keeping the recogniser's hot path allocation-free.
+fn compute_transparent_runs(
+    source: &str,
+    blockquote_ranges: &[Range<usize>],
+    list_item_ranges: &[(Range<usize>, u8)],
+) -> Vec<Range<usize>> {
+    if blockquote_ranges.is_empty() && list_item_ranges.is_empty() {
+        return Vec::new();
+    }
+    let bytes = source.as_bytes();
+    let mut out: Vec<Range<usize>> = Vec::new();
+    let mut line_start = 0usize;
+    while line_start <= bytes.len() {
+        let line_end = bytes
+            .get(line_start..)
+            .and_then(|s| s.iter().position(|&b| b == b'\n'))
+            .map_or(bytes.len(), |n| line_start.saturating_add(n));
+        let mut cursor = line_start;
+        loop {
+            // Blockquote peel: ≤3 leading spaces, then `>`, then one
+            // optional space. Requires that some blockquote_range
+            // covers the cursor.
+            let mut spaces = 0usize;
+            while spaces < 3 && bytes.get(cursor.saturating_add(spaces)).copied() == Some(b' ') {
+                spaces = spaces.saturating_add(1);
+            }
+            let marker_pos = cursor.saturating_add(spaces);
+            if marker_pos < line_end
+                && bytes.get(marker_pos).copied() == Some(b'>')
+                && blockquote_ranges
+                    .iter()
+                    .any(|r| r.start <= cursor && cursor < r.end)
+            {
+                cursor = marker_pos.saturating_add(1);
+                if cursor < line_end && bytes.get(cursor).copied() == Some(b' ') {
+                    cursor = cursor.saturating_add(1);
+                }
+                continue;
+            }
+            // List-item continuation peel: pick the deepest item
+            // whose first line lies strictly before this line and
+            // which still covers the cursor.
+            let item_width = list_item_ranges
+                .iter()
+                .filter(|(r, _)| r.start < line_start && cursor < r.end)
+                .map(|(r, w)| (r.start, usize::from(*w)))
+                .max_by_key(|(s, _)| *s)
+                .map(|(_, w)| w);
+            if let Some(width) = item_width {
+                let mut consumed = 0usize;
+                while consumed < width
+                    && cursor.saturating_add(consumed) < line_end
+                    && bytes.get(cursor.saturating_add(consumed)).copied() == Some(b' ')
+                {
+                    consumed = consumed.saturating_add(1);
+                }
+                if consumed > 0 {
+                    cursor = cursor.saturating_add(consumed);
+                    continue;
+                }
+            }
+            break;
+        }
+        if cursor > line_start {
+            out.push(line_start..cursor);
+        }
+        if line_end >= bytes.len() {
+            break;
+        }
+        line_start = line_end.saturating_add(1);
+    }
+    out
 }
 
 /// Strip ATX `#` markers and surrounding whitespace from a heading's
@@ -1100,5 +1265,46 @@ mod tests {
         let s = ir.suppressions.first().ok_or_else(|| anyhow!("first"))?;
         assert_eq!(s.rules, vec!["heading-punctuation"]);
         Ok(())
+    }
+
+    use super::compute_transparent_runs;
+
+    #[test]
+    fn transparent_runs_for_blockquote_continuation() {
+        // Two `>` lines yield one transparent run per line covering
+        // the `> ` prefix.
+        let src = "> a\n> b\n";
+        let bq = 0..src.len();
+        let runs = compute_transparent_runs(src, std::slice::from_ref(&bq), &[]);
+        assert_eq!(runs, vec![0..2, 4..6]);
+    }
+
+    #[test]
+    fn transparent_runs_for_nested_blockquote() {
+        // `> > a / > > b`: each line gets one run combining both
+        // levels of nesting (`> > ` is 4 bytes).
+        let src = "> > a\n> > b\n";
+        let outer = 0..src.len();
+        let inner = 2..src.len();
+        let runs = compute_transparent_runs(src, &[outer, inner], &[]);
+        assert_eq!(runs, vec![0..4, 6..10]);
+    }
+
+    #[test]
+    fn transparent_runs_for_list_item_continuation() {
+        // `1. a\n   b\n`: line 1 is the marker line (no run); line 2
+        // is a continuation line whose 3-space indent is stripped.
+        let src = "1. a\n   b\n";
+        let item = (0..src.len(), 3);
+        let runs = compute_transparent_runs(src, &[], &[item]);
+        assert_eq!(runs, vec![5..8]);
+    }
+
+    #[test]
+    fn transparent_runs_empty_for_plain_paragraph() {
+        // No container context → no transparent runs (fast path).
+        let src = "hello\nworld\n";
+        let runs = compute_transparent_runs(src, &[], &[]);
+        assert!(runs.is_empty(), "expected empty: {runs:?}");
     }
 }

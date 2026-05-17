@@ -31,7 +31,7 @@ use crate::ir::{CodeBlock, HtmlBlock, InlineCode, InlineHtml};
 
 use super::MathRegion;
 use super::env::{EnvKind, KnownEnv};
-use super::span::{AnyDelim, DisplayDelim, InlineDelim, MathError, MathSpan};
+use super::span::{AnyDelim, DisplayDelim, InlineDelim, MathBody, MathError, MathSpan};
 
 /// Which math delimiter pairs to recognise. Defaults match the Kan
 /// corpus convention (LaTeX-style `\[ \]` and `\( \)`); the dollar
@@ -66,13 +66,26 @@ impl Default for MathConfig {
 /// Scan `source` for math regions. Returns regions in source order
 /// (non-overlapping) and any unmatched openers / brace-imbalanced
 /// bodies as errors.
-#[tracing::instrument(level = "debug", skip_all, fields(len = source.len()))]
+///
+/// `transparent_runs` is a sorted, non-overlapping slice of byte
+/// ranges the lexer must treat as if they do not exist — blockquote
+/// `>` markers and list-item continuation indentation on continuation
+/// lines. Math regions may cross transparent runs (they are not
+/// region boundaries the way exclusion zones are); the runs are
+/// recorded on each body so [`MathBody::as_str`] can yield clean
+/// math content.
+#[tracing::instrument(
+    level = "debug",
+    skip_all,
+    fields(len = source.len(), transparent = transparent_runs.len()),
+)]
 pub(crate) fn scan_math_regions(
     source: &str,
     inline_codes: &[InlineCode],
     code_blocks: &[CodeBlock],
     html_blocks: &[HtmlBlock],
     inline_html: &[InlineHtml],
+    transparent_runs: &[Range<usize>],
     cfg: MathConfig,
 ) -> (Vec<MathRegion>, Vec<MathError>) {
     let exclusions = build_exclusions(inline_codes, code_blocks, html_blocks, inline_html);
@@ -85,29 +98,43 @@ pub(crate) fn scan_math_regions(
             i = end;
             continue;
         }
+        if let Some(end) = transparent_end(transparent_runs, i) {
+            i = end;
+            continue;
+        }
         // Environments first: `\begin{name}` is structurally
         // unambiguous and would otherwise be passed over.
         if cfg.environments
             && let Some((env_name, name_range, after_begin)) = match_begin(source, bytes, i)
         {
-            match find_end_env(source, bytes, after_begin, env_name, &exclusions) {
+            match find_end_env(
+                source,
+                bytes,
+                after_begin,
+                env_name,
+                &exclusions,
+                transparent_runs,
+            ) {
                 Some((end_start, end_after)) => {
                     let region = i..end_after;
-                    let body = after_begin..end_start;
+                    let body_range = after_begin..end_start;
                     let env = match KnownEnv::from_name(env_name) {
                         Some(k) => EnvKind::Known(k),
                         None => EnvKind::Custom(name_range),
                     };
-                    let span = MathSpan::Environment {
-                        env,
-                        body: body.clone(),
-                    };
+                    let body = build_math_body(body_range.clone(), transparent_runs);
                     record_brace_errors(source, &region, &body, &mut errors);
+                    let span = MathSpan::Environment { env, body };
                     regions.push(MathRegion {
                         range: region.clone(),
                         span,
                     });
-                    tracing::debug!(env = env_name, range = ?region, "env region");
+                    tracing::debug!(
+                        env = env_name,
+                        range = ?region,
+                        stripped = !body_runs_empty(&body_range, transparent_runs),
+                        "env region",
+                    );
                     i = end_after;
                     continue;
                 }
@@ -126,36 +153,42 @@ pub(crate) fn scan_math_regions(
             continue;
         };
         let content_start = i.saturating_add(open_len);
-        match find_close(bytes, content_start, delim, &exclusions) {
+        match find_close(bytes, content_start, delim, &exclusions, transparent_runs) {
             Some(close_start) => {
                 let close_len = delim.close().len();
                 let region_end = close_start.saturating_add(close_len);
                 let region = i..region_end;
-                let body = content_start..close_start;
+                let body_range = content_start..close_start;
+                let body = build_math_body(body_range.clone(), transparent_runs);
+                record_brace_errors(source, &region, &body, &mut errors);
                 let span = match delim {
                     AnyDelim::Paren => MathSpan::Inline {
                         delim: InlineDelim::Paren,
-                        body: body.clone(),
+                        body,
                     },
                     AnyDelim::Dollar => MathSpan::Inline {
                         delim: InlineDelim::Dollar,
-                        body: body.clone(),
+                        body,
                     },
                     AnyDelim::Bracket => MathSpan::Display {
                         delim: DisplayDelim::Bracket,
-                        body: body.clone(),
+                        body,
                     },
                     AnyDelim::Dollar2 => MathSpan::Display {
                         delim: DisplayDelim::Dollar2,
-                        body: body.clone(),
+                        body,
                     },
                 };
-                record_brace_errors(source, &region, &body, &mut errors);
                 regions.push(MathRegion {
                     range: region.clone(),
                     span,
                 });
-                tracing::debug!(delim = delim.open(), range = ?region, "delim region");
+                tracing::debug!(
+                    delim = delim.open(),
+                    range = ?region,
+                    stripped = !body_runs_empty(&body_range, transparent_runs),
+                    "delim region",
+                );
                 i = region_end;
             }
             None => {
@@ -170,22 +203,45 @@ pub(crate) fn scan_math_regions(
     (regions, errors)
 }
 
-/// Push a `MathError::UnbalancedBraces` if `body` (a sub-range of
-/// `source`) has unbalanced `{` / `}`. Delegates to the shared
-/// validator in [`super::pretty::body_braces_balanced`] so the
-/// scanner and the pretty-printer agree on what counts as balanced.
+/// Collect the slice of transparent runs intersecting `body_range`
+/// and pack them into a [`MathBody`]. The recogniser keeps the
+/// invariant that `transparent_runs` is sorted and non-overlapping,
+/// so the intersection is contiguous.
+fn build_math_body(body_range: Range<usize>, transparent_runs: &[Range<usize>]) -> MathBody {
+    let runs: Box<[Range<usize>]> = transparent_runs
+        .iter()
+        .filter(|r| r.start < body_range.end && body_range.start < r.end)
+        .cloned()
+        .collect();
+    MathBody::new(body_range, runs)
+}
+
+/// True iff no transparent run intersects `body_range`. Cheap probe
+/// for the tracing debug field — the actual `Box<[Range]>` allocation
+/// happens once inside [`build_math_body`].
+fn body_runs_empty(body_range: &Range<usize>, transparent_runs: &[Range<usize>]) -> bool {
+    !transparent_runs
+        .iter()
+        .any(|r| r.start < body_range.end && body_range.start < r.end)
+}
+
+/// Push a `MathError::UnbalancedBraces` if `body`'s clean content has
+/// unbalanced `{` / `}`. Delegates to the shared validator in
+/// [`super::pretty::body_braces_balanced`] so the scanner and the
+/// pretty-printer agree on what counts as balanced. The check runs
+/// over the clean body, so container prefixes cannot affect brace
+/// balance, and the local offset is mapped back to a source-absolute
+/// byte via [`MathBody::clean_offset_to_source`].
 fn record_brace_errors(
     source: &str,
     region: &Range<usize>,
-    body: &Range<usize>,
+    body: &MathBody,
     errors: &mut Vec<MathError>,
 ) {
-    let Some(slice) = source.get(body.clone()) else {
-        return;
-    };
-    if let Err(local_offset) = super::pretty::body_braces_balanced(slice) {
+    let clean = body.as_str(source);
+    if let Err(local_offset) = super::pretty::body_braces_balanced(clean.as_ref()) {
         errors.push(MathError::UnbalancedBraces {
-            offset: body.start.saturating_add(local_offset),
+            offset: body.clean_offset_to_source(local_offset),
             region: region.clone(),
         });
     }
@@ -237,6 +293,22 @@ fn excluded_end(exclusions: &[Range<usize>], i: usize) -> Option<usize> {
     let idx = exclusions.partition_point(|r| r.start <= i);
     if let Some(prev_idx) = idx.checked_sub(1)
         && let Some(r) = exclusions.get(prev_idx)
+        && i < r.end
+    {
+        return Some(r.end);
+    }
+    None
+}
+
+/// True iff `i` lies inside any transparent run, returning the run's
+/// end. Mirrors [`excluded_end`] structurally but has different
+/// semantics: transparent runs do not bound math regions; the scanner
+/// and [`find_close`] / [`find_end_env`] use this to skip prefix
+/// bytes while keeping the surrounding region intact.
+fn transparent_end(transparent_runs: &[Range<usize>], i: usize) -> Option<usize> {
+    let idx = transparent_runs.partition_point(|r| r.start <= i);
+    if let Some(prev_idx) = idx.checked_sub(1)
+        && let Some(r) = transparent_runs.get(prev_idx)
         && i < r.end
     {
         return Some(r.end);
@@ -325,11 +397,16 @@ fn find_end_env(
     from: usize,
     name: &str,
     exclusions: &[Range<usize>],
+    transparent_runs: &[Range<usize>],
 ) -> Option<(usize, usize)> {
     let mut depth: u32 = 1;
     let mut j = from;
     while j < bytes.len() {
         if let Some(end) = excluded_end(exclusions, j) {
+            j = end;
+            continue;
+        }
+        if let Some(end) = transparent_end(transparent_runs, j) {
             j = end;
             continue;
         }
@@ -409,12 +486,20 @@ fn find_close(
     from: usize,
     delim: AnyDelim,
     exclusions: &[Range<usize>],
+    transparent_runs: &[Range<usize>],
 ) -> Option<usize> {
     let mut j = from;
     while j < bytes.len() {
         if excluded_end(exclusions, j).is_some() {
             // Math regions don't cross an exclusion boundary.
             return None;
+        }
+        if let Some(end) = transparent_end(transparent_runs, j) {
+            // Transparent bytes (container prefixes) are not part of
+            // the math content; skip past them and keep looking for
+            // the close.
+            j = end;
+            continue;
         }
         match delim {
             AnyDelim::Bracket | AnyDelim::Paren => {
@@ -454,10 +539,20 @@ const fn close_target_byte(delim: AnyDelim) -> u8 {
 #[cfg(test)]
 #[allow(clippy::indexing_slicing, clippy::panic)]
 mod tests {
+    use std::borrow::Cow;
+
     use super::*;
 
     fn scan(source: &str) -> (Vec<MathRegion>, Vec<MathError>) {
-        scan_math_regions(source, &[], &[], &[], &[], MathConfig::default())
+        scan_math_regions(source, &[], &[], &[], &[], &[], MathConfig::default())
+    }
+
+    fn scan_with_runs(
+        source: &str,
+        transparent_runs: &[Range<usize>],
+        cfg: MathConfig,
+    ) -> (Vec<MathRegion>, Vec<MathError>) {
+        scan_math_regions(source, &[], &[], &[], &[], transparent_runs, cfg)
     }
 
     fn regions(source: &str) -> Vec<MathRegion> {
@@ -558,7 +653,7 @@ mod tests {
             byte_offset: 5,
             raw_range: 5..14,
         }];
-        let (regs, _) = scan_math_regions(s, &ic, &[], &[], &[], MathConfig::default());
+        let (regs, _) = scan_math_regions(s, &ic, &[], &[], &[], &[], MathConfig::default());
         assert!(regs.is_empty());
     }
 
@@ -572,7 +667,7 @@ mod tests {
             info: String::new(),
             fenced: true,
         }];
-        let (regs, _) = scan_math_regions(s, &[], &cb, &[], &[], MathConfig::default());
+        let (regs, _) = scan_math_regions(s, &[], &cb, &[], &[], &[], MathConfig::default());
         assert!(regs.is_empty());
     }
 
@@ -588,7 +683,7 @@ mod tests {
             single_dollar: true,
             ..MathConfig::default()
         };
-        let (regs, _) = scan_math_regions(s, &[], &[], &[], &ih, cfg);
+        let (regs, _) = scan_math_regions(s, &[], &[], &[], &ih, &[], cfg);
         assert!(regs.is_empty());
     }
 
@@ -605,7 +700,7 @@ mod tests {
             double_dollar: true,
             ..MathConfig::default()
         };
-        let (regs, _) = scan_math_regions(s, &[], &[], &[], &[], cfg);
+        let (regs, _) = scan_math_regions(s, &[], &[], &[], &[], &[], cfg);
         assert_eq!(regs.len(), 1);
         assert_eq!(&s[regs[0].range.clone()], "$$ x = 5 $$");
         assert!(matches!(
@@ -624,7 +719,7 @@ mod tests {
             single_dollar: true,
             ..MathConfig::default()
         };
-        let (regs, _) = scan_math_regions(s, &[], &[], &[], &[], cfg);
+        let (regs, _) = scan_math_regions(s, &[], &[], &[], &[], &[], cfg);
         assert_eq!(regs.len(), 1);
         assert_eq!(&s[regs[0].range.clone()], "$a + b$");
         assert!(matches!(
@@ -667,10 +762,7 @@ mod tests {
         match &regs[0].span {
             MathSpan::Environment { env, body } => {
                 assert!(matches!(env, EnvKind::Known(KnownEnv::Align)));
-                // body starts after `\begin{align}` (13 bytes) plus the
-                // 7-byte prefix `before `.
-                assert_eq!(body.start, 7 + 13);
-                assert!(&s[body.clone()].contains("x &= y"));
+                assert!(body.as_str(s).contains("x &= y"));
             }
             MathSpan::Inline { .. } | MathSpan::Display { .. } => {
                 panic!("expected environment span")
@@ -767,6 +859,136 @@ mod tests {
             errs.iter()
                 .all(|e| !matches!(e, MathError::UnbalancedBraces { .. })),
             "escaped braces should not count: {errs:?}"
+        );
+    }
+
+    #[test]
+    fn transparent_run_in_blockquote_strips_prefix() {
+        // `> $$\n> x = 1\n> $$` — the `> ` on lines 2 and 3 sits
+        // inside the math body and must be stripped from the clean
+        // content.
+        let s = "> $$\n> x = 1\n> $$";
+        // The `> ` prefix sits on each line. The math open is at
+        // byte 2 (`$$`). The body runs from byte 4 (after `$$`) to
+        // byte 15 (before the close `$$`). Transparent runs cover
+        // the `> ` prefixes on lines 2 and 3.
+        let runs = vec![5..7, 13..15];
+        let cfg = MathConfig {
+            double_dollar: true,
+            ..MathConfig::default()
+        };
+        let (regs, _) = scan_with_runs(s, &runs, cfg);
+        assert_eq!(regs.len(), 1, "expected one region in {s:?}");
+        let body = regs[0].span.body();
+        let clean = body.as_str(s);
+        assert!(
+            matches!(&clean, Cow::Owned(_)),
+            "expected owned body for container-nested math, got {clean:?}",
+        );
+        assert!(!clean.contains('>'), "container prefix leaked: {clean:?}");
+        assert!(clean.contains("x = 1"), "body lost content: {clean:?}");
+    }
+
+    #[test]
+    fn transparent_run_in_list_item_strips_indent() {
+        // `1. item\n   $$\n   x = 1\n   $$` — the 3-space
+        // continuation indent on lines 2-4 must be stripped from the
+        // clean content.
+        let s = "1. item\n   $$\n   x = 1\n   $$";
+        // Continuation indents at line 2 (bytes 8..11), line 3
+        // (14..17), line 4 (23..26).
+        let runs = vec![8..11, 14..17, 23..26];
+        let cfg = MathConfig {
+            double_dollar: true,
+            ..MathConfig::default()
+        };
+        let (regs, _) = scan_with_runs(s, &runs, cfg);
+        assert_eq!(regs.len(), 1);
+        let clean = regs[0].span.body().as_str(s);
+        assert!(matches!(&clean, Cow::Owned(_)));
+        assert!(!clean.contains("   "), "indent leaked: {clean:?}");
+        assert!(clean.contains("x = 1"));
+    }
+
+    #[test]
+    fn nested_blockquote_combined_prefix() {
+        // `> > $$\n> > x\n> > $$` — both nesting levels' `> `
+        // prefixes are combined into one transparent run per line.
+        let s = "> > $$\n> > x\n> > $$";
+        // Line 2 (`> > x`): bytes 7..11 → "> > " (4 bytes).
+        // Line 3 (`> > $$`): bytes 13..17 → "> > " (4 bytes).
+        let runs = vec![7..11, 13..17];
+        let cfg = MathConfig {
+            double_dollar: true,
+            ..MathConfig::default()
+        };
+        let (regs, _) = scan_with_runs(s, &runs, cfg);
+        assert_eq!(regs.len(), 1);
+        let clean = regs[0].span.body().as_str(s);
+        assert!(!clean.contains('>'), "prefix leaked: {clean:?}");
+        assert!(clean.contains('x'));
+    }
+
+    #[test]
+    fn top_level_math_borrows() {
+        // `$$\nx\n$$` at root with empty transparent runs: the body
+        // is borrowed from source, no allocation. Test the
+        // `Cow::Borrowed` discriminant explicitly so the fast path
+        // can't regress silently.
+        let s = "$$\nx\n$$";
+        let cfg = MathConfig {
+            double_dollar: true,
+            ..MathConfig::default()
+        };
+        let (regs, _) = scan_with_runs(s, &[], cfg);
+        assert_eq!(regs.len(), 1);
+        let clean = regs[0].span.body().as_str(s);
+        assert!(
+            matches!(clean, Cow::Borrowed(_)),
+            "expected borrowed body for top-level math",
+        );
+    }
+
+    #[test]
+    fn transparent_run_protects_delim_match() {
+        // `> $$ x\n> $$` — the close `$$` on line 2 is outside any
+        // transparent run; the region must still be recognised
+        // end-to-end with the body crossing the `\n> ` prefix.
+        let s = "> $$ x\n> $$";
+        let run = 7..9;
+        let runs = std::slice::from_ref(&run);
+        let cfg = MathConfig {
+            double_dollar: true,
+            ..MathConfig::default()
+        };
+        let (regs, _) = scan_with_runs(s, runs, cfg);
+        assert_eq!(regs.len(), 1, "expected one region in {s:?}");
+        // Close $$ is at bytes 9..11.
+        assert_eq!(regs[0].range.end, 11);
+    }
+
+    #[test]
+    fn transparent_run_blocks_spurious_delim() {
+        // `not math\n> $\n` with single-dollar enabled and the `> `
+        // recorded as a transparent run on line 2. The `$` after
+        // the prefix is at the end of the line and never sees a
+        // close — so the scanner records an UnbalancedDelim, not
+        // a recognised region. The point of the test: the lexer
+        // does NOT see a `$` inside the transparent prefix bytes
+        // themselves (no spurious region anchored at `>`).
+        let s = "not math\n> $\n";
+        let run = 9..11;
+        let runs = std::slice::from_ref(&run);
+        let cfg = MathConfig {
+            single_dollar: true,
+            ..MathConfig::default()
+        };
+        let (regs, errs) = scan_with_runs(s, runs, cfg);
+        assert!(regs.is_empty(), "no region should match in {s:?}");
+        assert!(
+            errs.iter()
+                .any(|e| matches!(e, MathError::UnbalancedDelim { .. })),
+            "expected an UnbalancedDelim for the unclosed `$`: {errs:?}",
         );
     }
 }

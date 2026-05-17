@@ -44,15 +44,15 @@ impl MathSpan {
             return verbatim();
         }
 
-        let body_slice = source.get(self.body().clone()).unwrap_or("");
-        if body_braces_balanced(body_slice).is_err() {
+        let body = self.body().as_str(source);
+        if body_braces_balanced(body.as_ref()).is_err() {
             return verbatim();
         }
 
         match self {
-            Self::Inline { delim, .. } => unbreakable(pretty_inline(*delim, body_slice)),
-            Self::Display { delim, .. } => pretty_display(*delim, body_slice),
-            Self::Environment { env, .. } => pretty_env(env, body_slice, source),
+            Self::Inline { delim, .. } => unbreakable(pretty_inline(*delim, body.as_ref())),
+            Self::Display { delim, .. } => pretty_display(*delim, body.as_ref()),
+            Self::Environment { env, .. } => pretty_env(env, body.as_ref(), source),
         }
     }
 }
