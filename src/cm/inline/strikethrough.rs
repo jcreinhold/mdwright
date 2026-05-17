@@ -40,7 +40,7 @@ use crate::format::doc::Doc;
 pub(crate) struct Strikethrough;
 
 impl Strikethrough {
-    #[tracing::instrument(level = "trace")]
+    #[cfg(test)]
     pub(crate) fn new() -> Self {
         Self
     }

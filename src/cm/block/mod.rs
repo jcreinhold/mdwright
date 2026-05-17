@@ -13,23 +13,14 @@
 //! (prompt 27) dispatches every block through this module's
 //! [`TypedBlock::pretty`] — each typed value owns its serialisation.
 
-#[allow(dead_code)]
 pub(crate) mod code;
-#[allow(dead_code)]
 pub(crate) mod footnote;
-#[allow(dead_code)]
 pub(crate) mod heading;
-#[allow(dead_code)]
 pub(crate) mod html;
-#[allow(dead_code)]
 pub(crate) mod list;
-#[allow(dead_code)]
 pub(crate) mod paragraph;
-#[allow(dead_code)]
 pub(crate) mod quote;
-#[allow(dead_code)]
 pub(crate) mod table;
-#[allow(dead_code)]
 pub(crate) mod thematic;
 
 use code::{FencedCodeBlock, IndentedCodeBlock};

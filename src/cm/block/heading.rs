@@ -118,14 +118,6 @@ impl Heading {
         Ok(Self { level, style })
     }
 
-    pub(crate) fn level(self) -> HeadingLevel {
-        self.level
-    }
-
-    pub(crate) fn style(self) -> HeadingStyle {
-        self.style
-    }
-
     /// Emit an ATX (`# Body`) or setext (`Body\n===`) heading. `body`
     /// is the already-rendered inline doc; the dispatcher produces it.
     /// Setext headings carry their underline width at render time so

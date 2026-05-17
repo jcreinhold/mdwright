@@ -33,6 +33,7 @@ impl InlineHtmlSpan {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.bytes
     }

@@ -144,10 +144,6 @@ impl ListItem {
         self.item_id
     }
 
-    pub(crate) fn indent(self) -> u8 {
-        self.indent
-    }
-
     pub(crate) fn has_direct_paragraph(self) -> bool {
         self.has_direct_paragraph
     }
@@ -188,20 +184,12 @@ impl TaskItem {
         self.item_id
     }
 
-    pub(crate) fn indent(self) -> u8 {
-        self.indent
-    }
-
     pub(crate) fn has_direct_paragraph(self) -> bool {
         self.has_direct_paragraph
     }
 
     pub(crate) fn checked(self) -> bool {
         self.checked
-    }
-
-    pub(crate) fn body_empty(self) -> bool {
-        self.body_empty
     }
 }
 
@@ -259,10 +247,6 @@ impl ListBlock {
             tightness,
             items,
         })
-    }
-
-    pub(crate) fn marker(&self) -> ListMarker {
-        self.marker
     }
 
     pub(crate) fn tightness(&self) -> Tightness {
@@ -328,12 +312,9 @@ impl ListBlock {
             .unwrap_or(b'-')
     }
 
-    pub(crate) fn items(&self) -> &[ListItemKind] {
-        &self.items
-    }
-
     /// Lookup helper: typed view for the item whose arena id is
-    /// `node_id`, if it belongs to this list.
+    /// `node_id`, if it belongs to this list. Tests-only.
+    #[cfg(test)]
     pub(crate) fn item_for(&self, node_id: NodeId) -> Option<&ListItemKind> {
         self.items.iter().find(|k| k.item_id() == node_id)
     }
@@ -566,9 +547,6 @@ pub(crate) enum ListBlockError {
     /// input; the IR builder skips typed construction and falls back
     /// to legacy emission.
     Empty,
-    /// Ordered list whose `start` overflows `u32`. CM caps meaningful
-    /// markers at 9 digits.
-    OrderedStartTooLarge { start: u64 },
 }
 
 /// Count leading ASCII space/tab bytes on the first non-blank line of

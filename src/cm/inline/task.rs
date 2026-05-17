@@ -17,6 +17,7 @@ impl TaskMarker {
         Self { checked }
     }
 
+    #[cfg(test)]
     pub(crate) fn checked(self) -> bool {
         self.checked
     }

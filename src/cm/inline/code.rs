@@ -48,6 +48,7 @@ impl InlineCodeRun {
         Self { bytes: out }
     }
 
+    #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.bytes
     }

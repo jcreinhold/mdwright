@@ -47,6 +47,7 @@ impl AutolinkRun {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn url(&self) -> &str {
         &self.url
     }

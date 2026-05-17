@@ -35,21 +35,18 @@ pub(crate) struct CodeFence {
     length: u8,
 }
 
-impl CodeFence {
-    pub(crate) fn char(self) -> CodeFenceChar {
-        self.char
-    }
-
-    pub(crate) fn length(self) -> u8 {
-        self.length
-    }
-}
-
 #[derive(Clone, Debug)]
 pub(crate) struct FencedCodeBlock {
     fence: CodeFence,
     info: String,
     body: String,
+}
+
+impl CodeFence {
+    #[cfg(test)]
+    pub(crate) fn length(self) -> u8 {
+        self.length
+    }
 }
 
 impl FencedCodeBlock {
@@ -69,16 +66,9 @@ impl FencedCodeBlock {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn fence(&self) -> CodeFence {
         self.fence
-    }
-
-    pub(crate) fn info(&self) -> &str {
-        self.info.as_ref()
-    }
-
-    pub(crate) fn body(&self) -> &str {
-        self.body.as_ref()
     }
 
     /// Emit `FENCE INFO\nBODY\nFENCE\n` honouring source-derived fence
@@ -167,6 +157,7 @@ impl IndentedCodeBlock {
         Self { body }
     }
 
+    #[cfg(test)]
     pub(crate) fn body(&self) -> &str {
         self.body.as_ref()
     }

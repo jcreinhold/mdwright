@@ -21,6 +21,7 @@ impl FootnoteDef {
         Self { label }
     }
 
+    #[cfg(test)]
     pub(crate) fn label(&self) -> &str {
         &self.label
     }

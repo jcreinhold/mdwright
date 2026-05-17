@@ -36,13 +36,6 @@ impl EmphasisDelim {
         }
     }
 
-    /// `"*"` / `"_"` for emphasis; the strong renderer doubles this.
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Asterisk => "*",
-            Self::Underscore => "_",
-        }
-    }
 }
 
 /// Typed emphasis run. Carries the source delimiter byte pulldown saw

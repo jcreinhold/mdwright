@@ -21,6 +21,7 @@ impl HtmlBlock {
         Self { body }
     }
 
+    #[cfg(test)]
     pub(crate) fn body(&self) -> &str {
         &self.body
     }

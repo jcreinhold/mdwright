@@ -22,6 +22,7 @@ impl ThematicBreak {
         Self { style }
     }
 
+    #[cfg(test)]
     pub(crate) fn style(self) -> ThematicStyle {
         self.style
     }

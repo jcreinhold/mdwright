@@ -23,11 +23,10 @@
 //! at `Tag::TableCell` start; the typed view inherits the escape
 //! choices for free.
 
-use std::cell::OnceCell;
 
 use unicode_width::UnicodeWidthStr;
 
-use crate::tree::{Node, NodeId, TableAlign};
+use crate::tree::{NodeId, TableAlign};
 
 /// One cell of a row. Carries only the arena id of the underlying
 /// `NodeKind::TableCell` node; the cell's inline body lives in the
@@ -42,6 +41,7 @@ impl TableCell {
         Self { cell_id }
     }
 
+    #[cfg(test)]
     pub(crate) fn cell_id(self) -> NodeId {
         self.cell_id
     }
@@ -80,10 +80,7 @@ impl TableRow {
         Self { row_id, cells }
     }
 
-    pub(crate) fn row_id(&self) -> NodeId {
-        self.row_id
-    }
-
+    #[cfg(test)]
     pub(crate) fn cells(&self) -> &[TableCell] {
         &self.cells
     }
@@ -98,26 +95,11 @@ impl TableRow {
 /// A GFM §4.10 table whose well-formedness is guaranteed by
 /// construction: non-empty alignment vector, head and every body row
 /// have exactly `align.len()` cells.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct TableBlock {
     align: Vec<TableAlign>,
     head: TableRow,
     body: Vec<TableRow>,
-    column_widths: OnceCell<Vec<usize>>,
-}
-
-impl Clone for TableBlock {
-    fn clone(&self) -> Self {
-        Self {
-            align: self.align.clone(),
-            head: self.head.clone(),
-            body: self.body.clone(),
-            // Don't carry the cached widths across clones: the cache
-            // is bound to the source and arena of the original
-            // computation, and re-deriving it is cheap.
-            column_widths: OnceCell::new(),
-        }
-    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -169,29 +151,24 @@ impl TableBlock {
                 });
             }
         }
-        Ok(Self {
-            align,
-            head,
-            body,
-            column_widths: OnceCell::new(),
-        })
+        Ok(Self { align, head, body })
     }
 
+    #[cfg(test)]
     pub(crate) fn align(&self) -> &[TableAlign] {
         &self.align
     }
 
+    #[cfg(test)]
     pub(crate) fn head(&self) -> &TableRow {
         &self.head
     }
 
+    #[cfg(test)]
     pub(crate) fn body(&self) -> &[TableRow] {
         &self.body
     }
 
-    /// Per-column maximum display width (Unicode East-Asian-Width
-    /// aware) of cells' source slices. Computed lazily on first call;
-    /// subsequent calls return the cached vector.
     /// Emit a GFM §4.10 table: head row, alignment row, body rows.
     /// Cells are rendered via the inline pretty-printer, line breaks
     /// inside cells collapsed to spaces. Per-column width is sized to
@@ -241,28 +218,6 @@ impl TableBlock {
             parts.push(hard_line());
         }
         concat(parts)
-    }
-
-    pub(crate) fn column_widths(&self, source: &str, arena: &[Node]) -> &[usize] {
-        self.column_widths.get_or_init(|| {
-            let mut widths = vec![0_usize; self.align.len()];
-            let rows = core::iter::once(&self.head).chain(self.body.iter());
-            for row in rows {
-                for (col, cell) in row.cells.iter().enumerate() {
-                    let w = if row.is_pad(*cell) {
-                        0
-                    } else {
-                        cell_display_width(source, arena, cell.cell_id)
-                    };
-                    if let Some(slot) = widths.get_mut(col)
-                        && w > *slot
-                    {
-                        *slot = w;
-                    }
-                }
-            }
-            widths
-        })
     }
 }
 
@@ -377,17 +332,6 @@ fn format_alignment_row(alignments: &[TableAlign], widths: &[usize]) -> String {
     out
 }
 
-/// Display width of a cell from its arena source range.
-fn cell_display_width(source: &str, arena: &[Node], cell_id: NodeId) -> usize {
-    let Some(node) = arena.get(cell_id.idx()) else {
-        return 0;
-    };
-    let Some(slice) = source.get(node.raw_range.clone()) else {
-        return 0;
-    };
-    UnicodeWidthStr::width(slice)
-}
-
 #[cfg(test)]
 #[allow(
     clippy::expect_used,
@@ -485,24 +429,6 @@ mod tests {
         assert_eq!(row.cells().len(), 2);
         assert!(!row.is_pad(row.cells()[0]));
         assert!(!row.is_pad(row.cells()[1]));
-    }
-
-    #[test]
-    fn column_widths_cached() {
-        let head = TableRow::from_raw(
-            nid(1),
-            vec![TableCell::new(nid(2)), TableCell::new(nid(3))],
-            2,
-        );
-        let t = TableBlock::try_new(vec![TableAlign::None; 2], head, vec![]).unwrap();
-        // Empty arena → all widths derive to 0; cache still
-        // initialises. Asserting the cell behaves identically across
-        // calls is the cache's contract (same Vec, same contents).
-        let arena: Vec<Node> = Vec::new();
-        let w1 = t.column_widths("", &arena);
-        let w2 = t.column_widths("", &arena);
-        assert!(std::ptr::eq(w1, w2));
-        assert_eq!(w1, &[0_usize, 0]);
     }
 
     #[test]
