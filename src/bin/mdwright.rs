@@ -501,7 +501,7 @@ fn run_lint(
             let non_adv = diags.iter().filter(|d| !d.advisory).count();
 
             let (final_diags, applied) = if apply_fixes && !diags.is_empty() {
-                let (new_src, n) = Document::apply_safe_fixes(&source, &diags);
+                let (new_src, n) = doc.apply_safe_fixes(&diags);
                 if n > 0 && new_src != source {
                     fs::write(path, &new_src)
                         .with_context(|| format!("write {}", path.display()))?;
@@ -630,7 +630,7 @@ fn run_stdin(
     let non_adv = diags.iter().filter(|d| !d.advisory).count();
 
     if apply_fixes {
-        let (fixed, _n) = Document::apply_safe_fixes(&buf, &diags);
+        let (fixed, _n) = doc.apply_safe_fixes(&diags);
         let stdout = io::stdout();
         let mut out = stdout.lock();
         out.write_all(fixed.as_bytes())?;

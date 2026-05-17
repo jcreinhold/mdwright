@@ -23,6 +23,7 @@ use crate::ir::{
 };
 use crate::line_index::LineIndex;
 use crate::rule_set::RuleSet;
+use crate::source::Source;
 use crate::stdlib;
 use crate::suppression::SuppressionMap;
 use crate::tree::Tree;
@@ -89,9 +90,16 @@ impl Default for LintOptions {
 
 /// A parsed Markdown document. Construct with [`Document::parse`];
 /// query with the accessors; lint with [`Document::lint`].
+///
+/// `Document` owns a [`Source`] that holds both the caller-supplied
+/// original bytes and the canonical view pulldown parses against
+/// (CM §2.1 line endings + CM §2.3 NUL → U+FFFD). The IR's byte
+/// ranges, the formatter, and the runtime HTML gate all see the
+/// canonical bytes; diagnostics and [`Document::apply_safe_fixes`]
+/// see the original.
 #[derive(Debug)]
 pub struct Document {
-    source: String,
+    source: Source,
     ir: Ir,
 }
 
@@ -106,14 +114,24 @@ impl Document {
     #[must_use]
     #[tracing::instrument(level = "info", name = "Document::parse", skip(source), fields(len = source.len()))]
     pub fn parse(source: &str) -> Self {
-        let owned = source.to_owned();
-        let ir = Ir::parse(&owned);
-        Self { source: owned, ir }
+        let source = Source::new(source);
+        let ir = Ir::parse(source.canonical());
+        Self { source, ir }
     }
 
-    /// The full source string the document was parsed from.
+    /// The canonical source string the IR was parsed against. Equal
+    /// to the caller's input when no CM §2.1 / §2.3 canonicalisation
+    /// was needed; otherwise CRLF → LF and NUL → U+FFFD substitutions
+    /// were applied.
     #[must_use]
     pub fn source(&self) -> &str {
+        self.source.canonical()
+    }
+
+    /// The [`Source`] handle. Exposes both the original and canonical
+    /// buffers plus the offset map between them.
+    #[must_use]
+    pub fn source_handle(&self) -> &Source {
         &self.source
     }
 
@@ -292,7 +310,7 @@ impl Document {
                     known.push(s);
                 }
             }
-            let (map, unknown) = SuppressionMap::build(&self.source, &self.ir, &known);
+            let (map, unknown) = SuppressionMap::build(self.source.canonical(), &self.ir, &known);
             out.retain(|d| !map.suppresses(&d.rule, &d.span));
             out.extend(unknown);
         }
@@ -316,7 +334,7 @@ impl Document {
     #[tracing::instrument(level = "info", name = "Document::format", skip_all, fields(out_len = tracing::field::Empty))]
     pub fn format(&self, opts: &FmtOptions) -> String {
         let out = format::format_document(
-            &self.source,
+            self.source.canonical(),
             opts,
             self.tree(),
             self.ir.frontmatter.as_ref(),
@@ -356,23 +374,36 @@ impl Document {
         }
     }
 
-    /// Apply every safe fix from `diags` to this document's source,
-    /// returning the repaired text and the count of edits applied.
+    /// Apply every safe fix from `diags` to this document's
+    /// **original** source, returning the repaired text and the count
+    /// of edits applied. Diagnostic `span` fields carry canonical-byte
+    /// offsets (the bytes the IR was built from); this method
+    /// translates each span back to its original-byte range so the
+    /// repaired text preserves CRLF endings and original NUL bytes
+    /// outside the spans the fix touches.
+    ///
     /// Overlapping safe fixes resolve right-to-left; the later edit
     /// wins.
     #[must_use]
     pub fn apply_safe_fixes(&self, diags: &[Diagnostic]) -> (String, usize) {
+        use crate::source::ByteSpan;
         let mut edits: Vec<(Range<usize>, &str)> = diags
             .iter()
             .filter_map(|d| {
-                d.fix
-                    .as_ref()
-                    .filter(|f| f.safe)
-                    .map(|f| (d.span.clone(), f.replacement.as_str()))
+                let fix = d.fix.as_ref().filter(|f| f.safe)?;
+                // Translate the canonical span the diagnostic carries
+                // to an original span so the edit lands at the bytes
+                // the caller's file actually has.
+                let canon = ByteSpan::new(
+                    u32::try_from(d.span.start).ok()?,
+                    u32::try_from(d.span.end).ok()?,
+                );
+                let orig = self.source.to_original(canon);
+                Some((orig.range(), fix.replacement.as_str()))
             })
             .collect();
         edits.sort_by_key(|e| std::cmp::Reverse(e.0.start));
-        let mut out = self.source.clone();
+        let mut out = self.source.original().to_owned();
         let mut applied = 0usize;
         let mut last_start = usize::MAX;
         for (range, replacement) in edits {

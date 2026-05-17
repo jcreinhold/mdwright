@@ -455,7 +455,6 @@ const fn close_target_byte(delim: AnyDelim) -> u8 {
 #[allow(clippy::indexing_slicing, clippy::panic)]
 mod tests {
     use super::*;
-    use std::borrow::Cow;
 
     fn scan(source: &str) -> (Vec<MathRegion>, Vec<MathError>) {
         scan_math_regions(source, &[], &[], &[], &[], MathConfig::default())
@@ -555,7 +554,7 @@ mod tests {
     fn region_inside_code_span_excluded() {
         let s = r"text `\[ x \]` more";
         let ic = vec![InlineCode {
-            text: r"\[ x \]",
+            text: r"\[ x \]".to_owned(),
             byte_offset: 5,
             raw_range: 5..14,
         }];
@@ -567,10 +566,10 @@ mod tests {
     fn region_inside_code_block_excluded() {
         let s = "```\n\\[ x \\]\n```";
         let cb = vec![CodeBlock {
-            text: r"\[ x \]",
+            text: r"\[ x \]".to_owned(),
             byte_offset: 4,
             raw_range: 0..s.len(),
-            info: Cow::Borrowed(""),
+            info: String::new(),
             fenced: true,
         }];
         let (regs, _) = scan_math_regions(s, &[], &cb, &[], &[], MathConfig::default());
@@ -581,7 +580,7 @@ mod tests {
     fn region_inside_inline_html_excluded() {
         let s = r#"see <a href="/x?val=$foo">x</a> after"#;
         let ih = vec![InlineHtml {
-            text: r#"<a href="/x?val=$foo">"#,
+            text: r#"<a href="/x?val=$foo">"#.to_owned(),
             byte_offset: 4,
             raw_range: 4..26,
         }];

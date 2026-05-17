@@ -45,7 +45,7 @@ fn corpus_files_parse_to_non_empty_trees() {
         assert!(count > 0, "tree for {} had no descendants", path.display());
         // Also exercise raw_text on a sampling of nodes.
         for id in tree.descendants(tree.root()).take(16) {
-            let _ = tree.raw_text(id);
+            let _ = tree.raw_text(doc.source(), id);
         }
         files = files.saturating_add(1);
     }

@@ -69,15 +69,13 @@ pub(crate) struct RenderOptions;
 /// downstream width calculations and the rendered byte stream agree,
 /// and the post-render line-ending normaliser becomes redundant.
 ///
-/// NUL is **not** canonicalised here despite CM §2.3 nominally
-/// requiring NUL → U+FFFD. The reason is that pulldown does not
-/// perform that substitution in event payloads, and its emphasis
-/// resolution treats NUL and FFFD differently (NUL participates in
-/// emphasis runs as a normal character; FFFD's 3-byte UTF-8 sequence
-/// changes the byte distance the emphasis-flanking rule consults).
-/// Substituting at emit time would change pulldown's re-parse
-/// structure relative to the source. See
-/// `fuzz/known-issues/idempotence-nul-emphasis-escape.in`.
+/// NUL is canonicalised once at parse time inside
+/// [`crate::source::Source::new`] (CM §2.3 NUL → U+FFFD) and never
+/// reaches this function. Pulldown sees canonical bytes and the
+/// formatter emits canonical bytes; the runtime HTML gate
+/// (`Document::format_validated`) compares canonical-bytes-in vs
+/// canonical-bytes-out so the NUL-vs-FFFD flanking divergence that
+/// previously caused bug-class G cannot arise.
 ///
 /// Cost: `.contains('\r')` early-out; zero allocation for the common
 /// case (synthesised prefixes like `# `, escape `\`, and any source
