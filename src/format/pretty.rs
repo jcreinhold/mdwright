@@ -18,6 +18,7 @@
 
 use crate::cm::refs::ReferenceTable;
 use crate::config::FmtOptions;
+use crate::format::emit_safety::FlankSource;
 use crate::ir::{AdmonitionRegion, Frontmatter};
 use crate::tree::Tree;
 
@@ -32,4 +33,10 @@ pub(crate) struct PrettyCtx<'a> {
     /// `LinkReferenceDefinition` is not a tree node — the table is
     /// the single source of truth.
     pub refs: &'a ReferenceTable,
+    /// Where emit-safety decisions read flank context from. Pass 1
+    /// (the initial render in [`crate::format::format_document`])
+    /// passes [`FlankSource::Isolated`]; pass 2+ passes
+    /// [`FlankSource::Draft`] with the previously-rendered draft.
+    /// See `docs/architecture/two-pass.md`.
+    pub flank: FlankSource<'a>,
 }

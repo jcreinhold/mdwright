@@ -55,3 +55,23 @@ handles it (pass 2 reads the full draft, including the formatter's rendering of 
 - **Prompt 49 (fixed-point gate + re-verify):** promote these from `docs/architecture/round-3-findings/` to
   `tests/regressions/fuzz_round3_*.in` after the sweep makes them pass. The promotion commit's diff is the proof
   that the sweep accomplished what it set out to do.
+
+## Status after prompt 47
+
+Both inputs **still fail** after the iterative-draft formatter landed. The two-pass mechanism solved the bug class
+it was scoped for — flank-derived emit decisions made against fresh draft bytes, no source-byte prediction — but
+both round-3 inputs exercise a *different* bug class: **nested-IR-shape preservation**.
+
+- `01-…in`: the *outer* Emphasis's emit decision (which delimiter to use) is sound under any flank derivation; the
+  problem is that picking `*` for the outer breaks the *inner* Emphasis's `*…*` pairing. The safety ladder verifies
+  outer-wrap survival but not inner-structure survival. With italic style `*` (the default), the outer wrap
+  rewrite collapses the inner.
+- `02-…in`: emit decisions across construct boundaries (Strong / Emphasis / Strikethrough) re-pair on re-parse
+  even when each individual decision is locally correct. The pass-2 draft confirms the local decisions; the
+  re-parse changes the structural interpretation.
+
+The fix belongs to a follow-up prompt — extend `format::emit_safety::parses_as_single_run` (or replace it) to
+verify the **full nested-IR shape** survives the embedded reparse, not just the outer wrap. Two-pass is a
+necessary substrate for that work (we need to know what bytes are actually around the site before the
+nested-IR check is meaningful) but is not sufficient on its own. Until that prompt lands these fixtures stay
+here as evidence; the regression harness in `tests/regressions/` is intentionally not yet pointed at them.

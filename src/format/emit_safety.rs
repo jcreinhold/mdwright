@@ -30,6 +30,7 @@ use crate::cm::inline::emphasis::EmphasisDelim;
 use crate::format::doc::{Doc, RenderOptions, concat, render, text};
 use crate::parse;
 use crate::source::{CanonicalSource, Source};
+use crate::tree::{NodeId, Tree};
 
 /// Surrounding bytes that should flank `wrapped` during the validation
 /// reparse. Pulldown's emphasis-flanking rule (CM §6.2) inspects the
@@ -46,6 +47,77 @@ use crate::source::{CanonicalSource, Source};
 pub(crate) struct FlankCtx<'a> {
     pub left: Option<&'a str>,
     pub right: Option<&'a str>,
+}
+
+/// Where the safety ladder reads its flank context from. Pass 1 of
+/// the two-pass formatter uses [`FlankSource::Isolated`] (no forward-
+/// look — every site is decided as if surrounded by whitespace).
+/// Pass 2+ uses [`FlankSource::Draft`] with a view over the previous
+/// draft so flank decisions consult the bytes that pass 1 actually
+/// emitted, not source bytes the local emitter is guessing at. See
+/// `docs/architecture/two-pass.md` for the full rationale.
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum FlankSource<'a> {
+    Isolated,
+    Draft(&'a DraftView<'a>),
+}
+
+/// Pass-2 input: the bytes of a draft rendered by pass 1, the tree
+/// pulldown parses out of those bytes, and a lockstep correspondence
+/// from source-tree `NodeId`s to draft-tree `NodeId`s.
+///
+/// `source_to_draft` is indexed by the source tree's `NodeId.idx()`.
+/// `None` entries mark subtrees whose shape diverged in the draft —
+/// flank lookup for those sites returns [`FlankCtx::default()`] and
+/// the safety ladder treats the emission as isolated, exactly as
+/// pass 1 did.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct DraftView<'a> {
+    pub bytes: &'a str,
+    pub tree: &'a Tree,
+    pub source_to_draft: &'a [Option<NodeId>],
+}
+
+impl<'a> FlankSource<'a> {
+    /// `FlankCtx` for the emit site at `source_id` in the source tree.
+    /// Returns the default (empty) flank when this source is
+    /// [`FlankSource::Isolated`], or when the draft tree's shape
+    /// diverges at `source_id`'s subtree.
+    ///
+    /// The flank is one UTF-8 codepoint on each side — enough for
+    /// `CommonMark` §6.2's flanking-character-class rules. Wider
+    /// context is not needed for the decision the safety ladder makes.
+    pub(crate) fn flank_for(self, source_id: NodeId) -> FlankCtx<'a> {
+        let Self::Draft(view) = self else {
+            return FlankCtx::default();
+        };
+        let Some(draft_id) = view.source_to_draft.get(source_id.idx()).copied().flatten() else {
+            return FlankCtx::default();
+        };
+        let Some(node) = view.tree.node(draft_id) else {
+            return FlankCtx::default();
+        };
+        let range = &node.raw_range;
+        let left = view.bytes.get(..range.start).and_then(last_codepoint);
+        let right = view.bytes.get(range.end..).and_then(first_codepoint);
+        FlankCtx { left, right }
+    }
+}
+
+/// Last UTF-8 codepoint of `s` as a substring, or `None` if `s` is
+/// empty.
+fn last_codepoint(s: &str) -> Option<&str> {
+    let (i, _) = s.char_indices().next_back()?;
+    s.get(i..)
+}
+
+/// First UTF-8 codepoint of `s` as a substring, or `None` if `s` is
+/// empty.
+fn first_codepoint(s: &str) -> Option<&str> {
+    let mut iter = s.char_indices();
+    let _ = iter.next()?;
+    let end = iter.next().map_or(s.len(), |(i, _)| i);
+    s.get(..end)
 }
 
 /// Does pulldown, given `wrapped` bytes embedded in `ctx` neighbours,

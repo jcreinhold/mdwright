@@ -68,10 +68,11 @@ impl NodeId {
         self.0 as usize
     }
 
-    /// Build a `NodeId` from a raw arena index. Used by unit tests in
-    /// sibling modules that need a `NodeId` without standing up a
+    /// Build a `NodeId` from a raw arena index. Used by the
+    /// formatter's iterative-draft loop to pre-populate the identity
+    /// source-to-draft map on the first iteration, and by sibling-
+    /// module unit tests that need a `NodeId` without standing up a
     /// whole `TreeBuilder`.
-    #[cfg(test)]
     #[must_use]
     pub(crate) const fn from_index(i: u32) -> Self {
         Self(i)
@@ -290,6 +291,43 @@ impl Tree {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.arena.len() <= 1
+    }
+
+    /// Walk `self` and `other` in lockstep from the root and return a
+    /// parallel array, indexed by `self`'s `NodeId`s, whose entries
+    /// are the corresponding `NodeId` in `other` (or `None` when the
+    /// subtrees diverge in shape and no correspondence is possible).
+    ///
+    /// Built for the two-pass formatter: pass 2 needs each source
+    /// emphasis / strong / link / image node's byte position in the
+    /// *draft* tree so it can slice draft bytes for flank context. A
+    /// `None` entry means the draft's IR shape doesn't match the
+    /// source's at that subtree — the caller treats the site as
+    /// having no draft-derived flank (the safety ladder falls back to
+    /// the isolated-flank decision pass 1 used).
+    ///
+    /// Shape matching is by child count only — the node *kind* may
+    /// differ, on the theory that any kind mismatch is itself a
+    /// semantic divergence the convergence loop will catch on the
+    /// next iteration.
+    #[must_use]
+    pub(crate) fn corresponding_node_map(&self, other: &Self) -> Vec<Option<NodeId>> {
+        let mut map = vec![None; self.arena.len()];
+        let mut work: Vec<(NodeId, NodeId)> = vec![(self.root(), other.root())];
+        while let Some((a_id, b_id)) = work.pop() {
+            if let Some(slot) = map.get_mut(a_id.idx()) {
+                *slot = Some(b_id);
+            }
+            let a_children: Vec<NodeId> = self.children(a_id).collect();
+            let b_children: Vec<NodeId> = other.children(b_id).collect();
+            if a_children.len() != b_children.len() {
+                continue;
+            }
+            for (ac, bc) in a_children.into_iter().zip(b_children) {
+                work.push((ac, bc));
+            }
+        }
+        map
     }
 }
 
@@ -1692,5 +1730,37 @@ let x = 1;
             })
             .expect("fenced code block");
         assert_eq!(info, "rust");
+    }
+
+    #[test]
+    fn corresponding_node_map_aligns_identical_shapes() {
+        let src = "Hello *world*\n";
+        let a = Ir::parse_str(src).tree;
+        let b = Ir::parse_str(src).tree;
+        let map = a.corresponding_node_map(&b);
+        assert_eq!(map.len(), a.len());
+        // every entry should be Some — both trees have identical shape.
+        for (i, slot) in map.iter().enumerate() {
+            assert!(slot.is_some(), "node {i} unmatched in identical-shape pair");
+        }
+        // root maps to root; root's only Paragraph child maps to other's.
+        assert_eq!(map.first().copied().flatten(), Some(b.root()));
+    }
+
+    #[test]
+    fn corresponding_node_map_marks_diverged_subtree_as_none() {
+        // `a` has one paragraph with two inline children;
+        // `b` has one paragraph with one inline child.
+        let a = Ir::parse_str("foo *bar*\n").tree;
+        let b = Ir::parse_str("foo bar\n").tree;
+        let map = a.corresponding_node_map(&b);
+        // Root matches; paragraph child matches; below the paragraph
+        // the child counts differ so descendants are None.
+        assert_eq!(map.first().copied().flatten(), Some(b.root()));
+        let none_count = map.iter().filter(|slot| slot.is_none()).count();
+        assert!(
+            none_count > 0,
+            "expected some None entries below the diverged paragraph"
+        );
     }
 }

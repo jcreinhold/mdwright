@@ -11,7 +11,7 @@
 use crate::config::Wrap;
 use crate::format::doc::{Doc, concat, hard_line};
 use crate::format::pretty::PrettyCtx;
-use crate::tree::{NodeId, NodeKind};
+use crate::tree::NodeId;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub(crate) struct Paragraph;
@@ -35,51 +35,29 @@ impl Paragraph {
         concat([body, hard_line()])
     }
 
-    /// True iff this paragraph can round-trip through verbatim
-    /// emission without losing any normalisation. Used by the
-    /// document-root overlay to short-circuit IR-driven emission for
-    /// paragraphs whose source bytes already match the canonical form.
+    /// True iff `pass1_bytes` — the bytes the IR-driven emit would
+    /// produce for this paragraph — match the paragraph's source
+    /// bytes (modulo trailing newline). The caller is expected to
+    /// render the paragraph through the normal IR path first and
+    /// pass the resulting string in.
     ///
-    /// Requirements:
-    /// - (a) every inline child is a single-text-segment
-    ///   [`InlineRun`](crate::cm::inline::run::InlineRun) (no soft/hard
-    ///   breaks, no structural inlines like emphasis/code/links), so
-    ///   source-byte emission cannot drop a break the IR would
-    ///   otherwise have flattened or rewrapped;
-    /// - (b) the wrap policy is [`Wrap::Keep`] — both [`Wrap::No`] and
-    ///   [`Wrap::At(_)`] require an IR-driven pass.
+    /// This is the output-derived form of the eligibility check: a
+    /// paragraph is verbatim-equivalent iff the IR-emit happens to
+    /// produce source-equal bytes. Pass-1 emits everything through
+    /// the IR; the short-circuit to source-byte emission is only
+    /// taken when bytes already agree, which means it can never
+    /// silently lose a normalisation.
     ///
-    /// The "no `\r` in source" precondition for any root-verbatim path
-    /// lives in `format::block::root_verbatim_safe`; this helper only
-    /// answers the paragraph-specific shape question.
-    pub(crate) fn is_verbatim_eligible(ctx: &PrettyCtx<'_>, id: NodeId) -> bool {
+    /// Verbatim emission is gated on [`Wrap::Keep`]; [`Wrap::No`] and
+    /// [`Wrap::At`] are width policies the verbatim path cannot
+    /// honour. The "no `\r` in source" precondition for any root-
+    /// verbatim path lives in `format::block::root_verbatim_safe`.
+    pub(crate) fn is_verbatim_eligible(ctx: &PrettyCtx<'_>, id: NodeId, pass1_bytes: &str) -> bool {
         if !matches!(ctx.opts.wrap(), Wrap::Keep) {
             return false;
         }
-        for child in ctx.tree.children(id) {
-            let Some(node) = ctx.tree.node(child) else {
-                continue;
-            };
-            let NodeKind::Run(run) = &node.kind else {
-                return false;
-            };
-            use crate::cm::inline::run::RunPart;
-            let mut text_count = 0usize;
-            for part in run.parts() {
-                match part {
-                    RunPart::Text(_) => {
-                        text_count = text_count.saturating_add(1);
-                        if text_count > 1 {
-                            return false;
-                        }
-                    }
-                    RunPart::SoftBreak | RunPart::HardLineBreak | RunPart::HardBreakTag => {
-                        return false;
-                    }
-                }
-            }
-        }
-        true
+        let source_bytes = ctx.tree.raw_text(ctx.source, id);
+        source_bytes.trim_end_matches('\n') == pass1_bytes.trim_end_matches('\n')
     }
 }
 

@@ -217,10 +217,23 @@ impl LinkRun {
     }
 
     /// Emit this link with the resolved style.
+    ///
+    /// `source_id` is this link's node in the source tree. In pass 2
+    /// the body-vs-label identity check uses the bytes of the
+    /// corresponding draft node — what the previous pass actually
+    /// emitted between `[` and `]` — instead of the IR-flattened
+    /// body. That folds in any drift introduced by the emit pipeline
+    /// (escape passes, wrap reshaping) so the link-style decision
+    /// converges with the rest of the document.
     #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(&self, body: Doc<'b>, ctx: &crate::format::pretty::PrettyCtx<'b>) -> Doc<'b> {
-        let flat = flatten_body_doc(&body);
-        let style = self.emit_style(&LinkResolveCtx { body_text: &flat });
+    pub(crate) fn pretty<'b>(
+        &self,
+        body: Doc<'b>,
+        ctx: &crate::format::pretty::PrettyCtx<'b>,
+        source_id: crate::tree::NodeId,
+    ) -> Doc<'b> {
+        let body_text = body_text_for_decision(&body, ctx, source_id);
+        let style = self.emit_style(&LinkResolveCtx { body_text: &body_text });
         assemble_link(ctx, body, self.dest(), self.title(), &style, false)
     }
 }
@@ -277,11 +290,17 @@ impl ImageRun {
         decide_style(&self.source, ctx.body_text)
     }
 
-    /// Emit this image with the resolved style.
+    /// Emit this image with the resolved style. See [`LinkRun::pretty`]
+    /// for the `source_id` contract.
     #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(&self, body: Doc<'b>, ctx: &crate::format::pretty::PrettyCtx<'b>) -> Doc<'b> {
-        let flat = flatten_body_doc(&body);
-        let style = self.emit_style(&LinkResolveCtx { body_text: &flat });
+    pub(crate) fn pretty<'b>(
+        &self,
+        body: Doc<'b>,
+        ctx: &crate::format::pretty::PrettyCtx<'b>,
+        source_id: crate::tree::NodeId,
+    ) -> Doc<'b> {
+        let body_text = body_text_for_decision(&body, ctx, source_id);
+        let style = self.emit_style(&LinkResolveCtx { body_text: &body_text });
         assemble_link(ctx, body, self.dest(), self.title(), &style, true)
     }
 }
@@ -326,6 +345,44 @@ fn decide_style<'s>(source: &'s LinkSource, body_text: &str) -> EmitLinkStyle<'s
 
 fn labels_match(a: &str, b: &str) -> bool {
     cm_normalise_label(a) == cm_normalise_label(b)
+}
+
+/// Body text to feed into the link-style identity check.
+///
+/// In pass 1 of the two-pass formatter ([`FlankSource::Isolated`])
+/// the body Doc is flattened — the only information available is what
+/// the IR walker just built. In pass 2 ([`FlankSource::Draft`]) the
+/// corresponding draft node's body bytes are used instead, so the
+/// identity check sees what the previous pass actually emitted
+/// between `[` and `]` after every emit decision was made. This
+/// closes the convergence loop for reference-collapsed and
+/// `-shortcut` links whose body bytes can drift across passes (e.g.
+/// emphasis-style renormalisation inside the body).
+///
+/// [`FlankSource::Isolated`]: crate::format::emit_safety::FlankSource::Isolated
+/// [`FlankSource::Draft`]: crate::format::emit_safety::FlankSource::Draft
+fn body_text_for_decision(
+    body: &Doc<'_>,
+    ctx: &crate::format::pretty::PrettyCtx<'_>,
+    source_id: crate::tree::NodeId,
+) -> String {
+    use crate::format::emit_safety::FlankSource;
+    if let FlankSource::Draft(view) = ctx.flank
+        && let Some(draft_id) = view.source_to_draft.get(source_id.idx()).copied().flatten()
+    {
+        let body_children: Vec<_> = view.tree.children(draft_id).collect();
+        if body_children.is_empty() {
+            return String::new();
+        }
+        let first = body_children.first().and_then(|id| view.tree.node(*id));
+        let last = body_children.last().and_then(|id| view.tree.node(*id));
+        if let (Some(first_node), Some(last_node)) = (first, last)
+            && let Some(slice) = view.bytes.get(first_node.raw_range.start..last_node.raw_range.end)
+        {
+            return slice.to_owned();
+        }
+    }
+    flatten_body_doc(body)
 }
 
 /// Flatten a [`Doc`] to a string for the body-vs-label identity check.

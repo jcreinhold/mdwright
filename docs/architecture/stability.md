@@ -57,23 +57,34 @@ the per-site `Options::empty() + insert()` boilerplate collapses to one `parse::
 options drift between the safety ladder's strikethrough-only set and the full formatter set is fixed. `render_html`
 now also canonicalises (CR→LF, NUL→U+FFFD), matching `Document::parse`.
 
-### Prompt 47 — Output-derived emit (two-pass)
+### Prompt 47 — Output-derived emit (iterative-draft) [LANDED]
 
-Replace the ambient-string workaround
-(`extend_ambient` / `prepend_close` / `concat_ambient` in `src/format/inline.rs:220-280`) with a two-pass scheme:
+The ambient-string workaround (`extend_ambient` / `prepend_close` / `concat_ambient` / `rendered_so_far` in
+`src/format/inline.rs`) is gone. In its place: every render uses `FlankSource::Draft(view)` where `view` is a
+`DraftView { bytes, tree, source_to_draft }`. The first iteration uses source as the initial draft (identity
+correspondence map); subsequent iterations use the previous iteration's output as the next draft. The convergence
+loop returns on the first pair of consecutive equal outputs.
 
-- **Pass 1** emits a draft using the IR shape only. Sites whose decision is forward-look-dependent (emphasis flank,
-  setext-vs-ATX, heading width, link style) record a "deferred" marker with their span in the draft.
-- **Pass 2** walks the draft once. For each deferred site, it reads the actual bytes around the span — the bytes
-  that *will* be in the output — and finalises the decision.
+`MAX_PASSES = 2` (one rectifying iteration, one confirming iteration). Failure raises
+`ConvergenceError::DidNotConverge`; `Document::format` falls back to verbatim source emission with a
+`tracing::warn!`, `Document::format_validated` propagates a new `FormatError::DidNotConverge { source, last_draft }`
+variant. See `docs/architecture/two-pass.md` for the full design, including why typed `DraftOutput` /
+`ConvergedOutput` wrappers were rejected (single-producer / single-consumer classitis around `String`).
 
-Eliminates pattern #2. Deletes `extend_ambient`, `prepend_close`, `concat_ambient`, the `source_slice` argument to
-`emit_emphasis_safely`, and `is_verbatim_eligible`'s source-byte fallback path. The flank computation in
-`format::emit_safety::parses_as_single_run` keeps its current signature but now receives bytes from the draft, not
-the source.
+Decision-read sites converted: emphasis / strong flank in `src/format/inline.rs` (via
+`ctx.flank.flank_for(node_id)`), link / image body identity in `src/cm/inline/link.rs` (via `body_text_for_decision`
+reading draft body bytes when available), and paragraph verbatim eligibility in `src/cm/block/paragraph.rs` (the
+predicate is now "the IR-driven pass-1 emit byte-matches source").
 
-The two round-3 findings are the prompt's acceptance test: both must produce semantically-equivalent + idempotent
-output after the two-pass design lands. If they don't, the design is incomplete and prompt 47 needs revision.
+**Round-3 findings — partially addressed.** Both round-3 inputs exercise nested-IR-shape preservation, not just
+flank-derived emit. The safety ladder verifies that the *outer* emphasis / strong run re-parses correctly; it does
+not verify that an emit decision (e.g. delimiter renormalisation of the outer wrap) preserves the *inner*
+structure. `_*/*_` → `*\*/\**` is the canonical case: the two-pass mechanism produced the bytes pass-1's emit
+chose, the convergence loop confirmed those bytes as a fixed point of "render with draft flank," but the rendered
+bytes do not re-parse to the source's nested-emphasis IR. The fix belongs to a follow-up prompt that extends
+`format::emit_safety::parses_as_single_run` to verify the full nested-IR shape, not just the outer wrap.
+Fixtures remain at `docs/architecture/round-3-findings/`; they have not been promoted to `tests/regressions/`
+pending that work.
 
 ### Prompt 48 — Structural emission (delete `normalize_trailing_newline`)
 
@@ -118,46 +129,60 @@ Eliminates patterns #4 and #6.
 
 ## Type sketch
 
-Three crate-internal newtypes encode the four moves as types, so future drift fails to compile:
+The volatile decision worth encoding in a type is **where flank bytes come from**. That lives in `FlankSource`,
+not in pipeline-state wrappers:
 
 ```rust
-// src/source.rs (prompt 46 adds this on top of the existing Source)
-pub(crate) struct CanonicalSource<'a>(&'a str);
-impl Source {
-    pub(crate) fn as_canonical(&self) -> CanonicalSource<'_> { CanonicalSource(&self.canonical) }
-}
+// src/source.rs (prompt 46, landed)
+pub(crate) struct CanonicalSource<'a> { bytes: &'a str }
 // The sole production caller of pulldown_cmark::Parser:
-pub(crate) fn parse(src: CanonicalSource<'_>, opts: Options) -> impl Iterator<Item = (Event<'_>, Range<usize>)> {
-    Parser::new_ext(src.0, opts).into_offset_iter()
+pub(crate) fn events(src: CanonicalSource<'_>, opts: Options) -> Parser<'_> { … }
+
+// src/format/emit_safety.rs (prompt 47, landed)
+pub(crate) enum FlankSource<'a> {
+    Isolated,                      // exists for the safety-ladder unit tests; not used in production
+    Draft(&'a DraftView<'a>),
+}
+pub(crate) struct DraftView<'a> {
+    pub bytes: &'a str,
+    pub tree: &'a Tree,
+    pub source_to_draft: &'a [Option<NodeId>],
+}
+impl<'a> FlankSource<'a> {
+    pub(crate) fn flank_for(self, source_id: NodeId) -> FlankCtx<'a> { … }
 }
 
-// src/format/document.rs (prompt 47/48)
-pub(crate) struct DraftOutput(String);                // result of pass 1
-pub(crate) struct ConvergedOutput(String);            // result of pass 2 + fixed-point check
+// src/format/document.rs (prompt 47, landed)
+pub(crate) fn format_document<'a>(…) -> Result<String, ConvergenceError> {
+    // Initial render uses source itself as the draft (identity correspondence).
+    // Subsequent iterations use the previous iteration's output. Loop returns
+    // when two consecutive iterations produce equal bytes.
+}
 
-pub(crate) fn format_draft(doc: &Document, opts: &FmtOptions) -> DraftOutput;
-pub(crate) fn converge(draft: DraftOutput, doc: &Document, opts: &FmtOptions)
-    -> Result<ConvergedOutput, ConvergenceError>;
-
-// src/document.rs (prompt 49)
+// src/document.rs (prompt 47, landed)
 impl Document {
     pub fn format(&self, opts: &FmtOptions) -> String {
-        converge(format_draft(self, opts), self, opts)
-            .map(|c| c.into_inner())
-            .unwrap_or_else(|e| e.best_effort()) // matches today's infallible signature
+        match format::format_document(…) {
+            Ok(s) => s,
+            Err(ConvergenceError::DidNotConverge { .. }) => verbatim_source_fallback(…),
+        }
     }
     pub fn format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError> {
-        converge(format_draft(self, opts), self, opts)
-            .map_err(FormatError::from)
-            .map(ConvergedOutput::into_inner)
-            .and_then(|s| self.check_equivalent(&s).map(|()| s))
+        let formatted = format::format_document(…)
+            .map_err(|ConvergenceError::DidNotConverge { last_draft }|
+                FormatError::DidNotConverge { source: …, last_draft })?;
+        // existing semantic-equivalence check follows
     }
 }
 ```
 
-`CanonicalSource`, `DraftOutput`, and `ConvergedOutput` are `pub(crate)`. The public API
+`CanonicalSource`, `FlankSource`, and `DraftView` are `pub(crate)`. The public API
 (`Document::parse(&str)`, `Document::format(&FmtOptions)`, `Document::format_validated`,
-`mdwright::semantically_equivalent`) is unchanged.
+`mdwright::semantically_equivalent`) is unchanged except for the additive `FormatError::DidNotConverge` variant.
+
+The rejected alternative (`DraftOutput(String)` + `ConvergedOutput(String)` typed wrappers) is documented in
+`docs/architecture/two-pass.md`: both are pass-through wrappers around `String` with single producer and single
+consumer each — classitis with no information hidden behind the boundary.
 
 ## Public API contract (no breakage)
 

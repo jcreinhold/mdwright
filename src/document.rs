@@ -41,6 +41,13 @@ pub enum FormatError {
         formatted: String,
         diff_summary: String,
     },
+    /// The two-pass formatter could not reach a fixed point within
+    /// the bounded number of rectifying passes — the input is in the
+    /// "cannot canonicalise" set. The caller should preserve the
+    /// source bytes (this is the formatter refusing, not a bug). The
+    /// `last_draft` field is the most recent rectifying-pass output
+    /// and is useful only for diagnostics.
+    DidNotConverge { source: String, last_draft: String },
 }
 
 impl fmt::Display for FormatError {
@@ -49,6 +56,11 @@ impl fmt::Display for FormatError {
             Self::SemanticDivergence { diff_summary, .. } => {
                 write!(f, "formatter changed the document's meaning: {diff_summary}")
             }
+            Self::DidNotConverge { .. } => write!(
+                f,
+                "formatter could not canonicalise this input within the convergence bound; \
+                 keep the source bytes or use --no-validate to accept the latest draft"
+            ),
         }
     }
 }
@@ -333,20 +345,34 @@ impl Document {
     /// Reformat the document.
     ///
     /// Produces a Markdown string by walking the tree IR through the
-    /// block-level serializer (inline content uses a source-verbatim
-    /// stub in this session). Output trailing newline and line-ending
-    /// style are taken from `opts`.
+    /// two-pass formatter (see `docs/architecture/two-pass.md`). When
+    /// the convergence loop cannot reach a fixed point — adversarial
+    /// or pathological input — the source bytes are returned after
+    /// trailing-newline and end-of-line policies, with a
+    /// `tracing::warn!` so the fallback is observable in instrumented
+    /// runs. Use [`Self::format_validated`] when the caller needs to
+    /// detect and surface the non-convergence rather than silently
+    /// fall back.
     #[must_use]
     #[tracing::instrument(level = "info", name = "Document::format", skip_all, fields(out_len = tracing::field::Empty))]
     pub fn format(&self, opts: &FmtOptions) -> String {
-        let out = format::format_document(
+        let out = match format::format_document(
             self.source.canonical(),
             opts,
             self.tree(),
             self.ir.frontmatter.as_ref(),
             &self.ir.admonitions,
             &self.ir.refs,
-        );
+        ) {
+            Ok(s) => s,
+            Err(format::ConvergenceError::DidNotConverge { last_draft }) => {
+                tracing::warn!(
+                    last_draft_len = last_draft.len(),
+                    "format: convergence loop exhausted MAX_PASSES, falling back to verbatim source"
+                );
+                verbatim_source_fallback(self.source.canonical(), opts)
+            }
+        };
         tracing::Span::current().record("out_len", out.len());
         out
     }
@@ -371,8 +397,23 @@ impl Document {
     /// Returns an error if the source and formatted output produce
     /// different canonical event streams.
     pub fn format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError> {
-        let formatted = self.format(opts);
         let source = self.source();
+        let formatted = match format::format_document(
+            source,
+            opts,
+            self.tree(),
+            self.ir.frontmatter.as_ref(),
+            &self.ir.admonitions,
+            &self.ir.refs,
+        ) {
+            Ok(s) => s,
+            Err(format::ConvergenceError::DidNotConverge { last_draft }) => {
+                return Err(FormatError::DidNotConverge {
+                    source: source.to_owned(),
+                    last_draft,
+                });
+            }
+        };
         match crate::format::semantic::first_divergence(source, &formatted) {
             None => Ok(formatted),
             Some(diff_summary) => Err(FormatError::SemanticDivergence {
@@ -422,4 +463,16 @@ impl Document {
         }
         (out, applied)
     }
+}
+
+/// Fallback path for [`Document::format`] when the two-pass loop
+/// fails to converge: return the canonical source bytes with the
+/// configured trailing-newline and end-of-line policies applied. CR
+/// and NUL are already normalised — `source` is the canonical buffer
+/// the IR was parsed from.
+fn verbatim_source_fallback(source: &str, opts: &FmtOptions) -> String {
+    let mut out = source.to_owned();
+    crate::format::normalize_trailing_newline(&mut out, opts.trailing_newline(), source);
+    crate::format::apply_end_of_line(&mut out, opts.end_of_line(), source);
+    out
 }

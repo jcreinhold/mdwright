@@ -439,6 +439,18 @@ fn run_fmt(
                     drop(formatted);
                     return Ok(());
                 }
+                (true, Err(FormatError::DidNotConverge { .. })) => {
+                    divergent.fetch_add(1, Ordering::Relaxed);
+                    let guard = stderr_lock.lock().map_err(|_| anyhow!("stderr lock poisoned"))?;
+                    let mut err = io::stderr().lock();
+                    writeln!(
+                        err,
+                        "mdwright: refusing to write {}: formatter could not canonicalise this input within the convergence bound (rerun with --no-validate to override)",
+                        path.display()
+                    )?;
+                    drop(guard);
+                    return Ok(());
+                }
                 (false, _) => doc.format(&opts),
             };
             if formatted == source {
@@ -490,6 +502,14 @@ fn run_fmt_stdin(opts: &FmtOptions, args: &FmtArgs, check: bool, policy: InputPo
                 writeln!(
                     err,
                     "mdwright: refusing to format {name}: format changes meaning ({diff_summary}) (rerun with --no-validate to override)",
+                )?;
+                return Ok(ExitCode::from(2));
+            }
+            Err(FormatError::DidNotConverge { .. }) => {
+                let mut err = io::stderr().lock();
+                writeln!(
+                    err,
+                    "mdwright: refusing to format {name}: formatter could not canonicalise this input within the convergence bound (rerun with --no-validate to override)",
                 )?;
                 return Ok(ExitCode::from(2));
             }

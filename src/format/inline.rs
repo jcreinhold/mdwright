@@ -16,6 +16,12 @@
 //! escape decisions operating on full text payloads (so a `# foo`
 //! continuation line still escapes correctly) while moving the
 //! decision down a layer from the old Doc-tree walker.
+//!
+//! Flank context for the emphasis safety ladder comes from
+//! [`PrettyCtx::flank`](crate::format::pretty::PrettyCtx::flank) —
+//! pass 1 sees [`FlankSource::Isolated`] (every site decided as if
+//! surrounded by whitespace); pass 2+ sees [`FlankSource::Draft`]
+//! and the safety ladder reads the actual bytes pass 1 emitted.
 
 use crate::cm::block::paragraph_safety::{
     LineContext, escape_for_block_start, escape_for_paragraph_interrupt, escape_setext_underline,
@@ -23,8 +29,8 @@ use crate::cm::block::paragraph_safety::{
 use crate::cm::inline::emphasis::{EmphasisDelim, ResolveCtx};
 use crate::cm::inline::run::{InlineRun, RunPart};
 use crate::cm::inline::strikethrough::Strikethrough;
-use crate::format::doc::{Doc, RenderOptions, concat, hard_line, line, prose, render, text};
-use crate::format::emit_safety::{FlankCtx, RunKind, emit_emphasis_safely};
+use crate::format::doc::{Doc, concat, hard_line, line, prose, text};
+use crate::format::emit_safety::{RunKind, emit_emphasis_safely};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::{NodeId, NodeKind};
 
@@ -32,20 +38,10 @@ use crate::tree::{NodeId, NodeKind};
 #[tracing::instrument(level = "trace", skip_all)]
 pub(crate) fn pretty_inline_children<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> Doc<'a> {
     let ids: Vec<NodeId> = ctx.tree.children(parent).collect();
-    pretty_inline_children_for_ids_with_ambient(ctx, &ids, "", "")
+    pretty_inline_children_for_ids(ctx, &ids)
 }
 
-/// Internal variant of [`pretty_inline_children`] that accepts an
-/// `ambient_left` / `ambient_right` — bytes that will precede /
-/// follow this sibling stream in the output, used to build
-/// emphasis-safety flank context. See [`rendered_so_far`] +
-/// [`extend_ambient`] for the rationale.
-fn pretty_inline_children_for_ids_with_ambient<'a>(
-    ctx: &PrettyCtx<'a>,
-    ids: &[NodeId],
-    ambient_left: &str,
-    ambient_right: &str,
-) -> Doc<'a> {
+fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
     let mut left_emphasis_delim: Option<EmphasisDelim> = None;
     for &cid in ids {
@@ -62,21 +58,9 @@ fn pretty_inline_children_for_ids_with_ambient<'a>(
                     left_sibling_delim: left_emphasis_delim,
                     first_child_delim: first_child_strong_delim(ctx, cid),
                 });
-                let rendered_left = rendered_so_far(&parts);
-                let body_ambient_left = extend_ambient(ambient_left, &rendered_left, RunKind::Emphasis, delim);
-                let body_ambient_right = prepend_close(ambient_right, RunKind::Emphasis, delim);
-                let body = pretty_inline_children_for_ids_with_ambient(
-                    ctx,
-                    &ctx.tree.children(cid).collect::<Vec<_>>(),
-                    &body_ambient_left,
-                    &body_ambient_right,
-                );
+                let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let left_flank = concat_ambient(ambient_left, &rendered_left);
-                let flank = FlankCtx {
-                    left: Some(&left_flank),
-                    right: Some(ambient_right),
-                };
+                let flank = ctx.flank.flank_for(cid);
                 parts.push(emit_emphasis_safely(
                     body,
                     delim,
@@ -93,55 +77,22 @@ fn pretty_inline_children_for_ids_with_ambient<'a>(
                     left_sibling_delim: None,
                     first_child_delim: first_child_emphasis_delim(ctx, cid),
                 });
-                let rendered_left = rendered_so_far(&parts);
-                let body_ambient_left = extend_ambient(ambient_left, &rendered_left, RunKind::Strong, delim);
-                let body_ambient_right = prepend_close(ambient_right, RunKind::Strong, delim);
-                let body = pretty_inline_children_for_ids_with_ambient(
-                    ctx,
-                    &ctx.tree.children(cid).collect::<Vec<_>>(),
-                    &body_ambient_left,
-                    &body_ambient_right,
-                );
+                let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let left_flank = concat_ambient(ambient_left, &rendered_left);
-                let flank = FlankCtx {
-                    left: Some(&left_flank),
-                    right: Some(ambient_right),
-                };
+                let flank = ctx.flank.flank_for(cid);
                 parts.push(emit_emphasis_safely(body, delim, RunKind::Strong, source_slice, flank));
             }
             NodeKind::Strikethrough => {
-                let body_ambient_left = format!("{ambient_left}{}~~", rendered_so_far(&parts));
-                let body_ambient_right = format!("~~{ambient_right}");
-                let body = pretty_inline_children_for_ids_with_ambient(
-                    ctx,
-                    &ctx.tree.children(cid).collect::<Vec<_>>(),
-                    &body_ambient_left,
-                    &body_ambient_right,
-                );
+                let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
                 parts.push(Strikethrough::pretty(body));
             }
             NodeKind::Link(run) => {
-                let body_ambient_left = format!("{ambient_left}{}[", rendered_so_far(&parts));
-                let body_ambient_right = format!("]{ambient_right}");
-                let body = pretty_inline_children_for_ids_with_ambient(
-                    ctx,
-                    &ctx.tree.children(cid).collect::<Vec<_>>(),
-                    &body_ambient_left,
-                    &body_ambient_right,
-                );
-                parts.push(run.pretty(body, ctx));
+                let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
+                parts.push(run.pretty(body, ctx, cid));
             }
             NodeKind::Image(run) => {
-                let body_ambient_left = format!("{ambient_left}{}![", rendered_so_far(&parts));
-                let body_ambient_right = format!("]{ambient_right}");
-                let body = pretty_inline_children_for_ids_with_ambient(
-                    ctx,
-                    &ctx.tree.children(cid).collect::<Vec<_>>(),
-                    &body_ambient_left,
-                    &body_ambient_right,
-                );
-                parts.push(run.pretty(body, ctx));
+                let body = pretty_inline_children_for_ids(ctx, &ctx.tree.children(cid).collect::<Vec<_>>());
+                parts.push(run.pretty(body, ctx, cid));
             }
             NodeKind::Autolink(run) => parts.push(run.pretty()),
             NodeKind::FootnoteReference(r) => parts.push(r.pretty()),
@@ -207,54 +158,9 @@ pub(crate) fn pretty_paragraph_inline_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[No
     let mut state = ParagraphSafetyState::initial();
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
     let mut left_emphasis_delim: Option<EmphasisDelim> = None;
-    walk_paragraph_inline(ctx, ids, &mut parts, &mut state, &mut left_emphasis_delim, "", "");
+    walk_paragraph_inline(ctx, ids, &mut parts, &mut state, &mut left_emphasis_delim);
     trim_edge_breaks(&mut parts);
     concat(parts)
-}
-
-/// Build the `ambient_left` to pass to a wrapper's body walk: parent
-/// ambient + already-rendered preceding siblings + the wrapper's own
-/// opening delimiter bytes. The opening delimiter is what places the
-/// body's emphasis-safety checks inside the right pulldown pairing
-/// window (CM §6.2 / §6.3). Used by Emphasis and Strong recursion.
-fn extend_ambient(parent_ambient: &str, rendered_left: &str, kind: RunKind, delim: EmphasisDelim) -> String {
-    let open = kind.wrap_str(delim);
-    let mut out = String::with_capacity(
-        parent_ambient
-            .len()
-            .saturating_add(rendered_left.len())
-            .saturating_add(open.len()),
-    );
-    out.push_str(parent_ambient);
-    out.push_str(rendered_left);
-    out.push_str(open);
-    out
-}
-
-/// Build the `ambient_right` to pass to a wrapper's body walk: the
-/// wrapper's own closing delimiter bytes prepended to the parent's
-/// `ambient_right`. Following-sibling bytes inside the body are not
-/// included — we render left-to-right and don't yet know them. The
-/// closing delimiter is what bounds the pulldown pairing window on
-/// the right; without it, the safety ladder would accept candidates
-/// that fuse with the actual wrap close on emit.
-fn prepend_close(parent_ambient_right: &str, kind: RunKind, delim: EmphasisDelim) -> String {
-    let close = kind.wrap_str(delim);
-    let mut out = String::with_capacity(close.len().saturating_add(parent_ambient_right.len()));
-    out.push_str(close);
-    out.push_str(parent_ambient_right);
-    out
-}
-
-/// Build the `formatted_left` to feed into the emphasis-safety
-/// flank: parent ambient + already-rendered preceding siblings. No
-/// wrapper bytes are appended — this string is what precedes the
-/// candidate emit itself in the output, not what wraps it.
-fn concat_ambient(parent_ambient: &str, rendered_left: &str) -> String {
-    let mut out = String::with_capacity(parent_ambient.len().saturating_add(rendered_left.len()));
-    out.push_str(parent_ambient);
-    out.push_str(rendered_left);
-    out
 }
 
 /// Paragraph-safety state. Tracks where in the assembled body we are
@@ -330,8 +236,6 @@ fn walk_paragraph_inline<'a>(
     out: &mut Vec<Doc<'a>>,
     state: &mut ParagraphSafetyState,
     left_emphasis_delim: &mut Option<EmphasisDelim>,
-    ambient_left: &str,
-    ambient_right: &str,
 ) {
     let last_idx = ids.len().saturating_sub(1);
     for (i, &cid) in ids.iter().enumerate() {
@@ -357,16 +261,9 @@ fn walk_paragraph_inline<'a>(
                     left_sibling_delim: *left_emphasis_delim,
                     first_child_delim: first_child_strong_delim(ctx, cid),
                 });
-                let rendered_left = rendered_so_far(out);
-                let body_ambient_left = extend_ambient(ambient_left, &rendered_left, RunKind::Emphasis, delim);
-                let body_ambient_right = prepend_close(ambient_right, RunKind::Emphasis, delim);
-                let body = build_inline_body_with_safety(ctx, cid, state, &body_ambient_left, &body_ambient_right);
+                let body = build_inline_body_with_safety(ctx, cid, state);
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let left_flank = concat_ambient(ambient_left, &rendered_left);
-                let flank = FlankCtx {
-                    left: Some(&left_flank),
-                    right: Some(ambient_right),
-                };
+                let flank = ctx.flank.flank_for(cid);
                 out.push(emit_emphasis_safely(
                     body,
                     delim,
@@ -383,35 +280,22 @@ fn walk_paragraph_inline<'a>(
                     left_sibling_delim: None,
                     first_child_delim: first_child_emphasis_delim(ctx, cid),
                 });
-                let rendered_left = rendered_so_far(out);
-                let body_ambient_left = extend_ambient(ambient_left, &rendered_left, RunKind::Strong, delim);
-                let body_ambient_right = prepend_close(ambient_right, RunKind::Strong, delim);
-                let body = build_inline_body_with_safety(ctx, cid, state, &body_ambient_left, &body_ambient_right);
+                let body = build_inline_body_with_safety(ctx, cid, state);
                 let source_slice = ctx.tree.raw_text(ctx.source, cid);
-                let left_flank = concat_ambient(ambient_left, &rendered_left);
-                let flank = FlankCtx {
-                    left: Some(&left_flank),
-                    right: Some(ambient_right),
-                };
+                let flank = ctx.flank.flank_for(cid);
                 out.push(emit_emphasis_safely(body, delim, RunKind::Strong, source_slice, flank));
             }
             NodeKind::Strikethrough => {
-                let body_ambient_left = format!("{ambient_left}{}~~", rendered_so_far(out));
-                let body_ambient_right = format!("~~{ambient_right}");
-                let body = build_inline_body_with_safety(ctx, cid, state, &body_ambient_left, &body_ambient_right);
+                let body = build_inline_body_with_safety(ctx, cid, state);
                 out.push(Strikethrough::pretty(body));
             }
             NodeKind::Link(run) => {
-                let body_ambient_left = format!("{ambient_left}{}[", rendered_so_far(out));
-                let body_ambient_right = format!("]{ambient_right}");
-                let body = build_inline_body_with_safety(ctx, cid, state, &body_ambient_left, &body_ambient_right);
-                out.push(run.pretty(body, ctx));
+                let body = build_inline_body_with_safety(ctx, cid, state);
+                out.push(run.pretty(body, ctx, cid));
             }
             NodeKind::Image(run) => {
-                let body_ambient_left = format!("{ambient_left}{}![", rendered_so_far(out));
-                let body_ambient_right = format!("]{ambient_right}");
-                let body = build_inline_body_with_safety(ctx, cid, state, &body_ambient_left, &body_ambient_right);
-                out.push(run.pretty(body, ctx));
+                let body = build_inline_body_with_safety(ctx, cid, state);
+                out.push(run.pretty(body, ctx, cid));
             }
             NodeKind::Autolink(run) => {
                 out.push(run.pretty());
@@ -456,29 +340,12 @@ fn walk_paragraph_inline<'a>(
 
 /// Recurse into the inline children of a wrapper (emphasis, strong,
 /// link, image, strikethrough) with the same paragraph-safety state.
-/// `ambient_left` / `ambient_right` are the byte prefix / suffix that
-/// will surround this body in the output. Used by the emphasis-safety
-/// flank context (see [`extend_ambient`] / [`prepend_close`]).
 /// Returns the assembled body as a single `Doc`.
-fn build_inline_body_with_safety<'a>(
-    ctx: &PrettyCtx<'a>,
-    parent: NodeId,
-    state: &mut ParagraphSafetyState,
-    ambient_left: &str,
-    ambient_right: &str,
-) -> Doc<'a> {
+fn build_inline_body_with_safety<'a>(ctx: &PrettyCtx<'a>, parent: NodeId, state: &mut ParagraphSafetyState) -> Doc<'a> {
     let ids: Vec<NodeId> = ctx.tree.children(parent).collect();
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
     let mut left_emphasis_delim: Option<EmphasisDelim> = None;
-    walk_paragraph_inline(
-        ctx,
-        &ids,
-        &mut parts,
-        state,
-        &mut left_emphasis_delim,
-        ambient_left,
-        ambient_right,
-    );
+    walk_paragraph_inline(ctx, &ids, &mut parts, state, &mut left_emphasis_delim);
     concat(parts)
 }
 
@@ -603,20 +470,4 @@ fn first_child_emphasis_delim(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<Emphasi
         left_sibling_delim: None,
         first_child_delim: None,
     }))
-}
-
-/// Render every Doc in `parts` to a single string. Used by emphasis
-/// and strong emit sites to compute the formatter-aware left flank.
-///
-/// Cost: O(total parts size). For typical paragraphs this is
-/// negligible; the worst case is a paragraph with many emphasis
-/// siblings where the cost becomes quadratic in the sibling count
-/// (each emphasis renders the prefix). Bounded by paragraph length,
-/// which is human-scale.
-fn rendered_so_far(parts: &[Doc<'_>]) -> String {
-    let mut out = String::new();
-    for d in parts {
-        out.push_str(&render(d, &RenderOptions));
-    }
-    out
 }

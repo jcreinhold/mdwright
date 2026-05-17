@@ -16,7 +16,7 @@
 use crate::cm::block::TypedBlock;
 use crate::cm::block::paragraph::Paragraph;
 use crate::config::{LinkDefStyle, Placement};
-use crate::format::doc::{Doc, concat, hard_line, text, unbreakable};
+use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
 use crate::format::verbatim::emit_verbatim;
 use crate::tree::{NodeId, NodeKind};
@@ -144,8 +144,23 @@ pub(crate) fn pretty_block<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
             NodeKind::CodeBlock { fenced: false, .. } => {
                 return emit_verbatim(ctx.source, ctx.tree, id);
             }
-            NodeKind::Paragraph if Paragraph::is_verbatim_eligible(ctx, id) => {
-                return emit_verbatim(ctx.source, ctx.tree, id);
+            NodeKind::Paragraph => {
+                // Output-derived verbatim eligibility: render the
+                // paragraph through the IR path, compare the bytes
+                // to the source paragraph, and short-circuit to
+                // verbatim emission only when the two agree. Pre-
+                // rendering is the predicate; the resulting Doc is
+                // reused on the "not eligible" branch so the
+                // paragraph body is only built once.
+                let para_doc = match &node.typed {
+                    Some(TypedBlock::Paragraph(p)) => p.pretty(ctx, id),
+                    _ => Paragraph::new().pretty(ctx, id),
+                };
+                let pass1_bytes = render(&para_doc, &RenderOptions);
+                if Paragraph::is_verbatim_eligible(ctx, id, &pass1_bytes) {
+                    return emit_verbatim(ctx.source, ctx.tree, id);
+                }
+                return para_doc;
             }
             _ => {}
         }
