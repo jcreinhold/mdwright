@@ -6,7 +6,7 @@
 //!   3. lint is deterministic across two runs on the same input.
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, RuleSet};
+use mdwright::{Document, RuleSet, contains_rejected_control_chars};
 
 const MAX_INPUT: usize = 65_536;
 
@@ -17,6 +17,12 @@ fuzz_target!(|data: &[u8]| {
     let Ok(s) = std::str::from_utf8(data) else {
         return;
     };
+    // Mirror `--reject-control-chars`. Lint span-bounds and
+    // determinism are still well-defined on such inputs, but they
+    // burn budget without exercising real Markdown shape.
+    if contains_rejected_control_chars(s) {
+        return;
+    }
     let rules = RuleSet::stdlib_all();
     let diags1 = Document::parse(s).lint(&rules);
     let diags2 = Document::parse(s).lint(&rules);

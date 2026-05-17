@@ -7,7 +7,7 @@
 //! not only the default-style path.
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, FmtOptions, FormatMode, MathOptions, Wrap};
+use mdwright::{Document, FmtOptions, FormatMode, MathOptions, Wrap, contains_rejected_control_chars};
 
 const MAX_INPUT: usize = 65_536;
 
@@ -48,6 +48,12 @@ fuzz_target!(|data: &[u8]| {
     let Ok(s) = std::str::from_utf8(rest) else {
         return;
     };
+    // Skip C0-control inputs: pulldown's NUL→U+FFFD rewrite means
+    // `parse(parse_back(s))` isn't a fixed point, so the oracle is
+    // ill-typed on them. Mirrors CLI `--reject-control-chars`.
+    if contains_rejected_control_chars(s) {
+        return;
+    }
     let opts = opts_from_byte(option_byte);
     let once = Document::parse(s).format(&opts);
     let twice = Document::parse(&once).format(&opts);

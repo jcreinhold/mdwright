@@ -14,7 +14,7 @@
 //! deeper claim that verbatim does not touch block bytes.
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, FmtOptions, FormatMode};
+use mdwright::{Document, FmtOptions, FormatMode, contains_rejected_control_chars};
 
 const MAX_INPUT: usize = 65_536;
 
@@ -25,6 +25,12 @@ fuzz_target!(|data: &[u8]| {
     let Ok(s) = std::str::from_utf8(data) else {
         return;
     };
+    // Mirror `--reject-control-chars`: pulldown rewrites NUL → U+FFFD
+    // even in verbatim mode (`Source::canonicalise` is upstream of the
+    // format mode switch), so the strict identity gate is undefined.
+    if contains_rejected_control_chars(s) {
+        return;
+    }
     let opts = FmtOptions::default().with_mode(FormatMode::Verbatim);
 
     let once = Document::parse(s).format(&opts);

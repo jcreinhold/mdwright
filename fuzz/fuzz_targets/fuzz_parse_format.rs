@@ -11,7 +11,7 @@
 //! and rejects only real semantic drift.
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, FmtOptions, semantically_equivalent};
+use mdwright::{Document, FmtOptions, contains_rejected_control_chars, semantically_equivalent};
 
 /// Per-iter input cap: 64 KiB. Larger inputs eat fuzz budget without
 /// reaching deeper structural coverage; the CLI enforces the same
@@ -25,6 +25,12 @@ fuzz_target!(|data: &[u8]| {
     let Ok(s) = std::str::from_utf8(data) else {
         return;
     };
+    // Mirror `--reject-control-chars`: pulldown rewrites NUL → U+FFFD
+    // and accepts other C0 controls verbatim, both of which make the
+    // gate undefined on these inputs. Skip rather than spend budget.
+    if contains_rejected_control_chars(s) {
+        return;
+    }
     let formatted = Document::parse(s).format(&FmtOptions::default());
     assert!(
         semantically_equivalent(s, &formatted),

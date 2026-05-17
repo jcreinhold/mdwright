@@ -85,9 +85,52 @@ pub use line_index::LineIndex;
 pub use rule::LintRule;
 pub use rule_set::{DuplicateRuleName, RuleSet};
 
+/// Input-boundary predicate: returns `true` when `s` carries a C0
+/// control byte that mdwright treats as evidence the input is not
+/// well-formed Markdown.
+///
+/// Allowed bytes inside `0x00..=0x1f`: TAB (`0x09`), LF (`0x0a`),
+/// FF (`0x0c`), CR (`0x0d`). Everything else in C0 is rejected. DEL
+/// (`0x7f`) is *not* rejected; `CommonMark` accepts it verbatim and
+/// real documents occasionally carry it.
+///
+/// This is an *opt-in* policy. The library never refuses such input
+/// on its own — `Document::parse` follows `CommonMark` §2.3 and
+/// substitutes NUL with U+FFFD. The CLI's `--reject-control-chars`
+/// flag and the coverage-guided fuzz harness call this predicate to
+/// decline inputs the operator considers suspect (and that pulldown
+/// would silently rewrite, breaking the idempotence oracle).
+pub fn contains_rejected_control_chars(s: &str) -> bool {
+    s.bytes().any(|b| matches!(b, 0x00..=0x08 | 0x0B | 0x0E..=0x1F))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{Diagnostic, Document, LintRule, RuleSet};
+    use super::{Diagnostic, Document, LintRule, RuleSet, contains_rejected_control_chars};
+
+    #[test]
+    fn control_char_predicate_accepts_clean_text() {
+        assert!(!contains_rejected_control_chars(""));
+        assert!(!contains_rejected_control_chars("# hello\n\nworld\n"));
+        assert!(!contains_rejected_control_chars("tab\there\tand\nlf\n"));
+        // FF and CR are spec-legal in Markdown source.
+        assert!(!contains_rejected_control_chars("ff:\x0c, cr:\r\n"));
+        // High Unicode is fine.
+        assert!(!contains_rejected_control_chars("café — 한글 — 𝓜"));
+        // DEL is not in the reject set.
+        assert!(!contains_rejected_control_chars("del:\x7f"));
+    }
+
+    #[test]
+    fn control_char_predicate_rejects_c0_controls() {
+        assert!(contains_rejected_control_chars("nul:\0"));
+        assert!(contains_rejected_control_chars("eot:\x04"));
+        // Vertical tab (0x0B) is rejected.
+        assert!(contains_rejected_control_chars("vt:\x0b"));
+        // SO/SI through US (0x0e..0x1f).
+        assert!(contains_rejected_control_chars("so:\x0e"));
+        assert!(contains_rejected_control_chars("us:\x1f"));
+    }
 
     fn diags(src: &str) -> Vec<Diagnostic> {
         Document::parse(src).lint(&RuleSet::stdlib_all())

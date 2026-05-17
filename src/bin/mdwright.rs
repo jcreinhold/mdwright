@@ -41,7 +41,7 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use mdwright::{
     Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LineIndex, LintOptions, RuleSet, Severity,
-    Snippet, discover_markdown, rule_doc_url, stdlib,
+    Snippet, contains_rejected_control_chars, discover_markdown, rule_doc_url, stdlib,
 };
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -79,6 +79,16 @@ struct Cli {
     /// it. Pass `0` to disable the cap entirely.
     #[arg(long, value_name = "BYTES", default_value_t = 10_000_000, global = true)]
     max_input_bytes: usize,
+
+    /// Refuse files (or stdin payloads) that contain C0 control bytes
+    /// other than TAB, LF, FF, and CR. `CommonMark` accepts these
+    /// verbatim (it only substitutes NUL with U+FFFD), but their
+    /// presence is usually evidence the input is not Markdown — and
+    /// pulldown's silent NUL rewrite makes round-trip idempotence
+    /// undefined on such inputs. Off by default; opt-in for callers
+    /// (CI gates, docs pipelines) that prefer hard rejection.
+    #[arg(long, global = true)]
+    reject_control_chars: bool,
 
     #[command(subcommand)]
     command: Command,
@@ -233,23 +243,38 @@ fn main() -> ExitCode {
     }
 }
 
+/// Bundle of input-boundary policy flags propagated to every entry
+/// point that reads source bytes (file or stdin). Keeping the two
+/// knobs together prevents a future input-boundary flag from
+/// reshuffling every signature.
+#[derive(Copy, Clone, Debug)]
+struct InputPolicy {
+    /// Hard byte cap; `0` disables.
+    max_bytes: usize,
+    /// Reject inputs with C0 controls other than TAB/LF/FF/CR.
+    reject_controls: bool,
+}
+
 fn run() -> Result<ExitCode> {
     let cli = Cli::parse();
     init_tracing(cli.verbose);
     let config_path = cli.config;
-    let cap = cli.max_input_bytes;
+    let policy = InputPolicy {
+        max_bytes: cli.max_input_bytes,
+        reject_controls: cli.reject_control_chars,
+    };
     match cli.command {
         Command::ListRules => {
             print_rule_catalogue()?;
             Ok(ExitCode::SUCCESS)
         }
         Command::Explain { rule } => run_explain(&rule),
-        Command::Check(args) => run_lint(&args, false, config_path.as_deref(), cap),
-        Command::Fix(args) => run_lint(&args, true, config_path.as_deref(), cap),
-        Command::Fmt(args) => run_fmt(&args, false, config_path.as_deref(), cap),
+        Command::Check(args) => run_lint(&args, false, config_path.as_deref(), policy),
+        Command::Fix(args) => run_lint(&args, true, config_path.as_deref(), policy),
+        Command::Fmt(args) => run_fmt(&args, false, config_path.as_deref(), policy),
         Command::FmtCheck(mut args) => {
             args.check = true;
-            run_fmt(&args, true, config_path.as_deref(), cap)
+            run_fmt(&args, true, config_path.as_deref(), policy)
         }
     }
 }
@@ -312,39 +337,62 @@ fn enforce_input_cap(label: &str, len: usize, cap: usize) -> Result<()> {
     Ok(())
 }
 
+/// Reject inputs carrying C0 controls other than TAB/LF/FF/CR when
+/// the operator opted in. No-op when `reject_controls` is false.
+fn enforce_no_rejected_controls(label: &str, source: &str, reject_controls: bool) -> Result<()> {
+    if reject_controls && contains_rejected_control_chars(source) {
+        bail!(
+            "{label}: input contains C0 control bytes outside TAB/LF/FF/CR. \
+             Pulldown's NUL→U+FFFD rewrite makes round-trip undefined on \
+             such inputs; drop `--reject-control-chars` to accept them."
+        );
+    }
+    Ok(())
+}
+
+/// Apply both input-boundary checks in order. Size first (cheap and
+/// catches the runaway case before the predicate walks the bytes).
+fn enforce_input_policy(label: &str, source: &str, policy: InputPolicy) -> Result<()> {
+    enforce_input_cap(label, source.len(), policy.max_bytes)?;
+    enforce_no_rejected_controls(label, source, policy.reject_controls)
+}
+
 /// Read stdin into `buf` with a hard byte cap. Reads via `take(cap+1)`
 /// so we can distinguish "exactly at cap" from "more than cap" without
-/// pulling the rest of the stream into memory.
+/// pulling the rest of the stream into memory. Control-char rejection
+/// runs after the read so the diagnostic mentions the original input.
 // Sequential stdin read; the lock guard is released as soon as the
 // I/O chain ends. Suppress the nursery hint that wants the guard
 // dropped a statement earlier — doing so would force splitting the
 // `take` chain across blocks for no actual contention.
 #[allow(clippy::significant_drop_tightening)]
-fn read_stdin_capped(buf: &mut String, cap: usize, label: &str) -> Result<()> {
+fn read_stdin_capped(buf: &mut String, policy: InputPolicy, label: &str) -> Result<()> {
     use std::io::Read as _;
     let stdin = io::stdin();
     let mut handle = stdin.lock();
+    let cap = policy.max_bytes;
     if cap == 0 {
         handle.read_to_string(buf).context("read stdin")?;
-        return Ok(());
+    } else {
+        let limit = u64::try_from(cap).unwrap_or(u64::MAX).saturating_add(1);
+        handle.take(limit).read_to_string(buf).context("read stdin")?;
+        enforce_input_cap(label, buf.len(), cap)?;
     }
-    let limit = u64::try_from(cap).unwrap_or(u64::MAX).saturating_add(1);
-    handle.take(limit).read_to_string(buf).context("read stdin")?;
-    enforce_input_cap(label, buf.len(), cap)
+    enforce_no_rejected_controls(label, buf, policy.reject_controls)
 }
 
 fn run_fmt(
     args: &FmtArgs,
     force_check: bool,
     config_path: Option<&std::path::Path>,
-    max_input_bytes: usize,
+    policy: InputPolicy,
 ) -> Result<ExitCode> {
     let cfg = resolve_config(config_path)?;
     let opts = cfg.fmt_options().clone().with_mode(args.mode.into());
     let check = args.check || force_check;
 
     if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
-        return run_fmt_stdin(&opts, args, check, max_input_bytes);
+        return run_fmt_stdin(&opts, args, check, policy);
     }
 
     let mut files: Vec<PathBuf> = Vec::new();
@@ -371,7 +419,7 @@ fn run_fmt(
         .par_iter()
         .map(|path| -> Result<()> {
             let source = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
-            enforce_input_cap(&path.display().to_string(), source.len(), max_input_bytes)?;
+            enforce_input_policy(&path.display().to_string(), &source, policy)?;
             let doc = Document::parse(&source);
             let formatted = match (validate, doc.format_validated(&opts)) {
                 (true, Ok(s)) => s,
@@ -424,13 +472,13 @@ fn run_fmt(
     }
 }
 
-fn run_fmt_stdin(opts: &FmtOptions, args: &FmtArgs, check: bool, max_input_bytes: usize) -> Result<ExitCode> {
+fn run_fmt_stdin(opts: &FmtOptions, args: &FmtArgs, check: bool, policy: InputPolicy) -> Result<ExitCode> {
     let name = args
         .stdin_filename
         .as_deref()
         .map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
     let mut buf = String::new();
-    read_stdin_capped(&mut buf, max_input_bytes, &name)?;
+    read_stdin_capped(&mut buf, policy, &name)?;
     let doc = Document::parse(&buf);
     let formatted = if args.no_validate {
         doc.format(opts)
@@ -496,7 +544,7 @@ fn run_lint(
     args: &LintArgs,
     apply_fixes: bool,
     config_path: Option<&std::path::Path>,
-    max_input_bytes: usize,
+    policy: InputPolicy,
 ) -> Result<ExitCode> {
     if args.jobs > 0 {
         rayon::ThreadPoolBuilder::new()
@@ -527,7 +575,7 @@ fn run_lint(
             args.check,
             args.format,
             use_color,
-            max_input_bytes,
+            policy,
         );
     }
 
@@ -554,7 +602,7 @@ fn run_lint(
         .par_iter()
         .map(|path| -> Result<()> {
             let source = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
-            enforce_input_cap(&path.display().to_string(), source.len(), max_input_bytes)?;
+            enforce_input_policy(&path.display().to_string(), &source, policy)?;
             let doc = Document::parse(&source);
             let diags = doc.lint_with(&rules, lint_opts);
             let count = diags.len();
@@ -696,10 +744,10 @@ fn run_stdin(
     check: bool,
     format: OutputFormat,
     use_color: bool,
-    max_input_bytes: usize,
+    policy: InputPolicy,
 ) -> Result<ExitCode> {
     let mut buf = String::new();
-    read_stdin_capped(&mut buf, max_input_bytes, "<stdin>")?;
+    read_stdin_capped(&mut buf, policy, "<stdin>")?;
 
     let doc = Document::parse(&buf);
     let diags = doc.lint_with(rules, lint_opts);
