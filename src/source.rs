@@ -54,7 +54,7 @@ impl ByteSpan {
     /// out of scope for the library.
     #[must_use]
     pub fn from_range(r: Range<usize>) -> Self {
-        debug_assert!(r.end <= u32::MAX as usize, "ByteSpan offset overflows u32");
+        debug_assert!(u32::try_from(r.end).is_ok(), "ByteSpan offset overflows u32");
         Self {
             start: r.start as u32,
             end: r.end as u32,
@@ -68,7 +68,7 @@ impl ByteSpan {
 
     #[must_use]
     pub fn len(self) -> u32 {
-        self.end - self.start
+        self.end.saturating_sub(self.start)
     }
 
     #[must_use]
@@ -101,7 +101,7 @@ impl OriginalSpan {
 
     #[must_use]
     pub fn len(self) -> u32 {
-        self.end - self.start
+        self.end.saturating_sub(self.start)
     }
 }
 
@@ -122,9 +122,9 @@ pub struct OffsetMap {
 /// into [`Source::canonical`], `original` is the byte range consumed
 /// from [`Source::original`]. Lengths differ in general:
 ///
-/// - `\r\n` → `\n`: canonical.len() == 1, original.len() == 2.
-/// - bare `\r` → `\n`: canonical.len() == 1, original.len() == 1.
-/// - `\0` → U+FFFD: canonical.len() == 3, original.len() == 1.
+/// - `\r\n` → `\n`: `canonical.len() == 1`, `original.len() == 2`.
+/// - bare `\r` → `\n`: `canonical.len() == 1`, `original.len() == 1`.
+/// - `\0` → U+FFFD: `canonical.len() == 3`, `original.len() == 1`.
 #[derive(Copy, Clone, Debug)]
 struct Rewrite {
     canonical: ByteSpan,

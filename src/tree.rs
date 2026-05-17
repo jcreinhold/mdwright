@@ -267,12 +267,6 @@ impl Tree {
         }
     }
 
-    /// Direct access to the arena (crate-internal callers that walk
-    /// nodes without needing a [`NodeId`] handle).
-    pub(crate) fn arena(&self) -> &[Node] {
-        &self.arena
-    }
-
     /// Number of nodes in the tree. Includes the Document root.
     #[must_use]
     pub fn len(&self) -> usize {

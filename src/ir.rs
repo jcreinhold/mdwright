@@ -19,7 +19,6 @@
 //! objects, not abstractions, and information-hiding on a position
 //! record buys nothing.
 
-use std::borrow::Cow;
 use std::ops::Range;
 use std::sync::OnceLock;
 
@@ -340,7 +339,7 @@ struct OpenList {
     items: Vec<ListItem>,
 }
 
-impl<'a> Builder<'a> {
+impl Builder<'_> {
     #[allow(clippy::wildcard_enum_match_arm)] // many irrelevant Event variants
     fn handle(&mut self, event: Event<'_>, range: Range<usize>) {
         match event {
