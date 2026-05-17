@@ -219,7 +219,12 @@ pub(crate) fn pretty_paragraph_inline_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[No
 /// window (CM §6.2 / §6.3). Used by Emphasis and Strong recursion.
 fn extend_ambient(parent_ambient: &str, rendered_left: &str, kind: RunKind, delim: EmphasisDelim) -> String {
     let open = kind.wrap_str(delim);
-    let mut out = String::with_capacity(parent_ambient.len().saturating_add(rendered_left.len()).saturating_add(open.len()));
+    let mut out = String::with_capacity(
+        parent_ambient
+            .len()
+            .saturating_add(rendered_left.len())
+            .saturating_add(open.len()),
+    );
     out.push_str(parent_ambient);
     out.push_str(rendered_left);
     out.push_str(open);

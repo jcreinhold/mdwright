@@ -1067,18 +1067,13 @@ fn first_non_whitespace_byte(source: &str, start: usize) -> Option<u8> {
 /// pulldown already decided this is a list, and parent container
 /// prefixes (`>`, `|`) are never list markers.
 fn derive_list_marker_byte(source: &str, range: Range<usize>, ordered: bool) -> Option<u8> {
-    source
-        .as_bytes()
-        .get(range)?
-        .iter()
-        .copied()
-        .find(|b| {
-            if ordered {
-                b.is_ascii_digit()
-            } else {
-                matches!(b, b'-' | b'*' | b'+')
-            }
-        })
+    source.as_bytes().get(range)?.iter().copied().find(|b| {
+        if ordered {
+            b.is_ascii_digit()
+        } else {
+            matches!(b, b'-' | b'*' | b'+')
+        }
+    })
 }
 
 /// Widen `range` so its start sits at the beginning of the line that

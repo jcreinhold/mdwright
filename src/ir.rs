@@ -554,18 +554,13 @@ impl Builder<'_> {
 /// non-whitespace byte at range.start" scan returns the parent's
 /// marker, not the item's.
 fn derive_item_marker_byte(source: &str, range: core::ops::Range<usize>, ordered: bool) -> Option<u8> {
-    source
-        .as_bytes()
-        .get(range)?
-        .iter()
-        .copied()
-        .find(|b| {
-            if ordered {
-                b.is_ascii_digit()
-            } else {
-                matches!(b, b'-' | b'*' | b'+')
-            }
-        })
+    source.as_bytes().get(range)?.iter().copied().find(|b| {
+        if ordered {
+            b.is_ascii_digit()
+        } else {
+            matches!(b, b'-' | b'*' | b'+')
+        }
+    })
 }
 
 /// Byte count from the start of the item's first non-blank line up

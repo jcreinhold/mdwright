@@ -140,17 +140,11 @@ fn parses_with_outer_run_at(input: &str, kind: RunKind, skip_left: usize, run_le
 }
 
 fn is_inline_wrap_start(tag: &Tag<'_>) -> bool {
-    matches!(
-        tag,
-        Tag::Emphasis | Tag::Strong | Tag::Link { .. } | Tag::Image { .. }
-    )
+    matches!(tag, Tag::Emphasis | Tag::Strong | Tag::Link { .. } | Tag::Image { .. })
 }
 
 fn is_inline_wrap_end(tag: TagEnd) -> bool {
-    matches!(
-        tag,
-        TagEnd::Emphasis | TagEnd::Strong | TagEnd::Link | TagEnd::Image
-    )
+    matches!(tag, TagEnd::Emphasis | TagEnd::Strong | TagEnd::Link | TagEnd::Image)
 }
 
 /// Legacy isolation-only validation — kept only for the unit tests in
