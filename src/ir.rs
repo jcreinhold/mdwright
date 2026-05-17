@@ -405,7 +405,12 @@ impl Builder<'_> {
                 });
             }
             Tag::Item => {
-                let marker_byte = first_non_whitespace_byte(self.source, range.start).unwrap_or(b'-');
+                // Use the parent list's `ordered` flag to scan for the
+                // right marker class; see tree::derive_list_marker_byte
+                // for why `first_non_whitespace_byte(range.start)` is
+                // unsafe across container nesting.
+                let ordered = self.list_stack.last().is_some_and(|l| l.ordered);
+                let marker_byte = derive_item_marker_byte(self.source, range.clone(), ordered).unwrap_or(b'-');
                 let indent = item_continuation_width(self.source, &range);
                 self.list_item_ranges.push((range.clone(), indent));
                 if let Some(open) = self.list_stack.last_mut() {
@@ -541,13 +546,26 @@ impl Builder<'_> {
 /// First non-whitespace byte at or after `start`. Used to recover a
 /// list item's marker character, which may be indented under nested
 /// lists.
-fn first_non_whitespace_byte(source: &str, start: usize) -> Option<u8> {
+/// Scan the source range for the first byte matching the legal list
+/// marker class. Mirrors `tree::derive_list_marker_byte`; pulldown's
+/// item range can include parent-container marker bytes when the
+/// separator after the parent's marker is a tab (see
+/// `fuzz_blockquote_tab_list_marker.in`), so the naive "first
+/// non-whitespace byte at range.start" scan returns the parent's
+/// marker, not the item's.
+fn derive_item_marker_byte(source: &str, range: core::ops::Range<usize>, ordered: bool) -> Option<u8> {
     source
         .as_bytes()
-        .get(start..)?
+        .get(range)?
         .iter()
         .copied()
-        .find(|b| !matches!(b, b' ' | b'\t'))
+        .find(|b| {
+            if ordered {
+                b.is_ascii_digit()
+            } else {
+                matches!(b, b'-' | b'*' | b'+')
+            }
+        })
 }
 
 /// Byte count from the start of the item's first non-blank line up

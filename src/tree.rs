@@ -911,7 +911,7 @@ impl<'a> TreeBuilder<'a> {
                 ordered: start.is_some(),
                 start: start.unwrap_or(0),
                 tight: true,
-                marker_byte: first_non_whitespace_byte(self.source, range.start).unwrap_or(0),
+                marker_byte: derive_list_marker_byte(self.source, range.clone(), start.is_some()).unwrap_or(0),
             },
             Tag::Item => NodeKind::Item { task: None },
             Tag::FootnoteDefinition(label) => NodeKind::FootnoteDefinition {
@@ -1054,6 +1054,31 @@ fn first_non_whitespace_byte(source: &str, start: usize) -> Option<u8> {
         .iter()
         .copied()
         .find(|b| !matches!(b, b' ' | b'\t'))
+}
+
+/// Find the *list marker byte* anywhere in the source range.
+///
+/// `Tag::List`'s reported range can include a parent container's
+/// marker bytes when the inner separator is a tab: `>\t-` makes
+/// pulldown emit a List with range `0..3`, so a naive
+/// "first non-whitespace byte from `range.start`" scan returns `>`,
+/// not `-` (`fuzz_blockquote_tab_list_marker.in`). Scanning for the
+/// first byte matching the *legal* marker set is unambiguous because
+/// pulldown already decided this is a list, and parent container
+/// prefixes (`>`, `|`) are never list markers.
+fn derive_list_marker_byte(source: &str, range: Range<usize>, ordered: bool) -> Option<u8> {
+    source
+        .as_bytes()
+        .get(range)?
+        .iter()
+        .copied()
+        .find(|b| {
+            if ordered {
+                b.is_ascii_digit()
+            } else {
+                matches!(b, b'-' | b'*' | b'+')
+            }
+        })
 }
 
 /// Widen `range` so its start sits at the beginning of the line that
