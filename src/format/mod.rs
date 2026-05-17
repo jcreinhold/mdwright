@@ -29,6 +29,16 @@ use crate::config::{EndOfLine, TrailingNewline};
 /// fenced code block, where any LF the post-pass introduces lands
 /// inside the code body on re-parse and changes the rendered HTML.
 ///
+/// The "did the source end with `\n`?" probe ignores trailing
+/// horizontal whitespace (`' '` / `'\t'`). Pulldown treats a final
+/// line of only spaces/tabs as a stripped trailing blank line: the
+/// effective document ends one `\n` earlier than the byte count
+/// suggests. Without the trim, source `\t|\n\t` (indented code,
+/// content `|\n`, trailing tab-only blank line) reads as
+/// "no trailing `\n`", so the boundary strips the code block's
+/// content `\n` and the re-parse sees content `|` instead of `|\n`
+/// (`fuzz_indented_code_trailing_ws_drop.in`).
+///
 /// `Strip` drops every trailing `\n`. `Ensure` forces exactly one
 /// trailing `\n` — the pre-Preserve behaviour, now opt-in.
 pub(crate) fn normalize_trailing_newline(out: &mut String, policy: TrailingNewline, source: &str) {
@@ -36,13 +46,20 @@ pub(crate) fn normalize_trailing_newline(out: &mut String, policy: TrailingNewli
         let _ = out.pop();
     }
     let want_trailing = match policy {
-        TrailingNewline::Preserve => source.ends_with('\n'),
+        TrailingNewline::Preserve => source_has_effective_trailing_newline(source),
         TrailingNewline::Strip => false,
         TrailingNewline::Ensure => true,
     };
     if want_trailing {
         out.push('\n');
     }
+}
+
+/// True when the source's effective content ends with `\n`, ignoring
+/// any final run of horizontal whitespace. See
+/// [`normalize_trailing_newline`] for the rationale.
+fn source_has_effective_trailing_newline(source: &str) -> bool {
+    source.trim_end_matches([' ', '\t']).ends_with('\n')
 }
 
 /// Normalise every `\r\n` and lone `\r` in `out` to `\n`.
