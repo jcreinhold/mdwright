@@ -172,17 +172,17 @@ pub(crate) fn pretty_block<'a>(ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
     if ctx.tree.parent(id) == Some(ctx.tree.root()) && root_verbatim_safe(ctx, id) {
         #[allow(clippy::wildcard_enum_match_arm)]
         match &node.kind {
-            NodeKind::HtmlBlock { .. } => return emit_verbatim(ctx.tree, id),
-            NodeKind::CodeBlock { fenced: false, .. } => return emit_verbatim(ctx.tree, id),
+            NodeKind::HtmlBlock { .. } => return emit_verbatim(ctx.source, ctx.tree, id),
+            NodeKind::CodeBlock { fenced: false, .. } => return emit_verbatim(ctx.source, ctx.tree, id),
             NodeKind::Paragraph if Paragraph::is_verbatim_eligible(ctx, id) => {
-                return emit_verbatim(ctx.tree, id);
+                return emit_verbatim(ctx.source, ctx.tree, id);
             }
             _ => {}
         }
     }
     match &node.typed {
         Some(typed) => typed.pretty(ctx, id),
-        None => concat([text(ctx.tree.raw_text(id)), hard_line()]),
+        None => concat([text(ctx.tree.raw_text(ctx.source, id).to_owned()), hard_line()]),
     }
 }
 

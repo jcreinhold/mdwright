@@ -95,7 +95,7 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                     "non-inline NodeKind reached pretty_inline_children: {:?}",
                     &node.kind
                 );
-                parts.push(text(ctx.tree.raw_text(cid)));
+                parts.push(text(ctx.tree.raw_text(ctx.source, cid).to_owned()));
             }
         }
         left_emphasis_delim = None;

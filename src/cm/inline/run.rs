@@ -14,8 +14,6 @@
 //! policy across the combined buffer, and segments the result back at
 //! the break positions.
 
-use std::borrow::Cow;
-
 use crate::cm::inline::escape_policy::{EscapeScope, any_byte_needs_escape, escape_buffer};
 
 /// Input event handed to [`InlineRun::new`]. The IR builder produces
@@ -27,7 +25,7 @@ pub(crate) enum RunInput<'a> {
     /// were originally backslash-escaped); `None` for synthesised
     /// chunks with no source correspondence.
     Text {
-        payload: Cow<'a, str>,
+        payload: std::borrow::Cow<'a, str>,
         source: Option<&'a str>,
     },
     SoftBreak,
@@ -36,8 +34,8 @@ pub(crate) enum RunInput<'a> {
 
 /// One emission-ready piece of a coalesced text run.
 #[derive(Clone, Debug)]
-pub(crate) enum RunPart<'a> {
-    Text(Cow<'a, str>),
+pub(crate) enum RunPart {
+    Text(String),
     SoftBreak,
     /// Paragraph-context hard break: emits as `\` + newline.
     HardLineBreak,
@@ -49,17 +47,17 @@ pub(crate) enum RunPart<'a> {
 /// constructed, the bytes inside [`parts`](Self::parts) round-trip
 /// through the `CommonMark` tokenizer.
 #[derive(Clone, Debug)]
-pub struct InlineRun<'a> {
-    parts: Vec<RunPart<'a>>,
+pub struct InlineRun {
+    parts: Vec<RunPart>,
 }
 
-impl<'a> InlineRun<'a> {
+impl InlineRun {
     /// Coalesce `inputs` into a run and apply the escape policy under
     /// `scope`. Hard breaks are resolved to [`RunPart::HardBreakTag`]
     /// inside a heading and to [`RunPart::HardLineBreak`] otherwise;
     /// the resulting parts no longer depend on `scope`.
     #[tracing::instrument(level = "trace", skip(inputs))]
-    pub(crate) fn new(inputs: Vec<RunInput<'a>>, scope: EscapeScope) -> Self {
+    pub(crate) fn new(inputs: Vec<RunInput<'_>>, scope: EscapeScope) -> Self {
         if inputs.is_empty() {
             return Self { parts: Vec::new() };
         }
@@ -70,7 +68,7 @@ impl<'a> InlineRun<'a> {
         if inputs.len() == 1 {
             let part = match inputs.into_iter().next() {
                 Some(RunInput::Text { payload, source }) => {
-                    RunPart::Text(escape_singleton(payload, source, scope))
+                    RunPart::Text(escape_singleton(&payload, source, scope))
                 }
                 Some(RunInput::SoftBreak) => RunPart::SoftBreak,
                 Some(RunInput::HardBreak) => hard_break_part(scope),
@@ -135,7 +133,7 @@ impl<'a> InlineRun<'a> {
         // corresponds to one entry in `newline_tags` (the policy
         // never inserts before `\n` and never removes one, so the
         // count is preserved).
-        let mut parts: Vec<RunPart<'a>> = Vec::new();
+        let mut parts: Vec<RunPart> = Vec::new();
         let mut tag_iter = newline_tags.into_iter();
         let bytes = escaped.as_bytes();
         let mut segment_start = 0usize;
@@ -150,13 +148,13 @@ impl<'a> InlineRun<'a> {
             match tag_iter.next().unwrap_or(None) {
                 Some(BreakKind::Soft) => {
                     if !segment.is_empty() {
-                        parts.push(RunPart::Text(Cow::Owned(std::mem::take(&mut segment))));
+                        parts.push(RunPart::Text(std::mem::take(&mut segment)));
                     }
                     parts.push(RunPart::SoftBreak);
                 }
                 Some(BreakKind::Hard) => {
                     if !segment.is_empty() {
-                        parts.push(RunPart::Text(Cow::Owned(std::mem::take(&mut segment))));
+                        parts.push(RunPart::Text(std::mem::take(&mut segment)));
                     }
                     parts.push(hard_break_part(scope));
                 }
@@ -165,12 +163,12 @@ impl<'a> InlineRun<'a> {
         }
         segment.push_str(&escaped[segment_start..]);
         if !segment.is_empty() {
-            parts.push(RunPart::Text(Cow::Owned(segment)));
+            parts.push(RunPart::Text(segment));
         }
         Self { parts }
     }
 
-    pub(crate) fn parts(&self) -> &[RunPart<'a>] {
+    pub(crate) fn parts(&self) -> &[RunPart] {
         &self.parts
     }
 
@@ -180,9 +178,9 @@ impl<'a> InlineRun<'a> {
     /// `"\\" + HardLine` or `<br/>` depending on the form the run
     /// committed to at construction.
     #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty(&self) -> crate::format::doc::Doc<'a> {
+    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
         use crate::format::doc::{Doc, concat, hard_line, line, text};
-        let mut parts: Vec<Doc<'a>> = Vec::with_capacity(self.parts.len());
+        let mut parts: Vec<Doc<'b>> = Vec::with_capacity(self.parts.len());
         for part in &self.parts {
             match part {
                 RunPart::Text(s) => parts.push(text(s.clone())),
@@ -207,7 +205,7 @@ enum BreakKind {
     Hard,
 }
 
-fn hard_break_part<'a>(scope: EscapeScope) -> RunPart<'a> {
+fn hard_break_part(scope: EscapeScope) -> RunPart {
     if scope.in_heading {
         RunPart::HardBreakTag
     } else {
@@ -215,40 +213,22 @@ fn hard_break_part<'a>(scope: EscapeScope) -> RunPart<'a> {
     }
 }
 
-/// Escape a singleton text fragment, preserving the original `Cow`'s
-/// borrow when no byte needs escaping. Forces escapes derived from
-/// source `\X` even on the singleton path, so the round-trip
-/// invariant holds independent of how pulldown split the run.
-fn escape_singleton<'a>(
-    payload: Cow<'a, str>,
-    source: Option<&str>,
-    scope: EscapeScope,
-) -> Cow<'a, str> {
-    // Common path: no source-escape bytes in this chunk. Pre-scan
-    // for any standard-policy escape and return the borrow untouched
-    // when none applies — avoids two allocations (`Vec<bool>` and the
-    // owned escape buffer) for every plain-text run.
+/// Escape a singleton text fragment. Forces escapes derived from
+/// source `\X` even on the singleton path, so the round-trip invariant
+/// holds independent of how pulldown split the run.
+fn escape_singleton(payload: &str, source: Option<&str>, scope: EscapeScope) -> String {
     let forced = match source {
-        Some(src) if payload_has_source_escape(payload.as_ref(), src) => {
-            forced_escapes_from_source(payload.as_ref(), src)
+        Some(src) if payload_has_source_escape(payload, src) => {
+            forced_escapes_from_source(payload, src)
         }
         _ => {
-            if !any_byte_needs_escape(payload.as_ref(), scope) {
-                return payload;
+            if !any_byte_needs_escape(payload, scope) {
+                return payload.to_owned();
             }
             vec![false; payload.len()]
         }
     };
-    let any_forced = forced.iter().any(|&b| b);
-    if !any_forced {
-        // Standard policy only; check if it changed the bytes.
-        let out = escape_buffer(payload.as_ref(), &forced, scope);
-        if out == payload.as_ref() {
-            return payload;
-        }
-        return Cow::Owned(out);
-    }
-    Cow::Owned(escape_buffer(payload.as_ref(), &forced, scope))
+    escape_buffer(payload, &forced, scope)
 }
 
 /// True iff `source` contains at least one CM `§2.4` backslash escape
@@ -321,14 +301,14 @@ mod tests {
     fn singleton_plain_text_borrows() {
         let run = InlineRun::new(
             vec![RunInput::Text {
-                payload: Cow::Borrowed("hello"),
+                payload: std::borrow::Cow::Borrowed("hello"),
                 source: None,
             }],
             paragraph_scope(),
         );
         assert_eq!(run.parts().len(), 1);
         match run.parts().first() {
-            Some(RunPart::Text(Cow::Borrowed("hello"))) => {}
+            Some(RunPart::Text(s)) if s == "hello" => {}
             other => panic!("expected borrowed text, got {other:?}"),
         }
     }
@@ -337,13 +317,13 @@ mod tests {
     fn singleton_escapes_emphasis() {
         let run = InlineRun::new(
             vec![RunInput::Text {
-                payload: Cow::Borrowed("*foo*"),
+                payload: std::borrow::Cow::Borrowed("*foo*"),
                 source: None,
             }],
             paragraph_scope(),
         );
         match run.parts().first() {
-            Some(RunPart::Text(s)) => assert_eq!(s.as_ref(), r"\*foo\*"),
+            Some(RunPart::Text(s)) => assert_eq!(s.as_str(), r"\*foo\*"),
             other => panic!("expected escaped text, got {other:?}"),
         }
     }
@@ -357,15 +337,15 @@ mod tests {
         let run = InlineRun::new(
             vec![
                 RunInput::Text {
-                    payload: Cow::Borrowed("a "),
+                    payload: std::borrow::Cow::Borrowed("a "),
                     source: Some("a "),
                 },
                 RunInput::Text {
-                    payload: Cow::Borrowed("*b"),
+                    payload: std::borrow::Cow::Borrowed("*b"),
                     source: Some(r"\*b"),
                 },
                 RunInput::Text {
-                    payload: Cow::Borrowed("* c"),
+                    payload: std::borrow::Cow::Borrowed("* c"),
                     source: Some(r"\* c"),
                 },
             ],
@@ -375,7 +355,7 @@ mod tests {
             .parts()
             .iter()
             .filter_map(|p| match p {
-                RunPart::Text(s) => Some(s.as_ref().to_owned()),
+                RunPart::Text(s) => Some(s.clone()),
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -388,12 +368,12 @@ mod tests {
         let run = InlineRun::new(
             vec![
                 RunInput::Text {
-                    payload: Cow::Borrowed("a"),
+                    payload: std::borrow::Cow::Borrowed("a"),
                     source: None,
                 },
                 RunInput::SoftBreak,
                 RunInput::Text {
-                    payload: Cow::Borrowed("b"),
+                    payload: std::borrow::Cow::Borrowed("b"),
                     source: None,
                 },
             ],
@@ -417,12 +397,12 @@ mod tests {
         let run = InlineRun::new(
             vec![
                 RunInput::Text {
-                    payload: Cow::Borrowed("a"),
+                    payload: std::borrow::Cow::Borrowed("a"),
                     source: None,
                 },
                 RunInput::HardBreak,
                 RunInput::Text {
-                    payload: Cow::Borrowed("b"),
+                    payload: std::borrow::Cow::Borrowed("b"),
                     source: None,
                 },
             ],
@@ -436,12 +416,12 @@ mod tests {
         let run = InlineRun::new(
             vec![
                 RunInput::Text {
-                    payload: Cow::Borrowed("a"),
+                    payload: std::borrow::Cow::Borrowed("a"),
                     source: None,
                 },
                 RunInput::HardBreak,
                 RunInput::Text {
-                    payload: Cow::Borrowed("b"),
+                    payload: std::borrow::Cow::Borrowed("b"),
                     source: None,
                 },
             ],
@@ -457,12 +437,12 @@ mod tests {
         let run = InlineRun::new(
             vec![
                 RunInput::Text {
-                    payload: Cow::Borrowed("*foo"),
+                    payload: std::borrow::Cow::Borrowed("*foo"),
                     source: None,
                 },
                 RunInput::SoftBreak,
                 RunInput::Text {
-                    payload: Cow::Borrowed("bar*"),
+                    payload: std::borrow::Cow::Borrowed("bar*"),
                     source: None,
                 },
             ],
@@ -472,7 +452,7 @@ mod tests {
             .parts()
             .iter()
             .filter_map(|p| match p {
-                RunPart::Text(s) => Some(s.as_ref().to_owned()),
+                RunPart::Text(s) => Some(s.clone()),
                 _ => None,
             })
             .collect();

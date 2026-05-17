@@ -5,16 +5,14 @@
 //! resolution against the document's collected definitions is the
 //! formatter's responsibility at emission time.
 
-use std::borrow::Cow;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FootnoteReference<'a> {
-    label: Cow<'a, str>,
+pub struct FootnoteReference {
+    label: String,
 }
 
-impl<'a> FootnoteReference<'a> {
+impl FootnoteReference {
     #[tracing::instrument(level = "trace", skip(label))]
-    pub(crate) fn new(label: Cow<'a, str>) -> Self {
+    pub(crate) fn new(label: String) -> Self {
         Self { label }
     }
 
@@ -36,7 +34,7 @@ mod tests {
 
     #[test]
     fn label_round_trips() {
-        let r = FootnoteReference::new(Cow::Borrowed("foo"));
+        let r = FootnoteReference::new("foo".to_owned());
         assert_eq!(r.label(), "foo");
     }
 }

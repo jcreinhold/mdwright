@@ -24,10 +24,10 @@ use crate::tree::{NodeId, Tree};
 /// treats the multi-line slice as a single atomic box.
 ///
 /// Allocation-free in the common case: the text payload is
-/// `Cow::Borrowed` into `tree.source()`.
-#[tracing::instrument(level = "trace", skip(tree))]
-pub(crate) fn emit_verbatim<'a>(tree: &Tree<'a>, id: NodeId) -> Doc<'a> {
-    let raw = tree.raw_text(id);
+/// `Cow::Borrowed` into the source `&str` the caller supplies.
+#[tracing::instrument(level = "trace", skip(tree, source))]
+pub(crate) fn emit_verbatim<'a>(source: &'a str, tree: &Tree, id: NodeId) -> Doc<'a> {
+    let raw = tree.raw_text(source, id);
     let trimmed = raw.trim_end_matches('\n');
     if trimmed.is_empty() {
         return unbreakable(hard_line());

@@ -44,14 +44,14 @@ pub(crate) enum LinkSourceKind {
 /// forms each carry a [`ResolvedRef`] — a [`ReferenceHandle`] paired
 /// with the raw label as the source wrote it.
 #[derive(Clone, Debug)]
-pub(crate) enum LinkSource<'a> {
+pub(crate) enum LinkSource {
     Inline,
-    ReferenceFull(ResolvedRef<'a>),
-    ReferenceCollapsed(ResolvedRef<'a>),
-    ReferenceShortcut(ResolvedRef<'a>),
+    ReferenceFull(ResolvedRef),
+    ReferenceCollapsed(ResolvedRef),
+    ReferenceShortcut(ResolvedRef),
 }
 
-impl<'a> LinkSource<'a> {
+impl LinkSource {
     #[cfg(test)]
     pub(crate) fn kind(&self) -> LinkSourceKind {
         match self {
@@ -62,7 +62,7 @@ impl<'a> LinkSource<'a> {
         }
     }
 
-    fn resolved(&self) -> Option<&ResolvedRef<'a>> {
+    fn resolved(&self) -> Option<&ResolvedRef> {
         match self {
             Self::Inline => None,
             Self::ReferenceFull(r) | Self::ReferenceCollapsed(r) | Self::ReferenceShortcut(r) => {
@@ -77,17 +77,17 @@ impl<'a> LinkSource<'a> {
 /// resolution; the `label` field is what the source wrote between the
 /// brackets, used verbatim for `[label]` emission.
 #[derive(Clone, Debug)]
-pub(crate) struct ResolvedRef<'a> {
+pub(crate) struct ResolvedRef {
     /// Resolution token. `Some` after the finalize validation pass or
     /// after construction via [`LinkRun::try_new_reference`]; `None`
     /// for nodes built by `from_pulldown_reference` that have not yet
     /// been validated.
     #[allow(dead_code)]
     handle: Option<ReferenceHandle>,
-    label: Cow<'a, str>,
+    label: String,
 }
 
-impl ResolvedRef<'_> {
+impl ResolvedRef {
     pub(crate) fn label(&self) -> &str {
         &self.label
     }
@@ -109,20 +109,20 @@ pub(crate) enum LinkError {
 
 /// Typed inline link.
 #[derive(Clone, Debug)]
-pub struct LinkRun<'a> {
-    dest: Cow<'a, str>,
-    title: Cow<'a, str>,
-    source: LinkSource<'a>,
+pub struct LinkRun {
+    dest: String,
+    title: String,
+    source: LinkSource,
 }
 
 /// Typed inline image. `dest` is the image URL pulldown extracted at
 /// parse time; the format walker re-emits it via the same URL-escape
 /// path as [`LinkRun`].
 #[derive(Clone, Debug)]
-pub struct ImageRun<'a> {
-    dest: Cow<'a, str>,
-    title: Cow<'a, str>,
-    source: LinkSource<'a>,
+pub struct ImageRun {
+    dest: String,
+    title: String,
+    source: LinkSource,
 }
 
 /// Format-time context for [`LinkRun::emit_style`] /
@@ -145,8 +145,8 @@ pub(crate) enum EmitLinkStyle<'a> {
     ReferenceShortcut,
 }
 
-impl<'a> LinkRun<'a> {
-    pub(crate) fn from_pulldown_inline(dest: Cow<'a, str>, title: Cow<'a, str>) -> Self {
+impl LinkRun {
+    pub(crate) fn from_pulldown_inline(dest: String, title: String) -> Self {
         Self {
             dest,
             title,
@@ -163,9 +163,9 @@ impl<'a> LinkRun<'a> {
     /// downgraded to raw-source emission.
     pub(crate) fn from_pulldown_reference(
         kind: LinkSourceKind,
-        dest: Cow<'a, str>,
-        title: Cow<'a, str>,
-        label: Cow<'a, str>,
+        dest: String,
+        title: String,
+        label: String,
     ) -> Self {
         let resolved = ResolvedRef {
             handle: None,
@@ -192,9 +192,9 @@ impl<'a> LinkRun<'a> {
     #[tracing::instrument(level = "trace", skip(table))]
     pub(crate) fn try_new_reference(
         kind: LinkSourceKind,
-        dest: Cow<'a, str>,
-        title: Cow<'a, str>,
-        label: Cow<'a, str>,
+        dest: String,
+        title: String,
+        label: String,
         table: &ReferenceTable,
     ) -> Result<Self, LinkError> {
         let source = resolve_kind(kind, label, table)?;
@@ -221,7 +221,7 @@ impl<'a> LinkRun<'a> {
     }
 
     #[cfg(test)]
-    pub(crate) fn source(&self) -> &LinkSource<'a> {
+    pub(crate) fn source(&self) -> &LinkSource {
         &self.source
     }
 
@@ -249,8 +249,8 @@ impl<'a> LinkRun<'a> {
     }
 }
 
-impl<'a> ImageRun<'a> {
-    pub(crate) fn from_pulldown_inline(dest: Cow<'a, str>, title: Cow<'a, str>) -> Self {
+impl ImageRun {
+    pub(crate) fn from_pulldown_inline(dest: String, title: String) -> Self {
         Self {
             dest,
             title,
@@ -261,9 +261,9 @@ impl<'a> ImageRun<'a> {
     /// Image counterpart to [`LinkRun::from_pulldown_reference`].
     pub(crate) fn from_pulldown_reference(
         kind: LinkSourceKind,
-        dest: Cow<'a, str>,
-        title: Cow<'a, str>,
-        label: Cow<'a, str>,
+        dest: String,
+        title: String,
+        label: String,
     ) -> Self {
         let resolved = ResolvedRef {
             handle: None,
@@ -287,9 +287,9 @@ impl<'a> ImageRun<'a> {
     #[tracing::instrument(level = "trace", skip(table))]
     pub(crate) fn try_new_reference(
         kind: LinkSourceKind,
-        dest: Cow<'a, str>,
-        title: Cow<'a, str>,
-        label: Cow<'a, str>,
+        dest: String,
+        title: String,
+        label: String,
         table: &ReferenceTable,
     ) -> Result<Self, LinkError> {
         let source = resolve_kind(kind, label, table)?;
@@ -332,11 +332,11 @@ impl<'a> ImageRun<'a> {
 }
 
 #[allow(dead_code)]
-fn resolve_kind<'a>(
+fn resolve_kind(
     kind: LinkSourceKind,
-    label: Cow<'a, str>,
+    label: String,
     table: &ReferenceTable,
-) -> Result<LinkSource<'a>, LinkError> {
+) -> Result<LinkSource, LinkError> {
     let handle = table
         .resolve(&label)
         .ok_or(LinkError::UnresolvedReference)?;
@@ -358,7 +358,7 @@ fn resolve_kind<'a>(
 /// as the label, and demote to `ReferenceFull` otherwise. The check
 /// runs on the actually-emitted body text supplied by the walker, so
 /// any post-format drift introduced by emphasis rewriting is folded in.
-fn decide_style<'s>(source: &'s LinkSource<'_>, body_text: &str) -> EmitLinkStyle<'s> {
+fn decide_style<'s>(source: &'s LinkSource, body_text: &str) -> EmitLinkStyle<'s> {
     match source {
         LinkSource::Inline => EmitLinkStyle::Inline,
         LinkSource::ReferenceFull(r) => EmitLinkStyle::ReferenceFull { label: r.label() },
@@ -587,8 +587,8 @@ mod tests {
     use crate::cm::refs::build_reference_table;
     use crate::format::doc::{concat, hard_line, line, text, unbreakable};
 
-    fn cow(s: &str) -> Cow<'_, str> {
-        Cow::Borrowed(s)
+    fn cow(s: &str) -> String {
+        s.to_owned()
     }
 
     fn ctx(body: &str) -> LinkResolveCtx<'_> {

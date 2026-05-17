@@ -414,7 +414,7 @@ fn source_ordered_marker_number(
     ctx: &crate::format::pretty::PrettyCtx<'_>,
     item_id: NodeId,
 ) -> Option<u64> {
-    let raw = ctx.tree.raw_text(item_id);
+    let raw = ctx.tree.raw_text(ctx.source, item_id);
     let trimmed = raw.trim_start();
     let digits: String = trimmed.chars().take_while(char::is_ascii_digit).collect();
     digits.parse().ok()
@@ -424,7 +424,7 @@ fn source_ordered_punct(
     ctx: &crate::format::pretty::PrettyCtx<'_>,
     item_id: NodeId,
 ) -> Option<char> {
-    let raw = ctx.tree.raw_text(item_id);
+    let raw = ctx.tree.raw_text(ctx.source, item_id);
     let trimmed = raw.trim_start();
     trimmed
         .chars()
@@ -542,7 +542,7 @@ fn render_item_body<'a>(
     concat(parts)
 }
 
-fn is_block_kind(kind: Option<&crate::tree::NodeKind<'_>>) -> bool {
+fn is_block_kind(kind: Option<&crate::tree::NodeKind>) -> bool {
     use crate::tree::NodeKind;
     matches!(
         kind,

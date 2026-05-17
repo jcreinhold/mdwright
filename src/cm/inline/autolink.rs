@@ -15,8 +15,6 @@
 //! fallible `try_from_gfm_extended` constructor lands alongside the
 //! existing regex without changing the rest of the surface.
 
-use std::borrow::Cow;
-
 /// Classification of an [`AutolinkRun`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum AutolinkKind {
@@ -28,21 +26,21 @@ pub(crate) enum AutolinkKind {
 
 /// Typed CM autolink.
 #[derive(Clone, Debug)]
-pub struct AutolinkRun<'a> {
-    url: Cow<'a, str>,
+pub struct AutolinkRun {
+    url: String,
     #[cfg_attr(not(test), allow(dead_code))]
     kind: AutolinkKind,
 }
 
-impl<'a> AutolinkRun<'a> {
-    pub(crate) fn from_cmark_uri(url: Cow<'a, str>) -> Self {
+impl AutolinkRun {
+    pub(crate) fn from_cmark_uri(url: String) -> Self {
         Self {
             url,
             kind: AutolinkKind::Uri,
         }
     }
 
-    pub(crate) fn from_cmark_email(url: Cow<'a, str>) -> Self {
+    pub(crate) fn from_cmark_email(url: String) -> Self {
         Self {
             url,
             kind: AutolinkKind::Email,
@@ -72,14 +70,14 @@ mod tests {
 
     #[test]
     fn uri_constructor_preserves_url() {
-        let run = AutolinkRun::from_cmark_uri(Cow::Borrowed("https://example.com"));
+        let run = AutolinkRun::from_cmark_uri("https://example.com".to_owned());
         assert_eq!(run.url(), "https://example.com");
         assert_eq!(run.kind(), AutolinkKind::Uri);
     }
 
     #[test]
     fn email_constructor_preserves_url() {
-        let run = AutolinkRun::from_cmark_email(Cow::Borrowed("user@example.com"));
+        let run = AutolinkRun::from_cmark_email("user@example.com".to_owned());
         assert_eq!(run.url(), "user@example.com");
         assert_eq!(run.kind(), AutolinkKind::Email);
     }

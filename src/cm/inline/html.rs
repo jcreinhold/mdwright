@@ -8,31 +8,29 @@
 //! indent on output, or CM §4.6 rule type-2 would re-parse the
 //! comment as an HTML block and split the surrounding paragraph.
 
-use std::borrow::Cow;
-
 /// One inline HTML span; the stored bytes are emission-ready under any
 /// CM-compliant tokenizer.
 #[derive(Clone, Debug)]
-pub struct InlineHtmlSpan<'a> {
-    bytes: Cow<'a, str>,
+pub struct InlineHtmlSpan {
+    bytes: String,
 }
 
-impl<'a> InlineHtmlSpan<'a> {
+impl InlineHtmlSpan {
     /// Store `raw` as inline HTML, prepending a 4-space indent when
     /// the span is a comment that the source placed on its own line
     /// with ≥ 4 columns of indent. `src_start` is the byte offset in
     /// `source` where the span begins.
     #[tracing::instrument(level = "trace", skip(raw, source))]
-    pub(crate) fn from_parser(raw: Cow<'a, str>, src_start: usize, source: &str) -> Self {
+    pub(crate) fn from_parser(raw: &str, src_start: usize, source: &str) -> Self {
         if raw.starts_with("<!--") && comment_indented_on_own_line(source, src_start) {
             let mut joined = String::with_capacity(raw.len().saturating_add(4));
             joined.push_str("    ");
-            joined.push_str(raw.as_ref());
-            return Self {
-                bytes: Cow::Owned(joined),
-            };
+            joined.push_str(raw);
+            return Self { bytes: joined };
         }
-        Self { bytes: raw }
+        Self {
+            bytes: raw.to_owned(),
+        }
     }
 
     pub(crate) fn as_str(&self) -> &str {
@@ -43,7 +41,7 @@ impl<'a> InlineHtmlSpan<'a> {
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
         use crate::format::doc::{text, unbreakable};
-        unbreakable(text(self.bytes.as_ref().to_owned()))
+        unbreakable(text(self.bytes.clone()))
     }
 }
 
@@ -72,7 +70,7 @@ mod tests {
 
     #[test]
     fn non_comment_is_passed_through() {
-        let span = InlineHtmlSpan::from_parser(Cow::Borrowed("<span>"), 0, "<span>");
+        let span = InlineHtmlSpan::from_parser("<span>", 0, "<span>");
         assert_eq!(span.as_str(), "<span>");
     }
 
@@ -80,7 +78,7 @@ mod tests {
     fn comment_at_line_start_without_indent_is_passed_through() {
         let source = "before\n<!-- c -->";
         let start = source.find("<!--").unwrap();
-        let span = InlineHtmlSpan::from_parser(Cow::Borrowed("<!-- c -->"), start, source);
+        let span = InlineHtmlSpan::from_parser("<!-- c -->", start, source);
         assert_eq!(span.as_str(), "<!-- c -->");
     }
 
@@ -88,7 +86,7 @@ mod tests {
     fn comment_on_own_line_with_indent_gains_prefix() {
         let source = "before\n    <!-- c -->\nafter";
         let start = source.find("<!--").unwrap();
-        let span = InlineHtmlSpan::from_parser(Cow::Borrowed("<!-- c -->"), start, source);
+        let span = InlineHtmlSpan::from_parser("<!-- c -->", start, source);
         assert_eq!(span.as_str(), "    <!-- c -->");
     }
 
@@ -96,7 +94,7 @@ mod tests {
     fn comment_mid_line_is_passed_through() {
         let source = "text <!-- c --> tail";
         let start = source.find("<!--").unwrap();
-        let span = InlineHtmlSpan::from_parser(Cow::Borrowed("<!-- c -->"), start, source);
+        let span = InlineHtmlSpan::from_parser("<!-- c -->", start, source);
         assert_eq!(span.as_str(), "<!-- c -->");
     }
 }

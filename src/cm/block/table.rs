@@ -24,7 +24,6 @@
 //! choices for free.
 
 use std::cell::OnceCell;
-use std::marker::PhantomData;
 
 use unicode_width::UnicodeWidthStr;
 
@@ -100,15 +99,14 @@ impl TableRow {
 /// construction: non-empty alignment vector, head and every body row
 /// have exactly `align.len()` cells.
 #[derive(Debug)]
-pub(crate) struct TableBlock<'a> {
+pub(crate) struct TableBlock {
     align: Vec<TableAlign>,
     head: TableRow,
     body: Vec<TableRow>,
     column_widths: OnceCell<Vec<usize>>,
-    _phantom: PhantomData<&'a ()>,
 }
 
-impl Clone for TableBlock<'_> {
+impl Clone for TableBlock {
     fn clone(&self) -> Self {
         Self {
             align: self.align.clone(),
@@ -118,7 +116,6 @@ impl Clone for TableBlock<'_> {
             // is bound to the source and arena of the original
             // computation, and re-deriving it is cheap.
             column_widths: OnceCell::new(),
-            _phantom: PhantomData,
         }
     }
 }
@@ -142,7 +139,7 @@ pub(crate) enum TableError {
     },
 }
 
-impl TableBlock<'_> {
+impl TableBlock {
     #[tracing::instrument(
         level = "trace",
         skip_all,
@@ -177,7 +174,6 @@ impl TableBlock<'_> {
             head,
             body,
             column_widths: OnceCell::new(),
-            _phantom: PhantomData,
         })
     }
 
@@ -247,7 +243,7 @@ impl TableBlock<'_> {
         concat(parts)
     }
 
-    pub(crate) fn column_widths(&self, source: &str, arena: &[Node<'_>]) -> &[usize] {
+    pub(crate) fn column_widths(&self, source: &str, arena: &[Node]) -> &[usize] {
         self.column_widths.get_or_init(|| {
             let mut widths = vec![0_usize; self.align.len()];
             let rows = core::iter::once(&self.head).chain(self.body.iter());
@@ -382,7 +378,7 @@ fn format_alignment_row(alignments: &[TableAlign], widths: &[usize]) -> String {
 }
 
 /// Display width of a cell from its arena source range.
-fn cell_display_width(source: &str, arena: &[Node<'_>], cell_id: NodeId) -> usize {
+fn cell_display_width(source: &str, arena: &[Node], cell_id: NodeId) -> usize {
     let Some(node) = arena.get(cell_id.idx()) else {
         return 0;
     };
@@ -502,7 +498,7 @@ mod tests {
         // Empty arena → all widths derive to 0; cache still
         // initialises. Asserting the cell behaves identically across
         // calls is the cache's contract (same Vec, same contents).
-        let arena: Vec<Node<'_>> = Vec::new();
+        let arena: Vec<Node> = Vec::new();
         let w1 = t.column_widths("", &arena);
         let w2 = t.column_widths("", &arena);
         assert!(std::ptr::eq(w1, w2));

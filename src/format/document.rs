@@ -22,7 +22,7 @@ use crate::tree::Tree;
 pub(crate) fn format_document<'a>(
     source: &'a str,
     opts: &'a FmtOptions,
-    tree: &'a Tree<'a>,
+    tree: &'a Tree,
     frontmatter: Option<&'a Frontmatter<'a>>,
     admonitions: &'a [AdmonitionRegion<'a>],
     math_regions: &'a [MathRegion],

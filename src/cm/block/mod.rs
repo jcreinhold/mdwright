@@ -52,24 +52,24 @@ use crate::tree::NodeId;
 /// into types. Post-prompt-26b every printable block kind has a
 /// variant here; [`TypedBlock::pretty`] is the printer entry point.
 #[derive(Clone, Debug)]
-pub(crate) enum TypedBlock<'a> {
+pub(crate) enum TypedBlock {
     Paragraph(Paragraph),
     Heading(Heading),
-    FencedCodeBlock(FencedCodeBlock<'a>),
-    IndentedCodeBlock(IndentedCodeBlock<'a>),
-    HtmlBlock(HtmlBlock<'a>),
+    FencedCodeBlock(FencedCodeBlock),
+    IndentedCodeBlock(IndentedCodeBlock),
+    HtmlBlock(HtmlBlock),
     BlockQuote(BlockQuote),
     ThematicBreak(ThematicBreak),
     ListBlock(ListBlock),
-    Table(TableBlock<'a>),
-    FootnoteDef(FootnoteDef<'a>),
+    Table(TableBlock),
+    FootnoteDef(FootnoteDef),
 }
 
-impl<'a> TypedBlock<'a> {
+impl TypedBlock {
     /// Render this block. The exhaustive match makes adding a variant
     /// a compile error here — surfacing the missing renderer rather
     /// than silently falling through.
-    pub(crate) fn pretty(&self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
+    pub(crate) fn pretty<'a>(&self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
         match self {
             Self::Paragraph(p) => (*p).pretty(ctx, id),
             Self::Heading(h) => (*h).pretty(ctx, id),

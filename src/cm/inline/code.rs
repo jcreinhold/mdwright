@@ -23,33 +23,28 @@
 //! would either inflate the output across formats or produce bytes
 //! that strip back to something other than `body`.
 
-use std::borrow::Cow;
-
 use crate::cm::inline::escape_policy::EscapeScope;
 
 /// A code span whose bytes are the final emission form: fence,
 /// optional pad, body (with table-pipe escapes if needed), pad,
 /// fence.
 #[derive(Clone, Debug)]
-pub struct InlineCodeRun<'a> {
-    bytes: Cow<'a, str>,
+pub struct InlineCodeRun {
+    bytes: String,
 }
 
-impl<'a> InlineCodeRun<'a> {
+impl InlineCodeRun {
     #[tracing::instrument(level = "trace", skip(body))]
-    #[allow(clippy::needless_pass_by_value)]
-    pub(crate) fn new(body: Cow<'a, str>, scope: EscapeScope) -> Self {
-        let out = build(body.as_ref(), scope);
+    pub(crate) fn new(body: &str, scope: EscapeScope) -> Self {
+        let out = build(body, scope);
         debug_assert!(
-            reparses_to(&out, body.as_ref()),
+            reparses_to(&out, body),
             "InlineCodeRun: emitted bytes do not reparse to body — \
              body={:?} bytes={:?}",
-            body.as_ref(),
+            body,
             out,
         );
-        Self {
-            bytes: Cow::Owned(out),
-        }
+        Self { bytes: out }
     }
 
     pub(crate) fn as_str(&self) -> &str {
@@ -61,7 +56,7 @@ impl<'a> InlineCodeRun<'a> {
     #[tracing::instrument(level = "trace", skip_all)]
     pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
         use crate::format::doc::{text, unbreakable};
-        unbreakable(text(self.bytes.as_ref().to_owned()))
+        unbreakable(text(self.bytes.clone()))
     }
 }
 
@@ -180,37 +175,37 @@ mod tests {
 
     #[test]
     fn plain_body_one_backtick_each_side() {
-        let run = InlineCodeRun::new(Cow::Borrowed("foo"), paragraph_scope());
+        let run = InlineCodeRun::new("foo", paragraph_scope());
         assert_eq!(run.as_str(), "`foo`");
     }
 
     #[test]
     fn body_with_backtick_uses_longer_fence() {
-        let run = InlineCodeRun::new(Cow::Borrowed("a`b"), paragraph_scope());
+        let run = InlineCodeRun::new("a`b", paragraph_scope());
         assert_eq!(run.as_str(), "``a`b``");
     }
 
     #[test]
     fn body_starting_with_backtick_pads() {
-        let run = InlineCodeRun::new(Cow::Borrowed("`x"), paragraph_scope());
+        let run = InlineCodeRun::new("`x", paragraph_scope());
         assert_eq!(run.as_str(), "`` `x ``");
     }
 
     #[test]
     fn body_with_long_backtick_run_picks_one_longer() {
-        let run = InlineCodeRun::new(Cow::Borrowed("a```b"), paragraph_scope());
+        let run = InlineCodeRun::new("a```b", paragraph_scope());
         assert_eq!(run.as_str(), "````a```b````");
     }
 
     #[test]
     fn table_cell_escapes_pipe() {
-        let run = InlineCodeRun::new(Cow::Borrowed("a|b"), table_scope());
+        let run = InlineCodeRun::new("a|b", table_scope());
         assert_eq!(run.as_str(), r"`a\|b`");
     }
 
     #[test]
     fn paragraph_pipe_is_not_escaped() {
-        let run = InlineCodeRun::new(Cow::Borrowed("a|b"), paragraph_scope());
+        let run = InlineCodeRun::new("a|b", paragraph_scope());
         assert_eq!(run.as_str(), "`a|b`");
     }
 
@@ -220,13 +215,13 @@ mod tests {
     /// non-space content). Padding would inflate by 2 per format.
     #[test]
     fn body_all_spaces_does_not_pad() {
-        let run = InlineCodeRun::new(Cow::Borrowed(" "), paragraph_scope());
+        let run = InlineCodeRun::new(" ", paragraph_scope());
         assert_eq!(run.as_str(), "` `");
     }
 
     #[test]
     fn body_three_spaces_does_not_pad() {
-        let run = InlineCodeRun::new(Cow::Borrowed("   "), paragraph_scope());
+        let run = InlineCodeRun::new("   ", paragraph_scope());
         assert_eq!(run.as_str(), "`   `");
     }
 
@@ -234,13 +229,13 @@ mod tests {
     /// padding is needed; reparse yields `" foo"` directly.
     #[test]
     fn body_leading_space_only_does_not_pad() {
-        let run = InlineCodeRun::new(Cow::Borrowed(" foo"), paragraph_scope());
+        let run = InlineCodeRun::new(" foo", paragraph_scope());
         assert_eq!(run.as_str(), "` foo`");
     }
 
     #[test]
     fn body_trailing_space_only_does_not_pad() {
-        let run = InlineCodeRun::new(Cow::Borrowed("foo "), paragraph_scope());
+        let run = InlineCodeRun::new("foo ", paragraph_scope());
         assert_eq!(run.as_str(), "`foo `");
     }
 
@@ -248,7 +243,7 @@ mod tests {
     /// space each end, so the constructor pads to compensate.
     #[test]
     fn body_both_sided_space_with_content_pads() {
-        let run = InlineCodeRun::new(Cow::Borrowed(" foo "), paragraph_scope());
+        let run = InlineCodeRun::new(" foo ", paragraph_scope());
         assert_eq!(run.as_str(), "`  foo  `");
     }
 }

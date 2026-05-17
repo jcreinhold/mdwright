@@ -7,8 +7,6 @@
 //! is total, so the constructor is infallible; same for
 //! [`IndentedCodeBlock::new`].
 
-use std::borrow::Cow;
-
 use crate::format::doc::{Doc, concat, hard_line, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::NodeId;
@@ -48,20 +46,20 @@ impl CodeFence {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct FencedCodeBlock<'a> {
+pub(crate) struct FencedCodeBlock {
     fence: CodeFence,
-    info: Cow<'a, str>,
-    body: Cow<'a, str>,
+    info: String,
+    body: String,
 }
 
-impl<'a> FencedCodeBlock<'a> {
+impl FencedCodeBlock {
     /// Infallible: `pick_fence_length` always returns a value in
     /// 3..=255 because the longest run of a single byte in any body
     /// we accept fits in `u8` (bodies larger than 254 contiguous fence
     /// chars are not valid CM in the first place; we saturate at 255
     /// rather than panic).
     #[tracing::instrument(level = "trace", skip(info, body))]
-    pub(crate) fn new(char: CodeFenceChar, info: Cow<'a, str>, body: Cow<'a, str>) -> Self {
+    pub(crate) fn new(char: CodeFenceChar, info: String, body: String) -> Self {
         let length = pick_fence_length(char, body.as_ref());
         tracing::trace!(target: "mdwright::cm::block", fence_char = ?char, fence_len = length, "picked fence length");
         Self {
@@ -97,7 +95,7 @@ impl<'a> FencedCodeBlock<'a> {
         let fence_len = source_len.max(body_min).max(3);
         let fence_string: String = std::iter::repeat_n(fence_char, fence_len).collect();
         let fence_str: &str = fence_string.as_str();
-        let info = self.info.as_ref();
+        let info: &str = self.info.as_str();
         let mut open = String::with_capacity(fence_str.len().saturating_add(info.len()));
         open.push_str(fence_str);
         open.push_str(info);
@@ -129,7 +127,7 @@ impl<'a> FencedCodeBlock<'a> {
 /// character. Used to preserve a `~~~` source rather than always
 /// emitting backticks.
 fn source_fence_char(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<char> {
-    let raw = ctx.tree.raw_text(id);
+    let raw = ctx.tree.raw_text(ctx.source, id);
     raw.bytes()
         .find(|b| !matches!(b, b' ' | b'\t' | b'\n' | b'\r'))
         .map(char::from)
@@ -141,7 +139,7 @@ fn source_fence_char(ctx: &PrettyCtx<'_>, id: NodeId) -> Option<char> {
 /// when the source can't be inspected.
 fn source_fence_len(ctx: &PrettyCtx<'_>, id: NodeId, fence_char: char) -> Option<usize> {
     let fc = fence_char as u8;
-    let raw = ctx.tree.raw_text(id);
+    let raw = ctx.tree.raw_text(ctx.source, id);
     let bytes = raw.as_bytes();
     let start = bytes
         .iter()
@@ -157,15 +155,15 @@ fn source_fence_len(ctx: &PrettyCtx<'_>, id: NodeId, fence_char: char) -> Option
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct IndentedCodeBlock<'a> {
-    body: Cow<'a, str>,
+pub(crate) struct IndentedCodeBlock {
+    body: String,
 }
 
-impl<'a> IndentedCodeBlock<'a> {
+impl IndentedCodeBlock {
     /// Infallible: any string is a valid indented-code body (CM §4.4
     /// imposes no inner structure).
     #[tracing::instrument(level = "trace", skip(body))]
-    pub(crate) fn new(body: Cow<'a, str>) -> Self {
+    pub(crate) fn new(body: String) -> Self {
         Self { body }
     }
 
@@ -237,12 +235,8 @@ fn pick_fence_length(char: CodeFenceChar, body: &str) -> u8 {
 mod tests {
     use super::*;
 
-    fn fb(body: &str) -> FencedCodeBlock<'_> {
-        FencedCodeBlock::new(
-            CodeFenceChar::Backtick,
-            Cow::Borrowed(""),
-            Cow::Borrowed(body),
-        )
+    fn fb(body: &str) -> FencedCodeBlock {
+        FencedCodeBlock::new(CodeFenceChar::Backtick, String::new(), body.to_owned())
     }
 
     #[test]
@@ -267,11 +261,7 @@ mod tests {
 
     #[test]
     fn tilde_fence_independent_of_backticks() {
-        let block = FencedCodeBlock::new(
-            CodeFenceChar::Tilde,
-            Cow::Borrowed(""),
-            Cow::Borrowed("a```b"),
-        );
+        let block = FencedCodeBlock::new(CodeFenceChar::Tilde, String::new(), "a```b".to_owned());
         assert_eq!(block.fence().length(), 3);
     }
 
@@ -286,7 +276,7 @@ mod tests {
 
     #[test]
     fn indented_body_preserved() {
-        let block = IndentedCodeBlock::new(Cow::Borrowed("    foo\n    bar\n"));
+        let block = IndentedCodeBlock::new("    foo\n    bar\n".to_owned());
         assert_eq!(block.body(), "    foo\n    bar\n");
     }
 }

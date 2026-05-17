@@ -242,7 +242,7 @@ impl<'a> Document<'a> {
     /// keeps using the flat accessors above. Both IRs are built in a
     /// single pulldown-cmark event walk inside [`Document::parse`].
     #[must_use]
-    pub fn tree(&self) -> &Tree<'a> {
+    pub fn tree(&self) -> &Tree {
         &self.ir.tree
     }
 

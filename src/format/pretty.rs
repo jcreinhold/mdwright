@@ -21,7 +21,7 @@ use crate::tree::Tree;
 pub(crate) struct PrettyCtx<'a> {
     pub source: &'a str,
     pub opts: &'a FmtOptions,
-    pub tree: &'a Tree<'a>,
+    pub tree: &'a Tree,
     pub frontmatter: Option<&'a Frontmatter<'a>>,
     pub admonitions: &'a [AdmonitionRegion<'a>],
     /// Math regions in source order. Any block whose `raw_range`

@@ -7,19 +7,17 @@
 //! prefix-stripped (no leading container indent / blockquote markers)
 //! — the surrounding block emitter re-applies those when needed.
 
-use std::borrow::Cow;
-
 use crate::format::doc::{Doc, concat, hard_line, text};
 use crate::format::pretty::PrettyCtx;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct HtmlBlock<'a> {
-    body: Cow<'a, str>,
+pub(crate) struct HtmlBlock {
+    body: String,
 }
 
-impl<'a> HtmlBlock<'a> {
+impl HtmlBlock {
     #[tracing::instrument(level = "trace", skip(body))]
-    pub(crate) fn new(body: Cow<'a, str>) -> Self {
+    pub(crate) fn new(body: String) -> Self {
         Self { body }
     }
 
@@ -47,7 +45,7 @@ mod tests {
 
     #[test]
     fn body_round_trips() {
-        let b = HtmlBlock::new(Cow::Borrowed("<div>x</div>\n"));
+        let b = HtmlBlock::new("<div>x</div>\n".to_owned());
         assert_eq!(b.body(), "<div>x</div>\n");
     }
 }

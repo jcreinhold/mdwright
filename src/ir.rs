@@ -208,7 +208,7 @@ pub(crate) struct Ir<'a> {
     pub(crate) math_regions: Vec<MathRegion>,
     pub(crate) math_errors: Vec<MathError>,
     pub(crate) line_index: LineIndex,
-    pub(crate) tree: Tree<'a>,
+    pub(crate) tree: Tree,
 }
 
 /// One mkdocs-style admonition region in source order.

@@ -81,8 +81,8 @@ impl NodeId {
 /// One node in the document tree. A pure data carrier — behaviour
 /// (pretty-printing, linting) lives in dedicated modules.
 #[derive(Clone, Debug)]
-pub struct Node<'a> {
-    pub kind: NodeKind<'a>,
+pub struct Node {
+    pub kind: NodeKind,
     pub raw_range: Range<usize>,
     /// Range into the owning [`Tree`]'s child-id table. Iterate via
     /// [`Tree::children`]; the field is exposed crate-internally so
@@ -97,7 +97,7 @@ pub struct Node<'a> {
     /// rare case where the source-derived data is malformed (e.g., a
     /// `Heading` with level > 6 from a degenerate event stream): the
     /// legacy `NodeKind` data still drives emission in those cases.
-    pub(crate) typed: Option<TypedBlock<'a>>,
+    pub(crate) typed: Option<TypedBlock>,
 }
 
 /// All node kinds we recognise.
@@ -110,7 +110,7 @@ pub struct Node<'a> {
 /// the formatter falls back to verbatim source emission via
 /// [`Tree::raw_text`] for those.
 #[derive(Clone, Debug)]
-pub enum NodeKind<'a> {
+pub enum NodeKind {
     /// The document root. Always at `NodeId(0)`.
     Document,
     Paragraph,
@@ -140,18 +140,18 @@ pub enum NodeKind<'a> {
     },
     CodeBlock {
         fenced: bool,
-        info: Cow<'a, str>,
+        info: String,
         /// Body bytes the parser emitted inside this block. Pulldown
         /// has already stripped any enclosing container's prefix
         /// (list-continuation indent, blockquote `>` markers,
         /// indented-code-block 4-space prefix), so this is the
         /// minimum representation that survives re-nesting.
-        body: Cow<'a, str>,
+        body: String,
     },
     HtmlBlock {
         /// Body bytes the parser emitted inside this block. Same
         /// prefix-stripped form as [`CodeBlock::body`].
-        body: Cow<'a, str>,
+        body: String,
     },
     ThematicBreak,
     Table {
@@ -161,23 +161,23 @@ pub enum NodeKind<'a> {
     TableRow,
     TableCell,
     FootnoteDefinition {
-        label: Cow<'a, str>,
+        label: String,
     },
     // Inline:
     /// A coalesced run of text + soft/hard breaks, with the
     /// `CommonMark` escape policy applied at construction.
-    Run(InlineRun<'a>),
+    Run(InlineRun),
     /// One inline code span.
-    CodeRun(InlineCodeRun<'a>),
+    CodeRun(InlineCodeRun),
     Emphasis(EmphasisRun),
     Strong(StrongRun),
     Strikethrough,
-    Link(LinkRun<'a>),
-    Image(ImageRun<'a>),
-    Autolink(AutolinkRun<'a>),
+    Link(LinkRun),
+    Image(ImageRun),
+    Autolink(AutolinkRun),
     /// One inline HTML span.
-    HtmlSpan(InlineHtmlSpan<'a>),
-    FootnoteReference(FootnoteReference<'a>),
+    HtmlSpan(InlineHtmlSpan),
+    FootnoteReference(FootnoteReference),
     TaskListMarker(TaskMarker),
 
     /// Forward-compatibility fallback. Pulldown-cmark may emit tags
@@ -212,20 +212,13 @@ impl From<Alignment> for TableAlign {
 
 /// An owned arena of [`Node`] values rooted at a Document node.
 #[derive(Debug)]
-pub struct Tree<'a> {
-    source: &'a str,
-    arena: Vec<Node<'a>>,
+pub struct Tree {
+    arena: Vec<Node>,
     child_ids: Vec<NodeId>,
     parents: Vec<Option<NodeId>>,
 }
 
-impl<'a> Tree<'a> {
-    /// The source string the tree was parsed from.
-    #[must_use]
-    pub fn source(&self) -> &'a str {
-        self.source
-    }
-
+impl Tree {
     /// The Document root. Always present.
     #[must_use]
     #[allow(clippy::unused_self)]
@@ -236,21 +229,23 @@ impl<'a> Tree<'a> {
     /// Look up a node by id. Returns `None` for ids that did not come
     /// from this tree.
     #[must_use]
-    pub fn node(&self, id: NodeId) -> Option<&Node<'a>> {
+    pub fn node(&self, id: NodeId) -> Option<&Node> {
         self.arena.get(id.idx())
     }
 
     /// Source bytes covered by `id`. Empty string for ids that did not
     /// come from this tree; otherwise always a valid slice.
+    ///
+    /// Caller passes the canonical source the tree was parsed from.
     #[must_use]
-    pub fn raw_text(&self, id: NodeId) -> &'a str {
+    pub fn raw_text<'a>(&self, source: &'a str, id: NodeId) -> &'a str {
         self.node(id)
-            .and_then(|n| self.source.get(n.raw_range.clone()))
+            .and_then(|n| source.get(n.raw_range.clone()))
             .unwrap_or("")
     }
 
     /// Direct children of `id` in source order.
-    pub fn children(&self, id: NodeId) -> Children<'_, 'a> {
+    pub fn children(&self, id: NodeId) -> Children<'_> {
         let range = self.node(id).map_or(0..0, |n| n.children.clone());
         Children { tree: self, range }
     }
@@ -262,7 +257,7 @@ impl<'a> Tree<'a> {
     }
 
     /// Every descendant of `id` in pre-order (excluding `id` itself).
-    pub fn descendants(&self, id: NodeId) -> Descendants<'_, 'a> {
+    pub fn descendants(&self, id: NodeId) -> Descendants<'_> {
         let start = id.idx().saturating_add(1);
         let end = self.node(id).map_or(start, |n| n.subtree_end as usize);
         Descendants {
@@ -270,6 +265,12 @@ impl<'a> Tree<'a> {
             next: start as u32,
             end: end as u32,
         }
+    }
+
+    /// Direct access to the arena (crate-internal callers that walk
+    /// nodes without needing a [`NodeId`] handle).
+    pub(crate) fn arena(&self) -> &[Node] {
+        &self.arena
     }
 
     /// Number of nodes in the tree. Includes the Document root.
@@ -287,12 +288,12 @@ impl<'a> Tree<'a> {
 
 /// Iterator over a node's direct children. Returned by
 /// [`Tree::children`].
-pub struct Children<'t, 'a> {
-    tree: &'t Tree<'a>,
+pub struct Children<'t> {
+    tree: &'t Tree,
     range: Range<u32>,
 }
 
-impl Iterator for Children<'_, '_> {
+impl Iterator for Children<'_> {
     type Item = NodeId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -303,13 +304,13 @@ impl Iterator for Children<'_, '_> {
 
 /// Iterator over a node's descendants in pre-order. Returned by
 /// [`Tree::descendants`].
-pub struct Descendants<'t, 'a> {
-    tree: &'t Tree<'a>,
+pub struct Descendants<'t> {
+    tree: &'t Tree,
     next: u32,
     end: u32,
 }
 
-impl Iterator for Descendants<'_, '_> {
+impl Iterator for Descendants<'_> {
     type Item = NodeId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -341,7 +342,7 @@ impl Iterator for Descendants<'_, '_> {
 /// closing event can stamp the container with a `body` field.
 pub(crate) struct TreeBuilder<'a> {
     source: &'a str,
-    arena: Vec<Node<'a>>,
+    arena: Vec<Node>,
     child_ids: Vec<NodeId>,
     parents: Vec<Option<NodeId>>,
     /// Scratch buffer; the tail beyond `open.last().pending_start` is
@@ -461,7 +462,7 @@ impl<'a> TreeBuilder<'a> {
             }
             Event::Code(cow) => {
                 self.flush_inline_run();
-                let code = InlineCodeRun::new(cow_to_cow(cow), self.current_scope());
+                let code = InlineCodeRun::new(cow.as_ref(), self.current_scope());
                 self.push_leaf(NodeKind::CodeRun(code), range);
             }
             Event::Html(cow) => {
@@ -473,17 +474,17 @@ impl<'a> TreeBuilder<'a> {
                 // HtmlBlock container. Treat it as inline HTML so the
                 // bytes survive verbatim.
                 self.flush_inline_run();
-                let span = InlineHtmlSpan::from_parser(cow_to_cow(cow), range.start, self.source);
+                let span = InlineHtmlSpan::from_parser(cow.as_ref(), range.start, self.source);
                 self.push_leaf(NodeKind::HtmlSpan(span), range);
             }
             Event::InlineHtml(cow) => {
                 self.flush_inline_run();
-                let span = InlineHtmlSpan::from_parser(cow_to_cow(cow), range.start, self.source);
+                let span = InlineHtmlSpan::from_parser(cow.as_ref(), range.start, self.source);
                 self.push_leaf(NodeKind::HtmlSpan(span), range);
             }
             Event::FootnoteReference(label) => {
                 self.flush_inline_run();
-                let r = FootnoteReference::new(cow_to_cow(label));
+                let r = FootnoteReference::new(label.to_string());
                 self.push_leaf(NodeKind::FootnoteReference(r), range);
             }
             Event::SoftBreak => {
@@ -602,7 +603,7 @@ impl<'a> TreeBuilder<'a> {
     /// does not emit events for them); the formatter reads that table
     /// directly rather than via synthesised tree children.
     #[tracing::instrument(level = "debug", skip(self, refs))]
-    pub(crate) fn finalize(mut self, refs: &ReferenceTable) -> Tree<'a> {
+    pub(crate) fn finalize(mut self, refs: &ReferenceTable) -> Tree {
         // Flush any inline events left in the buffer (the document's
         // trailing run before the parser exhausted its events).
         self.flush_inline_run();
@@ -630,14 +631,13 @@ impl<'a> TreeBuilder<'a> {
         }
 
         Tree {
-            source: self.source,
             arena: self.arena,
             child_ids: self.child_ids,
             parents: self.parents,
         }
     }
 
-    fn alloc_node(&mut self, kind: NodeKind<'a>, raw_range: Range<usize>) -> NodeId {
+    fn alloc_node(&mut self, kind: NodeKind, raw_range: Range<usize>) -> NodeId {
         let id = NodeId(u32::try_from(self.arena.len()).unwrap_or(u32::MAX));
         let subtree_end = id.0.saturating_add(1);
         self.arena.push(Node {
@@ -656,7 +656,7 @@ impl<'a> TreeBuilder<'a> {
 
     fn open_container(
         &mut self,
-        kind: NodeKind<'a>,
+        kind: NodeKind,
         range: Range<usize>,
         body_accum: Option<String>,
     ) {
@@ -701,10 +701,9 @@ impl<'a> TreeBuilder<'a> {
             // Stamp the accumulated body onto CodeBlock / HtmlBlock.
             #[allow(clippy::wildcard_enum_match_arm)]
             if let Some(body) = frame.body_accum {
-                let body_cow: Cow<'a, str> = Cow::Owned(body);
                 match &mut node.kind {
-                    NodeKind::CodeBlock { body: dst, .. } => *dst = body_cow,
-                    NodeKind::HtmlBlock { body: dst } => *dst = body_cow,
+                    NodeKind::CodeBlock { body: dst, .. } => *dst = body,
+                    NodeKind::HtmlBlock { body: dst } => *dst = body,
                     _ => {}
                 }
             }
@@ -746,7 +745,7 @@ impl<'a> TreeBuilder<'a> {
     }
 
     /// Handle the tail portion of an event whose source range
-    fn push_leaf(&mut self, kind: NodeKind<'a>, range: Range<usize>) {
+    fn push_leaf(&mut self, kind: NodeKind, range: Range<usize>) {
         let id = self.alloc_node(kind, range);
         // Stamp the typed view for the leaf block kinds we model
         // (currently just `ThematicBreak`); the inline leaves keep
@@ -768,7 +767,7 @@ impl<'a> TreeBuilder<'a> {
         range
     }
 
-    fn kind_for_start(&self, tag: &Tag<'a>, range: &Range<usize>) -> NodeKind<'a> {
+    fn kind_for_start(&self, tag: &Tag<'a>, range: &Range<usize>) -> NodeKind {
         match tag {
             Tag::Paragraph => NodeKind::Paragraph,
             Tag::Heading { level, .. } => {
@@ -781,17 +780,17 @@ impl<'a> TreeBuilder<'a> {
             Tag::BlockQuote(_) => NodeKind::BlockQuote,
             Tag::CodeBlock(kind) => {
                 let (fenced, info) = match kind {
-                    CodeBlockKind::Fenced(s) => (true, cow_to_cow(s)),
-                    CodeBlockKind::Indented => (false, Cow::Borrowed("")),
+                    CodeBlockKind::Fenced(s) => (true, s.to_string()),
+                    CodeBlockKind::Indented => (false, String::new()),
                 };
                 NodeKind::CodeBlock {
                     fenced,
                     info,
-                    body: Cow::Borrowed(""),
+                    body: String::new(),
                 }
             }
             Tag::HtmlBlock => NodeKind::HtmlBlock {
-                body: Cow::Borrowed(""),
+                body: String::new(),
             },
             Tag::List(start) => NodeKind::List {
                 ordered: start.is_some(),
@@ -801,7 +800,7 @@ impl<'a> TreeBuilder<'a> {
             },
             Tag::Item => NodeKind::Item { task: None },
             Tag::FootnoteDefinition(label) => NodeKind::FootnoteDefinition {
-                label: cow_to_cow(label),
+                label: label.to_string(),
             },
             Tag::Table(aligns) => NodeKind::Table {
                 alignments: aligns.iter().copied().map(TableAlign::from).collect(),
@@ -853,7 +852,7 @@ impl<'a> TreeBuilder<'a> {
 /// `Unknown` is the formatter's "emit verbatim source" fallback, which is
 /// exactly the behaviour CM §4.7 prescribes for an unresolvable reference.
 #[allow(clippy::wildcard_enum_match_arm)] // many irrelevant NodeKind variants
-fn downgrade_unresolved_links(arena: &mut [Node<'_>], refs: &ReferenceTable) {
+fn downgrade_unresolved_links(arena: &mut [Node], refs: &ReferenceTable) {
     for node in arena.iter_mut() {
         let (label_opt, is_image): (Option<&str>, bool) = match &node.kind {
             NodeKind::Link(run) => (run.reference_label(), false),
@@ -875,19 +874,19 @@ fn downgrade_unresolved_links(arena: &mut [Node<'_>], refs: &ReferenceTable) {
     }
 }
 
-fn link_kind<'a>(
+fn link_kind(
     lt: LinkType,
-    dest_url: &CowStr<'a>,
-    title: &CowStr<'a>,
-    id: &CowStr<'a>,
+    dest_url: &CowStr<'_>,
+    title: &CowStr<'_>,
+    id: &CowStr<'_>,
     is_image: bool,
-) -> NodeKind<'a> {
+) -> NodeKind {
     let ref_kind = match lt {
         LinkType::Autolink => {
-            return NodeKind::Autolink(AutolinkRun::from_cmark_uri(cow_to_cow(dest_url)));
+            return NodeKind::Autolink(AutolinkRun::from_cmark_uri(dest_url.to_string()));
         }
         LinkType::Email => {
-            return NodeKind::Autolink(AutolinkRun::from_cmark_email(cow_to_cow(dest_url)));
+            return NodeKind::Autolink(AutolinkRun::from_cmark_email(dest_url.to_string()));
         }
         LinkType::WikiLink { .. } => return NodeKind::Unknown { tag: "WikiLink" },
         LinkType::Inline => None,
@@ -897,8 +896,8 @@ fn link_kind<'a>(
         }
         LinkType::Shortcut | LinkType::ShortcutUnknown => Some(LinkSourceKind::ReferenceShortcut),
     };
-    let dest = cow_to_cow(dest_url);
-    let title = cow_to_cow(title);
+    let dest = dest_url.to_string();
+    let title = title.to_string();
     match ref_kind {
         None => {
             if is_image {
@@ -908,7 +907,7 @@ fn link_kind<'a>(
             }
         }
         Some(kind) => {
-            let label = cow_to_cow(id);
+            let label = id.to_string();
             if is_image {
                 NodeKind::Image(ImageRun::from_pulldown_reference(kind, dest, title, label))
             } else {
@@ -919,7 +918,9 @@ fn link_kind<'a>(
 }
 
 /// Convert a pulldown `CowStr` into a standard `Cow<str>` without
-/// copying when the input is borrowed.
+/// copying when the input is borrowed. Kept for the inline-text path
+/// where the borrow into the original event payload is preserved
+/// through the run buffer.
 fn cow_to_cow<'a>(s: &CowStr<'a>) -> Cow<'a, str> {
     match s {
         CowStr::Borrowed(b) => Cow::Borrowed(b),
@@ -994,11 +995,11 @@ fn widen_to_line_start_through_ws(source: &str, range: Range<usize>) -> Range<us
 /// drives emission. The typed value's existence is a witness that the
 /// data round-trips under the relevant `CommonMark` §4 rule.
 #[allow(clippy::wildcard_enum_match_arm)]
-fn build_typed_block<'a>(
-    kind: &NodeKind<'a>,
-    source: &'a str,
+fn build_typed_block(
+    kind: &NodeKind,
+    source: &str,
     raw_range: Range<usize>,
-) -> Option<TypedBlock<'a>> {
+) -> Option<TypedBlock> {
     use crate::config::ThematicStyle;
     match kind {
         NodeKind::Heading { level, setext } => {
@@ -1053,10 +1054,10 @@ fn build_typed_block<'a>(
 /// state. Returns `None` for degenerate shapes (no items, marker byte
 /// outside `-*+0..9`); the IR falls back to legacy `NodeKind::List`
 /// emission in that case.
-fn build_list_block<'a>(
-    arena: &[Node<'a>],
+fn build_list_block(
+    arena: &[Node],
     child_ids: &[NodeId],
-    source: &'a str,
+    source: &str,
     list_id: NodeId,
 ) -> Option<ListBlock> {
     let list_node = arena.get(list_id.idx())?;
@@ -1111,11 +1112,11 @@ fn build_list_block<'a>(
 /// fails — pulldown-cmark does not produce such tables from valid
 /// input. The legacy `NodeKind::Table` keeps driving emission until
 /// prompt 27's printer swap.
-fn build_table_block<'a>(
-    arena: &[Node<'a>],
+fn build_table_block(
+    arena: &[Node],
     child_ids: &[NodeId],
     table_id: NodeId,
-) -> Option<TableBlock<'a>> {
+) -> Option<TableBlock> {
     let table_node = arena.get(table_id.idx())?;
     let NodeKind::Table { alignments } = &table_node.kind else {
         return None;
@@ -1152,7 +1153,7 @@ fn build_table_block<'a>(
     TableBlock::try_new(alignments.clone(), head, body).ok()
 }
 
-fn collect_row_cells(arena: &[Node<'_>], child_ids: &[NodeId], row: &Node<'_>) -> Vec<TableCell> {
+fn collect_row_cells(arena: &[Node], child_ids: &[NodeId], row: &Node) -> Vec<TableCell> {
     let mut cells = Vec::new();
     for j in row.children.clone() {
         let Some(&cid) = child_ids.get(j as usize) else {
@@ -1168,7 +1169,7 @@ fn collect_row_cells(arena: &[Node<'_>], child_ids: &[NodeId], row: &Node<'_>) -
     cells
 }
 
-fn item_has_direct_paragraph(arena: &[Node<'_>], child_ids: &[NodeId], item: &Node<'_>) -> bool {
+fn item_has_direct_paragraph(arena: &[Node], child_ids: &[NodeId], item: &Node) -> bool {
     for j in item.children.clone() {
         let Some(&cid) = child_ids.get(j as usize) else {
             continue;
@@ -1187,7 +1188,7 @@ fn item_has_direct_paragraph(arena: &[Node<'_>], child_ids: &[NodeId], item: &No
 /// `TaskListMarker` leaf. Pulldown nests the marker inside the item's
 /// first paragraph, so we inspect both the item's direct children and
 /// the grandchildren of any direct `Paragraph`.
-fn task_item_body_empty(arena: &[Node<'_>], child_ids: &[NodeId], item: &Node<'_>) -> bool {
+fn task_item_body_empty(arena: &[Node], child_ids: &[NodeId], item: &Node) -> bool {
     for j in item.children.clone() {
         let Some(&cid) = child_ids.get(j as usize) else {
             continue;
@@ -1256,7 +1257,7 @@ mod tests {
     fn paragraph_and_text_present() {
         let ir = Ir::parse("Hello world\n");
         let tree = &ir.tree;
-        let kinds: Vec<&NodeKind<'_>> = tree
+        let kinds: Vec<&NodeKind> = tree
             .descendants(tree.root())
             .filter_map(|id| tree.node(id).map(|n| &n.kind))
             .collect();
@@ -1298,7 +1299,7 @@ let x = 1;
         let tree = &ir.tree;
         for id in tree.descendants(tree.root()) {
             let n = tree.node(id).expect("descendants yields valid ids");
-            let raw = tree.raw_text(id);
+            let raw = tree.raw_text(src, id);
             #[allow(clippy::wildcard_enum_match_arm)]
             match &n.kind {
                 NodeKind::Heading { setext: false, .. } => {
@@ -1393,7 +1394,7 @@ let x = 1;
         assert!(tree.parent(tree.root()).is_none());
     }
 
-    fn find_list_tight(tree: &Tree<'_>) -> Option<bool> {
+    fn find_list_tight(tree: &Tree) -> Option<bool> {
         tree.descendants(tree.root())
             .find_map(|id| match tree.node(id).map(|n| &n.kind) {
                 Some(NodeKind::List { tight, .. }) => Some(*tight),
@@ -1480,7 +1481,7 @@ let x = 1;
     const TYPED_COVERAGE_KITCHEN: &str =
         include_str!("../tests/fixtures/typed_coverage_kitchen.md");
 
-    fn is_printable_block(k: &NodeKind<'_>) -> bool {
+    fn is_printable_block(k: &NodeKind) -> bool {
         // `Item` and table sub-parts (TableHead/Row/Cell) are not in
         // this set: their typed data lives inside the parent
         // `ListBlock` / `TableBlock` payload, not on `node.typed`.
