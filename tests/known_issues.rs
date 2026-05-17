@@ -9,6 +9,8 @@
 //! No mdwright bug ever lives here. If a finding traces to mdwright
 //! code, fix it; if it traces to a dependency, pin it here.
 
+#![allow(clippy::expect_used, reason = "test scaffolding for an upstream panic pin")]
+
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use pulldown_cmark::{Options, Parser};
@@ -22,7 +24,7 @@ use pulldown_cmark::{Options, Parser};
 /// `catch_unwind`. If upstream fixes it, this test fails and those
 /// `catch_unwind` wrappers can be removed.
 ///
-/// PENDING: track at https://github.com/raphlinus/pulldown-cmark/
+/// PENDING: track at <https://github.com/raphlinus/pulldown-cmark/>
 /// (file an issue with the 11-byte repro before removing this pin).
 #[test]
 fn pulldown_panics_on_link_ref_tab() {

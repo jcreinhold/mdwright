@@ -392,9 +392,22 @@ fn collapse_whitespace(s: &str) -> String {
 /// The runtime gate ([`crate::Document::format_validated`]), the
 /// property tests, the GFM-spec runner, and the `fuzz_parse_format`
 /// oracle all route through this single definition.
+///
+/// Both inputs are line-ending-normalised before parsing. CR / CRLF /
+/// LF are equivalent by CM §2.2, but pulldown preserves raw bytes in
+/// some constructs (lone `\r` inside an HTML block surfaces as one
+/// event-stream shape; the same source with `\n` surfaces as another
+/// — see `fuzz_html_block_cr_event_split.in`). Normalising both sides
+/// to LF before the canonical walk mirrors what `Source::canonicalise`
+/// does for the IR pipeline, so the gate's domain matches the
+/// formatter's.
 #[must_use]
 pub fn semantically_equivalent(source: &str, formatted: &str) -> bool {
-    canonical_events(source) == canonical_events(formatted)
+    let mut a = source.to_owned();
+    super::normalize_line_endings_lf(&mut a);
+    let mut b = formatted.to_owned();
+    super::normalize_line_endings_lf(&mut b);
+    canonical_events(&a) == canonical_events(&b)
 }
 
 /// If `source` and `formatted` are not semantically equivalent,
@@ -406,8 +419,12 @@ pub fn semantically_equivalent(source: &str, formatted: &str) -> bool {
 /// of dumping two HTML strings.
 #[must_use]
 pub(crate) fn first_divergence(source: &str, formatted: &str) -> Option<String> {
-    let a = canonical_events(source);
-    let b = canonical_events(formatted);
+    let mut src_lf = source.to_owned();
+    super::normalize_line_endings_lf(&mut src_lf);
+    let mut fmt_lf = formatted.to_owned();
+    super::normalize_line_endings_lf(&mut fmt_lf);
+    let a = canonical_events(&src_lf);
+    let b = canonical_events(&fmt_lf);
     if a == b {
         return None;
     }
