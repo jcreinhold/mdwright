@@ -12,6 +12,7 @@ use crate::cm::inline::emphasis::{EmphasisDelim, EmphasisRun, ResolveCtx, Strong
 use crate::cm::inline::link::flatten_body_doc;
 use crate::cm::inline::strikethrough::Strikethrough;
 use crate::format::doc::{Doc, concat, text};
+use crate::format::emit_safety::{RunKind, emit_emphasis_safely};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::{NodeId, NodeKind};
 
@@ -43,8 +44,15 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                     first_child_delim: first_child_strong_delim(ctx, cid),
                 });
                 let body = pretty_inline_children(ctx, cid);
-                parts.push(EmphasisRun::pretty(body, delim));
+                let source_slice = ctx.tree.raw_text(ctx.source, cid);
+                parts.push(emit_emphasis_safely(
+                    body,
+                    delim,
+                    RunKind::Emphasis,
+                    source_slice,
+                ));
                 let _ = run;
+                let _ = EmphasisRun::pretty;
                 left_emphasis_delim = Some(delim);
                 continue;
             }
@@ -55,7 +63,15 @@ pub(crate) fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[Nod
                     first_child_delim: first_child_emphasis_delim(ctx, cid),
                 });
                 let body = pretty_inline_children(ctx, cid);
-                parts.push(StrongRun::pretty(body, delim));
+                let source_slice = ctx.tree.raw_text(ctx.source, cid);
+                parts.push(emit_emphasis_safely(
+                    body,
+                    delim,
+                    RunKind::Strong,
+                    source_slice,
+                ));
+                let _ = run;
+                let _ = StrongRun::pretty;
             }
             NodeKind::Strikethrough => {
                 let body = pretty_inline_children(ctx, cid);

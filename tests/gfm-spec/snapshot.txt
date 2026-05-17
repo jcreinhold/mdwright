@@ -15,10 +15,6 @@
 425   html        Emphasis and strong emphasis
 425   ast         Emphasis and strong emphasis
 435   idempotence Emphasis and strong emphasis
-459   html        Emphasis and strong emphasis
-459   ast         Emphasis and strong emphasis
-462   html        Emphasis and strong emphasis
-462   ast         Emphasis and strong emphasis
 470   html        Emphasis and strong emphasis
 470   ast         Emphasis and strong emphasis
 472   html        Emphasis and strong emphasis
@@ -26,5 +22,4 @@
 473   idempotence Emphasis and strong emphasis
 474   idempotence Emphasis and strong emphasis
 475   idempotence Emphasis and strong emphasis
-479   html        Emphasis and strong emphasis
 479   ast         Emphasis and strong emphasis

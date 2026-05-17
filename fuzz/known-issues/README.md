@@ -11,31 +11,10 @@ When you fix one, move the file to `tests/regressions/fuzz_<hash>.in`
 `tests/regressions.rs`) and delete the matching entry from this
 README.
 
-### `html-emphasis-style-normalisation.in`
-
-Bytes (3): `_ * _`.
-
-- Source `_*_` → `<p><em>*</em></p>` (pulldown sees `_…_` emphasis
-  around a literal `*`).
-- Formatter rewrites to `\***` (italic-style canonicalisation +
-  escape sieve flag): `<p>***</p>` (three literal asterisks, no
-  emphasis).
-- HTML diverges → `fuzz_parse_format` rejects.
-
-The structural prerequisite (canonicalise at parse, not at emit —
-`Document` owns a `Source`) has landed, and the NUL-flavoured
-sibling (`idempotence-nul-emphasis-escape.in`) is fixed and promoted
-to `tests/regressions/fuzz_nul_emphasis.idem.in`. The remaining
-issue here is a focused emphasis-policy problem: an emphasis run
-whose body or surrounding context would change pulldown's flanking
-decision under delimiter rewriting (NUL was one trigger; `_…*…_` is
-another) must keep its source delimiter rather than canonicalising
-to the configured `ItalicStyle`. The "would change pulldown's
-decision" predicate is the hard part — naive implementations invoke
-pulldown twice; with the `Source`-owned `Document` it now becomes
-tractable because the formatter has `(Source, Ir)` in hand and can
-inspect bytes-as-the-parser-saw-them cheaply.
-
-Reproducer:
-
-- `cargo +nightly fuzz run fuzz_parse_format fuzz/known-issues/html-emphasis-style-normalisation.in`
+*Currently empty.* Last clean: 2026-05-16, after the structural
+emit-safety landing (`src/format/emit_safety.rs`) closed bug class A
+(emphasis-flanking instability) by gating every emphasis/strong emit
+through a per-construct fallback ladder: try the configured style →
+escape body bytes that became flanking-active → fall back to source
+verbatim. The previously-parked `_*_` fixture is now
+`tests/regressions/fuzz_emphasis_style_normalisation.in`.

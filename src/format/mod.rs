@@ -11,6 +11,7 @@
 pub(crate) mod block;
 pub(crate) mod doc;
 pub(crate) mod document;
+pub(crate) mod emit_safety;
 pub(crate) mod inline;
 pub(crate) mod pretty;
 pub(crate) mod verbatim;
