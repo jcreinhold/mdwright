@@ -63,9 +63,15 @@ Tallied across rounds 1-3 plus the eleven sampled pre-tag fixes (22 entries tota
 | Pattern | Count | What the sweep does |
 |---|---|---|
 | #1 chokepoint missing (`Parser::new_ext` scattered) | 5 | prompt 46 lifts every site through `CanonicalSource` |
-| #2 output decision consults source bytes | 9 | prompt 47 two-pass emit reads draft, not source |
-| #3 post-pass at wrong layer | 3 | prompt 48 folds into structural emission |
-| #4 runtime gate weaker than tests | 0 fixes (only seen via CI fuzz) | prompt 49 adds fixed-point check |
-| #6 safety-ladder fallback redundancy | 1 (the introduction) | prompt 49 deletes tiers 3-4 once #2 lands |
+| #2 output decision consults source bytes | 9 | prompts 51–52 delete decision-reads entirely: every `.pretty()` reads source bytes only to copy them, never to decide a representation |
+| #3 post-pass at wrong layer | 3 | superseded; structural-preserve makes the perturbation concern moot |
+| #4 runtime gate weaker than tests | 0 fixes (only seen via CI fuzz) | superseded; preserve-by-emit is idempotent by construction |
+| #6 safety-ladder fallback redundancy | 1 (the introduction) | prompt 52 deletes the safety ladder entirely |
 
-#2 alone is 41 % of the fix history. That is the dominant pattern; prompt 47 is the load-bearing move.
+#2 alone is 41 % of the fix history — the dominant pattern. The prompt-47 iterative-draft formatter was the
+first attempt to address it (read pass-1 draft bytes for emit decisions rather than source bytes); it shipped
+and worked, but a follow-up audit found the decisions could still drift via nested-IR-shape interactions that
+the per-site safety ladder did not cover. The prompts 51–55 sweep replaced both with structural-preserve emit
+(`.pretty()` methods do not choose a representation; they copy the source's) plus a separately verified
+canonicalisation pass (`src/format/canonicalise.rs`) for opt-in rewrites. See
+[`stability.md`](stability.md) for the post-sweep architecture.

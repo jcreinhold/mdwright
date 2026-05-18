@@ -12,6 +12,97 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+## [0.4.0] — preserve-by-default formatter
+
+### Breaking changes
+
+- `FmtOptions` style knobs (`italic`, `strong`, `list_marker`,
+  `thematic_break_style`, `ordered_list`, `link_def_style`) default to
+  `Preserve` rather than to a normalised target. The default formatter
+  now leaves source style unchanged. Users who relied on the old
+  normalising defaults must set the desired style explicitly in
+  `.mdwright.toml`. To restore the pre-0.4.0 emphasis-to-asterisk
+  behaviour:
+
+  ```toml
+  [fmt]
+  italic = "asterisk"
+  strong = "asterisk"
+  list-marker = "dash"
+  thematic-break = "dash"
+  ```
+
+- New `StrongStyle` knob added (`[fmt] strong = "asterisk" |
+  "underscore" | "preserve"`, default `preserve`). Previously, strong
+  emphasis shared the italic knob's delimiter. The two are now
+  independent: `*italic*` with `__strong__` is expressible.
+
+- New `[fmt] thematic-break` TOML key surfaces a knob that was
+  previously not deserialised from configuration (`dash` / `asterisk`
+  / `underscore` / `preserve`).
+
+- `FmtOptions` gains six fluent setters: `with_italic`, `with_strong`,
+  `with_list_marker`, `with_ordered_list`, `with_thematic_break`,
+  `with_link_def_style`. Programmatic callers (CLI overrides,
+  property tests, downstream library users) construct options through
+  these.
+
+- `FormatError::DidNotConverge` is gone. The formatter no longer has a
+  convergence loop, so this variant cannot fire. Match arms that
+  spelled it explicitly will not compile.
+
+### Architecture
+
+- Structural emit is a single pass with pure source-byte preservation
+  (`src/format/document.rs`). Every `.pretty()` method reads source
+  bytes through `Tree::raw_text` or a node's source-recorded field;
+  none consult `FmtOptions` style knobs. Idempotent by construction.
+
+- Style canonicalisation runs as a separate post-structural pass at
+  `src/format/canonicalise.rs`. Each rewrite is verified locally by
+  reparsing the affected paragraph window through the prompt-46
+  chokepoint; failed verifications skip silently with
+  `tracing::warn!`. The pass iterates internally to a fixed point
+  (cap `MAX_CANONICALISE_ITERS = 8`).
+
+- The safety ladder (`src/format/emit_safety.rs`, ~474 lines), the
+  two-pass convergence loop, `FlankSource`, `DraftView`,
+  `Tree::corresponding_node_map`, `format::ConvergenceError`, and
+  `verbatim_source_fallback` are deleted (~800 lines net).
+
+- Property tests at `tests/properties.rs` matrix every style knob:
+  15 canonicalisation modes × {byte idempotence,
+  `semantically_equivalent`} on per-construct generators + a
+  whole-document sweep at 4096 cases (`#[ignore]`-gated).
+
+- Fuzz harnesses `fuzz_idempotence` and `fuzz_parse_format` extend
+  their first-byte `FmtOptions` encoding to cover the
+  canonicalisation matrix (bit layout documented in target source).
+
+- Round-3 fuzz evidence fixtures promoted to
+  `tests/regressions/fuzz_round3_*.in`. Both byte-preserve under
+  structural defaults.
+
+- See `docs/src/format/policy.md` (user-facing) and
+  `docs/architecture/stability.md` (contributor-facing) for the
+  design.
+
+### Bug fixes
+
+- `cm/inline/escape_policy::needs_emphasis_escape` no longer escapes
+  adjacent `**`/`__`/`***` runs that pulldown parses as plain text
+  (the body between candidate delimiters must contain a
+  non-delimiter byte). Round-3 fixture 02 idempotence bug.
+
+- `ir::split_frontmatter` returns `(0, None)` when a YAML/TOML opener
+  appears without a matching closing delimiter, falling back to
+  pulldown's thematic-break interpretation. Previously the whole
+  document was swallowed into a verbatim frontmatter slab.
+
+- `cm::block::quote::BlockQuote::pretty` emits `>\n` for an empty
+  blockquote (rather than `> ` with no trailing newline), so
+  consecutive blockquotes don't collapse into one on re-parse.
+
 ### Added
 - `mdwright explain <rule>` subcommand prints the long-form explanation
   of one lint rule. Unknown rule names are matched by Jaro-Winkler

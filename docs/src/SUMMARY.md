@@ -15,6 +15,11 @@
 - [Lint vs. format](concepts/lint-vs-format.md)
 - [Suppression comments](concepts/suppression-comments.md)
 
+# Formatter
+
+- [Formatter policy](format/policy.md)
+- [Style knobs](format/style.md)
+
 # Rules
 
 - [Catalogue](rules/index.md)

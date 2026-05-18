@@ -1,260 +1,189 @@
 # Stability charter
 
-> **Invariant.** Every output of `Document::format` is a fixed point of `format` and is semantically equivalent to
-> its source. The runtime gate enforces both.
+> **Invariant.** Every output of `Document::format` is byte-equivalent to its input wherever the input was already
+> valid Markdown, and semantically equivalent (canonical pulldown event streams agree) for any input under any
+> `FmtOptions`. The runtime gate at `Document::format_validated` enforces the semantic half; the structural half is
+> a property of every `.pretty()` method individually.
 
-> **Sweep status (post-deletion).** Prompt 51 made structural emit pure preservation: every `.pretty()` reads source
-> bytes and never consults `FmtOptions`. With perturbation gone, the iterative-draft loop introduced in prompt 47
-> was a trivial fixed point on its first iteration. A follow-up deletion (this sweep) removed `src/format/emit_safety.rs`,
-> `FlankSource` / `DraftView` / `FlankCtx`, `Tree::corresponding_node_map`, the `ConvergenceError` /
-> `FormatError::DidNotConverge` pair, the `MAX_PASSES` loop, and the `verbatim_source_fallback` path —
-> single-pass `format_document` returns `String` directly. The per-construct safety ladder no longer exists; future
-> style canonicalisation (asterisk-only, underscore-only, marker normalisation) lands as a separate verified
-> byte-rewrite pass over the structural output. The Type sketch and Risk register sections below describe state as
-> of prompt 47 and are kept for historical reference only.
+> **Sweep status.** Prompts 51–55 (v0.4.0) replaced the iterative-draft + safety-ladder design from prompt 47 with
+> a two-stage pipeline: structural emit reads source bytes only (preserve-by-default, idempotent by construction)
+> and a separate post-pass at `src/format/canonicalise.rs` rewrites bytes per `FmtOptions` style knobs, verifying
+> each rewrite locally. The two-pass convergence loop, `FlankSource`, `DraftView`, the safety ladder, the
+> `ConvergenceError` / `FormatError::DidNotConverge` pair, and `Tree::corresponding_node_map` are gone (~800 lines
+> deleted across prompts 51–52). This document reflects post-sweep state. Prompts 46 (chokepoint) and 47
+> (iterative-draft, since superseded) stay below as history. Original prompts 48–49 are **superseded** by the
+> 51–55 sweep; the redesign achieved their goals (`normalize_trailing_newline` retained for the legitimate
+> boundary case, fixed-point gate replaced by per-construct preservation).
 
-mdwright's correctness today rests on a circle of agreements between the IR builder, the formatter's per-construct
-emitters, the safety ladder in `format::emit_safety`, and the runtime semantic gate. Each agreement is correct in
-isolation, but the circle is held together by **every consumer re-deriving pulldown's behaviour from source bytes**.
-Bugs of this shape repopulate as fast as they are fixed: prompt 32 reached fuzz-zero, prompt 44 reached it again,
-and a round-3 verification immediately produced two more findings in the same family
-(`docs/architecture/round-3-findings/`).
+mdwright's correctness today rests on three architectural choices, each one a deep module rather than a layered
+agreement between consumers:
 
-This charter specifies the architectural moves that make the bug class unrepresentable. It is the gate for prompts
-46-49; each subsequent prompt's success is measured against the invariants this document encodes.
+1. **One pulldown chokepoint** at `src/parse.rs::events` / `events_with_offsets`. Every `pulldown_cmark::Parser`
+   construction in production code routes through this one site. Pulldown quirks live in
+   `docs/architecture/pulldown-model.md`, drift-tested by `tests/pulldown_model.rs`.
 
-## The bug class
+2. **Structural emit is pure source-byte preservation.** Every `.pretty()` method reads source bytes through
+   `Tree::raw_text` or a parse-time-recorded field; none consult `FmtOptions` style knobs. Idempotent by
+   construction.
+
+3. **Style canonicalisation is a separate verified post-pass.** Opt-in via `FmtOptions` style knobs; default is
+   `Preserve` everywhere. Each rewrite reparses a paragraph window through the chokepoint and skips silently
+   when the parse would diverge. The pass iterates internally to a fixed point.
+
+The bug class that motivated the redesign — emit decisions that perturbed their own context, requiring a
+convergence loop and per-site safety ladder to recover — is unrepresentable: there is no decision point that
+reads source bytes to predict pulldown's behaviour.
+
+## The bug class *[historical context]*
 
 Three round-2 fixes after prompt 44 — `36ded18` (`oracle-domain`), `223cd28` (`boundary-newline-policy`),
-`0b5eaf7` (`emphasis-flank-oscillation`) — are local patches to instances of the same shape: a downstream pass
-*predicts* what pulldown would do, instead of asking pulldown what it does. Each fix is correct; none address the
-shape.
+`0b5eaf7` (`emphasis-flank-oscillation`) — were local patches to instances of the same shape: a downstream pass
+*predicted* what pulldown would do, instead of asking pulldown what it does. Each fix was correct; none addressed
+the shape.
 
-The round-3 findings confirm the shape persists. `_*/*_` (5 bytes) — pulldown sees nested emphasis; mdwright emits
-`*\*/\**` (one outer emphasis, escaped body), which re-parses to a single emphasis and fails the gate.
-`**u*~***~` — pulldown sees one Strong wrapping Emphasis-and-text plus trailing literals; mdwright produces
-`**u*~*\*\*~` on pass 1 and `**u*~~\*\*\*~~` on pass 2. Both findings landed *after* the round-2 ambient-threading
-workaround. See [`fuzz-history.md`](fuzz-history.md): 9 of the last 22 fuzz fixes belong to one pattern (output
-decision consults source bytes); 5 more belong to "no single chokepoint for pulldown invocation." Per-finding
-patches are a treadmill.
+Round-3 verification immediately produced two more findings in the same family. `_*/*_` (5 bytes) — pulldown sees
+nested emphasis; pre-v0.4.0 mdwright emitted `*\*/\**` (one outer emphasis, escaped body), which re-parsed to a
+single emphasis and failed the gate. `**u*~***~` — pulldown sees one Strong wrapping Emphasis-and-text plus
+trailing literals; pre-v0.4.0 mdwright produced `**u*~*\*\*~` on pass 1 and `**u*~~\*\*\*~~` on pass 2.
 
-The underlying cause is structural. Three properties together would make the bug class impossible:
+See [`fuzz-history.md`](fuzz-history.md): 9 of the last 22 pre-v0.4.0 fuzz fixes belonged to the
+"output-decision consults source bytes" pattern. Per-finding patches were a treadmill.
 
-1. **One chokepoint** through which every `pulldown_cmark::Parser` invocation passes — so canonicalisation policy
-   lives in one place and every consumer sees the same bytes.
-2. **Output-derived decisions** — emit choices read the bytes the formatter has already produced, not the source
-   bytes whose interpretation the formatter is in the middle of rewriting.
-3. **Fixed-point gate** — the runtime contract that `format(format(s)) == format(s)`, not just `equivalent(s,
-   format(s))`. Non-idempotent emits become an error at the source, not a CI signal.
+The redesign reframes the underlying cause: as long as any emit site reads source bytes to choose its
+representation, perturbation is possible. Removing that read site (preserving source representation byte-for-byte)
+makes the bug class disappear.
 
-## The four moves
+## The architectural moves
 
-### Prompt 46 — Canonical-source chokepoint + pulldown-quirks model [LANDED]
+### Prompt 46 — Canonical-source chokepoint + pulldown-quirks model *[landed]*
 
-Every `pulldown_cmark::Parser` invocation in `src/` now goes through `src/parse.rs::events` (or
+Every `pulldown_cmark::Parser` invocation in `src/` goes through `src/parse.rs::events` (or
 `events_with_offsets`), both of which take a `CanonicalSource<'_>` (`src/source.rs`). The newtype's only public
 constructor (`CanonicalSource::from_source`) routes through `Source::canonicalise`, so the type system enforces the
 chokepoint discipline. Verified: `rg 'Parser::new_ext|Parser::new\(' src/` returns exactly two hits, both in
-`src/parse.rs`. Pattern #1 eliminated.
+`src/parse.rs`.
 
-`docs/architecture/pulldown-model.md` documents the per-construct invariants the formatter relies on (line endings,
-trailing blank lines, emphasis pairing scope, ref-label normalisation, HTML block boundaries, emphasis-event range
-semantics, strong vs nested emphasis). Drift-tested by `tests/pulldown_model.rs`: one test per rule, each failing
-with a message that names the doc section to update *before* changing mdwright code.
+`docs/architecture/pulldown-model.md` documents the per-construct invariants the formatter relies on. Drift-tested
+by `tests/pulldown_model.rs`: one test per rule, each failing with a message that names the doc section to update
+*before* changing mdwright code.
 
 Side benefits: the per-event CR scrub in `format::semantic::canonical_events` is gone (input is provably CR-free);
-the per-site `Options::empty() + insert()` boilerplate collapses to one `parse::FORMATTER_OPTIONS` constant; the
-options drift between the safety ladder's strikethrough-only set and the full formatter set is fixed. `render_html`
-now also canonicalises (CR→LF, NUL→U+FFFD), matching `Document::parse`.
+the per-site `Options::empty() + insert()` boilerplate collapses to one `parse::FORMATTER_OPTIONS` constant.
 
-### Prompt 47 — Output-derived emit (iterative-draft) [LANDED]
+### Prompt 47 — Output-derived emit (iterative-draft) *[landed as stepping stone; superseded]*
 
-The ambient-string workaround (`extend_ambient` / `prepend_close` / `concat_ambient` / `rendered_so_far` in
-`src/format/inline.rs`) is gone. In its place: every render uses `FlankSource::Draft(view)` where `view` is a
-`DraftView { bytes, tree, source_to_draft }`. The first iteration uses source as the initial draft (identity
-correspondence map); subsequent iterations use the previous iteration's output as the next draft. The convergence
-loop returns on the first pair of consecutive equal outputs.
+Prompt 47 shipped a two-pass formatter with `FlankSource::Draft(view)`, where pass 2's emit decisions read the
+draft bytes pass 1 produced (rather than predicting from source). The mechanism worked but addressed a symptom
+rather than the root cause: emit decisions still depended on neighbouring bytes; they just consulted a more
+reliable neighbour. Round-3 findings persisted because the pass-2 draft confirmed each *local* decision was correct
+without verifying that the rendered bytes preserved the source's nested-IR shape.
 
-`MAX_PASSES = 2` (one rectifying iteration, one confirming iteration). Failure raises
-`ConvergenceError::DidNotConverge`; `Document::format` falls back to verbatim source emission with a
-`tracing::warn!`, `Document::format_validated` propagates a new `FormatError::DidNotConverge { source, last_draft }`
-variant. See `docs/architecture/two-pass.md` for the full design, including why typed `DraftOutput` /
-`ConvergedOutput` wrappers were rejected (single-producer / single-consumer classitis around `String`).
+Prompt 51 collapsed the entire design space by making structural emit pure source-byte preservation. With no emit
+site choosing a representation, the convergence loop and safety ladder became unreachable; prompt 52 deleted
+both. See the prompts 51–55 sweep below.
 
-Decision-read sites converted: emphasis / strong flank in `src/format/inline.rs` (via
-`ctx.flank.flank_for(node_id)`), link / image body identity in `src/cm/inline/link.rs` (via `body_text_for_decision`
-reading draft body bytes when available), and paragraph verbatim eligibility in `src/cm/block/paragraph.rs` (the
-predicate is now "the IR-driven pass-1 emit byte-matches source").
+### Prompts 48–49 (original) — **superseded by the 51–55 sweep**
 
-**Round-3 findings — partially addressed.** Both round-3 inputs exercise nested-IR-shape preservation, not just
-flank-derived emit. The safety ladder verifies that the *outer* emphasis / strong run re-parses correctly; it does
-not verify that an emit decision (e.g. delimiter renormalisation of the outer wrap) preserves the *inner*
-structure. `_*/*_` → `*\*/\**` is the canonical case: the two-pass mechanism produced the bytes pass-1's emit
-chose, the convergence loop confirmed those bytes as a fixed point of "render with draft flank," but the rendered
-bytes do not re-parse to the source's nested-emphasis IR. The fix belongs to a follow-up prompt that extends
-`format::emit_safety::parses_as_single_run` to verify the full nested-IR shape, not just the outer wrap.
-Fixtures remain at `docs/architecture/round-3-findings/`; they have not been promoted to `tests/regressions/`
-pending that work.
+The original prompts 48 (structural emission of trailing newline) and 49 (fixed-point gate + redundant-ladder
+deletion) were both made unnecessary by the structural-preserve redesign. `normalize_trailing_newline` is kept
+as-is — it is a legitimate boundary policy reading source bytes to decide whether the emitted document should
+end with `\n`, *not* a perturbation source — and the fixed-point gate is no longer needed because every
+`.pretty()` method is byte-preserving (idempotent by construction). The redundant-ladder deletion happened in
+prompt 52 alongside the safety-ladder removal.
 
-### Prompt 48 — Structural emission (delete `normalize_trailing_newline`)
+### Prompts 51–55 — Structural-preserve redesign sweep *[landed, v0.4.0]*
 
-Move the trailing-newline shape decision into the block-level emitter. The last block in the document already
-knows whether it ended on `\n` (indented code block content, fenced code block content, paragraph with hard-break,
-table row). Folding the decision into each block kind's `pretty()` eliminates the post-pass that has been guessing
-from source bytes via `source.trim_end_matches([' ', '\t']).ends_with('\n')`
-(`src/format/mod.rs:44-63`).
+- **Prompt 51 — Defaults flip; per-construct emit is pure preservation.** Every `.pretty()` method changed to
+  read source bytes via `Tree::raw_text` / parse-time-recorded fields. `FmtOptions` style knob defaults all
+  flipped to `Preserve`. New `ThematicStyle::Preserve` / `LinkDefStyle::Preserve` variants. The bar:
+  `rg 'opts\.(italic|strong|list_marker|thematic|link_def|ordered_list)' src/cm/` returns nothing.
 
-Keep `apply_end_of_line` (legitimate output-format policy). Reduce `normalize_line_endings_lf` to a `debug_assert!`
-that asserts CR-cleanliness — if `Doc::Text`'s construction-time normalisation is comprehensive (it is, per
-`b4e34dd`), the defensive runtime pass is dead weight in release.
+- **Prompt 52 — Deletion sweep.** `src/format/emit_safety.rs` (~474 lines), `FlankSource` / `DraftView` /
+  `FlankCtx`, `Tree::corresponding_node_map`, `format::ConvergenceError`, `FormatError::DidNotConverge`,
+  `verbatim_source_fallback`, the `MAX_PASSES` loop, and the `verbatim_source_fallback` path all deleted.
+  `format_document` is a single-pass function returning `String` directly.
 
-Eliminates pattern #3. Deletes `normalize_trailing_newline`, `source_has_effective_trailing_newline`, and the
-defensive `normalize_line_endings_lf` calls duplicated in `src/format/semantic.rs:256,407,409,423,425`.
+- **Prompt 53 — Separate canonicalisation pass.** New `src/format/canonicalise.rs` with per-rewrite verification
+  through the prompt-46 chokepoint. One rewriter per `FmtOptions` style knob; failed verifications skip silently
+  with `tracing::warn!`. Gated by `opts.has_any_canonicalisation()` so default config pays zero cost. New
+  `StrongStyle` knob, independent of `ItalicStyle`.
 
-### Prompt 49 — Fixed-point gate + architectural proptests + redundant-ladder deletion
+- **Prompt 54 — Property matrix + fuzz reverify + round-3 promotion.** Property tests at
+  `tests/properties.rs` matrix every style knob (15 modes × {byte idempotence, semantic equivalence}) at 256
+  cases by default and 4096 cases under `#[ignore]`. Fuzz harnesses extend their first-byte option encoding to
+  cover the canonicalisation matrix. Round-3 fixtures promoted to
+  `tests/regressions/fuzz_round3_*.in`. Four structural-emit residuals fixed mid-prompt (escape policy,
+  frontmatter, empty blockquote, canonicalise convergence). Two further pre-existing structural-emit edge cases
+  documented at `docs/architecture/round-4-findings/`.
 
-Strengthen `Document::format_validated` to enforce idempotence:
-
-```rust
-fn format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError> {
-    let pass1 = self.format(opts);
-    let pass2 = Document::parse(&pass1).format(opts);
-    if pass1 != pass2 {
-        return Err(FormatError::NotIdempotent { pass1, pass2 });
-    }
-    // existing semantic check...
-}
-```
-
-Add architectural proptests in `tests/properties.rs`: for every well-formed input the generator produces, assert
-`format_validated` returns `Ok` (i.e. both equivalence *and* idempotence). The fuzz-zero re-verification then has
-two contracts to hold, not one.
-
-Confirm-or-delete `emit_emphasis_safely`'s tiers 3-4 (`src/format/emit_safety.rs:298-316`). With pass-2's
-output-derived flank from prompt 47, the flip-delimiter and flip-plus-escape branches should be unreachable;
-instrumentation in CI for one release confirms before deletion. Promote the round-3 findings to
-`tests/regressions/fuzz_round3_*.in`.
-
-Eliminates patterns #4 and #6.
-
-## Type sketch
-
-The volatile decision worth encoding in a type is **where flank bytes come from**. That lives in `FlankSource`,
-not in pipeline-state wrappers:
-
-```rust
-// src/source.rs (prompt 46, landed)
-pub(crate) struct CanonicalSource<'a> { bytes: &'a str }
-// The sole production caller of pulldown_cmark::Parser:
-pub(crate) fn events(src: CanonicalSource<'_>, opts: Options) -> Parser<'_> { … }
-
-// src/format/emit_safety.rs (prompt 47, landed)
-pub(crate) enum FlankSource<'a> {
-    Isolated,                      // exists for the safety-ladder unit tests; not used in production
-    Draft(&'a DraftView<'a>),
-}
-pub(crate) struct DraftView<'a> {
-    pub bytes: &'a str,
-    pub tree: &'a Tree,
-    pub source_to_draft: &'a [Option<NodeId>],
-}
-impl<'a> FlankSource<'a> {
-    pub(crate) fn flank_for(self, source_id: NodeId) -> FlankCtx<'a> { … }
-}
-
-// src/format/document.rs (prompt 47, landed)
-pub(crate) fn format_document<'a>(…) -> Result<String, ConvergenceError> {
-    // Initial render uses source itself as the draft (identity correspondence).
-    // Subsequent iterations use the previous iteration's output. Loop returns
-    // when two consecutive iterations produce equal bytes.
-}
-
-// src/document.rs (prompt 47, landed)
-impl Document {
-    pub fn format(&self, opts: &FmtOptions) -> String {
-        match format::format_document(…) {
-            Ok(s) => s,
-            Err(ConvergenceError::DidNotConverge { .. }) => verbatim_source_fallback(…),
-        }
-    }
-    pub fn format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError> {
-        let formatted = format::format_document(…)
-            .map_err(|ConvergenceError::DidNotConverge { last_draft }|
-                FormatError::DidNotConverge { source: …, last_draft })?;
-        // existing semantic-equivalence check follows
-    }
-}
-```
-
-`CanonicalSource`, `FlankSource`, and `DraftView` are `pub(crate)`. The public API
-(`Document::parse(&str)`, `Document::format(&FmtOptions)`, `Document::format_validated`,
-`mdwright::semantically_equivalent`) is unchanged except for the additive `FormatError::DidNotConverge` variant.
-
-The rejected alternative (`DraftOutput(String)` + `ConvergedOutput(String)` typed wrappers) is documented in
-`docs/architecture/two-pass.md`: both are pass-through wrappers around `String` with single producer and single
-consumer each — classitis with no information hidden behind the boundary.
-
-## Public API contract (no breakage)
-
-- `Document::parse(source: &str) -> Document` — unchanged. Still infallible.
-- `Document::format(&self, opts: &FmtOptions) -> String` — unchanged signature; the body now runs the two-pass +
-  convergence under the hood. Best-effort fallback on convergence failure preserves the infallible signature.
-- `Document::format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError>` — `FormatError` gains a
-  `NotIdempotent { pass1, pass2 }` variant alongside the existing `SemanticDivergence`. Callers matching the enum
-  exhaustively get a compiler nudge; callers using the `Display` impl see a clear message.
-- `mdwright::semantically_equivalent(a: &str, b: &str) -> bool` — unchanged.
-
-The mdBook docs at `docs/src/` describe the public API; the four moves do not touch those pages except the
-`changelog.md` entry per move.
+- **Prompt 55 — Documentation, charter rewrite, memory hygiene.** This document and the surrounding doc
+  surfaces brought into sync with the post-sweep code.
 
 ## Architecture diagram
+
+After the sweep, the format pipeline is linear with one conditional branch:
 
 ```
 raw &str
     │
     ▼
-Source::new ─── canonicalise ───► CanonicalSource(&str) ─┐
-                                                         │
-                                                         ▼
-                                          pulldown::Parser  (sole call site)
-                                                         │
-                                                         ▼
-                                                  typed IR  (Tree, math overlay, refs)
-                                                         │
-                                                         ▼
-                                          format_draft (pass 1: structural, IR-driven)
-                                                         │
-                                                         ▼
-                                             DraftOutput(String) + deferred markers
-                                                         │
-                                                         ▼
-                                          converge (pass 2: re-emit deferred sites
-                                                    reading draft bytes for flank)
-                                                         │
-                                                         ▼
-                                           ConvergedOutput(String)
-                                                         │
-                                                         ▼
-                                      fixed-point check: format(out) == out
-                                       + equivalence check: equivalent(in, out)
-                                                         │
-                                                         ▼
-                                                       out
+Source::new ── canonicalise ──► CanonicalSource(&str)
+                                        │
+                                        ▼
+                              pulldown::Parser (sole call site)
+                                        │
+                                        ▼
+                                  typed IR (Tree, math overlay, refs)
+                                        │
+                                        ▼
+                        structural emit (per-construct .pretty()
+                        methods — pure source-byte preservation)
+                                        │
+                                        ▼
+                          normalize_line_endings_lf
+                                        │
+                                        ▼
+                          if opts.has_any_canonicalisation():
+                              canonicalise (per-rewrite verified,
+                              iterated internally to fixed point)
+                                        │
+                                        ▼
+                          normalize_trailing_newline
+                                        │
+                                        ▼
+                          apply_end_of_line
+                                        │
+                                        ▼
+                                      out
 ```
 
-Every arrow is enforced by the type of its source: only `Source::as_canonical()` produces a `CanonicalSource`; only
-`format_draft` produces a `DraftOutput`; only `converge` produces a `ConvergedOutput`. There is no public
-constructor for any of them.
+Every arrow that crosses a type boundary is enforced by the type of its source: only `Source::canonical()`
+produces a `CanonicalSource`; only `format::format_document` calls `pulldown::Parser` via the chokepoint. The
+only surviving crate-internal newtype from the prompt-46 era is `CanonicalSource`. `FlankSource`, `DraftView`,
+`DraftOutput`, `ConvergedOutput` were all deleted with the safety ladder in prompt 52.
+
+## Public API contract
+
+- `Document::parse(source: &str) -> Document` — unchanged. Still infallible.
+- `Document::format(&self, opts: &FmtOptions) -> String` — unchanged signature, infallible.
+- `Document::format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError>` — `FormatError` carries
+  only the `SemanticDivergence { formatted, diff_summary, html_a, html_b }` variant. The pre-sweep
+  `DidNotConverge` variant is gone; the convergence loop it signalled does not exist.
+- `mdwright::semantically_equivalent(a: &str, b: &str) -> bool` — unchanged.
+- `FmtOptions` style knobs default to `Preserve`. Six new fluent setters (`with_italic`, `with_strong`,
+  `with_list_marker`, `with_ordered_list`, `with_thematic_break`, `with_link_def_style`) for programmatic
+  callers. New `[fmt] strong = "..."` TOML key. New `[fmt] thematic-break = "..."` TOML key.
+
+The mdBook docs at `docs/src/format/policy.md` and `docs/src/format/style.md` describe the user-facing surface.
 
 ## Risk register
 
 | Risk | Mitigation |
 |---|---|
-| Two-pass emit is ≈ 2× wall-clock on documents with many forward-look-dependent inline sites (emphasis-heavy paragraphs). | Pass 2 visits only the deferred markers pass 1 left, not the whole document. Most emit sites have IR-determined output (paragraphs, lists, code, tables) and are pass-1-only. The `format/medium` and `format/corpus` Criterion benches must stay within ±5 % per move. |
-| Refactor blast radius for prompt 46: the chokepoint touches every `Parser::new_ext` caller plus the gate plus the safety ladder. | Land the chokepoint behind `#[deny(clippy::disallowed_methods)]` configured to disallow `Parser::new_ext` outside `src/source.rs` (and the `#[cfg(test)]` helpers). Any new caller fails to compile. |
-| Deleting `normalize_trailing_newline` in prompt 48 routes the decision through every block emitter; a missed case strips or adds a `\n` somewhere. | Before deletion, prompt 48 adds a structural proptest (`tests/properties.rs`) that for every block kind, the formatter's trailing-byte shape matches the IR's `is_last_block_open_terminated`. The proptest runs before the deletion commit, so the deletion is a no-op assertion. |
-| Best-effort fallback in `Document::format` (preserve infallibility) may mask convergence bugs in callers that don't use `format_validated`. | Emit a `tracing::warn!` with the divergence summary on every fallback. CLI sets `--strict` to upgrade to `format_validated` semantics. Document gate-via-`format_validated` as the recommended path in `docs/src/`. |
-| Pulldown's quirks document (prompt 46) goes stale as `pulldown-cmark` releases land. | Add a CI job that diffs the document's referenced behaviour against a small golden corpus per `pulldown-cmark` release. Failure surfaces as a sweep target for the next prompt. |
+| Canonicalisation pass's internal convergence loop could fail to terminate. | Capped at `MAX_CANONICALISE_ITERS = 8`; cap exceedance logs a `tracing::warn!` and returns the current buffer. The 4096-case property sweep at `tests/properties.rs::canonicalise_document_*_sweep` has never hit the cap. |
+| Per-rewrite verification's paragraph-window scope is too small for some rewrites. | Conservative by design: rewrites that would affect adjacent paragraphs verify within their own window and skip if the local parse diverges, leaving the source-preserved bytes in place. Skips are logged so production traffic can surface high-skip-rate documents. |
+| Structural emit edge cases not covered by the 4096-case sweep show up in pathological inputs. | `docs/architecture/round-4-findings/` tracks the two known cases (empty list item at end-of-document; ATX trailing-hash). Both reproduce under `FmtOptions::default()`; both are pre-existing structural-emit bugs that fuzz surfaces via the broader option-space coverage. Future structural-emit work uses these as the acceptance suite. |
+| Pulldown's behaviour drifts between releases. | `docs/architecture/pulldown-model.md` documents the per-construct invariants; `tests/pulldown_model.rs` fails when pulldown's behaviour disagrees. The chokepoint at `src/parse.rs` is the one site any drift mitigation lands. |
 
 ## Out of scope
 
@@ -264,68 +193,41 @@ constructor for any of them.
   amplify position-noise into false divergence.
 - A custom emphasis tokeniser. The CM §6.2 algorithm is correct; mdwright's job is to produce output that lets
   pulldown's tokeniser reach the same answer as it did on the source.
-- Performance work beyond keeping the benches in their envelope. The sweep is correctness-driven; perf wins from
-  the simplified call graph (fewer source-byte reads, no defensive normalisations) are bonus.
+- Cross-knob canonicalisation modes beyond what `FmtOptions` exposes. For aggressive cross-knob normalisation
+  (mdformat's approach), use mdformat — see the README.
 
 ---
 
-## Appendix A — `Parser::new_ext` audit
+## Appendix A — `Parser::new_ext` audit *[closed by prompt 46]*
 
-Every call site in `src/` as of commit `2e47fbd`. The four production hits are prompt 46's work-list.
+Every production call site routes through `src/parse.rs::events` or `events_with_offsets` (which both call
+`Parser::new_ext` internally — the only two production sites). `#[cfg(test)]` helpers in `src/cm/inline/link.rs`
+and similar locations have explicit per-test reasons documented next to the call. The audit is closed.
 
-| File:line | Caller | Input source | Role | Prompt 46 action |
-|---|---|---|---|---|
-| `src/document.rs:70` | `render_html` (pub fn) | caller-supplied `&str` (uncanonicalised) | prod | route through `Source::new(source).as_canonical()` |
-| `src/ir.rs:264` | `Ir::parse` | post-frontmatter `body` slice of `source` | prod | take `CanonicalSource<'_>` arg; remove `&str` |
-| `src/format/emit_safety.rs:76` | `parses_with_outer_run_at` | synthesised `format!("{left}{wrapped}{right}")` | prod (safety ladder) | construct `CanonicalSource` via a `SynthesisedInput` builder |
-| `src/format/semantic.rs:167` | gate canonical walker | already-canonicalised input bytes | prod (runtime gate) | take `CanonicalSource<'_>` from caller; delete in-place CR-collapse |
-| `src/cm/refs.rs:333` | `parse_events` test helper | test fixture `&str` | `#[cfg(test)]` | leave |
-| `src/cm/inline/link.rs:542` | `table_with` test helper | test fixture `&str` | `#[cfg(test)]` | leave |
-| `src/cm/inline/code.rs:148` | `reparses_to` round-trip assertion | builder `String` | `#[cfg(debug_assertions)]` | route through chokepoint to share canonicalisation policy |
-| `src/format/emit_safety.rs:156` | `parses_as_single_run_isolated` | test bytes | `#[cfg(test)]` | leave |
+## Appendix B — Source-byte decision-read audit *[closed by prompt 51 + 53]*
 
-**Success criterion for prompt 46:** `rg 'pulldown_cmark::Parser::new_ext' src/` shows only call sites inside
-`src/source.rs` (the chokepoint module). `#[cfg(test)]` and `#[cfg(debug_assertions)]` sites either route through
-the chokepoint or document a per-test reason for not doing so.
+The prompt-47 audit identified every site where the formatter read source bytes to *decide* its emit shape (as
+opposed to *copying* a source payload verbatim). Every "decision-read" row has either been:
 
-## Appendix B — Source-byte decision-read audit
+- **Eliminated by structural-preserve** (prompt 51): the decision was deferred to source bytes anyway, so the
+  read became a copy. `cm/inline/link.rs::body_text_for_decision`, `cm/block/heading.rs::split_setext_source`,
+  `cm/block/paragraph.rs::Paragraph::is_verbatim_eligible`, the per-emit-site emphasis flank reads in
+  `format/inline.rs` — all are gone, with structural emit picking the source representation directly.
+- **Moved to the canonicalisation pass** (prompt 53): the decision is a deliberate user-requested rewrite,
+  verified locally by a paragraph-window reparse. `src/format/canonicalise.rs` is the only consumer of
+  `FmtOptions` style knobs.
 
-Classification of every `ctx.source` / `tree.raw_text` / `raw_range` / `source_slice` / `source.get` site in
-`src/format/` and `src/cm/`. **Decision-read** rows are prompt 47's work-list.
+The audit is closed. The new bar: `rg 'opts\.(italic|strong|list_marker|thematic|link_def|ordered_list)' src/`
+returns only the call sites in `src/format/canonicalise.rs`.
 
-| File:line | Read | Classification | Prompt 47 action |
+## Appendix C — `normalize_*` post-pass audit *[partially closed]*
+
+| Pass | Defined | Wired in | Status |
 |---|---|---|---|
-| `src/format/inline.rs:74,84` | `ctx.tree.raw_text(ctx.source, cid)` for `emit_emphasis_safely(... source_slice ...)` (Emphasis branch) | **decision-read** (source is the verbatim fallback the ladder reaches when prediction fails) | Replace with draft-bytes-derived fallback in pass 2 |
-| `src/format/inline.rs:105,111` | same, Strong branch | **decision-read** | as above |
-| `src/format/inline.rs:65-79, 96-110` | `concat_ambient`, `extend_ambient`, `prepend_close` build flank context | **decision-read** (predicts pulldown's view from source neighbours) | Delete; flank read from draft bytes in pass 2 |
-| `src/format/inline.rs:114-115, 125-126, 136-137` | strikethrough / link / image ambient strings | **decision-read** | Delete; same as above |
-| `src/format/inline.rs:360-413` | paragraph-safety walker duplicate | **decision-read** | Delete; folded into pass 2 |
-| `src/format/inline.rs:173, 449` | `text(ctx.tree.raw_text(ctx.source, cid).to_owned())` for non-inline `NodeKind` (defensive debug-assert path) | structural (verbatim payload re-emission) | leave |
-| `src/format/inline.rs:148, 425` | `span.pretty(ctx, &node.raw_range)` for `NodeKind::Math` | structural (math body is a verbatim payload) | leave |
-| `src/format/block.rs:65` | `node.raw_range.clone()` for CR check inside the post-pass | structural (range scope) | leave |
-| `src/format/block.rs:140-152` | HTML/CodeBlock dispatch to `emit_verbatim` | structural (verbatim payload) | leave |
-| `src/format/block.rs:168` | `!ctx.source.get(node.raw_range.clone()).unwrap_or("").contains('\r')` — `root_verbatim_safe` | **decision-read** (verbatim-eligibility depends on source CR; output is LF-only by invariant) | Replace with a structural predicate on `Tree::nodes_have_cr_taint` after the IR records taint at parse time |
-| `src/format/block.rs:196` | `defs.push((child, node.raw_range.start))` | position-read | leave |
-| `src/format/verbatim.rs:30` | `tree.raw_text(source, id)` → emit verbatim | structural | leave |
-| `src/format/emit_safety.rs:275, 319` | `source_slice: &str` argument and verbatim fallback | **decision-read** | Becomes draft-derived after prompt 47 |
-| `src/cm/block/heading.rs:140` | `ctx.source.get(n.raw_range.clone())` for `split_setext_source` → setext-vs-ATX | **decision-read** (decides emit style from source bytes) | Pass-1 emits IR-shape ATX; pass 2 re-emits setext only when draft confirms the body bytes are setext-safe |
-| `src/cm/block/code.rs:112,124` | `ctx.tree.raw_text(ctx.source, id)` for fenced-code body | structural (code body is verbatim payload) | leave |
-| `src/cm/block/list.rs:380,387` | `ctx.tree.raw_text(ctx.source, item_id)` for indent derivation | structural (indent measured from source layout) | leave |
-| `src/cm/block/list.rs:94,109-110,527-528` | `scan_ordered_delim`, `item_indent` | structural (list marker / indent are properties of the source layout the IR preserves) | leave |
-| `src/cm/math/pretty.rs:51` | `let source = ctx.source` for math-body slice | structural (verbatim math payload) | leave |
-| `src/cm/block/paragraph.rs:55` | `Paragraph::is_verbatim_eligible(ctx, id)` | structural (decision is on IR shape; the *consequence* is "emit source bytes verbatim") | leave; reads the IR shape, not source bytes |
+| `normalize_trailing_newline` | `src/format/mod.rs` | `src/format/document.rs` | **kept.** Originally slated for deletion in prompt 48; the structural-preserve sweep made the perturbation concern moot, and the function is a legitimate boundary policy (read source bytes to decide whether output should end with `\n`). |
+| `source_has_effective_trailing_newline` | `src/format/mod.rs` | helper for the above | **kept** with `normalize_trailing_newline`. |
+| `normalize_line_endings_lf` | `src/format/mod.rs` | `src/format/document.rs` | **kept** as a cheap belt-and-braces. The load-bearing invariant lives on `Doc::Text`'s construction. |
+| `apply_end_of_line` | `src/format/mod.rs` | `src/format/document.rs` | **kept** — configured output transform. |
 
-**Success criterion for prompt 47:** every "decision-read" row in this table moves to "draft-read" or disappears.
-`rg 'source_slice|raw_text\(ctx\.source' src/format/inline.rs` returns no production hits.
-
-## Appendix C — `normalize_*` post-pass audit
-
-| Pass | Defined | Wired in | Classification | Prompt 48 action |
-|---|---|---|---|---|
-| `normalize_trailing_newline` | `src/format/mod.rs:44-56` | `src/format/document.rs:55` | **fold-into-emit** (boundary decision belongs to the last block emitter) | delete; replace with `Block::pretty()` returning a terminator hint per kind |
-| `source_has_effective_trailing_newline` | `src/format/mod.rs:61-63` | helper for the above | **fold-into-emit** | delete with `normalize_trailing_newline` |
-| `normalize_line_endings_lf` | `src/format/mod.rs:74-80` | `src/format/document.rs:54` + `src/format/semantic.rs:256,407,409,423,425` | **fold-into-emit** (load-bearing invariant lives on `Doc::text` per commit `b4e34dd`; this is defensive) | reduce to `debug_assert!(!out.contains('\r'))` in document.rs; delete the 5 calls in semantic.rs (gate input is already canonical) |
-| `apply_end_of_line` | `src/format/mod.rs:87-103` | `src/format/document.rs:56` | **keep-with-rationale** (legitimate output-format policy: Lf/Crlf/Keep, user-facing config) | keep; this is not a defensive normalisation, it is a configured output transform |
-
-**Success criterion for prompt 48:** `rg '^pub\(crate\) fn normalize_' src/format/mod.rs` shows only
-`apply_end_of_line`. The five defensive `normalize_line_endings_lf` calls in `src/format/semantic.rs` are gone.
+No defensive `normalize_line_endings_lf` calls remain in `src/format/semantic.rs` (deleted alongside the per-event
+CR scrub in prompt 46).

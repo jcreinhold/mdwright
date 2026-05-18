@@ -8,6 +8,13 @@ control-sequence patterns that generic Markdown formatters routinely mangle in m
 and `mdwright fmt` is HTML-equivalent to its input — the formatter refuses any rewrite that would
 change the rendered DOM.
 
+**Preserve-by-default.** `mdwright fmt` keeps your source's style choices — emphasis delimiters
+(`_foo_` vs `*foo*`), list markers (`-` / `*` / `+`), thematic breaks, link-destination angle
+brackets — untouched. When you want consistent style across a project, opt in per-knob via
+`.mdwright.toml`; see [Formatter policy](https://jcreinhold.github.io/mdwright/format/policy.html).
+If you want aggressive cross-knob canonicalisation as the default, [mdformat](https://mdformat.readthedocs.io/)
+is a good alternative.
+
 It is also fast: ~580× faster than `mdformat --check` on a 2,107-file corpus.
 
 ## Documentation
@@ -81,9 +88,10 @@ front-ends are responsible for bounding input themselves.
 Five coverage-guided fuzz targets live under [`fuzz/`](./fuzz):
 
 - `fuzz_parse_format` — `html(s) == html(format(s))`; format must not change the rendered HTML
-  (mirrors the `format_validated` CLI gate).
+  (mirrors the `format_validated` CLI gate). First input byte drives the same option matrix as
+  `fuzz_idempotence`.
 - `fuzz_idempotence` — `format(parse(format(parse(s))))` ≡ `format(parse(s))`. First input byte
-  drives `FmtOptions` (wrap × mode × `math.normalise`).
+  drives `FmtOptions` (wrap × mode × `math.normalise` × canonicalisation mode).
 - `fuzz_lint` — every standard-library lint rule on every input, must not panic; every diagnostic
   span lies in `0..len`; lint output is deterministic.
 - `fuzz_verbatim_identity` — verbatim mode is idempotent and, when the source is in canonical

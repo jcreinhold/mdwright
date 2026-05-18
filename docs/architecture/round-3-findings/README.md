@@ -1,22 +1,16 @@
-# Round-3 fuzz findings — evidence for prompts 45–49 *[historical]*
+# Round-3 fuzz findings — historical record
 
-> **Status:** the two `.in` fixtures were promoted to `tests/regressions/` during prompt 54
-> (`fuzz_round3_nested_emphasis_slash.in` and `fuzz_round3_multi_construct_idempotence.in`).
-> Both byte-preserve under structural-preserve defaults after the escape-policy and
-> frontmatter-fence fixes that landed alongside the promotion. This README stays as the
-> historical narrative; the live regression coverage lives in `tests/regressions.rs`.
+These two inputs were discovered in a round-3 fuzz verification (5 min/target) after the prompt-44 patches and the
+round-2 follow-up. They drove the design of the prompt-51-through-55 redesign sweep (the structural-preserve +
+separate-canonicalisation architecture documented in [`../stability.md`](../stability.md)).
 
+## Where they live now
 
-After prompt 44 (initial fuzz-to-zero) and the round-2 follow-up (oracle-domain CR, boundary-newline-policy,
-emphasis-flank-oscillation), a round-3 verification at 5 min/target produced two more findings in the same
-architectural family. These are **not** seeded as regression tests (that would block the build); they are evidence
-that the 45–49 architectural sweep is necessary and concrete inputs that prompt 49's fuzz re-verification must
-clear.
+- `01-parse-format-nested-emphasis-with-slash.in` → `tests/regressions/fuzz_round3_nested_emphasis_slash.in`
+- `02-idempotence-emphasis-strong-strikethrough.in` → `tests/regressions/fuzz_round3_multi_construct_idempotence.in`
 
-| # | File | Target | Class |
-|---|---|---|---|
-| 01 | `01-parse-format-nested-emphasis-with-slash.in` | `fuzz_parse_format` | Nested emphasis `_*…*_` collapses to single emphasis on emit; semantic divergence. |
-| 02 | `02-idempotence-emphasis-strong-strikethrough.in` | `fuzz_idempotence` | Multi-construct (Strong/Emphasis/Strikethrough) emit decisions interact; pass 2 ≠ pass 1. |
+Both byte-preserve under v0.4.0 structural-preserve defaults. The promotion happened in prompt 54 (`42da3a6`); the
+regression harness at `tests/regressions.rs` keeps them green from that commit onward.
 
 ## What each shows
 
@@ -25,77 +19,44 @@ clear.
 Pulldown event stream: `Start(Emphasis 0..5), Start(Emphasis 1..4), Text("/"), End(Emphasis), End(Emphasis)` —
 that is, `Emphasis(Emphasis("/"))`.
 
-Current mdwright output: `*\*/\**` — one `Emphasis` whose body is the literal text `*/*`. The inner emphasis was
-flattened to escaped text. Re-parse gives `Emphasis(Text("\\*/\\*"))`, not `Emphasis(Emphasis(...))`, so
-`semantically_equivalent` reports divergence.
+Pre-v0.4.0 mdwright output: `*\*/\**` — one `Emphasis` whose body was the literal text `*/*`. The inner emphasis
+got flattened to escaped text; re-parse gave `Emphasis(Text("\\*/\\*"))`, not `Emphasis(Emphasis(...))`, so
+`semantically_equivalent` reported divergence. Same shape as GFM-spec example 470 (`*_foo_*`) but the body byte
+(`/`) tripped the safety ladder's embedded-reparse decisions in a way the round-2 ambient-threading workaround did
+not anticipate.
 
-This is the same shape as GFM-spec example 470 (`*_foo_*`), which the round-2 fix *does* handle correctly via
-ambient-threading. The difference here is the body byte (`/`) — the safety ladder's embedded-reparse decisions are
-sensitive to body content in a way the ambient workaround did not anticipate. Prompt 47's two-pass design eliminates
-this by construction: pass 2 reads the actual draft bytes for the flank, not an approximated ambient string.
+Under v0.4.0: every `.pretty()` method reads source bytes; the outer `_…_` and inner `*…*` both round-trip
+verbatim. The nested-IR shape survives by construction.
 
-### 02 — `!**u*~***~` (10 bytes: opt 0x21 + source `**u*~***~`)
+### 02 — `!**u*~***~` (10 bytes: option byte `0x21` + source `**u*~***~`)
 
-Option byte `0x21` selects `Wrap::No`, `FormatMode::Normalise`, `math.normalise = false`.
+Option byte `0x21` selects `Wrap::No`, `FormatMode::Normalise`, `math.normalise = false` under the pre-v0.4.0
+fuzz harness encoding.
 
-Pulldown event stream for `**u*~***~`: `Strong(Emphasis("u") + Text("~")) + Text("*") + Text("*") + Text("~")`.
+Pulldown event stream for `**u*~***~`: `Emphasis(Emphasis("u") + Text("~")) + Text("*") + Text("*") + Text("~")`.
+The two trailing `~` characters in the input are *not* a strikethrough pair (pulldown's pairing decision keeps
+them as plain text, because the outer Emphasis closes at byte 5 and consumes the `*` flanking that would have
+extended the run).
 
-mdwright passes:
+Pre-v0.4.0 mdwright:
 - Pass 1 → `**u*~*\*\*~`
 - Pass 2 → `**u*~~\*\*\*~~`
 
-Pass 2 reads pass 1's output as a different IR (`~~`-pairs interact differently with the trailing text), and re-emits.
-Non-idempotent.
+Pass 1's escape policy escaped the trailing `**` text to `\*\*`, which then formed a strikethrough pair with
+the surrounding `~` characters on re-parse (because pulldown's `~`/`~~` pairing depends on the *flanking* of the
+chars between, and the escapes changed that flanking). Pass 2 saw the new strikethrough and re-emitted yet
+again. Non-idempotent.
 
-This is precisely the multi-construct case where the round-2 ambient threading is insufficient: ambient bytes for an
-emphasis emit don't account for following siblings that will also be rewritten. Prompt 47's two-pass design naturally
-handles it (pass 2 reads the full draft, including the formatter's rendering of every sibling).
+Under v0.4.0: the escape policy at `src/cm/inline/escape_policy.rs::needs_emphasis_escape` requires a
+non-delimiter body byte between paired delimiters before considering them an emphasis candidate. The trailing
+`**` text no longer gets escaped, the `~`-pair flanking stays as in the source, and the input round-trips.
 
-## How prompts 45–49 must use these
+## Why the sweep, not a per-finding patch
 
-- **Prompt 45 (charter):** cite as fresh evidence in `docs/architecture/stability.md`'s "The bug class" section.
-  These two findings landed *after* the round-2 fixes, which validates the charter's claim that per-finding patches
-  are insufficient.
-- **Prompt 47 (two-pass formatter):** add both inputs to the verification block. The two-pass design must produce
-  semantically-equivalent + idempotent output for both. If it doesn't, the design is incomplete and the prompt
-  needs revision.
-- **Prompt 49 (fixed-point gate + re-verify):** promote these from `docs/architecture/round-3-findings/` to
-  `tests/regressions/fuzz_round3_*.in` after the sweep makes them pass. The promotion commit's diff is the proof
-  that the sweep accomplished what it set out to do.
+Both findings landed *after* the round-2 fixes addressed the previous round of failures. The pattern was clear:
+emit decisions that consulted source bytes to predict pulldown's behaviour were the recurring source. The
+redesign sweep (prompts 51–55) addressed the pattern at the architectural level: structural emit cannot perturb
+its own context because it does not choose a representation; the canonicalisation pass cannot drift globally
+because each rewrite verifies its own parse window.
 
-## Status after prompt 54 (promotion)
-
-Both inputs now byte-preserve under structural-preserve defaults and live as live regression
-fixtures. Two bugs were uncovered and fixed alongside the promotion:
-
-- **`02-…in`** failed byte idempotence because `escape_policy::needs_emphasis_escape` over-fired on
-  adjacent delimiter runs with no body between them (`**` as plain text was being escaped to
-  `\*\*`, which then formed a strikethrough pair with surrounding `~` text on re-parse). The fix:
-  require at least one non-delimiter byte between paired delimiters before considering them an
-  emphasis candidate. See `src/cm/inline/escape_policy.rs`.
-- **`01-…in`** byte-preserved trivially under structural-preserve, but the investigation surfaced
-  a separate bug: `ir::split_frontmatter` was treating any document opening with `---\n` as
-  YAML frontmatter when no closing `---` existed, swallowing the entire document into a verbatim
-  frontmatter slab and masking the structural emit's loose-list normalisation. The fix:
-  return `(0, None)` when no closing delimiter is found, so the opener falls back to a thematic
-  break per CM. See `src/ir.rs::split_frontmatter`.
-
-## Status after prompt 47 *[historical]*
-
-Both inputs **still fail** after the iterative-draft formatter landed. The two-pass mechanism solved the bug class
-it was scoped for — flank-derived emit decisions made against fresh draft bytes, no source-byte prediction — but
-both round-3 inputs exercise a *different* bug class: **nested-IR-shape preservation**.
-
-- `01-…in`: the *outer* Emphasis's emit decision (which delimiter to use) is sound under any flank derivation; the
-  problem is that picking `*` for the outer breaks the *inner* Emphasis's `*…*` pairing. The safety ladder verifies
-  outer-wrap survival but not inner-structure survival. With italic style `*` (the default), the outer wrap
-  rewrite collapses the inner.
-- `02-…in`: emit decisions across construct boundaries (Strong / Emphasis / Strikethrough) re-pair on re-parse
-  even when each individual decision is locally correct. The pass-2 draft confirms the local decisions; the
-  re-parse changes the structural interpretation.
-
-The fix belongs to a follow-up prompt — extend `format::emit_safety::parses_as_single_run` (or replace it) to
-verify the **full nested-IR shape** survives the embedded reparse, not just the outer wrap. Two-pass is a
-necessary substrate for that work (we need to know what bytes are actually around the site before the
-nested-IR check is meaningful) but is not sufficient on its own. Until that prompt lands these fixtures stay
-here as evidence; the regression harness in `tests/regressions/` is intentionally not yet pointed at them.
+See [`../stability.md`](../stability.md) for the full redesign narrative.
