@@ -9,7 +9,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Once;
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, RuleSet, contains_rejected_control_chars};
+use mdwright_document::{Document, contains_rejected_control_chars};
+use mdwright_lint::RuleSet;
 
 const MAX_INPUT: usize = 65_536;
 

@@ -11,8 +11,9 @@ name = "mdwright-extra-example"
 path = "src/main.rs"
 
 [dependencies]
-mdwright = { path = "../.." }
-mdwright-cli = { path = "../../crates/mdwright-cli" }
+mdwright = { path = "../../crates/mdwright" }
+mdwright-document = { path = "../../crates/mdwright-document" }
+mdwright-lint = { path = "../../crates/mdwright-lint" }
 
 [lints.rust]
 unsafe-code = "forbid"

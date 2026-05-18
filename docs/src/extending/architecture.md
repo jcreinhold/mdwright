@@ -19,18 +19,19 @@ mdwright-format   mdwright-lint
       +---- mdwright-config
                   ^
                   |
-       mdwright-cli / mdwright-lsp
-
-mdwright facade depends on document/format/lint/config only
+       mdwright / mdwright-lsp
 ```
 
 - `mdwright-document` owns source coordinates, pulldown invocation, parse options, and recognised Markdown facts.
 - `mdwright-math` owns pure TeX/math scanning and normalisation.
 - `mdwright-format` owns formatting options and the transactional rewrite engine.
 - `mdwright-lint` owns diagnostics, rule execution, suppression, and safe fixes.
-- `mdwright-config`, `mdwright-cli`, and `mdwright-lsp` interpret user files and delivery protocols.
+- `mdwright-config` interprets user config files into document, format, and lint policy.
+- `mdwright` owns the command-line binary, file discovery, terminal output, and process exit policy.
+- `mdwright-lsp` owns editor-state delivery over LSP.
 
-The root `mdwright` crate is a curated facade; it does not contain parser, formatter, or linter mechanics.
+The repository root is a virtual workspace. There is no facade crate; Rust library users depend directly on the
+component crate that owns the capability they need.
 
 ## Document facts
 
@@ -65,7 +66,7 @@ details.
 
 ## Doc tests
 
-The `tests/docs_examples.rs` suite walks `docs/src/**/*.md` and validates every fenced code block:
+The `crates/mdwright/tests/docs_examples.rs` suite walks `docs/src/**/*.md` and validates every fenced code block:
 
 - ```` ```markdown ```` / ```` ```md ```` → must parse with `pulldown-cmark` (no panic; non-empty event stream for
   non-empty input).
@@ -86,5 +87,5 @@ a CSS class) but the test sees it.
 | Formatter rewrites      | `crates/mdwright-format/src/format/`                    |
 | Wrap algorithm          | `crates/mdwright-format/src/format/wrap_pass.rs`        |
 | Config schema           | `crates/mdwright-config/src/config.rs` + `xtask/src/config_docs.rs` |
-| CLI surface             | `crates/mdwright-cli/src/cli.rs`                        |
+| CLI surface             | `crates/mdwright/src/cli.rs`                            |
 | LSP surface             | `crates/mdwright-lsp/src/lsp.rs`                        |

@@ -5,7 +5,7 @@
 //! so a crash artifact's bytes alone aren't enough to reproduce the
 //! failure by hand. This module replays the artifact the way the fuzz
 //! target does, then surfaces the divergence summary produced by
-//! [`mdwright::FormatError::SemanticDivergence`].
+//! [`mdwright_format::FormatError::SemanticDivergence`].
 //!
 //! Output shape:
 //!
@@ -27,9 +27,10 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use mdwright::{
-    Document, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
-    ThematicStyle, Wrap, first_divergence,
+use mdwright_document::Document;
+use mdwright_format::{
+    FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle,
+    Wrap, first_divergence,
 };
 
 /// Structured diagnosis produced by [`diagnose`].
@@ -87,7 +88,7 @@ pub fn diagnose(artifact_path: &Path) -> Result<Diagnosis> {
 
     let input_utf8 = Some(s.to_owned());
 
-    if mdwright::contains_rejected_control_chars(s) {
+    if mdwright_document::contains_rejected_control_chars(s) {
         return Ok(Diagnosis {
             option_byte,
             opts_summary,
@@ -104,7 +105,7 @@ pub fn diagnose(artifact_path: &Path) -> Result<Diagnosis> {
     // equivalence. This is stricter than `format_validated` (which
     // checks idempotence-on-mode, not source-vs-formatted) — the
     // diagnostic targets the same property the fuzz target asserts.
-    let formatted = mdwright::format_document(&Document::parse(s), &opts);
+    let formatted = mdwright_format::format_document(&Document::parse(s), &opts);
     let divergence = first_divergence(s, &formatted);
     let note = if divergence.is_none() {
         Some("source ≅ formatted — artifact does not reproduce".to_owned())

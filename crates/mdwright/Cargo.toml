@@ -1,0 +1,78 @@
+[package]
+authors.workspace = true
+categories.workspace = true
+description = "Command-line delivery for mdwright"
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+readme.workspace = true
+name = "mdwright"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[package.metadata.binstall]
+bin-dir = "mdwright-{ target }/mdwright"
+pkg-fmt = "txz"
+pkg-url = "{ repo }/releases/download/v{ version }/mdwright-{ target }.tar.xz"
+
+[[bin]]
+name = "mdwright"
+path = "src/bin/mdwright.rs"
+
+[dependencies]
+anyhow = { workspace = true }
+clap = { workspace = true }
+ignore = { workspace = true }
+mdwright-config = { workspace = true }
+mdwright-document = { workspace = true }
+mdwright-format = { workspace = true }
+mdwright-lint = { workspace = true }
+mdwright-lsp = { workspace = true }
+owo-colors = { workspace = true }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+strsim = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+criterion = { version = "0.5", features = ["html_reports"] }
+futures = { version = "0.3", default-features = false, features = ["std"] }
+mdwright-lsp = { workspace = true }
+proptest = "1"
+pulldown-cmark = { workspace = true, default-features = false }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3"
+tokio = { workspace = true }
+toml = { workspace = true }
+tower = "0.4"
+tower-lsp = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+walkdir = "2"
+xtask = { path = "../../xtask" }
+
+[[bench]]
+harness = false
+name = "lint_bench"
+
+[[bench]]
+harness = false
+name = "format_bench"
+
+[[bench]]
+harness = false
+name = "incremental"
+
+[[bench]]
+harness = false
+name = "parse_format"
+
+[lints]
+workspace = true

@@ -46,7 +46,7 @@ runs:
           *)
             echo "mdwright action: no prebuilt binary for $kernel/$arch." >&2
             echo "Supported: Linux x86_64, macOS Apple Silicon." >&2
-            echo "On other platforms, install via 'cargo install mdwright-cli'." >&2
+            echo "On other platforms, install via 'cargo install mdwright'." >&2
             exit 1
             ;;
         esac

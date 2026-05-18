@@ -15,7 +15,9 @@ cargo-fuzz = true
 [dependencies]
 arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = "0.4"
-mdwright = { path = ".." }
+mdwright-document = { path = "../crates/mdwright-document" }
+mdwright-format = { path = "../crates/mdwright-format" }
+mdwright-lint = { path = "../crates/mdwright-lint" }
 
 [[bin]]
 bench = false

@@ -1,11 +1,12 @@
 # Crate Boundaries
 
-This document records the crate split that turns `mdwright` from one historical implementation crate into a workspace
-of deeper components. The split follows the knowledge each crate owns, not the order in which the tool happens to run.
+This document records the crate split that turns `mdwright` from one historical implementation crate into a virtual
+workspace of deeper components. The split follows the knowledge each crate owns, not the order in which the tool happens
+to run.
 
-## Current Coupling Symptoms
+## Original Coupling Symptoms
 
-The single crate currently braids independent concerns:
+The pre-split single crate braided independent concerns:
 
 - `Document` is both a parsed fact handle and an operation host for linting, formatting, validated formatting, and safe
   fix application.
@@ -20,7 +21,7 @@ The single crate currently braids independent concerns:
 - Config parsing, TOML schema validation, discovery, formatter policy, lint policy, and document-recognition policy all
   share one module.
 
-The audit command found 164 direct `crate::` imports across these concerns. Recent history also shows volatile changes
+The audit command found 164 direct `crate::` imports across these concerns. Recent history also showed volatile changes
 in document recognition, math recognition, formatter rewriting, extension overlays, LSP delivery, and config shape. The
 old single crate gave those decisions no crate-level hiding boundary.
 
@@ -34,13 +35,13 @@ Design A splits by stable capability and hidden knowledge:
   engine.
 - `mdwright-lint`: diagnostics, rule execution, suppression, standard rules, and safe fixes.
 - `mdwright-config`: raw TOML schema, config discovery, and conversion into resolved document/format/lint options.
-- `mdwright-cli`: file discovery, argument parsing, terminal output, parallel file execution, and exit policy.
+- `mdwright`: file discovery, argument parsing, terminal output, parallel file execution, and exit policy for the
+  command-line binary.
 - `mdwright-lsp`: editor-state delivery over LSP.
-- `mdwright`: curated library facade.
 
 This design makes the document crate a parse/query abstraction only. Formatting and linting become operations owned by
-the crates that hide their algorithms. The root facade preserves the common user-facing imports without turning back
-into an implementation or delivery crate.
+the crates that hide their algorithms. The repository root is only a workspace manifest; it is not a package and does
+not reintroduce a cross-cutting facade.
 
 ## Design B: Deep Engine Plus Delivery Crates
 
@@ -79,13 +80,13 @@ into the CLI surface.
 The workspace uses Design A.
 
 ```text
-mdwright                 # curated library facade
+Cargo.toml               # virtual workspace root, no package targets
+crates/mdwright          # command-line package and `mdwright` binary
 crates/mdwright-document # recognised Markdown facts with stable coordinates back to original user bytes
 crates/mdwright-math     # pure TeX/math span recognition, errors, rendering helpers, and body normalisation
 crates/mdwright-format   # formatter policy, range formatting, transactional rewrite engine, semantic oracles
 crates/mdwright-lint     # diagnostics, lint rules, suppression, safe fixes, stdlib registry
 crates/mdwright-config   # TOML schema, discovery, resolved option construction
-crates/mdwright-cli      # clap, file discovery, terminal output, process exit policy
 crates/mdwright-lsp      # tower-lsp server and editor-state bridge
 ```
 
@@ -104,13 +105,12 @@ mdwright-format   mdwright-lint
       +---- mdwright-config
                   ^
                   |
-       mdwright-cli / mdwright-lsp
-
-mdwright facade depends on document/format/lint/config only
+       mdwright / mdwright-lsp
 ```
 
-The executable named `mdwright` is owned by the `mdwright-cli` package. The root package deliberately has no binary
-target: normal library users should not resolve CLI/LSP dependencies or delivery transitive dependencies.
+The executable named `mdwright` is owned by the `mdwright` package under `crates/mdwright`. The repository root has no
+binary target or library target: normal library users should depend directly on the component crate that owns the
+capability they need.
 
 ## Rejected Crates
 
@@ -121,25 +121,26 @@ target: normal library users should not resolve CLI/LSP dependencies or delivery
   better boundaries.
 - No `mdwright-rules` in this pass: standard rules and rule dispatch share suppression, diagnostic, and registry
   semantics; separating them now would make a shallow mirror of an old directory.
-- No root `Document` newtype to preserve `doc.format()` / `doc.lint()`: that wrapper would expose the same abstraction
-  as `mdwright-document::Document` and add no hidden implementation.
+- No root facade package and no root `Document` newtype to preserve `doc.format()` / `doc.lint()`: either wrapper would
+  expose the same abstraction as `mdwright-document::Document` and add no hidden implementation.
 
 ## Public API Breaks
 
 The API is pre-1.0, so the split removes operation methods from `Document` where keeping them would create cycles:
 
 - `Document::format` and `Document::format_validated` move to `mdwright_format::{format_document, format_validated}`
-  and root-facade reexports.
+  over `mdwright_document::Document`.
 - `Document::lint` and `Document::lint_with` move to `RuleSet::{check, check_with}`.
 - `Document::apply_safe_fixes` moves to `mdwright_lint::apply_safe_fixes`.
 - `ExtensionOptions`, `MystOptions`, and `PandocOptions` become document parse policy under `ParseOptions`, not
   formatter policy under `FmtOptions`.
-- The CLI binary moved from the root package to `mdwright-cli`; the binary name remains `mdwright`.
+- The CLI binary moved from the former root package into `crates/mdwright`; the binary name remains `mdwright`.
 - The configuration table for recognition toggles moved from formatter policy to `[parse.extensions]`.
+- The root facade package was deleted. Library users import `mdwright-document`, `mdwright-format`, `mdwright-lint`,
+  `mdwright-config`, `mdwright-lsp`, or `mdwright-math` directly. The `mdwright` package is the command delivery package
+  and exposes only command-extension helpers such as `run_with_rules`.
 
-The root `mdwright` facade re-exports the intended user-facing types and free functions. It does not re-export
-low-level document representation (`Source`, `Tree`, `Node`, parser helpers), file discovery, CLI entry points, or LSP
-entry points. Integration tests and examples should prefer the facade unless they intentionally test an internal crate.
+Integration tests and examples should import component crates directly unless they are testing the command package.
 
 ## Parse Policy Flow
 
@@ -173,8 +174,8 @@ crates. The repository `.cargo/config.toml` patches internal packages to local p
 2. `mdwright-document`
 3. `mdwright-format` and `mdwright-lint`
 4. `mdwright-config`
-5. `mdwright-lsp` and `mdwright-cli`
-6. root `mdwright` facade
+5. `mdwright-lsp`
+6. `mdwright` command package
 
 ## Dependency Fences
 
@@ -188,12 +189,11 @@ These fences are part of the implementation contract:
 - `mdwright-lint` depends on `mdwright-document`; it must not depend on format, CLI, LSP, `clap`, `tokio`, or
   `tower-lsp`.
 - `mdwright-config` may depend on document/format/lint option types; it must not depend on CLI or LSP.
-- `mdwright-cli` and `mdwright-lsp` are delivery crates. Heavy delivery dependencies belong there.
-- The root `mdwright` crate is a library facade, not a home for parser, formatter, linter, config, CLI, or LSP
-  implementation files, and not the owner of the executable.
+- `mdwright` and `mdwright-lsp` are delivery crates. Heavy delivery dependencies belong there.
+- The repository root is a virtual workspace manifest with no package targets, no facade library, and no executable.
 - `mdwright-format` does not import `pulldown-cmark` or `mdwright_document::parse` in production code.
 - `mdwright-document` does not publicly export parser helpers.
 - Config schema and docs contain recognition keys under `[parse.extensions]`, not formatter policy.
 - Workspace internal dependencies carry both `path` and `version`.
 
-CI-visible checks enforce these with `cargo tree` in `tests/dependency_fences.rs`.
+CI-visible checks enforce these with `cargo tree` in `crates/mdwright/tests/dependency_fences.rs`.

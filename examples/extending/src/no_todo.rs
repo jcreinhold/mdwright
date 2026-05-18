@@ -3,7 +3,8 @@
 //! `TODO` inside code spans, fenced code blocks, math regions, and
 //! HTML blocks is left alone.
 
-use mdwright::{Diagnostic, Document, LintRule};
+use mdwright_document::Document;
+use mdwright_lint::{Diagnostic, LintRule};
 
 pub struct NoTodoInProse;
 

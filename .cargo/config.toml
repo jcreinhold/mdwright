@@ -2,7 +2,7 @@
 xtask = "run --quiet --package xtask --"
 
 [patch.crates-io]
-mdwright-cli = { path = "crates/mdwright-cli" }
+mdwright = { path = "crates/mdwright" }
 mdwright-config = { path = "crates/mdwright-config" }
 mdwright-document = { path = "crates/mdwright-document" }
 mdwright-format = { path = "crates/mdwright-format" }

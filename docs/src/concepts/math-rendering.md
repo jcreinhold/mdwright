@@ -66,4 +66,4 @@ straightforward version of that gate compares the source's HTML against the form
 
 The gate's actual contract is *idempotence-on-mode*: formatting the output a second time with the same options must
 produce the same canonical event stream. Round-1-to-round-2 divergence is still a hard failure. See
-`mdwright::format_validated` for the validating formatter entry point.
+`mdwright_format::format_validated` for the validating formatter entry point.

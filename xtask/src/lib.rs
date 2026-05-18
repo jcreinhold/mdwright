@@ -15,7 +15,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use mdwright::{LintRule, RuleSet};
+use mdwright_lint::{LintRule, RuleSet};
 
 pub mod cli_docs;
 pub mod config_docs;

@@ -21,10 +21,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Once;
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{
-    Document, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
-    ThematicStyle, Wrap, contains_rejected_control_chars,
-};
+use mdwright_document::{Document, contains_rejected_control_chars};
+use mdwright_format::{FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle, Wrap};
 
 const MAX_INPUT: usize = 65_536;
 
@@ -109,10 +107,10 @@ fuzz_target!(|data: &[u8]| {
     // Upstream pulldown-cmark panics on some inputs (see
     // tests/known_issues.rs); swallow + skip so the oracle isn't
     // tripped by an upstream bug.
-    let Ok(once) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(s), &opts))) else {
+    let Ok(once) = catch_unwind(AssertUnwindSafe(|| mdwright_format::format_document(&Document::parse(s), &opts))) else {
         return;
     };
-    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(&once), &opts))) else {
+    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| mdwright_format::format_document(&Document::parse(&once), &opts))) else {
         return;
     };
     assert_eq!(once, twice, "format is not idempotent (opt byte {option_byte:#04x})");

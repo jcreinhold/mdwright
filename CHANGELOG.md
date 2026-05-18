@@ -8,20 +8,22 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ### Changed (breaking, pre-1.0)
 
-- Split the library into a real workspace of deep crates. The root `mdwright` crate is now a library-only facade over
-  document, formatter, lint, and config APIs; CLI behaviour is unchanged.
-- Moved the executable target into the `mdwright-cli` package. The binary name remains `mdwright`, but command users
-  install the `mdwright-cli` package while library users depend on `mdwright` without pulling in CLI/LSP dependencies.
-- Moved operation methods off `Document`. `Document` is now parse/query only: use `mdwright::format_document`,
-  `mdwright::format_source`, or `mdwright::format_validated` for formatting; use `rules.check(&doc)` /
-  `rules.check_with(&doc, opts)` for linting; use `mdwright::apply_safe_fixes(&doc, &diags)` for safe lint fixes.
+- Split the codebase into a virtual workspace of deep crates. There is no root facade package: command users install
+  the `mdwright` package, while Rust library users depend directly on `mdwright-document`, `mdwright-format`,
+  `mdwright-lint`, `mdwright-config`, `mdwright-lsp`, or `mdwright-math`.
+- Moved the executable target into the `mdwright` package under `crates/mdwright`. The binary name remains `mdwright`,
+  and CLI behaviour is unchanged.
+- Moved operation methods off `Document`. `Document` is now parse/query only: use
+  `mdwright_format::{format_document, format_source, format_validated}` for formatting; use `rules.check(&doc)` /
+  `rules.check_with(&doc, opts)` for linting; use `mdwright_lint::apply_safe_fixes(&doc, &diags)` for safe lint fixes.
 - Moved recognition toggles into `ParseOptions`. `FmtOptions` now owns formatting policy only; extension, MyST, and
   Pandoc recognition policy belong to document parsing and config resolution. Config files now use
   `[parse.extensions]` instead of the previous formatter-owned extension table.
 - Formatter entry points over `Document` now honour the document's parse policy throughout rewrite snapshots,
   verification reparses, semantic signatures, and range-format checkpointing.
-- Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. User-facing
-  types and functions remain re-exported from the root crate, while implementation details live in their owner crates.
+- Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. Component crates
+  expose their own narrow APIs, and the `mdwright` package exposes only command-extension helpers such as
+  `run_with_rules`.
 
 ### Architecture
 
@@ -33,7 +35,7 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   rewrite engine.
 - `mdwright-lint` owns diagnostics, lint rules, suppression, standard-rule registry construction, and safe-fix
   application.
-- `mdwright-config`, `mdwright-cli`, and `mdwright-lsp` own configuration interpretation and delivery surfaces without
+- `mdwright-config`, `mdwright`, and `mdwright-lsp` own configuration interpretation and delivery surfaces without
   leaking TOML, terminal, or editor dependencies into parser/format/lint users.
 - Internal workspace dependencies are versioned as well as path-based so every publishable crate can be packaged.
 

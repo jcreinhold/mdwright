@@ -19,7 +19,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Once;
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, FmtOptions, contains_rejected_control_chars};
+use mdwright_document::{Document, contains_rejected_control_chars};
+use mdwright_format::FmtOptions;
 
 const MAX_INPUT: usize = 65_536;
 
@@ -47,10 +48,10 @@ fuzz_target!(|data: &[u8]| {
     }
     let opts = FmtOptions::default();
 
-    let Ok(once) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(s), &opts))) else {
+    let Ok(once) = catch_unwind(AssertUnwindSafe(|| mdwright_format::format_document(&Document::parse(s), &opts))) else {
         return;
     };
-    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(&once), &opts))) else {
+    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| mdwright_format::format_document(&Document::parse(&once), &opts))) else {
         return;
     };
     assert_eq!(once, twice, "default opts not idempotent");

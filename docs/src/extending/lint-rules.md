@@ -42,7 +42,8 @@ not inside code blocks, inline code, math regions, or HTML blocks —
 `Document::prose_chunks()` handles every skip for you.
 
 ```rust
-use mdwright::{Diagnostic, Document, LintRule};
+use mdwright_document::Document;
+use mdwright_lint::{Diagnostic, LintRule};
 
 pub struct NoTodoInProse;
 
@@ -89,8 +90,9 @@ the rule panicking.
 Add it to a [`RuleSet`][ruleset] and lint:
 
 ```rust
-use mdwright::{Document, RuleSet};
-# use mdwright::{Diagnostic, LintRule};
+use mdwright_document::Document;
+use mdwright_lint::RuleSet;
+# use mdwright_lint::{Diagnostic, LintRule};
 # struct NoTodoInProse;
 # impl LintRule for NoTodoInProse {
 #     fn name(&self) -> &str { "no-todo-in-prose" }
@@ -110,24 +112,24 @@ name fail fast.
 
 ## Shipping a custom binary
 
-The CLI crate entry point [`mdwright_cli::run_with_rules`][run] takes
+The CLI crate entry point [`mdwright::run_with_rules`][run] takes
 your assembled `RuleSet` and runs the whole CLI on top of it — clap
 parsing, config discovery, every output format, the LSP server, the
 suppression machinery. Your `main` is ten lines:
 
 ```rust,no_run
-use mdwright::stdlib;
+use mdwright_lint::stdlib;
 # struct NoTodoInProse;
-# impl mdwright::LintRule for NoTodoInProse {
+# impl mdwright_lint::LintRule for NoTodoInProse {
 #     fn name(&self) -> &str { "no-todo-in-prose" }
 #     fn description(&self) -> &str { "" }
-#     fn check(&self, _: &mdwright::Document, _: &mut Vec<mdwright::Diagnostic>) {}
+#     fn check(&self, _: &mdwright_document::Document, _: &mut Vec<mdwright_lint::Diagnostic>) {}
 # }
 
 fn main() -> std::process::ExitCode {
     let mut rules = stdlib::all();
     rules.add(Box::new(NoTodoInProse)).expect("unique name");
-    mdwright_cli::run_with_rules(rules)
+    mdwright::run_with_rules(rules)
 }
 ```
 
@@ -176,5 +178,5 @@ in place of `mdwright` — the command-line interface is identical.
 [fix]: https://docs.rs/mdwright/latest/mdwright/struct.Fix.html
 [ruleset]: https://docs.rs/mdwright/latest/mdwright/struct.RuleSet.html
 [ruleset-add]: https://docs.rs/mdwright/latest/mdwright/struct.RuleSet.html#method.add
-[run]: https://docs.rs/mdwright-cli/latest/mdwright_cli/fn.run_with_rules.html
-[trait]: https://docs.rs/mdwright/latest/mdwright/trait.LintRule.html
+[run]: https://docs.rs/mdwright/latest/mdwright/fn.run_with_rules.html
+[trait]: https://docs.rs/mdwright-lint/latest/mdwright_lint/trait.LintRule.html

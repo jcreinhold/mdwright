@@ -1,16 +1,16 @@
 # Public API Surface
 
-Descriptive snapshot of the `mdwright` facade crate's public surface. The API is still pre-1.0; import paths and
-operation shapes may change in minor releases under the [pre-1.0 caveats](semver.md#pre-10-caveats).
+Descriptive snapshot of the public crates. The API is still pre-1.0; import paths and operation shapes may change in
+minor releases under the [pre-1.0 caveats](semver.md#pre-10-caveats).
 
-The implementation is split across internal crates. End users should normally import from `mdwright`; the internal
-crate names are useful for targeted tests and advanced integrations that deliberately depend on one subsystem.
+The workspace has no facade crate. The `mdwright` package is the command-line delivery crate; library users depend on
+the component crate that owns the capability they need.
 
 ## Document Facts
 
 | Item | Kind | Reached via |
 | --- | --- | --- |
-| `Document` | struct | parse/query handle for Markdown source |
+| `Document` | struct | `mdwright_document::Document`; parse/query handle for Markdown source |
 | `ParseOptions` | struct | explicit Markdown recognition policy |
 | `ExtensionOptions`, `MystOptions`, `PandocOptions` | structs | fields under `ParseOptions` |
 | `TextSlice`, `InlineCode`, `CodeBlock` | structs | returned by `Document` query methods |
@@ -55,23 +55,23 @@ crate names are useful for targeted tests and advanced integrations that deliber
 | `apply_safe_fixes` | fn | safe-fix edit application over a parsed `Document` |
 | `rule_doc_url`, `docs_url`, `DOCS_URL_DEFAULT` | items | diagnostic renderer links |
 
-The standard rule registry is under `mdwright::stdlib::{defaults, all, by_name, names}`.
+The standard rule registry is under `mdwright_lint::stdlib::{defaults, all, by_name, names}`.
 
 ## Config And Delivery
 
 | Item | Kind | Reached via |
 | --- | --- | --- |
-| `Config`, `ConfigError` | types | TOML discovery and resolved options |
-| `mdwright_cli::run_with_rules` | fn | downstream custom binaries |
+| `Config`, `ConfigError` | types | `mdwright_config`; TOML discovery and resolved options |
+| `mdwright::run_with_rules` | fn | downstream custom binaries |
 
-The LSP server lives in the `mdwright-lsp` crate. The facade does not re-export it so ordinary library users do not
-pull in `tokio` and `tower-lsp`.
+The LSP server lives in the `mdwright-lsp` crate. The command crate exposes only delivery helpers, so ordinary library
+users do not pull in `tokio`, `tower-lsp`, `clap`, or file-walk dependencies unless they ask for them.
 
 ## Public Modules
 
 | Module | Why it is public |
 | --- | --- |
-| `mdwright::stdlib` | users and custom binaries can select standard lint rules. |
+| `mdwright_lint::stdlib` | users and custom binaries can select standard lint rules. |
 
 ## Not Public Surface
 

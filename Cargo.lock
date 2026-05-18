@@ -792,19 +792,22 @@ name = "mdwright"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "criterion",
  "futures",
- "mdwright-cli",
+ "ignore",
  "mdwright-config",
  "mdwright-document",
  "mdwright-format",
  "mdwright-lint",
  "mdwright-lsp",
+ "owo-colors",
  "proptest",
  "pulldown-cmark",
  "rayon",
  "serde",
  "serde_json",
+ "strsim",
  "tempfile",
  "tokio",
  "toml",
@@ -813,30 +816,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "walkdir",
- "xtask",
-]
-
-[[package]]
-name = "mdwright-cli"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "ignore",
- "mdwright-config",
- "mdwright-document",
- "mdwright-format",
- "mdwright-lint",
- "mdwright-lsp",
- "owo-colors",
- "rayon",
- "serde",
- "serde_json",
- "strsim",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-subscriber",
  "xtask",
 ]
 
@@ -869,7 +848,8 @@ name = "mdwright-extra-example"
 version = "0.0.0"
 dependencies = [
  "mdwright",
- "mdwright-cli",
+ "mdwright-document",
+ "mdwright-lint",
 ]
 
 [[package]]
@@ -1961,7 +1941,9 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "clap",
- "mdwright",
+ "mdwright-document",
+ "mdwright-format",
+ "mdwright-lint",
  "regex",
  "toml",
 ]

@@ -34,12 +34,12 @@ pub const VERSIONED_DOC_PATHS: &[&str] = &[
     "examples/downstream/.pre-commit-config.yaml",
 ];
 
-/// Read the `version = "..."` value from the root `Cargo.toml`.
+/// Read the workspace `version = "..."` value from the root `Cargo.toml`.
 ///
 /// # Errors
 ///
 /// Returns an error if the manifest cannot be read or does not
-/// declare a `[package].version`.
+/// declare `[workspace.package].version`.
 pub fn current_version(workspace: &Path) -> Result<String> {
     let manifest_path = workspace.join("Cargo.toml");
     let manifest =
@@ -47,11 +47,12 @@ pub fn current_version(workspace: &Path) -> Result<String> {
     let parsed: toml::Value =
         toml::from_str(&manifest).with_context(|| format!("parse {} as TOML", manifest_path.display()))?;
     parsed
-        .get("package")
-        .and_then(|p| p.get("version"))
+        .get("workspace")
+        .and_then(|workspace| workspace.get("package"))
+        .and_then(|package| package.get("version"))
         .and_then(toml::Value::as_str)
         .map(str::to_owned)
-        .ok_or_else(|| anyhow!("Cargo.toml has no [package].version"))
+        .ok_or_else(|| anyhow!("Cargo.toml has no [workspace.package].version"))
 }
 
 /// Rewrite every `rev: vX.Y.Z` and `@vX.Y.Z` pattern in `content`

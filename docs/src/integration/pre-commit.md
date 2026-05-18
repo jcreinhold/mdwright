@@ -5,7 +5,7 @@ mdwright ships a `.pre-commit-hooks.yaml` at its repo root, so adding it to a pr
 
 ## Quickest path: prebuilt binary
 
-If contributors already have `mdwright` on their `$PATH` (e.g. via `cargo binstall mdwright-cli` or a
+If contributors already have `mdwright` on their `$PATH` (e.g. via `cargo binstall mdwright` or a
 GitHub release tarball), the `-system` variants avoid any toolchain dance:
 
 ```yaml,no-check
@@ -24,7 +24,7 @@ fmt-check`. Both exit non-zero on issues, blocking the commit.
 ## Letting pre-commit build mdwright
 
 If you don't want to require an out-of-band install, the source-build hooks invoke
-`cargo run -p mdwright-cli` from the checked-out repository. First commit after a clean cache takes
+`cargo run -p mdwright` from the checked-out repository. First commit after a clean cache takes
 ~30 s; subsequent runs reuse Cargo's cache.
 
 ```yaml,no-check

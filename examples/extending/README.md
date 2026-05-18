@@ -1,8 +1,8 @@
 # Extending mdwright with a custom lint rule
 
 This crate shows the supported pattern for adding a third-party lint
-rule to mdwright: depend on the library, implement
-[`mdwright::LintRule`], and call [`mdwright_cli::run_with_rules`]
+rule to mdwright: depend on the component crates and command package, implement
+[`mdwright_lint::LintRule`], and call [`mdwright::run_with_rules`]
 from your own `main`. You ship one binary; it has the full mdwright
 UX (`check`, `fix`, `fmt`, `lsp`, `--rules`, JSON output, suppression
 comments) plus your rule.
@@ -20,9 +20,9 @@ skipping for you.
 
 ```rust,no_run
 fn main() -> std::process::ExitCode {
-    let mut rules = mdwright::stdlib::all();
+    let mut rules = mdwright_lint::stdlib::all();
     rules.add(Box::new(NoTodoInProse)).expect("unique name");
-    mdwright_cli::run_with_rules(rules)
+    mdwright::run_with_rules(rules)
 }
 ```
 
@@ -45,8 +45,8 @@ as it would if it were a stdlib rule.
 Outside this workspace, the steps are:
 
 1. `cargo new --bin my-mdwright`
-1. In `Cargo.toml`, add `mdwright = "0.1"` and `mdwright-cli = "0.1"`
-    (whatever version is
+1. In `Cargo.toml`, add `mdwright = "0.1"`, `mdwright-document = "0.1"`, and `mdwright-lint = "0.1"`
+    (or whatever version is
     current; the public extension API follows mdwright's
     [semver policy](../../docs/src/reference/semver.md)).
 1. Copy `src/no_todo.rs` as a template; replace the rule's logic
@@ -66,6 +66,6 @@ the official `mdwright`.
     extension path (and why mdwright does not load plugins at
     runtime).
 
-[`mdwright::LintRule`]: https://docs.rs/mdwright/latest/mdwright/trait.LintRule.html
-[`mdwright_cli::run_with_rules`]: https://docs.rs/mdwright-cli/latest/mdwright_cli/fn.run_with_rules.html
-[`Document::prose_chunks`]: https://docs.rs/mdwright/latest/mdwright/struct.Document.html#method.prose_chunks
+[`mdwright_lint::LintRule`]: https://docs.rs/mdwright-lint/latest/mdwright_lint/trait.LintRule.html
+[`mdwright::run_with_rules`]: https://docs.rs/mdwright/latest/mdwright/fn.run_with_rules.html
+[`Document::prose_chunks`]: https://docs.rs/mdwright-document/latest/mdwright_document/struct.Document.html#method.prose_chunks

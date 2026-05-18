@@ -169,7 +169,7 @@ only surviving crate-internal newtype from the prompt-46 era is `CanonicalSource
 - `Document::format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError>` — `FormatError` carries
   only the `SemanticDivergence { formatted, diff_summary, html_a, html_b }` variant. The pre-sweep
   `DidNotConverge` variant is gone; the convergence loop it signalled does not exist.
-- `mdwright::semantically_equivalent(a: &str, b: &str) -> bool` — unchanged.
+- `mdwright_format::semantically_equivalent(a: &str, b: &str) -> bool` — unchanged.
 - `FmtOptions` style knobs default to `Preserve`. Six new fluent setters (`with_italic`, `with_strong`,
   `with_list_marker`, `with_ordered_list`, `with_thematic_break`, `with_link_def_style`) for programmatic
   callers. New `[fmt] strong = "..."` TOML key. New `[fmt] thematic-break = "..."` TOML key.

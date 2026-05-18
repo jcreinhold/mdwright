@@ -27,8 +27,8 @@ Full manual: **<https://jcreinhold.github.io/mdwright/>**
   with examples.
 - [Configuration](https://jcreinhold.github.io/mdwright/configuration.html) — `.mdwright.toml`
   schema.
-- [Architecture](https://jcreinhold.github.io/mdwright/extending/architecture.html) — the two-IR
-  design.
+- [Architecture](https://jcreinhold.github.io/mdwright/extending/architecture.html) — workspace
+  boundaries and rewrite safety.
 - [Math rendering](https://jcreinhold.github.io/mdwright/concepts/math-rendering.html) —
   `--math-render={none, commonmark-katex, dollar}` and the `mdwright render` subcommand.
 - [Integration](https://jcreinhold.github.io/mdwright/integration/pre-commit.html) — pre-commit,
@@ -38,15 +38,15 @@ Full manual: **<https://jcreinhold.github.io/mdwright/>**
 
 ```bash
 # From crates.io (builds from source).
-cargo install mdwright-cli
+cargo install mdwright
 
 # Prebuilt binary (Linux x86_64, macOS aarch64).
-cargo binstall mdwright-cli
+cargo binstall mdwright
 ```
 
 Tarballs for each release are attached to the
 [GitHub Releases page](https://github.com/jcreinhold/mdwright/releases). Other targets work from
-source via `cargo install mdwright-cli`. See [Installation](https://jcreinhold.github.io/mdwright/installation.html)
+source via `cargo install mdwright`. See [Installation](https://jcreinhold.github.io/mdwright/installation.html)
 for the full platform support matrix.
 
 ## Wire into an existing project
@@ -153,19 +153,20 @@ The dictionary holds ~60 high-value CommonMark / GFM / math tokens and cuts time
 on rare constructs.
 
 Reproducer inputs that surface real bugs are checked in under
-[`tests/regressions/fuzz_*.in`](./tests/regressions) and gated by the suite in
-`tests/regressions.rs`. Open bugs (fix deferred) live under
-[`fuzz/known-issues/`](./fuzz/known-issues) and are pinned by `tests/known_issues.rs` so silent
-drift fails CI even while the bug itself stays in.
+[`crates/mdwright/tests/regressions/fuzz_*.in`](./crates/mdwright/tests/regressions) and gated by
+the suite in `crates/mdwright/tests/regressions.rs`. Open bugs (fix deferred) live under
+[`fuzz/known-issues/`](./fuzz/known-issues) and are pinned by
+`crates/mdwright/tests/known_issues.rs` so silent drift fails CI even while the bug itself stays in.
 
 Reports of panics on any input are security bugs; see [SECURITY.md](./SECURITY.md) for disclosure.
 
-## Library
+## Library crates
 
-`mdwright` is also a Rust library. The surface is small:
+The command package is `mdwright`. Rust integrations use the component crates directly:
 
 ```rust
-use mdwright::{apply_safe_fixes, Document, RuleSet};
+use mdwright_document::Document;
+use mdwright_lint::{RuleSet, apply_safe_fixes};
 
 let doc = Document::parse(source);
 let rules = RuleSet::stdlib_defaults();
@@ -179,23 +180,23 @@ right-to-left.
 
 ## Extending
 
-mdwright's `LintRule` trait is public, and `mdwright_cli::run_with_rules` lets you
+`mdwright-lint`'s `LintRule` trait is public, and `mdwright::run_with_rules` lets you
 ship a custom binary that adds your own rules on top of the stdlib without
 re-implementing arg parsing, config discovery, output formats, or the LSP server:
 
 ```rust,no_run
-use mdwright::stdlib;
+use mdwright_lint::stdlib;
 # struct MyRule;
-# impl mdwright::LintRule for MyRule {
+# impl mdwright_lint::LintRule for MyRule {
 #     fn name(&self) -> &str { "my-rule" }
 #     fn description(&self) -> &str { "" }
-#     fn check(&self, _: &mdwright::Document, _: &mut Vec<mdwright::Diagnostic>) {}
+#     fn check(&self, _: &mdwright_document::Document, _: &mut Vec<mdwright_lint::Diagnostic>) {}
 # }
 
 fn main() -> std::process::ExitCode {
     let mut rules = stdlib::all();
     rules.add(Box::new(MyRule)).expect("unique name");
-    mdwright_cli::run_with_rules(rules)
+    mdwright::run_with_rules(rules)
 }
 ```
 

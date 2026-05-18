@@ -135,6 +135,6 @@ exactly this combination as one of its 16 enumerated modes.
 
 When a rewrite would change the parse of the enclosing paragraph window, the
 canonicalisation pass logs a `tracing::warn!` with the byte span and skipped rewrite.
-Capture these in production with `RUST_LOG=mdwright::canonicalise=warn`. A high skip
+Capture these in production with `RUST_LOG=mdwright_format=warn`. A high skip
 rate on one document usually points at a structural-emit edge case worth filing as a
 regression input.

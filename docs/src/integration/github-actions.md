@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo install mdwright-cli --locked
+      - run: cargo install mdwright --locked
       - run: mdwright check --check .
       - run: mdwright fmt-check .
 ```
@@ -60,7 +60,7 @@ contract, run `cargo-binstall` directly:
 
 ```yaml,no-check
       - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall --no-confirm mdwright-cli
+      - run: cargo binstall --no-confirm mdwright
       - run: mdwright check --check .
 ```
 

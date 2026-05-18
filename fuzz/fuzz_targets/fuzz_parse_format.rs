@@ -18,10 +18,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Once;
 
 use libfuzzer_sys::fuzz_target;
-use mdwright::{
-    Document, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
-    ThematicStyle, Wrap, contains_rejected_control_chars, semantically_equivalent,
-};
+use mdwright_document::{Document, contains_rejected_control_chars};
+use mdwright_format::{FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle, Wrap, semantically_equivalent};
 
 /// Per-iter input cap: 64 KiB. Larger inputs eat fuzz budget without
 /// reaching deeper structural coverage; the CLI enforces the same
@@ -108,7 +106,7 @@ fuzz_target!(|data: &[u8]| {
     // tests/known_issues.rs); the oracle is undefined when parse
     // diverges, so swallow + skip rather than report a libFuzzer
     // crash for an upstream bug.
-    let Ok(formatted) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(s), &opts))) else {
+    let Ok(formatted) = catch_unwind(AssertUnwindSafe(|| mdwright_format::format_document(&Document::parse(s), &opts))) else {
         return;
     };
     let Ok(equivalent) = catch_unwind(AssertUnwindSafe(|| semantically_equivalent(s, &formatted))) else {

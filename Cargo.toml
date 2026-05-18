@@ -1,77 +1,7 @@
-[package]
-authors = ["Jacob Reinhold <jcreinhold@gmail.com>"]
-categories = ["command-line-utilities", "text-processing"]
-description = "A math-resilient Markdown linter and round-trip formatter"
-documentation = "https://docs.rs/mdwright"
-edition = "2024"
-homepage = "https://jcreinhold.github.io/mdwright"
-include = [
-  "src/**/*",
-  "Cargo.toml",
-  "README.md",
-  "LICENSE-MIT",
-  "LICENSE-APACHE",
-  "CHANGELOG.md",
-]
-keywords = ["documentation", "linter", "markdown", "math"]
-license = "MIT OR Apache-2.0"
-name = "mdwright"
-readme = "README.md"
-repository = "https://github.com/jcreinhold/mdwright"
-rust-version = "1.91"
-version = "0.1.0"
-
-[lib]
-path = "src/lib.rs"
-
-[dependencies]
-mdwright-config = { workspace = true }
-mdwright-document = { workspace = true }
-mdwright-format = { workspace = true }
-mdwright-lint = { workspace = true }
-
-[dev-dependencies]
-anyhow = { workspace = true }
-criterion = { version = "0.5", features = ["html_reports"] }
-futures = { version = "0.3", default-features = false, features = ["std"] }
-mdwright-cli = { workspace = true }
-mdwright-lsp = { workspace = true }
-proptest = "1"
-pulldown-cmark = { workspace = true, default-features = false }
-rayon = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-tempfile = "3"
-tokio = { workspace = true }
-toml = { workspace = true }
-tower-lsp = { workspace = true }
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
-tower = "0.4"
-walkdir = "2"
-xtask = { path = "xtask" }
-
-[[bench]]
-harness = false
-name = "lint_bench"
-
-[[bench]]
-harness = false
-name = "format_bench"
-
-[[bench]]
-harness = false
-name = "incremental"
-
-[[bench]]
-harness = false
-name = "parse_format"
-
 [workspace]
 exclude = ["fuzz"]
 members = [
-  ".",
-  "crates/mdwright-cli",
+  "crates/mdwright",
   "crates/mdwright-config",
   "crates/mdwright-document",
   "crates/mdwright-format",
@@ -81,6 +11,7 @@ members = [
   "examples/extending",
   "xtask",
 ]
+resolver = "3"
 
 [workspace.package]
 authors = ["Jacob Reinhold <jcreinhold@gmail.com>"]
@@ -97,7 +28,7 @@ version = "0.1.0"
 anyhow = "1"
 clap = { version = "4", features = ["color", "derive"] }
 ignore = "0.4"
-mdwright-cli = { version = "0.1.0", path = "crates/mdwright-cli" }
+mdwright = { version = "0.1.0", path = "crates/mdwright" }
 mdwright-config = { version = "0.1.0", path = "crates/mdwright-config" }
 mdwright-document = { version = "0.1.0", path = "crates/mdwright-document" }
 mdwright-format = { version = "0.1.0", path = "crates/mdwright-format" }
@@ -123,9 +54,6 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
   "tracing-log",
 ] }
 unicode-width = "0.2"
-
-[lints]
-workspace = true
 
 [workspace.lints.rust]
 future-incompatible = "warn"

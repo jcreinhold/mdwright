@@ -17,7 +17,8 @@
 
 use arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, FmtOptions, MathOptions, Wrap};
+use mdwright_document::Document;
+use mdwright_format::{FmtOptions, MathOptions, Wrap};
 
 const MAX_OUTPUT: usize = 16_384;
 const MAX_BLOCKS: usize = 16;
@@ -150,7 +151,7 @@ fuzz_target!(|data: &[u8]| {
     let Ok(src) = gen_document(&mut u) else {
         return;
     };
-    let once = mdwright::format_document(&Document::parse(&src), &opts);
-    let twice = mdwright::format_document(&Document::parse(&once), &opts);
+    let once = mdwright_format::format_document(&Document::parse(&src), &opts);
+    let twice = mdwright_format::format_document(&Document::parse(&once), &opts);
     assert_eq!(once, twice, "format is not idempotent (opt byte {option_byte:#04x})");
 });
