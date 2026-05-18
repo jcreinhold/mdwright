@@ -41,7 +41,7 @@ fn parse_format(c: &mut Criterion) {
     group.bench_function(id, |b| {
         b.iter(|| {
             let doc = Document::parse(black_box(buf.as_str()));
-            black_box(doc.format(black_box(&opts)))
+            black_box(mdwright::format_document(&doc, black_box(&opts)))
         });
     });
     group.finish();

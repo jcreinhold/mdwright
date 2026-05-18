@@ -162,9 +162,9 @@ const KIND_SEMANTIC: &str = "semantic";
 fn run_case(case: &SpecCase) -> Vec<&'static str> {
     let mut kinds = Vec::new();
     let opts = FmtOptions::default();
-    let formatted = Document::parse(&case.source).format(&opts);
+    let formatted = mdwright::format_document(&Document::parse(&case.source), &opts);
 
-    let refmt = Document::parse(&formatted).format(&opts);
+    let refmt = mdwright::format_document(&Document::parse(&formatted), &opts);
     if refmt != formatted {
         kinds.push(KIND_IDEMPOTENCE);
         // If the formatter is not idempotent on this case, the

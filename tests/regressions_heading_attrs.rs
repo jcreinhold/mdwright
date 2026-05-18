@@ -23,7 +23,7 @@ fn canonical_opts() -> FmtOptions {
 #[test]
 fn canonicalise_emits_id_then_classes_then_attrs() {
     let src = "# Heading {key=val .alpha #my-id .beta}\n";
-    let formatted = Document::parse(src).format(&canonical_opts());
+    let formatted = mdwright::format_document(&Document::parse(src), &canonical_opts());
     assert!(
         formatted.contains("{#my-id .alpha .beta key=val}"),
         "expected canonical order; got: {formatted}"
@@ -43,7 +43,7 @@ fn canonicalise_is_idempotent_on_mode() {
         "## Heading two {key=val .alpha #my-id .beta}\n",
         "### Heading three {data-x=1 .alpha}\n",
     ] {
-        match Document::parse(src).format_validated(&canonical_opts()) {
+        match mdwright::format_validated(&Document::parse(src), &canonical_opts()) {
             Ok(_) => {}
             Err(FormatError::SemanticDivergence {
                 formatted,
@@ -60,7 +60,7 @@ fn preserve_round_trips_unusual_spacing() {
     // them. (Canonicalise normalises to single spaces.)
     let src = "# Heading {#id   .class}\n";
     let opts = FmtOptions::default();
-    let formatted = Document::parse(src).format(&opts);
+    let formatted = mdwright::format_document(&Document::parse(src), &opts);
     assert!(
         formatted.contains("{#id   .class}"),
         "expected source spacing preserved; got: {formatted}"

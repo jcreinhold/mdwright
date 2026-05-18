@@ -40,7 +40,7 @@ fn golden_admonitions() {
         let expected =
             fs::read_to_string(&expected_path).unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
         let doc = Document::parse(&input);
-        let got = doc.format(&FmtOptions::default());
+        let got = mdwright::format_document(&doc, &FmtOptions::default());
         count = count.saturating_add(1);
         if got != expected {
             failures.push(format!(

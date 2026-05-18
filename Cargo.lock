@@ -792,19 +792,19 @@ name = "mdwright"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "clap",
  "criterion",
  "futures",
- "ignore",
- "owo-colors",
+ "mdwright-cli",
+ "mdwright-config",
+ "mdwright-document",
+ "mdwright-format",
+ "mdwright-lint",
+ "mdwright-lsp",
  "proptest",
  "pulldown-cmark",
  "rayon",
- "regex",
- "rustc-hash",
  "serde",
  "serde_json",
- "strsim",
  "tempfile",
  "tokio",
  "toml",
@@ -812,9 +812,55 @@ dependencies = [
  "tower-lsp",
  "tracing",
  "tracing-subscriber",
- "unicode-width",
  "walkdir",
  "xtask",
+]
+
+[[package]]
+name = "mdwright-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "ignore",
+ "mdwright-config",
+ "mdwright-document",
+ "mdwright-format",
+ "mdwright-lint",
+ "mdwright-lsp",
+ "owo-colors",
+ "rayon",
+ "serde",
+ "serde_json",
+ "strsim",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "mdwright-config"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mdwright-document",
+ "mdwright-format",
+ "mdwright-lint",
+ "serde",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
+name = "mdwright-document"
+version = "0.1.0"
+dependencies = [
+ "mdwright-math",
+ "pulldown-cmark",
+ "regex",
+ "rustc-hash",
+ "tracing",
 ]
 
 [[package]]
@@ -822,6 +868,53 @@ name = "mdwright-extra-example"
 version = "0.0.0"
 dependencies = [
  "mdwright",
+]
+
+[[package]]
+name = "mdwright-format"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mdwright-document",
+ "mdwright-math",
+ "pulldown-cmark",
+ "tracing",
+ "unicode-width",
+]
+
+[[package]]
+name = "mdwright-lint"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mdwright-document",
+ "regex",
+ "strsim",
+]
+
+[[package]]
+name = "mdwright-lsp"
+version = "0.1.0"
+dependencies = [
+ "mdwright-config",
+ "mdwright-document",
+ "mdwright-format",
+ "mdwright-lint",
+ "rustc-hash",
+ "serde_json",
+ "tokio",
+ "tower",
+ "tower-lsp",
+ "tracing",
+]
+
+[[package]]
+name = "mdwright-math"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tracing",
+ "unicode-width",
 ]
 
 [[package]]

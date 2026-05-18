@@ -99,10 +99,10 @@ fn bench_format(c: &mut Criterion) {
     {
         let mut g = c.benchmark_group("format");
         g.bench_function("small", |b| {
-            b.iter(|| black_box(&small_doc).format(black_box(&opts)));
+            b.iter(|| mdwright::format_document(black_box(&small_doc), black_box(&opts)));
         });
         g.bench_function("medium", |b| {
-            b.iter(|| black_box(&medium_doc).format(black_box(&opts)));
+            b.iter(|| mdwright::format_document(black_box(&medium_doc), black_box(&opts)));
         });
         g.finish();
     }
@@ -111,13 +111,13 @@ fn bench_format(c: &mut Criterion) {
         g.bench_function("small", |b| {
             b.iter(|| {
                 let d = Document::parse(black_box(&small));
-                black_box(d.format(black_box(&opts)))
+                black_box(mdwright::format_document(&d, black_box(&opts)))
             });
         });
         g.bench_function("medium", |b| {
             b.iter(|| {
                 let d = Document::parse(black_box(&medium));
-                black_box(d.format(black_box(&opts)))
+                black_box(mdwright::format_document(&d, black_box(&opts)))
             });
         });
         g.finish();
@@ -137,7 +137,7 @@ fn bench_format_wrap(c: &mut Criterion) {
     ] {
         let opts = FmtOptions::default().with_wrap(wrap);
         g.bench_function(label, |b| {
-            b.iter(|| black_box(&medium_doc).format(black_box(&opts)));
+            b.iter(|| mdwright::format_document(black_box(&medium_doc), black_box(&opts)));
         });
     }
     g.finish();
@@ -155,7 +155,7 @@ fn bench_format_corpus(c: &mut Criterion) {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
                 let d = Document::parse(black_box(src));
-                black_box(d.format(black_box(&opts_default)));
+                black_box(mdwright::format_document(&d, black_box(&opts_default)));
             });
         });
     });
@@ -164,7 +164,7 @@ fn bench_format_corpus(c: &mut Criterion) {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
                 let d = Document::parse(black_box(src));
-                black_box(d.format(black_box(&opts_wrap100)));
+                black_box(mdwright::format_document(&d, black_box(&opts_wrap100)));
             });
         });
     });
@@ -194,15 +194,15 @@ fn bench_tracing_disabled(c: &mut Criterion) {
 
     let mut g = c.benchmark_group("tracing_disabled");
     g.bench_function("format/small", |b| {
-        b.iter(|| black_box(&small_doc).format(black_box(&opts)));
+        b.iter(|| mdwright::format_document(black_box(&small_doc), black_box(&opts)));
     });
     g.bench_function("format/medium", |b| {
-        b.iter(|| black_box(&medium_doc).format(black_box(&opts)));
+        b.iter(|| mdwright::format_document(black_box(&medium_doc), black_box(&opts)));
     });
     g.bench_function("parse_plus_format/medium", |b| {
         b.iter(|| {
             let d = Document::parse(black_box(&medium));
-            black_box(d.format(black_box(&opts)))
+            black_box(mdwright::format_document(&d, black_box(&opts)))
         });
     });
     g.finish();

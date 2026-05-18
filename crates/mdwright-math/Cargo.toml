@@ -1,0 +1,22 @@
+[package]
+authors.workspace = true
+categories.workspace = true
+description = "Pure TeX/math recognition and normalisation for mdwright"
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+readme.workspace = true
+name = "mdwright-math"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+tracing = { workspace = true }
+unicode-width = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+
+[lints]
+workspace = true

@@ -38,10 +38,10 @@ fuzz_target!(|data: &[u8]| {
     let rules = RuleSet::stdlib_all();
     // Upstream pulldown-cmark panics on some inputs (see
     // tests/known_issues.rs); swallow + skip.
-    let Ok(diags1) = catch_unwind(AssertUnwindSafe(|| Document::parse(s).lint(&rules))) else {
+    let Ok(diags1) = catch_unwind(AssertUnwindSafe(|| (&rules).check(&Document::parse(s)))) else {
         return;
     };
-    let Ok(diags2) = catch_unwind(AssertUnwindSafe(|| Document::parse(s).lint(&rules))) else {
+    let Ok(diags2) = catch_unwind(AssertUnwindSafe(|| (&rules).check(&Document::parse(s)))) else {
         return;
     };
 

@@ -32,8 +32,8 @@ const SAMPLES: &[&str] = &[
 fn inline_serializers_reach_fixed_point() {
     let opts = FmtOptions::default();
     for (i, src) in SAMPLES.iter().enumerate() {
-        let once = Document::parse(src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         assert_eq!(
             once, twice,
             "sample #{i} did not reach a fixed point\n--- once ---\n{once}--- twice ---\n{twice}",

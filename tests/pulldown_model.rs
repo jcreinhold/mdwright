@@ -49,7 +49,7 @@ fn line_endings_softbreak_between_lines() {
         kinds,
         vec!["Start(Paragraph)", "Text", "SoftBreak", "Text", "End(Paragraph)"],
         "pulldown's prose line-ending rule changed; update {MODEL_DOC} §1 \
-         before touching src/format/semantic.rs::canonical_events"
+         before touching mdwright-format's semantic event oracle"
     );
 }
 
@@ -68,8 +68,7 @@ fn indented_code_keeps_content_terminating_newline() {
     assert_eq!(
         text, "|\n",
         "pulldown's trailing-blank-line rule for indented code changed; \
-         update {MODEL_DOC} §2 and then revisit \
-         src/format/mod.rs::normalize_trailing_newline"
+         update {MODEL_DOC} §2 and then revisit formatter trailing-newline policy"
     );
 }
 
@@ -131,7 +130,8 @@ fn link_body_breaks_emphasis_pairing() {
 /// §4: pulldown surfaces the *raw* label bytes in `Tag::Link::id`.
 /// Definition-side normalisation lives in mdwright; this test just
 /// pins down the convention pulldown uses so the mdwright-side
-/// resolver in `src/cm/refs.rs` knows what it's getting.
+/// resolver in `crates/mdwright-document/src/refs.rs` knows what it's
+/// getting.
 #[test]
 fn reference_label_normalisation_matches() {
     let events = collect("[FOO]: https://x.com\n\n[ foo ][FOO]\n");
@@ -145,7 +145,7 @@ fn reference_label_normalisation_matches() {
     assert_eq!(
         id, "FOO",
         "pulldown changed how it surfaces resolved reference IDs; \
-         update {MODEL_DOC} §4 and check src/cm/refs.rs"
+         update {MODEL_DOC} §4 and check crates/mdwright-document/src/refs.rs"
     );
 }
 
@@ -164,7 +164,7 @@ fn html_block_type2_emits_per_line_events() {
         html_lines,
         vec!["<!-- a\n", "b\n", "c -->\n"],
         "pulldown's HTML-block per-line event emission changed; \
-         update {MODEL_DOC} §5 before touching src/format/* HTML emit"
+         update {MODEL_DOC} §5 before touching document HTML facts"
     );
 }
 
@@ -253,8 +253,7 @@ fn definition_list_emits_tag_triple() {
             "Start(DefinitionListDefinition)",
         ],
         "pulldown's definition-list event shape changed; \
-         update {MODEL_DOC} §8 before touching src/tree.rs::kind_for_start \
-         or src/cm/block/definition_list.rs"
+         update {MODEL_DOC} §8 before touching document tree recognition"
     );
 }
 
@@ -282,7 +281,7 @@ fn heading_attributes_populate_tag_fields() {
         id.as_deref(),
         Some("my-id"),
         "pulldown changed how `#id` is surfaced; update {MODEL_DOC} §9 \
-         before touching src/cm/block/heading.rs attrs emission"
+         before touching heading attribute recognition"
     );
     assert_eq!(
         classes,

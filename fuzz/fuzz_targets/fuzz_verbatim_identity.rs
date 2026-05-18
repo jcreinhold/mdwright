@@ -47,10 +47,10 @@ fuzz_target!(|data: &[u8]| {
     }
     let opts = FmtOptions::default();
 
-    let Ok(once) = catch_unwind(AssertUnwindSafe(|| Document::parse(s).format(&opts))) else {
+    let Ok(once) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(s), &opts))) else {
         return;
     };
-    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| Document::parse(&once).format(&opts))) else {
+    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(&once), &opts))) else {
         return;
     };
     assert_eq!(once, twice, "default opts not idempotent");

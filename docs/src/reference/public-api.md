@@ -1,150 +1,84 @@
-# Public API surface
+# Public API Surface
 
-Descriptive snapshot of the `mdwright` library crate's public surface at
-the current release. **Pre-1.0**, this surface may evolve in minor
-versions per the [Pre-1.0 caveats](semver.md#pre-10-caveats) in the
-semver policy; items listed here are exported today, but their continued
-existence and signature are not yet a stability promise.
+Descriptive snapshot of the `mdwright` facade crate's public surface. The API is still pre-1.0; import paths and
+operation shapes may change in minor releases under the [pre-1.0 caveats](semver.md#pre-10-caveats).
 
-The audit rule is simple: every item in [`src/lib.rs`'s `pub use`
-block](https://github.com/jcreinhold/mdwright/blob/main/src/lib.rs) is
-reachable through code that lives outside its defining module — either
-called directly, returned by a public method, present as a field of a
-public struct, or carried as the error type of a public `Result`. Items
-that are not reachable from outside `src/<module>/` are `pub(crate)` and
-do not appear here.
+The implementation is split across internal crates. End users should normally import from `mdwright`; the internal
+crate names are useful for targeted tests and advanced integrations that deliberately depend on one subsystem.
 
-The "Reached via" column names *one* concrete caller or reachability
-path. Many items have more; this column exists to prove the item is on
-the public surface for a reason, not to enumerate every use.
-
-## Config (`mdwright::config`)
+## Document Facts
 
 | Item | Kind | Reached via |
 | --- | --- | --- |
-| `Config` | struct | `src/cli.rs` (loads via `Config::discover`) |
-| `ConfigError` | struct | error type of `Config::load_explicit` / `Config::discover` |
-| `FmtOptions` | struct | `src/cli.rs`, `src/lsp.rs`, `tests/properties.rs` |
-| `ExtensionOptions` | struct | returned by `FmtOptions::extensions` |
-| `MystOptions` | struct | `pub myst: MystOptions` field of `ExtensionOptions` |
-| `PandocOptions` | struct | `pub pandoc: PandocOptions` field of `ExtensionOptions` |
-| `MathOptions` | struct | returned by `FmtOptions::math`; `tests/golden_math.rs` |
-| `MathRender` | enum | accepted by `FmtOptions::with_math_render`; `src/cli.rs` |
-| `HeadingAttrsStyle` | enum | accepted by `FmtOptions::with_heading_attrs`; `tests/regressions_heading_attrs.rs` |
-| `Wrap` | enum | returned by `FmtOptions::wrap` |
-| `ItalicStyle` | enum | returned by `FmtOptions::italic` |
-| `StrongStyle` | enum | returned by `FmtOptions::strong` |
-| `LinkDefStyle` | enum | returned by `FmtOptions::link_def_style` |
-| `ListMarkerStyle` | enum | returned by `FmtOptions::list_marker` |
-| `OrderedListStyle` | enum | returned by `FmtOptions::ordered_list` |
-| `ThematicStyle` | enum | returned by `FmtOptions::thematic_break_style` |
-| `Placement` | enum | returned by `FmtOptions::link_def_placement` / `footnote_placement` |
-| `EndOfLine` | enum | returned by `FmtOptions::end_of_line` |
-| `TrailingNewline` | enum | returned by `FmtOptions::trailing_newline` |
+| `Document` | struct | parse/query handle for Markdown source |
+| `ParseOptions` | struct | explicit Markdown recognition policy |
+| `ExtensionOptions`, `MystOptions`, `PandocOptions` | structs | fields under `ParseOptions` |
+| `TextSlice`, `InlineCode`, `CodeBlock` | structs | returned by `Document` query methods |
+| `HtmlBlock`, `InlineHtml`, `Heading` | structs | returned by `Document` query methods |
+| `ListGroup`, `ListItem`, `LinkDef` | structs | returned by `Document` query methods |
+| `Frontmatter`, `FrontmatterDelimiter` | types | returned by `Document::frontmatter` |
+| `Suppression`, `SuppressionKind`, `AllowScope` | types | returned by `Document::suppressions` |
+| `LineIndex`, `LineIndexError` | types | byte/line/column lookup |
+| `MathRegion`, `MathSpan`, `MathError` | types | math facts exposed through `Document` |
+| `render_html` | fn | CLI `render` and formatter verification |
+| `contains_rejected_control_chars` | fn | CLI input policy and fuzz harnesses |
 
-## Diagnostic (`mdwright::diagnostic`)
+`Document` is parse/query only. Linting, formatting, and safe-fix application are owned by their operation crates.
+
+## Formatting
 
 | Item | Kind | Reached via |
 | --- | --- | --- |
-| `Diagnostic` | struct | `src/cli.rs`, `examples/extending/src/no_todo.rs`, extensive tests |
-| `Fix` | struct | `pub fix: Option<Fix>` field of `Diagnostic` |
-| `Severity` | enum | `pub severity: Severity` field of `Diagnostic`; `src/cli.rs` pretty-printer |
-| `Snippet` | struct | constructed by external diagnostic renderers; `src/cli.rs:1208` |
-| `rule_doc_url` | fn | `src/cli.rs`, `src/lsp.rs` |
-| `docs_url` | fn | base for `rule_doc_url`; honours `MDWRIGHT_DOCS_URL` for downstream renderers |
-| `DOCS_URL_DEFAULT` | const | fallback constant inspectable by downstream renderers that bypass `docs_url` |
+| `FmtOptions` | struct | formatter policy |
+| `FormatError` | enum | `format_validated` error |
+| `format_document` | fn | format an already parsed `Document` |
+| `format_source` | fn | parse with default `ParseOptions`, then format |
+| `format_validated` | fn | format and verify second-pass stability |
+| `format_range` | fn | one-shot range formatting |
+| `format_range_with_checkpoints` | fn | range formatting with a cached `CheckpointTable` |
+| `CheckpointTable` | struct | block-boundary cache for editor formatting |
+| `semantically_equivalent`, `first_divergence` | fns | formatter semantic oracles |
+| `Wrap`, `ItalicStyle`, `StrongStyle` | enums | formatter style policy |
+| `ListMarkerStyle`, `OrderedListStyle`, `ThematicStyle` | enums | formatter style policy |
+| `LinkDefStyle`, `Placement`, `TrailingNewline`, `EndOfLine` | enums | formatter boundary/style policy |
+| `MathOptions`, `MathRender`, `HeadingAttrsStyle` | types | formatter opt-in canonicalisation policy |
 
-## Discover (`mdwright::discover`)
-
-| Item | Kind | Reached via |
-| --- | --- | --- |
-| `discover_markdown` | fn | `src/cli.rs`; `tests/discover_symlink_loop.rs` |
-
-## Document (`mdwright::document`)
-
-| Item | Kind | Reached via |
-| --- | --- | --- |
-| `Document` | struct | `src/cli.rs`, `src/lsp.rs`, `examples/extending/src/no_todo.rs` |
-| `LintOptions` | struct | accepted by `Document::lint_with`; `tests/suppression.rs` |
-| `FormatError` | enum | error type of `Document::format_validated`; `tests/regressions_heading_attrs.rs` |
-| `render_html` | fn | `src/cli.rs` (the `mdwright render` subcommand) |
-
-## IR (`mdwright::ir`)
-
-Every IR type listed here is returned by a public query method on
-[`Document`](#document-mdwrightdocument), or is a field of a type that is.
-Plugin rule authors read these types; they should not construct them
-directly.
+## Linting
 
 | Item | Kind | Reached via |
 | --- | --- | --- |
-| `TextSlice` | struct | returned by `Document::prose_chunks` |
-| `InlineCode` | struct | returned by `Document::inline_codes` |
-| `CodeBlock` | struct | returned by `Document::code_blocks` |
-| `HtmlBlock` | struct | returned by `Document::html_blocks` |
-| `InlineHtml` | struct | returned by `Document::inline_html` |
-| `Heading` | struct | returned by `Document::headings` |
-| `ListGroup` | struct | returned by `Document::list_groups` |
-| `ListItem` | struct | `pub items: Vec<ListItem>` field of `ListGroup` |
-| `LinkDef` | struct | returned by `Document::link_defs` |
-| `Frontmatter` | struct | returned by `Document::frontmatter` |
-| `FrontmatterDelimiter` | enum | `pub delimiter: FrontmatterDelimiter` field of `Frontmatter` |
-| `Suppression` | struct | returned by `Document::suppressions` |
-| `SuppressionKind` | enum | `pub kind: SuppressionKind` field of `Suppression` |
-| `AllowScope` | enum | variant data of `SuppressionKind::Allow { scope }` |
+| `RuleSet` | struct | `rules.check(&doc)` / `rules.check_with(&doc, opts)` |
+| `LintRule` | trait | implemented by stdlib and downstream rules |
+| `LintOptions` | struct | suppression policy for `RuleSet::check_with` |
+| `Diagnostic`, `Fix`, `Severity`, `Snippet` | types | lint output |
+| `DuplicateRuleName` | struct | `RuleSet::add` error |
+| `apply_safe_fixes` | fn | safe-fix edit application over a parsed `Document` |
+| `rule_doc_url`, `docs_url`, `DOCS_URL_DEFAULT` | items | diagnostic renderer links |
 
-## Line index (`mdwright::line_index`)
+The standard rule registry is under `mdwright::stdlib::{defaults, all, by_name, names}`.
+
+## Config And Delivery
 
 | Item | Kind | Reached via |
 | --- | --- | --- |
-| `LineIndex` | struct | returned by `Document::line_index`; `src/cli.rs`, `src/lsp.rs` |
+| `Config`, `ConfigError` | types | TOML discovery and resolved options |
+| `discover_markdown` | fn | CLI file discovery |
+| `mdwright::cli::run_with_rules` | fn | downstream custom binaries |
 
-## Rules (`mdwright::rule`, `mdwright::rule_set`)
+The LSP server lives in the `mdwright-lsp` crate. The facade does not re-export it so ordinary library users do not
+pull in `tokio` and `tower-lsp`.
 
-| Item | Kind | Reached via |
-| --- | --- | --- |
-| `LintRule` | trait | implemented by every stdlib rule and by `examples/extending/src/no_todo.rs` |
-| `RuleSet` | struct | `src/cli.rs`, `src/lsp.rs`, `examples/extending/src/main.rs` |
-| `DuplicateRuleName` | struct | error type of `RuleSet::add` |
+## Public Modules
 
-## Format helpers (`mdwright::format::semantic`)
-
-| Item | Kind | Reached via |
-| --- | --- | --- |
-| `semantically_equivalent` | fn | `tests/properties.rs`, `tests/gfm_spec.rs` |
-
-## Incremental (`mdwright::incremental`)
-
-| Item | Kind | Reached via |
-| --- | --- | --- |
-| `CheckpointTable` | struct | `src/cli.rs`, `src/lsp.rs` |
-
-## Free functions (`mdwright`)
-
-| Item | Kind | Reached via |
-| --- | --- | --- |
-| `format_range` | fn | `tests/properties.rs`, `benches/incremental.rs`, the lib's own doctest |
-| `format_range_with_checkpoints` | fn | `src/cli.rs`, `src/lsp.rs` |
-| `contains_rejected_control_chars` | fn | `src/cli.rs` (the `--reject-control-chars` flag) |
-
-## Public modules
-
-| Module | Why it's `pub` |
+| Module | Why it is public |
 | --- | --- |
-| `mdwright::cli` | entry points for downstream binaries built on top of `mdwright` (notably the `cli::run_with_rules` plugin model in `examples/extending`). |
-| `mdwright::lsp` | entry point for embedding the LSP server. |
-| `mdwright::stdlib` | the curated standard library of lint rules, used by `RuleSet::stdlib_defaults` / `stdlib_all` and by `examples/extending` to mix-and-match. |
+| `mdwright::cli` | custom CLI binaries can reuse mdwright's command-line delivery. |
+| `mdwright::stdlib` | users and custom binaries can select standard lint rules. |
 
-## What is *not* on the public surface
+## Not Public Surface
 
-- Everything in `cm/`, `format/` (other than `format::semantic`),
-  `parse`, `source`, `suppression`, `tree`, and `util` is
-  `pub(crate)` or private. These modules implement the formatter and
-  recogniser pipelines; downstream code should not depend on their
-  shape.
-- The `Ir` struct (the parsed document's internal representation) is
-  `pub(crate)`. Plugin rules reach individual IR slices through the
-  `Document` query methods listed above.
-- `tracing` log lines, the on-disk layout of `target/`, and the prose
-  output of `mdwright explain` are not part of the public surface (see
-  [semver.md "Not covered"](semver.md#not-covered)).
+- Parser internals, pulldown event ownership, source/canonical byte mapping internals, and document tree construction.
+- Formatter rewrite candidates, transactional rewrite snapshots, verification signatures, and byte application logic.
+- Lint suppression maps, diagnostic sorting internals, and stdlib helper functions.
+- TOML raw schema structs and config discovery internals.
+- CLI and LSP state machines beyond the documented entry points above.

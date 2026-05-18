@@ -1,0 +1,29 @@
+[package]
+authors.workspace = true
+categories.workspace = true
+description = "Language Server Protocol delivery for mdwright"
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+readme.workspace = true
+name = "mdwright-lsp"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+mdwright-config = { workspace = true }
+mdwright-document = { workspace = true }
+mdwright-format = { workspace = true }
+mdwright-lint = { workspace = true }
+rustc-hash = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+tower-lsp = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tower = "0.4"
+
+[lints]
+workspace = true

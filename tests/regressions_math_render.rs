@@ -6,9 +6,8 @@
 //! 1. **Shape** — `\[ … \]` and `\( … \)` regions are rewritten to
 //!    the dollar form; `\begin{…}…\end{…}` environments are left
 //!    untouched.
-//! 2. **Idempotence-on-mode** — `Document::format_validated` returns
-//!    `Ok` under the chosen mode (the gate's contract; see
-//!    `Document::format_validated` for the rationale).
+//! 2. **Idempotence-on-mode** — `format_validated` returns `Ok` under
+//!    the chosen mode.
 //!
 //! The default-options gate (`regression_inputs_preserve_html` in
 //! `tests/regressions.rs`) still picks up these fixtures and runs
@@ -44,7 +43,7 @@ fn read(path: &Path) -> String {
 fn dollar_rewrites_bracket_and_paren_delimiters() {
     let path = fixture("math_render_dollar.in");
     let src = read(&path);
-    let formatted = Document::parse(&src).format(&dollar_opts());
+    let formatted = mdwright::format_document(&Document::parse(&src), &dollar_opts());
 
     // Inline `\(A\)` → `$A$`; display `\[ … \]` → `$$ … $$`. The
     // original delimiters must be gone.
@@ -68,7 +67,7 @@ fn dollar_mode_is_idempotent_on_mode() {
     for name in ["math_render_dollar.in", "math_render_roundtrip.in"] {
         let path = fixture(name);
         let src = read(&path);
-        match Document::parse(&src).format_validated(&dollar_opts()) {
+        match mdwright::format_validated(&Document::parse(&src), &dollar_opts()) {
             Ok(_) => {}
             Err(FormatError::SemanticDivergence {
                 formatted,
@@ -83,7 +82,7 @@ fn dollar_mode_is_idempotent_on_mode() {
 fn dollar_leaves_environments_unchanged() {
     let path = fixture("math_render_roundtrip.in");
     let src = read(&path);
-    let formatted = Document::parse(&src).format(&dollar_opts());
+    let formatted = mdwright::format_document(&Document::parse(&src), &dollar_opts());
 
     // `\begin{align*}` and `\end{align*}` must survive verbatim —
     // there is no dollar form of a LaTeX environment.

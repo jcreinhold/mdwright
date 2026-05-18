@@ -1,6 +1,6 @@
 //! End-to-end tests for `<!-- mdwright: ... -->` suppression comments.
 //!
-//! These exercise the full `Document::lint` path under default options
+//! These exercise the full lint path under default options
 //! (suppressions respected) and under
 //! `LintOptions { respect_suppressions: false }` (the `--no-suppress`
 //! CLI flag's behaviour).
@@ -9,12 +9,12 @@ use anyhow::Result;
 use mdwright::{Diagnostic, Document, LintOptions, RuleSet};
 
 fn diags(src: &str) -> Vec<Diagnostic> {
-    Document::parse(src).lint(&RuleSet::stdlib_all())
+    RuleSet::stdlib_all().check(&Document::parse(src))
 }
 
 fn diags_unsuppressed(src: &str) -> Vec<Diagnostic> {
-    Document::parse(src).lint_with(
-        &RuleSet::stdlib_all(),
+    RuleSet::stdlib_all().check_with(
+        &Document::parse(src),
         LintOptions {
             respect_suppressions: false,
         },

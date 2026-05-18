@@ -90,8 +90,8 @@ proptest! {
         };
         let src = format!("{reference}\n\n[{label}]: {dest} \"{title}\"\n");
         let opts = FmtOptions::default();
-        let once = Document::parse(&src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(&src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         prop_assert_eq!(&once, &twice);
         prop_assert!(semantically_equivalent(&src, &once));
     }
@@ -99,8 +99,8 @@ proptest! {
     #[test]
     fn idempotent(src in generators::arb_document()) {
         let opts = FmtOptions::default();
-        let once = Document::parse(&src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(&src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         if once != twice {
             dump_counterexample("idempotent", &src);
         }
@@ -110,7 +110,7 @@ proptest! {
     #[test]
     fn html_preserving(src in generators::arb_document()) {
         for opts in opts_matrix() {
-            let formatted = Document::parse(&src).format(&opts);
+            let formatted = mdwright::format_document(&Document::parse(&src), &opts);
             if !semantically_equivalent(&src, &formatted) {
                 dump_counterexample("html", &src);
             }
@@ -137,7 +137,7 @@ proptest! {
     ) {
         prop_assume!(!has_reorderable_def(&src));
         let opts = FmtOptions::default();
-        let whole = Document::parse(&src).format(&opts);
+        let whole = mdwright::format_document(&Document::parse(&src), &opts);
         let len = src.len();
         let lo = range_pair.0.min(len);
         let hi = range_pair.1.min(len).max(lo);
@@ -154,15 +154,15 @@ proptest! {
     #[test]
     fn lint_preserving(src in generators::arb_document()) {
         let rules = RuleSet::stdlib_defaults();
-        let before: HashSet<String> = Document::parse(&src)
-            .lint(&rules)
+        let before: HashSet<String> = rules
+            .check(&Document::parse(&src))
             .into_iter()
             .map(|d| d.rule.into_owned())
             .filter(|r| r != "bare-url")
             .collect();
-        let formatted = Document::parse(&src).format(&FmtOptions::default());
-        let after: HashSet<String> = Document::parse(&formatted)
-            .lint(&rules)
+        let formatted = mdwright::format_document(&Document::parse(&src), &FmtOptions::default());
+        let after: HashSet<String> = rules
+            .check(&Document::parse(&formatted))
             .into_iter()
             .map(|d| d.rule.into_owned())
             .filter(|r| r != "bare-url")
@@ -199,8 +199,8 @@ proptest! {
 
 fn check_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
     let opts = FmtOptions::default();
-    let once = Document::parse(src).format(&opts);
-    let twice = Document::parse(&once).format(&opts);
+    let once = mdwright::format_document(&Document::parse(src), &opts);
+    let twice = mdwright::format_document(&Document::parse(&once), &opts);
     if once != twice {
         dump_counterexample(label, src);
     }
@@ -210,7 +210,7 @@ fn check_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
 
 fn check_html_preserving(label: &str, src: &str) -> Result<(), TestCaseError> {
     for opts in opts_matrix() {
-        let formatted = Document::parse(src).format(&opts);
+        let formatted = mdwright::format_document(&Document::parse(src), &opts);
         if !semantically_equivalent(src, &formatted) {
             dump_counterexample(label, src);
         }
@@ -360,8 +360,7 @@ proptest! {
 // ---------------------------------------------------------------------------
 // Canonicalisation laws.
 //
-// For each style knob, the canonicalisation pass at
-// `src/format/canonicalise.rs` must hold:
+// For each style knob, canonicalisation rewrite candidates must hold:
 //
 // - **Semantic equivalence**: `semantically_equivalent(s, format(s))`
 //   under any knob setting. Per-rewrite verification is the
@@ -461,7 +460,7 @@ fn opts_all_underscore_or_dash() -> FmtOptions {
 
 fn check_canon_semantic_equivalence(label: &str, src: &str) -> Result<(), TestCaseError> {
     for (name, opts) in canon_opts() {
-        let formatted = Document::parse(src).format(&opts);
+        let formatted = mdwright::format_document(&Document::parse(src), &opts);
         if !semantically_equivalent(src, &formatted) {
             dump_counterexample(&format!("{label}_{name}"), src);
         }
@@ -479,8 +478,8 @@ fn check_canon_semantic_equivalence(label: &str, src: &str) -> Result<(), TestCa
 /// generators emit (no need to weaken to semantic equivalence).
 fn check_canon_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
     for (name, opts) in canon_opts() {
-        let once = Document::parse(src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         if once != twice {
             dump_counterexample(&format!("{label}_{name}"), src);
         }
@@ -566,8 +565,8 @@ proptest! {
     #[ignore = "slow; run with --ignored before release"]
     fn idempotent_sweep(src in generators::arb_document()) {
         let opts = FmtOptions::default();
-        let once = Document::parse(&src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(&src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         prop_assert_eq!(once, twice);
     }
 
@@ -575,7 +574,7 @@ proptest! {
     #[ignore = "slow; run with --ignored before release"]
     fn html_preserving_sweep(src in generators::arb_document()) {
         let opts = FmtOptions::default();
-        let formatted = Document::parse(&src).format(&opts);
+        let formatted = mdwright::format_document(&Document::parse(&src), &opts);
         prop_assert!(semantically_equivalent(&src, &formatted));
     }
 
@@ -583,15 +582,15 @@ proptest! {
     #[ignore = "slow; run with --ignored before release"]
     fn lint_preserving_sweep(src in generators::arb_document()) {
         let rules = RuleSet::stdlib_defaults();
-        let before: HashSet<String> = Document::parse(&src)
-            .lint(&rules)
+        let before: HashSet<String> = rules
+            .check(&Document::parse(&src))
             .into_iter()
             .map(|d| d.rule.into_owned())
             .filter(|r| r != "bare-url")
             .collect();
-        let formatted = Document::parse(&src).format(&FmtOptions::default());
-        let after: HashSet<String> = Document::parse(&formatted)
-            .lint(&rules)
+        let formatted = mdwright::format_document(&Document::parse(&src), &FmtOptions::default());
+        let after: HashSet<String> = rules
+            .check(&Document::parse(&formatted))
             .into_iter()
             .map(|d| d.rule.into_owned())
             .filter(|r| r != "bare-url")
@@ -612,8 +611,8 @@ proptest! {
     }
 }
 
-// Wrap-DP safety bounds (Phase 4). These exercise the `MAX_WRAP_TOKENS`
-// and `MAX_WRAP_TIME` caps in `src/format/wrap.rs`. Gated behind
+// Wrap-DP safety bounds. These exercise the `MAX_WRAP_TOKENS`
+// and `MAX_WRAP_TIME` caps in the wrap pass. Gated behind
 // `#[ignore]` because a single case generates a megabyte-class
 // paragraph; running them on every CI build would be wasteful.
 #[test]
@@ -633,7 +632,7 @@ fn wrap_completes_on_oversized_paragraph_within_time_budget() {
     }
     let opts = FmtOptions::default().with_wrap(Wrap::At(80));
     let start = Instant::now();
-    let formatted = Document::parse(&src).format(&opts);
+    let formatted = mdwright::format_document(&Document::parse(&src), &opts);
     let elapsed = start.elapsed();
     assert!(
         elapsed < Duration::from_secs(5),
@@ -659,7 +658,7 @@ fn wrap_completes_on_dense_paragraph_below_cap() {
     }
     let opts = FmtOptions::default().with_wrap(Wrap::At(80));
     let start = Instant::now();
-    let _ = Document::parse(&src).format(&opts);
+    let _ = mdwright::format_document(&Document::parse(&src), &opts);
     let elapsed = start.elapsed();
     assert!(elapsed < Duration::from_secs(30), "format took {elapsed:?}");
 }

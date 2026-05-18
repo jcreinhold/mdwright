@@ -17,7 +17,7 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use mdwright::lsp::build_service_for_tests;
+use mdwright_lsp::build_service_for_tests;
 use serde_json::{Value, json};
 use tower::{Service, ServiceExt};
 use tower_lsp::jsonrpc::Request;
@@ -217,7 +217,7 @@ async fn formatting_returns_expected_textedit() {
             .unwrap_or_else(|_| std::path::Path::new(".")),
     )
     .unwrap_or_else(|_| mdwright::Config::defaults());
-    let expected = mdwright::Document::parse(source).format(cfg.fmt_options());
+    let expected = mdwright::format_document(&mdwright::Document::parse(source), cfg.fmt_options());
     assert_eq!(new_text, expected, "LSP format must match CLI format byte-for-byte");
 }
 

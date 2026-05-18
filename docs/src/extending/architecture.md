@@ -1,63 +1,68 @@
 # Architecture
 
-The design intent. Read this before you change the IR builder.
+The design intent. Read this before you change document recognition, linting, or formatting.
 
-## One parse, two IRs
+## Workspace boundaries
+
+mdwright is split by the knowledge each component hides:
 
 ```text
-                 ┌──────────────────────┐
-                 │  pulldown-cmark      │
-   source ──▶───▶│  event stream        │───▶─── shared walk
-                 └──────────────────────┘
-                          │
-              ┌───────────┴────────────┐
-              ▼                        ▼
-        ┌──────────┐             ┌──────────┐
-        │ flat IR  │             │ tree IR  │
-        │  (lint)  │             │  (fmt)   │
-        └──────────┘             └──────────┘
-              │                        │
-              ▼                        ▼
-        Vec<Diagnostic>          formatted output
+mdwright-math
+      ^
+      |
+mdwright-document
+      ^            ^
+      |            |
+mdwright-format   mdwright-lint
+      ^             ^
+      |             |
+      +---- mdwright-config
+                  ^
+                  |
+       mdwright-cli / mdwright-lsp
+                  ^
+                  |
+              mdwright
 ```
 
-Both IRs are built from the same event walk so we parse once. The split keeps the linter cheap (no allocation per node,
-no nested visitors) and the formatter expressive (each construct owns a `pretty()` method that emits a Wadler/Lindig
-`Doc`).
+- `mdwright-document` owns source coordinates, pulldown invocation, parse options, and recognised Markdown facts.
+- `mdwright-math` owns pure TeX/math scanning and normalisation.
+- `mdwright-format` owns formatting options and the transactional rewrite engine.
+- `mdwright-lint` owns diagnostics, rule execution, suppression, and safe fixes.
+- `mdwright-config`, `mdwright-cli`, and `mdwright-lsp` interpret user files and delivery protocols.
 
-The `Document` type wraps both IRs plus the source, line index, math regions, and suppression map. Linters see a
-`&Document` and a `&mut Vec<Diagnostic>`; the formatter walks the tree IR top-down.
+The root `mdwright` crate is a curated facade; it does not contain parser, formatter, or linter mechanics.
 
-## Math regions overlay
+## Document facts
 
-The math scanner (`src/format/math.rs`) runs **before** the event walk and produces a sorted list of byte ranges. The IR
-builder consults this list when descending into events and emits a `NodeKind::Math` leaf with the verbatim source slice
-in place of the events that would otherwise be generated inside the region.
+`Document` is parse/query only. It wraps the original source, canonical source mapping, line index, pulldown-derived
+events, references, lists, code and HTML exclusion ranges, heading attributes, frontmatter, and math regions. Lint rules
+and formatter rewrite producers consume these immutable facts instead of invoking pulldown independently.
+
+Recognition policy lives in `ParseOptions`. Formatting policy lives in `FmtOptions`.
+
+## Math regions
+
+The math scanner lives in `mdwright-math` and knows only about strings and byte ranges. The document crate supplies
+Markdown exclusion ranges, stores accepted math regions, and gives downstream crates one stable inventory to query.
 
 This is the design choice that makes mdwright math-resilient. See [Math regions](../concepts/math-regions.md) for the
 user-facing view.
 
-## Layout algebra
+## Formatting
 
-The formatter does not emit strings directly. Each `pretty()` method returns a `Doc` from a Wadler/Lindig algebra:
-`text`, `nest`, `line`, `group`, `concat`, `nil`. A rendering pass takes the `Doc` and a target column width and
-produces text.
+Default formatting is identity emit: source bytes survive unchanged except for document-boundary policies. Opt-in style
+canonicalisation and wrapping are represented as rewrite candidates owned by the current document snapshot.
 
-Why an algebra: it makes wrap behaviour declarative. A group either fits on one line or breaks onto multiple; the
-rendering pass decides, not the construct. Adding a new construct means implementing one `pretty()` method; the
-rendering pass stays the same.
+Only the private rewrite engine in `mdwright-format` may apply formatter byte edits. It orders candidates, rejects
+overlaps, applies a batch to a scratch buffer, verifies Markdown and math signatures, falls back to single-candidate
+isolation when needed, and iterates to a fixed point.
 
-The implementation is in `src/format/doc.rs`; the algebra is small (~200 lines) and standard.
+## Linting
 
-## Escape policy
-
-Markdown's escape rules are context-dependent: `*` is special at the start of a paragraph, neutral inside a code span,
-special again inside an emph. The formatter encodes this with an `EscapeContext` value threaded through `pretty()`. Each
-construct that opens a new context (link text, table cell, footnote body) pushes a new context; constructs that emit
-text consult the top of the stack.
-
-Wrong escape policy is the most common source of round-trip failures. The [`gfm_spec_snapshot`](../deviations.md) test
-catches them; the fix is almost always in the escape policy, not in the text emission.
+`RuleSet` owns rule execution. Callers parse a `Document`, then call `rules.check(&doc)` or `rules.check_with(&doc,
+opts)`. Suppressions, diagnostic sorting, standard-rule registry construction, and safe-fix application are lint-crate
+details.
 
 ## Doc tests
 
@@ -76,11 +81,11 @@ a CSS class) but the test sees it.
 
 | Want to change…         | Edit…                                                   |
 | ----------------------- | ------------------------------------------------------- |
-| A lint rule             | `src/stdlib/<rule>.rs` + `src/stdlib/explain/<rule>.md` |
-| How a construct formats | `src/format/<construct>.rs`                             |
-| Math recognition        | `src/format/math.rs`                                    |
-| Escape policy           | `src/format/escape.rs`                                  |
-| Wrap algorithm          | `src/format/doc.rs`                                     |
-| Event-to-IR mapping     | `src/ir.rs`                                             |
-| Config schema           | `src/config.rs` + `build.rs` (regen `configuration.md`) |
-| CLI surface             | `src/bin/mdwright.rs` (regen via `cargo xtask doc-cli`) |
+| A lint rule             | `crates/mdwright-lint/src/stdlib/<rule>.rs` + its explanation |
+| Document recognition    | `crates/mdwright-document/src/`                         |
+| Math recognition        | `crates/mdwright-math/src/`                             |
+| Formatter rewrites      | `crates/mdwright-format/src/format/`                    |
+| Wrap algorithm          | `crates/mdwright-format/src/format/wrap_pass.rs`        |
+| Config schema           | `crates/mdwright-config/src/config.rs` + `build.rs`     |
+| CLI surface             | `crates/mdwright-cli/src/cli.rs`                        |
+| LSP surface             | `crates/mdwright-lsp/src/lsp.rs`                        |

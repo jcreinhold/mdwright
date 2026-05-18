@@ -108,7 +108,7 @@ fuzz_target!(|data: &[u8]| {
     // tests/known_issues.rs); the oracle is undefined when parse
     // diverges, so swallow + skip rather than report a libFuzzer
     // crash for an upstream bug.
-    let Ok(formatted) = catch_unwind(AssertUnwindSafe(|| Document::parse(s).format(&opts))) else {
+    let Ok(formatted) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(s), &opts))) else {
         return;
     };
     let Ok(equivalent) = catch_unwind(AssertUnwindSafe(|| semantically_equivalent(s, &formatted))) else {

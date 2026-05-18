@@ -52,7 +52,7 @@ fn golden_frontmatter() {
             fs::read_to_string(&expected_path).unwrap_or_else(|e| panic!("read {}: {e}", expected_path.display()));
         let doc = Document::parse(&input);
         let opts = opts_for(stem);
-        let got = doc.format(&opts);
+        let got = mdwright::format_document(&doc, &opts);
         count = count.saturating_add(1);
         if got != expected {
             failures.push(format!(

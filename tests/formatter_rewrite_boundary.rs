@@ -20,7 +20,7 @@ fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
 #[test]
 fn formatter_byte_replacements_are_engine_owned() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let format_dir = root.join("src").join("format");
+    let format_dir = root.join("crates").join("mdwright-format").join("src");
     let mut files = Vec::new();
     rust_files(&format_dir, &mut files);
 
@@ -31,13 +31,13 @@ fn formatter_byte_replacements_are_engine_owned() {
             continue;
         }
         let rel = file.strip_prefix(&root).expect("under repo root");
-        if rel != Path::new("src/format/rewrite/engine.rs") {
+        if rel != Path::new("crates/mdwright-format/src/format/rewrite/engine.rs") {
             offenders.push(rel.display().to_string());
         }
     }
 
     assert!(
         offenders.is_empty(),
-        "formatter replace_range calls must stay in src/format/rewrite/engine.rs; offenders: {offenders:?}",
+        "formatter replace_range calls must stay in crates/mdwright-format/src/format/rewrite/engine.rs; offenders: {offenders:?}",
     );
 }

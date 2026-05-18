@@ -46,8 +46,8 @@ fn jupyter_book_minimal_round_trips() {
             continue;
         }
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        let once = Document::parse(&src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(&src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         if once != twice {
             failures.push((path, once, twice));
         }

@@ -60,8 +60,8 @@ fn idempotent_over_corpus() {
     for path in corpus_files(&root) {
         let src =
             fs::read_to_string(&path).unwrap_or_else(|e| panic!("corpus file {} unreadable: {e}", path.display()));
-        let once = Document::parse(&src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(&src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         if once != twice {
             failures.push(path);
         }

@@ -101,7 +101,7 @@ let mut rules = RuleSet::stdlib_defaults();
 rules.add(Box::new(NoTodoInProse)).expect("unique name");
 
 let doc = Document::parse("My TODO: write the docs.");
-let diagnostics = doc.lint(&rules);
+let diagnostics = rules.check(&doc);
 ```
 
 [`RuleSet::add`][ruleset-add] returns

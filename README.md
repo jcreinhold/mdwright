@@ -165,14 +165,15 @@ Reports of panics on any input are security bugs; see [SECURITY.md](./SECURITY.m
 `mdwright` is also a Rust library. The surface is small:
 
 ```rust
-use mdwright::{Document, RuleSet};
+use mdwright::{apply_safe_fixes, Document, RuleSet};
 
 let doc = Document::parse(source);
-let diags = doc.lint(&RuleSet::all());
-let (fixed, n) = Document::apply_safe_fixes(source, &diags);
+let rules = RuleSet::stdlib_defaults();
+let diags = rules.check(&doc);
+let (fixed, n) = apply_safe_fixes(&doc, &diags);
 ```
 
-`Document` is parsed once and may be linted repeatedly with different rule sets.
+`Document` is parsed once and may be queried repeatedly. Linting is owned by `RuleSet`.
 `apply_safe_fixes` ignores diagnostics whose fix is unsafe and resolves overlapping edits
 right-to-left.
 

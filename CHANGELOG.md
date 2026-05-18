@@ -6,6 +6,39 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed (breaking, pre-1.0)
+
+- Split the library into a real workspace of deep crates. The root `mdwright` crate is now a curated facade over
+  `mdwright-document`, `mdwright-math`, `mdwright-format`, `mdwright-lint`, `mdwright-config`, `mdwright-cli`, and
+  `mdwright-lsp`; CLI behaviour is unchanged.
+- Moved operation methods off `Document`. `Document` is now parse/query only: use `mdwright::format_document`,
+  `mdwright::format_source`, or `mdwright::format_validated` for formatting; use `rules.check(&doc)` /
+  `rules.check_with(&doc, opts)` for linting; use `mdwright::apply_safe_fixes(&doc, &diags)` for safe lint fixes.
+- Moved recognition toggles into `ParseOptions`. `FmtOptions` now owns formatting policy only; extension, MyST, and
+  Pandoc recognition policy belong to document parsing and config resolution.
+- Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. User-facing
+  types and functions remain re-exported from the root crate, while implementation details live in their owner crates.
+
+### Architecture
+
+- `mdwright-document` owns source coordinates, canonical source mapping, pulldown invocation, parse options, document
+  facts, reference/frontmatter/list/code/html inventories, and document queries.
+- `mdwright-math` owns pure TeX/math span recognition, renderer conversion helpers, and body normalisation helpers.
+- `mdwright-format` owns `FmtOptions`, range formatting, semantic formatter oracles, and the private transactional
+  rewrite engine.
+- `mdwright-lint` owns diagnostics, lint rules, suppression, standard-rule registry construction, and safe-fix
+  application.
+- `mdwright-config`, `mdwright-cli`, and `mdwright-lsp` own configuration interpretation and delivery surfaces without
+  leaking TOML, terminal, or editor dependencies into parser/format/lint users.
+
+### Performance
+
+- Criterion comparison against the pre-factorisation baseline found no representative runtime regression above 10%.
+  Formatter benches were flat to low-single-digit changes (`parse_plus_format/medium` flat; `format/corpus/wrap-100`
+  about 1-2% faster). Lint-only paths improved by roughly 8-13%, while parse-plus-lint moved by about 3-5%. One
+  tracing-disabled micro-format bench measured just under 10% slower but stayed below the investigation threshold and
+  did not appear in representative parse-plus-format or corpus runs.
+
 ## [0.1.0] — 2026-05-18
 
 First crates.io release. mdwright has been developed internally

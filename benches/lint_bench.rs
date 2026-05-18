@@ -109,16 +109,16 @@ fn bench_lint(c: &mut Criterion) {
     {
         let mut g = c.benchmark_group("lint");
         g.bench_function("defaults/small", |b| {
-            b.iter(|| black_box(&small_doc).lint(black_box(&defaults)));
+            b.iter(|| black_box(&defaults).check(black_box(&small_doc)));
         });
         g.bench_function("defaults/medium", |b| {
-            b.iter(|| black_box(&medium_doc).lint(black_box(&defaults)));
+            b.iter(|| black_box(&defaults).check(black_box(&medium_doc)));
         });
         g.bench_function("all/small", |b| {
-            b.iter(|| black_box(&small_doc).lint(black_box(&all)));
+            b.iter(|| black_box(&all).check(black_box(&small_doc)));
         });
         g.bench_function("all/medium", |b| {
-            b.iter(|| black_box(&medium_doc).lint(black_box(&all)));
+            b.iter(|| black_box(&all).check(black_box(&medium_doc)));
         });
         g.finish();
     }
@@ -129,13 +129,13 @@ fn bench_lint(c: &mut Criterion) {
         g.bench_function("defaults/small", |b| {
             b.iter(|| {
                 let d = Document::parse(black_box(&small));
-                black_box(d.lint(black_box(&defaults)))
+                black_box(black_box(&defaults).check(&d))
             });
         });
         g.bench_function("defaults/medium", |b| {
             b.iter(|| {
                 let d = Document::parse(black_box(&medium));
-                black_box(d.lint(black_box(&defaults)))
+                black_box(black_box(&defaults).check(&d))
             });
         });
         g.finish();
@@ -161,7 +161,7 @@ fn bench_corpus(c: &mut Criterion) {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
                 let d = Document::parse(black_box(src));
-                black_box(d.lint(black_box(&defaults)));
+                black_box(black_box(&defaults).check(&d));
             });
         });
     });
@@ -169,7 +169,7 @@ fn bench_corpus(c: &mut Criterion) {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
                 let d = Document::parse(black_box(src));
-                black_box(d.lint(black_box(&all)));
+                black_box(black_box(&all).check(&d));
             });
         });
     });

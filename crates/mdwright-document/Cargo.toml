@@ -1,0 +1,22 @@
+[package]
+authors.workspace = true
+categories.workspace = true
+description = "Recognised Markdown document facts with stable source coordinates"
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+readme.workspace = true
+name = "mdwright-document"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+mdwright-math = { workspace = true }
+pulldown-cmark = { workspace = true }
+regex = { workspace = true }
+rustc-hash = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

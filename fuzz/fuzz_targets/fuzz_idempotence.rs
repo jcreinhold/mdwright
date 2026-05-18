@@ -109,10 +109,10 @@ fuzz_target!(|data: &[u8]| {
     // Upstream pulldown-cmark panics on some inputs (see
     // tests/known_issues.rs); swallow + skip so the oracle isn't
     // tripped by an upstream bug.
-    let Ok(once) = catch_unwind(AssertUnwindSafe(|| Document::parse(s).format(&opts))) else {
+    let Ok(once) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(s), &opts))) else {
         return;
     };
-    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| Document::parse(&once).format(&opts))) else {
+    let Ok(twice) = catch_unwind(AssertUnwindSafe(|| mdwright::format_document(&Document::parse(&once), &opts))) else {
         return;
     };
     assert_eq!(once, twice, "format is not idempotent (opt byte {option_byte:#04x})");

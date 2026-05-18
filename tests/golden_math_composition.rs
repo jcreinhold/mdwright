@@ -50,7 +50,7 @@ fn golden_math_composition() {
             FmtOptions::default()
         };
         let doc = Document::parse(&input);
-        let got = doc.format(&opts);
+        let got = mdwright::format_document(&doc, &opts);
         count = count.saturating_add(1);
         if got != expected {
             failures.push(format!(

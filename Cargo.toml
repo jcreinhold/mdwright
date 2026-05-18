@@ -34,38 +34,28 @@ path = "src/bin/mdwright.rs"
 path = "src/lib.rs"
 
 [dependencies]
-anyhow = "1"
-clap = { version = "4", features = ["color", "derive"] }
-ignore = "0.4"
-owo-colors = "4"
-pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
-rayon = "1"
-regex = "1"
-rustc-hash = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-strsim = "0.11"
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "io-std", "sync", "time"] }
-toml = { version = "0.8", default-features = false, features = ["parse"] }
-tower-lsp = { version = "0.20", default-features = false, features = ["runtime-tokio"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", default-features = false, features = [
-  "env-filter",
-  "fmt",
-  "smallvec",
-  "tracing-log",
-] }
-unicode-width = "0.2"
+mdwright-cli = { workspace = true }
+mdwright-config = { workspace = true }
+mdwright-document = { workspace = true }
+mdwright-format = { workspace = true }
+mdwright-lint = { workspace = true }
 
 [dev-dependencies]
+anyhow = { workspace = true }
 criterion = { version = "0.5", features = ["html_reports"] }
 futures = { version = "0.3", default-features = false, features = ["std"] }
+mdwright-lsp = { workspace = true }
 proptest = "1"
-pulldown-cmark = { version = "0.13", default-features = false }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+pulldown-cmark = { workspace = true, default-features = false }
+rayon = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 tempfile = "3"
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+tokio = { workspace = true }
+toml = { workspace = true }
+tower-lsp = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
 tower = "0.4"
 walkdir = "2"
 xtask = { path = "xtask" }
@@ -88,9 +78,65 @@ name = "parse_format"
 
 [workspace]
 exclude = ["fuzz"]
-members = [".", "examples/extending", "xtask"]
+members = [
+  ".",
+  "crates/mdwright-cli",
+  "crates/mdwright-config",
+  "crates/mdwright-document",
+  "crates/mdwright-format",
+  "crates/mdwright-lint",
+  "crates/mdwright-lsp",
+  "crates/mdwright-math",
+  "examples/extending",
+  "xtask",
+]
 
-[lints.rust]
+[workspace.package]
+authors = ["Jacob Reinhold <jcreinhold@gmail.com>"]
+categories = ["command-line-utilities", "text-processing"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+keywords = ["documentation", "linter", "markdown", "math"]
+readme = "README.md"
+repository = "https://github.com/jcreinhold/mdwright"
+rust-version = "1.91"
+version = "0.1.0"
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["color", "derive"] }
+ignore = "0.4"
+mdwright-cli = { path = "crates/mdwright-cli" }
+mdwright-config = { path = "crates/mdwright-config" }
+mdwright-document = { path = "crates/mdwright-document" }
+mdwright-format = { path = "crates/mdwright-format" }
+mdwright-lint = { path = "crates/mdwright-lint" }
+mdwright-lsp = { path = "crates/mdwright-lsp" }
+mdwright-math = { path = "crates/mdwright-math" }
+owo-colors = "4"
+pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
+rayon = "1"
+regex = "1"
+rustc-hash = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+strsim = "0.11"
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "io-std", "sync", "time"] }
+toml = { version = "0.8", default-features = false, features = ["parse"] }
+tower-lsp = { version = "0.20", default-features = false, features = ["runtime-tokio"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+  "env-filter",
+  "fmt",
+  "smallvec",
+  "tracing-log",
+] }
+unicode-width = "0.2"
+
+[lints]
+workspace = true
+
+[workspace.lints.rust]
 future-incompatible = "warn"
 let-underscore = "warn"
 nonstandard-style = "warn"
@@ -103,7 +149,7 @@ unreachable_pub = "warn"
 unsafe-code = "forbid"
 unused = { level = "warn", priority = -1 }
 
-[lints.clippy]
+[workspace.lints.clippy]
 # --- correctness & bug prevention ---
 all = { level = "warn", priority = -10 }
 complexity = { level = "warn", priority = -9 }

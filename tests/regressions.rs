@@ -80,7 +80,7 @@ fn regression_inputs_preserve_html() {
             formatted,
             diff_summary,
             ..
-        }) = doc.format_validated(&opts)
+        }) = mdwright::format_validated(&doc, &opts)
         {
             failures.push((path, diff_summary, formatted));
         }
@@ -104,8 +104,8 @@ fn regression_inputs_are_idempotent() {
     let mut failures: Vec<(PathBuf, String, String)> = Vec::new();
     for path in input_files(&regressions_dir()) {
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-        let once = Document::parse(&src).format(&opts);
-        let twice = Document::parse(&once).format(&opts);
+        let once = mdwright::format_document(&Document::parse(&src), &opts);
+        let twice = mdwright::format_document(&Document::parse(&once), &opts);
         if once != twice {
             failures.push((path, once, twice));
         }

@@ -1,0 +1,25 @@
+[package]
+authors.workspace = true
+categories.workspace = true
+description = "Verified Markdown formatting and byte rewrite transactions for mdwright"
+edition.workspace = true
+license.workspace = true
+keywords.workspace = true
+readme.workspace = true
+name = "mdwright-format"
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+mdwright-document = { workspace = true }
+mdwright-math = { workspace = true }
+pulldown-cmark = { workspace = true }
+tracing = { workspace = true }
+unicode-width = { workspace = true }
+
+[dev-dependencies]
+anyhow = { workspace = true }
+
+[lints]
+workspace = true

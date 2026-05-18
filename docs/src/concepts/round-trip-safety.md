@@ -32,13 +32,13 @@ points at.
 When the gate trips during development, the test output names the input file, the formatted output, and the divergent
 line of HTML. The typical fix is in one of three places:
 
-1. **The IR builder** (`src/ir.rs`) misclassified a span — fix the recogniser, not the formatter.
-2. **The pretty-printer** (`src/format/`) for the misformatted construct — usually a missed verbatim copy or a wrong
-   escape policy.
-3. **A new spec case** the existing rules do not handle — extend the IR, then the formatter.
+1. **Document recognition** misclassified a span — fix the document facts, not the formatter.
+2. **A formatter rewrite producer** proposed a stale or over-broad byte edit — fix the candidate owner/range or the
+   verification signature, not the caller.
+3. **A new spec case** the existing rules do not handle — extend the recognised facts, then the formatter or linter.
 
-Workarounds in the pretty-printer that paper over IR bugs are explicitly out of scope; the
-[CLAUDE.md](https://github.com/jcreinhold/mdwright/blob/main/CLAUDE.md#discipline) discipline document forbids them.
+Workarounds in the formatter that paper over recogniser bugs are explicitly out of scope; the
+[AGENTS.md](https://github.com/jcreinhold/mdwright/blob/main/AGENTS.md#discipline) discipline document forbids them.
 
 ## See also
 
