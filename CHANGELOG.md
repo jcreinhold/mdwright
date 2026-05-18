@@ -10,21 +10,11 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 > the spec-alignment redesign ships as 0.3.0 to keep the released
 > sequence in step with the in-repo Phase-R prompt block.
 
-## Unreleased
+## [Unreleased]
 
-### Added
+## [0.4.0] — 2026-05-17
 
-- `mdwright lsp` subcommand: a built-in Language Server Protocol server
-  (stdio transport, `tower-lsp` backend) exposing diagnostics, code
-  actions for safe autofixes, hover docs sourced from `mdwright explain`,
-  and `textDocument/formatting` / `rangeFormatting` / `onTypeFormatting`.
-  Editor recipes for Helix, Zed, VS Code, and Neovim live at
-  [`docs/src/integration/editor-integrations.md`](docs/src/integration/editor-integrations.md).
-- `Config::defaults()`: synchronous constructor for the all-defaults
-  config, used by the LSP server when discovery encounters an
-  unreadable config file mid-walk.
-
-## [0.4.0] — preserve-by-default formatter
+Preserve-by-default formatter, plus a built-in LSP server.
 
 ### Breaking changes
 
@@ -334,6 +324,18 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   carries non-blank-line whitespace (form-feed, line tabulation,
   …)." Reproducer at
   [`fuzz/known-issues/idempotence-formfeed-paragraph-resplit.in`](./fuzz/known-issues/README.md).
+
+### Editor integration
+
+- `mdwright lsp` subcommand: a built-in Language Server Protocol server
+  (stdio transport, `tower-lsp` backend) exposing diagnostics, code
+  actions for safe autofixes, hover docs sourced from `mdwright explain`,
+  and `textDocument/formatting` / `rangeFormatting` / `onTypeFormatting`.
+  Editor recipes for Helix, Zed, VS Code, and Neovim live at
+  [`docs/src/integration/editor-integrations.md`](docs/src/integration/editor-integrations.md).
+- `Config::defaults()`: synchronous constructor for the all-defaults
+  config, used by the LSP server when discovery encounters an
+  unreadable config file mid-walk.
 
 ## [0.3.0] — 2026-05-16 — spec-alignment redesign
 

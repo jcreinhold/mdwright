@@ -3,10 +3,10 @@
 [![ci](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml/badge.svg)](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml)
 [![docs](https://github.com/jcreinhold/mdwright/actions/workflows/docs.yml/badge.svg)](https://jcreinhold.github.io/mdwright/)
 
-A math-resilient Markdown linter and round-trip formatter for Kan documentation. It flags the
-control-sequence patterns that generic Markdown formatters routinely mangle in mathematical prose,
-and `mdwright fmt` is HTML-equivalent to its input — the formatter refuses any rewrite that would
-change the rendered DOM.
+A math-resilient Markdown linter and round-trip formatter. It flags the control-sequence patterns
+that generic Markdown formatters routinely mangle in mathematical prose, and `mdwright fmt` is
+HTML-equivalent to its input — the formatter refuses any rewrite that would change the rendered
+DOM.
 
 **Preserve-by-default.** `mdwright fmt` keeps your source's style choices — emphasis delimiters
 (`_foo_` vs `*foo*`), list markers (`-` / `*` / `+`), thematic breaks, link-destination angle
@@ -31,6 +31,21 @@ Full manual: **<https://jcreinhold.github.io/mdwright/>**
   design.
 - [Integration](https://jcreinhold.github.io/mdwright/integration/pre-commit.html) — pre-commit,
   GitHub Actions, editor flows.
+
+## Installation
+
+```bash
+# From crates.io (builds from source).
+cargo install mdwright
+
+# Prebuilt binary (Linux x86_64, macOS aarch64).
+cargo binstall mdwright
+```
+
+Tarballs for each release are attached to the
+[GitHub Releases page](https://github.com/jcreinhold/mdwright/releases). Other targets work from
+source via `cargo install`. See [Installation](https://jcreinhold.github.io/mdwright/installation.html)
+for the full platform support matrix.
 
 ## Quick start
 

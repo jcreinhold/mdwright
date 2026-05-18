@@ -1,8 +1,18 @@
 [package]
-authors = ["Jacob Reinhold"]
+authors = ["Jacob Reinhold <jcreinhold@gmail.com>"]
 categories = ["command-line-utilities", "text-processing"]
-description = "Math-resilient Markdown linter and formatter for Kan documentation"
+description = "A math-resilient Markdown linter and round-trip formatter"
+documentation = "https://docs.rs/mdwright"
 edition = "2024"
+homepage = "https://jcreinhold.github.io/mdwright"
+include = [
+  "src/**/*",
+  "Cargo.toml",
+  "README.md",
+  "LICENSE-MIT",
+  "LICENSE-APACHE",
+  "CHANGELOG.md",
+]
 keywords = ["documentation", "linter", "markdown", "math"]
 license = "MIT OR Apache-2.0"
 name = "mdwright"
@@ -10,6 +20,11 @@ readme = "README.md"
 repository = "https://github.com/jcreinhold/mdwright"
 rust-version = "1.91"
 version = "0.4.0"
+
+[package.metadata.binstall]
+bin-dir = "mdwright-{ target }/mdwright"
+pkg-fmt = "txz"
+pkg-url = "{ repo }/releases/download/v{ version }/mdwright-{ target }.tar.xz"
 
 [[bin]]
 name = "mdwright"
@@ -173,3 +188,8 @@ implicit_clone = "warn"
 map_flatten = "warn"
 map_unwrap_or = "warn"
 needless_collect = "warn"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"

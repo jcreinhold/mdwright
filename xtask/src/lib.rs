@@ -18,6 +18,7 @@ use anyhow::{Context, Result};
 use mdwright::{LintRule, RuleSet};
 
 pub mod cli_docs;
+pub mod config_docs;
 pub mod since;
 
 /// Workspace-relative path to the per-rule docs directory.

@@ -1,5 +1,6 @@
-//! `cargo xtask doc-rules` — regenerate or verify `docs/src/rules/*.md`.
-//! `cargo xtask doc-cli`   — regenerate or verify `docs/src/reference/cli.md`.
+//! `cargo xtask doc-rules`  — regenerate or verify `docs/src/rules/*.md`.
+//! `cargo xtask doc-cli`    — regenerate or verify `docs/src/reference/cli.md`.
+//! `cargo xtask doc-config` — regenerate or verify `docs/src/configuration.md`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -26,6 +27,14 @@ enum Command {
     /// Regenerate `docs/src/reference/cli.md` from clap's `--help` output.
     /// With `--check`, exit non-zero if the file would change.
     DocCli {
+        /// Verify only; do not write.
+        #[arg(long)]
+        check: bool,
+    },
+    /// Regenerate `docs/src/configuration.md` from the schema metadata
+    /// in `xtask/src/config_docs.rs`. With `--check`, exit non-zero if
+    /// the file would change.
+    DocConfig {
         /// Verify only; do not write.
         #[arg(long)]
         check: bool,
@@ -79,6 +88,24 @@ fn run() -> Result<ExitCode> {
                 }
             } else {
                 xtask::cli_docs::regenerate(&workspace, None)?;
+                Ok(ExitCode::SUCCESS)
+            }
+        }
+        Command::DocConfig { check } => {
+            if check {
+                let drift = xtask::config_docs::check(&workspace)?;
+                if drift.is_empty() {
+                    Ok(ExitCode::SUCCESS)
+                } else {
+                    eprintln!("xtask: doc-config drift detected:");
+                    for d in &drift {
+                        eprintln!("  {}", d.path.display());
+                    }
+                    eprintln!("  fix with: cargo xtask doc-config");
+                    Ok(ExitCode::from(1))
+                }
+            } else {
+                xtask::config_docs::regenerate(&workspace)?;
                 Ok(ExitCode::SUCCESS)
             }
         }

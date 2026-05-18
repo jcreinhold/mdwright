@@ -1,11 +1,19 @@
-// Regenerate `docs/configuration.md` from the schema metadata table
-// below. The build script is the only consumer of this data, so the
-// table, the preamble, and the renderer all live here.
-//
-// To add or rename a TOML key: edit `SCHEMA_FIELDS`. To change the
-// prose, edit `PREAMBLE` or `render_section`. Re-running `cargo build`
-// rewrites the doc; the write is skipped when content is unchanged so
-// the worktree doesn't go dirty on every build.
+//! Generator for `docs/src/configuration.md`.
+//!
+//! The page is prose (the `PREAMBLE` constant) followed by a generated
+//! schema-reference block. The block is built from the `SCHEMA_FIELDS`
+//! table; to add or rename a TOML key, edit that table and re-run
+//! `cargo xtask doc-config`. Drift is gated in CI by
+//! `tests/config_docs_in_sync.rs`.
+
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+
+use crate::Drift;
+
+/// Workspace-relative path to the rendered configuration reference.
+pub const CONFIG_DOC_PATH: &str = "docs/src/configuration.md";
 
 /// One row in the configuration reference table.
 struct FieldDoc {
@@ -190,12 +198,12 @@ All other `[fmt]` knobs are config-file-only.
 
 "#;
 
-fn render_configuration_md() -> String {
+/// Build the expected contents of [`CONFIG_DOC_PATH`].
+#[must_use]
+pub fn render() -> String {
     let mut out = String::with_capacity(8192);
     out.push_str(PREAMBLE);
-    out.push_str(
-        "<!-- BEGIN GENERATED — do not edit. Regenerate by running `cargo build` after editing `build.rs`. -->\n\n",
-    );
+    out.push_str("<!-- BEGIN GENERATED — do not edit. Regenerate by running `cargo xtask doc-config`. -->\n\n");
     render_section(&mut out, "[lint]", "lint.");
     render_section(&mut out, "[fmt]", "fmt.");
     out.push_str("<!-- END GENERATED -->\n");
@@ -230,13 +238,40 @@ fn render_section(out: &mut String, heading: &str, prefix: &str) {
     out.push('\n');
 }
 
-fn main() -> std::io::Result<()> {
-    let body = render_configuration_md();
-    let path = std::path::Path::new("docs/src/configuration.md");
-    let current = std::fs::read_to_string(path).unwrap_or_default();
-    if current != body {
-        std::fs::write(path, body)?;
+/// Write the rendered page to disk.
+///
+/// # Errors
+///
+/// Surfaces I/O failures from creating the parent directory or
+/// writing the file.
+pub fn regenerate(workspace: &Path) -> Result<()> {
+    let body = render();
+    let path: PathBuf = workspace.join(CONFIG_DOC_PATH);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     }
-    println!("cargo:rerun-if-changed=build.rs");
+    std::fs::write(&path, body).with_context(|| format!("write {}", path.display()))?;
     Ok(())
+}
+
+/// Compare the rendered page to its on-disk counterpart. Returns a
+/// vector of [`Drift`] entries — empty means no drift.
+///
+/// # Errors
+///
+/// Surfaces I/O failures other than `NotFound`; a missing file counts
+/// as drift, not an error.
+pub fn check(workspace: &Path) -> Result<Vec<Drift>> {
+    let expected = render();
+    let path: PathBuf = workspace.join(CONFIG_DOC_PATH);
+    let actual = match std::fs::read_to_string(&path) {
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e).with_context(|| format!("read {}", path.display())),
+    };
+    if actual != expected {
+        Ok(vec![Drift { path, expected }])
+    } else {
+        Ok(Vec::new())
+    }
 }

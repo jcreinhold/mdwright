@@ -45,7 +45,7 @@ All other `[fmt]` knobs are config-file-only.
 
 ## Schema reference
 
-<!-- BEGIN GENERATED — do not edit. Regenerate by running `cargo build` after editing `build.rs`. -->
+<!-- BEGIN GENERATED — do not edit. Regenerate by running `cargo xtask doc-config`. -->
 
 ### `[lint]` and nested tables
 

@@ -60,4 +60,5 @@
 
 - [CLI](reference/cli.md)
 - [Diagnostic schema](reference/diagnostic-schema.md)
+- [Semver policy](reference/semver.md)
 - [Deviations from spec](deviations.md)
