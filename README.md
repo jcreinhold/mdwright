@@ -29,6 +29,8 @@ Full manual: **<https://jcreinhold.github.io/mdwright/>**
   schema.
 - [Architecture](https://jcreinhold.github.io/mdwright/extending/architecture.html) — the two-IR
   design.
+- [Math rendering](https://jcreinhold.github.io/mdwright/concepts/math-rendering.html) —
+  `--math-render={none, commonmark-katex, dollar}` and the `mdwright render` subcommand.
 - [Integration](https://jcreinhold.github.io/mdwright/integration/pre-commit.html) — pre-commit,
   GitHub Actions, editor flows.
 

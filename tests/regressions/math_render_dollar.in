@@ -1,0 +1,9 @@
+# Linear algebra notes
+
+A matrix \( A \) acts on vectors \( v \in \mathbb{R}^n \).
+
+The eigenvalue equation reads
+
+\[ A v = \lambda v \]
+
+with eigenvalues \( \lambda \in \mathbb{C} \).

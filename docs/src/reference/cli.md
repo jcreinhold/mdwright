@@ -17,6 +17,7 @@ Commands:
   fmt-check   Verify formatting without writing
   list-rules  Print the rule catalogue
   explain     Print the long-form explanation of one lint rule
+  render      Format the input and emit the rendered HTML to stdout
   lsp         Run as a Language Server Protocol server over stdio
   help        Print this message or the help of the given subcommand(s)
 
@@ -216,6 +217,11 @@ Options:
           
           Example: `--range 2:0-2:5` formats the block containing columns 0..5 of line 2.
 
+      --math-render <MATH_RENDER>
+          Delimiter rewrite policy for math regions at emit time. `none` (default) passes math through verbatim — today's behaviour. `commonmark-katex` is the same emission as `none` but greppable as an intent signal in build logs. `dollar` rewrites `\[…\]` to `$$ … $$` and `\(…\)` to `$ … $` for downstream renderers that prefer dollar delimiters; LaTeX environments are not rewritten. Overrides `[fmt.math] render` in the config file
+          
+          [possible values: none, commonmark-katex, dollar]
+
   -h, --help
           Print help (see a summary with '-h')
 ```
@@ -271,6 +277,11 @@ Options:
           Format only the smallest set of whole top-level blocks covering `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of end; 0-based LSP convention). Reads from stdin only; writes the covering blocks to stdout. Mutually exclusive with `--check` and `--diff`.
           
           Example: `--range 2:0-2:5` formats the block containing columns 0..5 of line 2.
+
+      --math-render <MATH_RENDER>
+          Delimiter rewrite policy for math regions at emit time. `none` (default) passes math through verbatim — today's behaviour. `commonmark-katex` is the same emission as `none` but greppable as an intent signal in build logs. `dollar` rewrites `\[…\]` to `$$ … $$` and `\(…\)` to `$ … $` for downstream renderers that prefer dollar delimiters; LaTeX environments are not rewritten. Overrides `[fmt.math] render` in the config file
+          
+          [possible values: none, commonmark-katex, dollar]
 
   -h, --help
           Print help (see a summary with '-h')

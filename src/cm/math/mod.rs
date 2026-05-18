@@ -23,6 +23,7 @@
 
 pub(crate) mod env;
 pub(crate) mod pretty;
+pub(crate) mod render;
 pub(crate) mod scan;
 pub(crate) mod span;
 

@@ -27,6 +27,7 @@ use crate::format::doc::{Doc, concat, hard_line, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
 
 use super::env::EnvKind;
+use super::render::convert_for_renderer;
 use super::span::{DisplayDelim, InlineDelim, MathSpan};
 
 impl MathSpan {
@@ -50,6 +51,26 @@ impl MathSpan {
     pub(crate) fn pretty<'a>(&self, ctx: &PrettyCtx<'a>, region: &Range<usize>) -> Doc<'a> {
         let source = ctx.source;
         let normalise = ctx.opts.mode() != crate::config::FormatMode::Verbatim && ctx.opts.math().normalise;
+
+        // Render-mode rewrite (e.g. `\[ A \]` → `$$ A $$`) takes
+        // precedence over every other branch: under `MathRender::Dollar`
+        // we emit the rewritten bytes as a single `unbreakable` token,
+        // bypassing both the inline-neighbour byte-verbatim path and
+        // the structural display layout. The rewritten form is itself
+        // recognisable math, so the formatter's second pass parses it
+        // back as a dollar-delimited span — idempotence-on-mode holds.
+        // Environments fall through to the existing logic because there
+        // is no dollar form of `\begin{name}…\end{name}`.
+        let render_mode = ctx.opts.math().render;
+        if !matches!(
+            render_mode,
+            crate::config::MathRender::None | crate::config::MathRender::CommonmarkKatex
+        ) && !matches!(self, Self::Environment { .. })
+        {
+            let rewritten = convert_for_renderer(source, region, self, render_mode);
+            return unbreakable(text(rewritten.into_owned()));
+        }
+
         let body = self.body().as_str(source);
         let has_transparent = self.body().has_transparent_runs();
 

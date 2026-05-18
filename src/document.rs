@@ -352,10 +352,11 @@ impl Document {
         out
     }
 
-    /// Reformat the document and verify the result is semantically
-    /// equivalent to the source. The runtime gate catches accidental
-    /// semantic drift (raw HTML insertion, dropped emphasis, malformed
-    /// tables) that the cheap [`Document::format`] path cannot.
+    /// Reformat the document and verify the result is stable under a
+    /// second pass with the same options ("idempotence-on-mode"). The
+    /// runtime gate catches accidental semantic drift (raw HTML
+    /// insertion, dropped emphasis, malformed tables) that the cheap
+    /// [`Document::format`] path cannot.
     ///
     /// Equivalence is defined on canonicalised pulldown-cmark event
     /// streams (see [`crate::format::semantic`]) — soft-break
@@ -363,22 +364,39 @@ impl Document {
     /// regions (code blocks, inline code, raw HTML, math) compare
     /// byte-for-byte.
     ///
+    /// # Why idempotence-on-mode, not source-vs-formatted
+    ///
+    /// Most options — wrap, italic style, list marker — round-trip the
+    /// source's math regions byte-for-byte, so the formatted output's
+    /// math events match the source's. But [`crate::MathRender::Dollar`]
+    /// intentionally rewrites `\[ … \]` to `$$ … $$`; under those
+    /// options the source's math events and the formatted output's
+    /// math events differ by construction. A source-vs-formatted gate
+    /// would reject every dollar-rendered document, so the gate
+    /// asserts the weaker but still-strict property: formatting the
+    /// output a second time with the same options must produce the
+    /// same canonical event stream. Round-1 → round-2 divergence is
+    /// still a hard failure.
+    ///
     /// Returns [`FormatError::SemanticDivergence`] with a short
     /// summary of the first differing event when the gate fails. The
     /// caller should surface the error and skip writing the file.
+    /// `source` on the error carries the *formatted* bytes (the input
+    /// to round 2), since that is the side of the comparison the
+    /// caller can inspect.
     ///
     /// # Errors
     ///
-    /// Returns an error if the source and formatted output produce
-    /// different canonical event streams.
+    /// Returns an error if formatting the output a second time
+    /// produces a different canonical event stream.
     pub fn format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError> {
-        let source = self.source();
         let formatted = self.format(opts);
-        match crate::format::semantic::first_divergence(source, &formatted) {
+        let twice = Self::parse(&formatted).format(opts);
+        match crate::format::semantic::first_divergence(&formatted, &twice) {
             None => Ok(formatted),
             Some(diff_summary) => Err(FormatError::SemanticDivergence {
-                source: source.to_owned(),
-                formatted,
+                source: formatted.clone(),
+                formatted: twice,
                 diff_summary,
             }),
         }

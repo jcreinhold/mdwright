@@ -1,0 +1,16 @@
+# Mixed delimiters
+
+Inline: \( x + y \) and also $z$.
+
+Display: \[ A = B \]
+
+Dollar display:
+
+$$ \sum_i a_i $$
+
+Environment must not be rewritten:
+
+\begin{align*}
+a &= b \\
+c &= d
+\end{align*}

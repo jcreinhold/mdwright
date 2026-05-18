@@ -187,6 +187,40 @@ pub struct MathOptions {
     /// is active for whole-block math regions (display `\[…\]` /
     /// `$$…$$` and environments standing alone).
     pub normalise: bool,
+    /// How math regions are emitted for downstream renderers. See
+    /// [`MathRender`] for the modes; default is [`MathRender::None`]
+    /// (verbatim emission, today's behaviour).
+    pub render: MathRender,
+}
+
+/// Delimiter rewrite policy for math regions at emit time.
+///
+/// mdwright never typesets math itself; downstream renderers
+/// (`KaTeX`, `MathJax`, `mkdocs-material`'s math plugin) do that. The
+/// modes here determine the *shape* of the math regions in the
+/// formatted output so the downstream renderer recognises them.
+///
+/// - [`Self::None`] (default): pass math regions through verbatim;
+///   today's behaviour.
+/// - [`Self::CommonmarkKatex`]: same emission as `None`, but signals
+///   intent in build logs. The bracket/paren forms (`\[…\]`, `\(…\)`)
+///   and dollar forms (`$$…$$`, `$…$`) are both recognised by `KaTeX`
+///   and `MathJax` v3 auto-renderers without rewriting.
+/// - [`Self::Dollar`]: rewrite `\[ … \]` to `$$ … $$` and `\( … \)`
+///   to `$ … $` at emit time. LaTeX environments
+///   (`\begin{align*}…\end{align*}`) are not rewritten — there is no
+///   dollar form of an environment.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum MathRender {
+    /// Pass math regions through verbatim.
+    #[default]
+    None,
+    /// Pass through verbatim; greppable signal that downstream is
+    /// `KaTeX` or `MathJax` over `CommonMark`-shaped math.
+    CommonmarkKatex,
+    /// Rewrite backslash-bracket / backslash-paren math to dollar
+    /// form. Environments are left unchanged.
+    Dollar,
 }
 
 impl FmtOptions {
@@ -294,6 +328,14 @@ impl FmtOptions {
     #[must_use]
     pub fn with_math(mut self, math: MathOptions) -> Self {
         self.math = math;
+        self
+    }
+
+    /// Override only the math render policy. Composes with the
+    /// existing [`MathOptions`]; preserves `normalise`.
+    #[must_use]
+    pub fn with_math_render(mut self, render: MathRender) -> Self {
+        self.math.render = render;
         self
     }
 
@@ -486,7 +528,7 @@ impl FmtOptions {
                 .thematic_break
                 .map_or(default.thematic_break_style, ThematicStyle::from),
             mode: default.mode,
-            math: default.math,
+            math: schema.math.map_or(default.math, MathOptions::from),
         }
     }
 }
@@ -804,6 +846,45 @@ struct FmtSchema {
     footnotes: Option<FootnotesSchema>,
     #[serde(default)]
     frontmatter: Option<FrontmatterSchema>,
+    #[serde(default)]
+    math: Option<MathSchema>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MathSchema {
+    #[serde(default)]
+    normalise: Option<bool>,
+    #[serde(default)]
+    render: Option<MathRenderSchema>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum MathRenderSchema {
+    None,
+    CommonmarkKatex,
+    Dollar,
+}
+
+impl From<MathRenderSchema> for MathRender {
+    fn from(s: MathRenderSchema) -> Self {
+        match s {
+            MathRenderSchema::None => Self::None,
+            MathRenderSchema::CommonmarkKatex => Self::CommonmarkKatex,
+            MathRenderSchema::Dollar => Self::Dollar,
+        }
+    }
+}
+
+impl From<MathSchema> for MathOptions {
+    fn from(s: MathSchema) -> Self {
+        let default = Self::default();
+        Self {
+            normalise: s.normalise.unwrap_or(default.normalise),
+            render: s.render.map_or(default.render, MathRender::from),
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]

@@ -45,8 +45,8 @@ use serde::Serialize;
 
 use crate::{
     CheckpointTable, Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LineIndex, LintOptions,
-    RuleSet, Severity, Snippet, contains_rejected_control_chars, discover_markdown, format_range_with_checkpoints,
-    rule_doc_url, stdlib,
+    MathRender, RuleSet, Severity, Snippet, contains_rejected_control_chars, discover_markdown,
+    format_range_with_checkpoints, render_html, rule_doc_url, stdlib,
 };
 
 /// Run the mdwright CLI with the given rule set.
@@ -144,6 +144,14 @@ enum Command {
         /// Kebab-case rule name (e.g. `bare-url`, `math/unbalanced-delim`).
         rule: String,
     },
+    /// Format the input and emit the rendered HTML to stdout.
+    ///
+    /// Pipes the formatted output through the same HTML renderer the
+    /// `format_validated` gate uses. mdwright does not typeset math
+    /// itself — math regions land in the HTML as their source bytes
+    /// (or as `--math-render=dollar` rewrites, if requested) so a
+    /// downstream `KaTeX` / `MathJax` runner can render them.
+    Render(RenderArgs),
     /// Run as a Language Server Protocol server over stdio.
     Lsp,
 }
@@ -247,6 +255,17 @@ struct FmtArgs {
     /// columns 0..5 of line 2.
     #[arg(long, value_name = "LINE:COL-LINE:COL", conflicts_with_all = ["check", "diff"])]
     range: Option<RangeArg>,
+
+    /// Delimiter rewrite policy for math regions at emit time.
+    /// `none` (default) passes math through verbatim — today's
+    /// behaviour. `commonmark-katex` is the same emission as `none`
+    /// but greppable as an intent signal in build logs. `dollar`
+    /// rewrites `\[…\]` to `$$ … $$` and `\(…\)` to `$ … $` for
+    /// downstream renderers that prefer dollar delimiters; LaTeX
+    /// environments are not rewritten. Overrides `[fmt.math] render`
+    /// in the config file.
+    #[arg(long, value_enum)]
+    math_render: Option<MathRenderArg>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -293,6 +312,42 @@ impl From<ModeArg> for FormatMode {
         match m {
             ModeArg::Normalise => Self::Normalise,
             ModeArg::Verbatim => Self::Verbatim,
+        }
+    }
+}
+
+#[derive(Args, Debug)]
+struct RenderArgs {
+    /// File to render. A literal `-` (or an empty list) reads from
+    /// stdin. Multiple paths are concatenated in argument order with
+    /// a single newline between, then rendered as one document.
+    paths: Vec<PathBuf>,
+
+    /// File name to report when reading from stdin. Defaults to
+    /// `<stdin>`. Cosmetic; surfaced in error messages only.
+    #[arg(long)]
+    stdin_filename: Option<PathBuf>,
+
+    /// Delimiter rewrite policy for math regions. See the
+    /// corresponding flag on `mdwright fmt` for the modes.
+    #[arg(long, value_enum)]
+    math_render: Option<MathRenderArg>,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+enum MathRenderArg {
+    None,
+    #[value(name = "commonmark-katex")]
+    CommonmarkKatex,
+    Dollar,
+}
+
+impl From<MathRenderArg> for MathRender {
+    fn from(m: MathRenderArg) -> Self {
+        match m {
+            MathRenderArg::None => Self::None,
+            MathRenderArg::CommonmarkKatex => Self::CommonmarkKatex,
+            MathRenderArg::Dollar => Self::Dollar,
         }
     }
 }
@@ -344,8 +399,57 @@ fn run(available: RuleSet) -> Result<ExitCode> {
             args.check = true;
             run_fmt(&args, true, config_path.as_deref(), policy)
         }
+        Command::Render(args) => run_render(&args, config_path.as_deref(), policy),
         Command::Lsp => run_lsp(),
     }
+}
+
+/// Read input, format it, pipe the result through the same HTML
+/// renderer the `format_validated` gate uses, write to stdout.
+///
+/// Multiple paths are concatenated in argument order with a single
+/// `\n` between, so a render of `intro.md notes.md` is one HTML
+/// document. The formatter runs in its default `Normalise` mode; the
+/// only knob exposed here is `--math-render`, since that is what
+/// changes the math regions visible in the rendered HTML.
+fn run_render(args: &RenderArgs, config_path: Option<&std::path::Path>, policy: InputPolicy) -> Result<ExitCode> {
+    let cfg = resolve_config(config_path)?;
+    let mut opts = cfg.fmt_options().clone();
+    if let Some(mr) = args.math_render {
+        opts = opts.with_math_render(mr.into());
+    }
+
+    let source = if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
+        let name = args
+            .stdin_filename
+            .as_deref()
+            .map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
+        let mut buf = String::new();
+        read_stdin_capped(&mut buf, policy, &name)?;
+        buf
+    } else {
+        let mut joined = String::new();
+        for path in &args.paths {
+            if !path.exists() {
+                bail!("path does not exist: {}", path.display());
+            }
+            let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+            enforce_input_policy(&path.display().to_string(), &text, policy)?;
+            if !joined.is_empty() {
+                joined.push('\n');
+            }
+            joined.push_str(&text);
+        }
+        joined
+    };
+
+    let doc = Document::parse(&source);
+    let formatted = doc.format(&opts);
+    let html = render_html(&formatted);
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    out.write_all(html.as_bytes())?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Hand off to the LSP server, blocking until the client sends `exit`
@@ -470,7 +574,10 @@ fn run_fmt(
     policy: InputPolicy,
 ) -> Result<ExitCode> {
     let cfg = resolve_config(config_path)?;
-    let opts = cfg.fmt_options().clone().with_mode(args.mode.into());
+    let mut opts = cfg.fmt_options().clone().with_mode(args.mode.into());
+    if let Some(mr) = args.math_render {
+        opts = opts.with_math_render(mr.into());
+    }
     let check = args.check || force_check;
 
     if let Some(range_arg) = args.range {

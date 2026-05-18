@@ -12,6 +12,7 @@
 
 - [Round-trip safety](concepts/round-trip-safety.md)
 - [Math regions](concepts/math-regions.md)
+- [Math rendering](concepts/math-rendering.md)
 - [Lint vs. format](concepts/lint-vs-format.md)
 - [Suppression comments](concepts/suppression-comments.md)
 

@@ -139,6 +139,7 @@ fn opts_from_byte(byte: u8) -> FmtOptions {
     };
     let math = MathOptions {
         normalise: byte & 0b1000 != 0,
+        ..MathOptions::default()
     };
     FmtOptions::default()
         .with_wrap(wrap)

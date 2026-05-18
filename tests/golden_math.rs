@@ -24,7 +24,10 @@ fn golden_math() {
         .collect();
     entries.sort_by_key(std::fs::DirEntry::path);
 
-    let opts = FmtOptions::default().with_math(MathOptions { normalise: true });
+    let opts = FmtOptions::default().with_math(MathOptions {
+        normalise: true,
+        ..MathOptions::default()
+    });
 
     let mut failures: Vec<String> = Vec::new();
     let mut count = 0usize;
