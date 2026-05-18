@@ -57,6 +57,10 @@ With no paths, the tool reads stdin and reports the path as `<stdin>`.
 `mdwright explain <rule>` prints the long-form rationale of any rule, plus a link into the doc
 site.
 
+`mdwright lsp` runs a built-in language server over stdio. See
+[Editor integration](docs/src/integration/editor-integrations.md) for Helix, Zed, VS Code, and
+Neovim recipes.
+
 ## Exit codes
 
 | Code | Meaning |

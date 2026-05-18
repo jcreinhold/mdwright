@@ -18,7 +18,7 @@ pub const CLI_DOC_PATH: &str = "docs/src/reference/cli.md";
 /// Subcommands rendered by the generator. The empty string represents
 /// the top-level invocation (`mdwright --help`). Order matches the
 /// order users see them in the top-level help.
-const SUBCOMMANDS: &[&str] = &["", "check", "fix", "fmt", "fmt-check", "list-rules", "explain"];
+const SUBCOMMANDS: &[&str] = &["", "check", "fix", "fmt", "fmt-check", "list-rules", "explain", "lsp"];
 
 /// Build the expected contents of [`CLI_DOC_PATH`] by invoking each
 /// subcommand's `--help`. Pass `Some(path)` to use an already-built

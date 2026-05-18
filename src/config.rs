@@ -122,6 +122,16 @@ impl Config {
         &self.fmt_options
     }
 
+    /// The all-defaults [`Config`] — what [`Self::discover`] returns
+    /// when no `.mdwright.toml` / `mdwright.toml` / `pyproject.toml`
+    /// is found on the upward walk. Exposed for long-lived processes
+    /// (the LSP server) that need a synchronous fallback when
+    /// `discover` encounters an unreadable config file mid-walk.
+    #[must_use]
+    pub fn defaults() -> Self {
+        Self::from_schema(Schema::default(), None)
+    }
+
     fn from_schema(schema: Schema, source: Option<PathBuf>) -> Self {
         let Schema { lint, fmt } = schema;
         Self {

@@ -112,6 +112,8 @@ enum Command {
         /// Kebab-case rule name (e.g. `bare-url`, `math/unbalanced-delim`).
         rule: String,
     },
+    /// Run as a Language Server Protocol server over stdio.
+    Lsp,
 }
 
 #[derive(Args, Debug)]
@@ -321,7 +323,20 @@ fn run() -> Result<ExitCode> {
             args.check = true;
             run_fmt(&args, true, config_path.as_deref(), policy)
         }
+        Command::Lsp => run_lsp(),
     }
+}
+
+/// Hand off to the LSP server, blocking until the client sends `exit`
+/// or the transport closes. A multi-threaded tokio runtime is
+/// constructed here so the rest of the binary stays sync.
+fn run_lsp() -> Result<ExitCode> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .context("build LSP tokio runtime")?;
+    runtime.block_on(mdwright::lsp::serve());
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Print the long-form explanation of one stdlib rule. Returns a

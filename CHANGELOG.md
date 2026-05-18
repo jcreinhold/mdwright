@@ -12,6 +12,18 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
+### Added
+
+- `mdwright lsp` subcommand: a built-in Language Server Protocol server
+  (stdio transport, `tower-lsp` backend) exposing diagnostics, code
+  actions for safe autofixes, hover docs sourced from `mdwright explain`,
+  and `textDocument/formatting` / `rangeFormatting` / `onTypeFormatting`.
+  Editor recipes for Helix, Zed, VS Code, and Neovim live at
+  [`docs/src/integration/editor-integrations.md`](docs/src/integration/editor-integrations.md).
+- `Config::defaults()`: synchronous constructor for the all-defaults
+  config, used by the LSP server when discovery encounters an
+  unreadable config file mid-walk.
+
 ## [0.4.0] — preserve-by-default formatter
 
 ### Breaking changes

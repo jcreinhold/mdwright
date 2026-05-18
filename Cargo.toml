@@ -30,7 +30,9 @@ rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 strsim = "0.11"
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "io-std", "sync", "time"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+tower-lsp = { version = "0.20", default-features = false, features = ["runtime-tokio"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", default-features = false, features = [
   "env-filter",
@@ -42,12 +44,14 @@ unicode-width = "0.2"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
+futures = { version = "0.3", default-features = false, features = ["std"] }
 proptest = "1"
 pulldown-cmark = { version = "0.13", default-features = false }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tempfile = "3"
 toml = { version = "0.8", default-features = false, features = ["parse"] }
+tower = "0.4"
 walkdir = "2"
 xtask = { path = "xtask" }
 
@@ -62,6 +66,10 @@ name = "format_bench"
 [[bench]]
 harness = false
 name = "incremental"
+
+[[bench]]
+harness = false
+name = "parse_format"
 
 [workspace]
 exclude = ["fuzz"]

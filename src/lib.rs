@@ -62,6 +62,7 @@ mod format;
 mod incremental;
 mod ir;
 mod line_index;
+pub mod lsp;
 mod parse;
 mod rule;
 mod rule_set;
