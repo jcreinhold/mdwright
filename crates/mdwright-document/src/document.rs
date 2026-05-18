@@ -53,6 +53,7 @@ pub fn render_html(source: &str) -> String {
 pub struct Document {
     source: Source,
     ir: Ir,
+    parse_options: ParseOptions,
 }
 
 impl Document {
@@ -74,7 +75,17 @@ impl Document {
     pub fn parse_with_options(source: &str, opts: ParseOptions) -> Self {
         let source = Source::new(source);
         let ir = Ir::parse(CanonicalSource::from_source(&source), opts);
-        Self { source, ir }
+        Self {
+            source,
+            ir,
+            parse_options: opts,
+        }
+    }
+
+    /// Recognition policy used to build this document.
+    #[must_use]
+    pub fn parse_options(&self) -> ParseOptions {
+        self.parse_options
     }
 
     /// The canonical source string the IR was parsed against. Equal

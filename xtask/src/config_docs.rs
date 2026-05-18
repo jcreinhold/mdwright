@@ -155,81 +155,81 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         description: "ATX heading `{#id .class key=val}` trailer emission. `preserve` (default) emits the source trailer byte-verbatim. `canonicalise` emits id first, then classes (source order), then key=value pairs (source order). See [Markdown extensions](concepts/extensions.md#heading-attribute-lists).",
         cli_override: None,
     },
-    // ---- [fmt.extensions] --------------------------------------------
+    // ---- [parse.extensions] -----------------------------------------
     FieldDoc {
-        key: "fmt.extensions.definition-lists",
+        key: "parse.extensions.definition-lists",
         ty: "bool",
         default: "true",
         description: "Recognise `Term\\n: definition\\n` definition lists. Default on; turn off on non-mkdocs corpora to suppress recognition.",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.abbreviation-lists",
+        key: "parse.extensions.abbreviation-lists",
         ty: "bool",
         default: "true",
         description: "Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does.",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.heading-attribute-lists",
+        key: "parse.extensions.heading-attribute-lists",
         ty: "bool",
         default: "true",
         description: "Recognise `# Heading {#id .class}` trailers via pulldown's `ENABLE_HEADING_ATTRIBUTES`. When off, the trailer reads as plain text in the heading body.",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.block-attribute-lists",
+        key: "parse.extensions.block-attribute-lists",
         ty: "bool",
         default: "true",
         description: "Recognise `{ .class }` on a line by itself after a non-empty block as a scan-and-preserve overlay. Inline attribute lists (mid-paragraph) are out of scope.",
         cli_override: None,
     },
-    // ---- [fmt.extensions.myst] ---------------------------------------
+    // ---- [parse.extensions.myst] ------------------------------------
     FieldDoc {
-        key: "fmt.extensions.myst.directive-containers",
+        key: "parse.extensions.myst.directive-containers",
         ty: "bool",
         default: "true",
         description: "Recognise MyST `:::{name}` directive containers (with `:KEY: value` options) as a scan-and-preserve overlay. mdwright does not expand directives; downstream renderers (Sphinx, jupyter-book) do.",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.myst.inline-roles",
+        key: "parse.extensions.myst.inline-roles",
         ty: "bool",
         default: "true",
         description: "Recognise MyST `` {role}`payload` `` inline roles as a scan-and-preserve overlay inside paragraph text.",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.myst.substitution-references",
+        key: "parse.extensions.myst.substitution-references",
         ty: "bool",
         default: "true",
         description: "Recognise MyST `{{name}}` inline substitution references as a scan-and-preserve overlay. Declarations live in YAML frontmatter under `myst_substitutions:` and round-trip through the frontmatter verbatim path.",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.myst.comments",
+        key: "parse.extensions.myst.comments",
         ty: "bool",
         default: "true",
         description: "Recognise MyST `%` line comments at line-start as a scan-and-preserve overlay.",
         cli_override: None,
     },
-    // ---- [fmt.extensions.pandoc] -------------------------------------
+    // ---- [parse.extensions.pandoc] ----------------------------------
     FieldDoc {
-        key: "fmt.extensions.pandoc.fenced-divs",
+        key: "parse.extensions.pandoc.fenced-divs",
         ty: "bool",
         default: "true",
         description: "Recognise Pandoc `::: {.cls}` fenced div openers (attribute form). Closer is a colon-only line of matching count.",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.pandoc.short-form-divs",
+        key: "parse.extensions.pandoc.short-form-divs",
         ty: "bool",
         default: "true",
         description: "Recognise Pandoc `:::name` fenced div openers (short form).",
         cli_override: None,
     },
     FieldDoc {
-        key: "fmt.extensions.pandoc.inline-attribute-spans",
+        key: "parse.extensions.pandoc.inline-attribute-spans",
         ty: "bool",
         default: "true",
         description: "Recognise Pandoc `[content]{.cls}` inline attribute spans as a scan-and-preserve overlay.",
@@ -275,8 +275,6 @@ The following knobs accept CLI flags that take precedence over the
 config file:
 
 - `lint.rules` — `--rules`
-- (formatter mode is exposed via `--mode` but is not currently a
-  config-file knob)
 - `--no-suppress` toggles whether `<!-- mdwright: allow ... -->`
   comments are honoured; there is no config-file equivalent.
 
@@ -294,6 +292,7 @@ pub fn render() -> String {
     out.push_str("<!-- BEGIN GENERATED — do not edit. Regenerate by running `cargo xtask doc-config`. -->\n\n");
     render_section(&mut out, "[lint]", "lint.");
     render_section(&mut out, "[fmt]", "fmt.");
+    render_section(&mut out, "[parse]", "parse.");
     out.push_str("<!-- END GENERATED -->\n");
     out
 }

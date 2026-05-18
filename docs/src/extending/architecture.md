@@ -20,9 +20,8 @@ mdwright-format   mdwright-lint
                   ^
                   |
        mdwright-cli / mdwright-lsp
-                  ^
-                  |
-              mdwright
+
+mdwright facade depends on document/format/lint/config only
 ```
 
 - `mdwright-document` owns source coordinates, pulldown invocation, parse options, and recognised Markdown facts.
@@ -86,6 +85,6 @@ a CSS class) but the test sees it.
 | Math recognition        | `crates/mdwright-math/src/`                             |
 | Formatter rewrites      | `crates/mdwright-format/src/format/`                    |
 | Wrap algorithm          | `crates/mdwright-format/src/format/wrap_pass.rs`        |
-| Config schema           | `crates/mdwright-config/src/config.rs` + `build.rs`     |
+| Config schema           | `crates/mdwright-config/src/config.rs` + `xtask/src/config_docs.rs` |
 | CLI surface             | `crates/mdwright-cli/src/cli.rs`                        |
 | LSP surface             | `crates/mdwright-lsp/src/lsp.rs`                        |

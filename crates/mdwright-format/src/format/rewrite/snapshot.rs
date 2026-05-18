@@ -1,12 +1,7 @@
 use std::ops::Range;
 
-use pulldown_cmark::{Event, Tag};
-
 use crate::format::rewrite::candidate::{Candidate, Phase, Verification};
-use mdwright_document::Document;
-use mdwright_document::NormalisedLabel;
-use mdwright_document::parse;
-use mdwright_document::{CanonicalSource, Source};
+use mdwright_document::{Document, ParseOptions, StructuralKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct OwnerId(usize);
@@ -47,8 +42,8 @@ pub(crate) struct Snapshot<'a> {
 }
 
 impl<'a> Snapshot<'a> {
-    pub(crate) fn new(source: &'a str) -> Self {
-        let document = Document::parse(source);
+    pub(crate) fn new(source: &'a str, parse_options: ParseOptions) -> Self {
+        let document = Document::parse_with_options(source, parse_options);
         let mut snapshot = Self {
             source,
             document,
@@ -162,49 +157,9 @@ impl<'a> Snapshot<'a> {
     }
 
     fn collect_event_owners(&mut self) {
-        let src = Source::new(self.source);
-        for (event, range) in parse::events_with_offsets(
-            CanonicalSource::from_source(&src),
-            parse::options(mdwright_document::ParseOptions::default()),
-        ) {
-            match event {
-                Event::Start(Tag::Paragraph) => {
-                    self.push_owner(OwnerKind::Paragraph, range);
-                }
-                Event::Start(Tag::Heading { .. }) => {
-                    self.push_owner(OwnerKind::Heading, range);
-                }
-                Event::Start(Tag::List(_)) => {
-                    self.push_owner(OwnerKind::List, range);
-                }
-                Event::Start(Tag::Item) => {
-                    self.push_owner(OwnerKind::ListItem, range);
-                }
-                Event::Start(Tag::FootnoteDefinition(_)) => {
-                    self.push_owner(OwnerKind::FootnoteDefinition, range);
-                }
-                Event::Start(Tag::DefinitionList) => {
-                    self.push_owner(OwnerKind::DefinitionList, range);
-                }
-                Event::Start(Tag::DefinitionListDefinition) => {
-                    self.push_owner(OwnerKind::DefinitionDescription, range);
-                }
-                Event::Rule => {
-                    self.push_owner(OwnerKind::ThematicBreak, range);
-                }
-                Event::Start(_)
-                | Event::End(_)
-                | Event::Text(_)
-                | Event::Code(_)
-                | Event::InlineMath(_)
-                | Event::DisplayMath(_)
-                | Event::Html(_)
-                | Event::InlineHtml(_)
-                | Event::FootnoteReference(_)
-                | Event::SoftBreak
-                | Event::HardBreak
-                | Event::TaskListMarker(_) => {}
-            }
+        let spans = self.document.structural_spans();
+        for span in spans {
+            self.push_owner(owner_kind_from_structural(span.kind), span.raw_range);
         }
     }
 
@@ -229,113 +184,27 @@ impl<'a> Snapshot<'a> {
     }
 
     fn collect_reference_destination_sites(&mut self) {
-        let excluded = self.excluded_block_ranges();
-        let mut seen = std::collections::HashSet::new();
-        let bytes = self.source.as_bytes();
-        let mut line_start = 0usize;
-        while line_start <= bytes.len() {
-            let line_end = bytes
-                .get(line_start..)
-                .and_then(|tail| tail.iter().position(|&b| b == b'\n'))
-                .map_or(bytes.len(), |p| line_start.saturating_add(p));
-            if !range_start_is_excluded(line_start, &excluded)
-                && let Some(site) = parse_ref_def_line(bytes, line_start, line_end)
-                && let Some(norm) = NormalisedLabel::from_raw(&site.label)
-                && seen.insert(norm)
-            {
-                let owner = self.push_owner(OwnerKind::ReferenceDefinition, line_start..line_end);
-                self.reference_destination_sites.push(ReferenceDestinationSite {
-                    owner,
-                    range: site.dest,
-                });
-            }
-            if line_end == bytes.len() {
-                break;
-            }
-            line_start = line_end.saturating_add(1);
+        for site in self.document.reference_definition_sites() {
+            let owner = self.push_owner(OwnerKind::ReferenceDefinition, site.raw_range);
+            self.reference_destination_sites.push(ReferenceDestinationSite {
+                owner,
+                range: site.destination,
+            });
         }
-    }
-
-    fn excluded_block_ranges(&self) -> Vec<Range<usize>> {
-        self.document
-            .code_blocks()
-            .iter()
-            .map(|b| b.raw_range.clone())
-            .chain(self.document.html_blocks().iter().map(|b| b.raw_range.clone()))
-            .collect()
     }
 }
 
-fn range_start_is_excluded(start: usize, excluded: &[Range<usize>]) -> bool {
-    excluded.iter().any(|r| r.start <= start && start < r.end)
-}
-
-struct RefDefSite {
-    label: String,
-    dest: Range<usize>,
-}
-
-fn parse_ref_def_line(bytes: &[u8], lo: usize, hi: usize) -> Option<RefDefSite> {
-    let mut i = lo;
-    let mut spaces = 0usize;
-    while i < hi && bytes.get(i).copied() == Some(b' ') && spaces < 3 {
-        i = i.saturating_add(1);
-        spaces = spaces.saturating_add(1);
+fn owner_kind_from_structural(kind: StructuralKind) -> OwnerKind {
+    match kind {
+        StructuralKind::Paragraph => OwnerKind::Paragraph,
+        StructuralKind::Heading => OwnerKind::Heading,
+        StructuralKind::List => OwnerKind::List,
+        StructuralKind::ListItem => OwnerKind::ListItem,
+        StructuralKind::DefinitionList => OwnerKind::DefinitionList,
+        StructuralKind::DefinitionDescription => OwnerKind::DefinitionDescription,
+        StructuralKind::FootnoteDefinition => OwnerKind::FootnoteDefinition,
+        StructuralKind::ThematicBreak => OwnerKind::ThematicBreak,
     }
-    if bytes.get(i).copied() != Some(b'[') {
-        return None;
-    }
-    i = i.saturating_add(1);
-    let label_lo = i;
-    while i < hi {
-        let b = bytes.get(i).copied()?;
-        match b {
-            b'\\' => i = i.saturating_add(2),
-            b']' => break,
-            b'\n' => return None,
-            _ => i = i.saturating_add(1),
-        }
-    }
-    let label_hi = i;
-    if bytes.get(i).copied() != Some(b']') {
-        return None;
-    }
-    i = i.saturating_add(1);
-    if bytes.get(i).copied() != Some(b':') {
-        return None;
-    }
-    i = i.saturating_add(1);
-    while i < hi && matches!(bytes.get(i).copied(), Some(b' ' | b'\t')) {
-        i = i.saturating_add(1);
-    }
-    if i >= hi {
-        return None;
-    }
-    let dest_lo = i;
-    let dest_hi = if bytes.get(i).copied() == Some(b'<') {
-        let mut k = i.saturating_add(1);
-        while k < hi && bytes.get(k).copied() != Some(b'>') {
-            k = k.saturating_add(1);
-        }
-        if bytes.get(k).copied() != Some(b'>') {
-            return None;
-        }
-        k.saturating_add(1)
-    } else {
-        let mut k = i;
-        while k < hi && !matches!(bytes.get(k).copied(), Some(b' ' | b'\t')) {
-            k = k.saturating_add(1);
-        }
-        k
-    };
-    if dest_hi <= dest_lo {
-        return None;
-    }
-    let label = std::str::from_utf8(bytes.get(label_lo..label_hi)?).ok()?.to_owned();
-    Some(RefDefSite {
-        label,
-        dest: dest_lo..dest_hi,
-    })
 }
 
 #[cfg(test)]
@@ -347,13 +216,13 @@ mod tests {
 
     #[test]
     fn reference_definition_sites_skip_html_block_contents() {
-        let snapshot = Snapshot::new("<?J\n\n[_]:#");
+        let snapshot = Snapshot::new("<?J\n\n[_]:#", ParseOptions::default());
         assert!(snapshot.reference_destination_sites().is_empty());
     }
 
     #[test]
     fn candidate_requires_owner_to_cover_range() {
-        let snapshot = Snapshot::new("# h\n\nx\n");
+        let snapshot = Snapshot::new("# h\n\nx\n", ParseOptions::default());
         let owner = snapshot.find_owner(OwnerKind::Heading, &(0..3)).expect("heading owner");
         assert!(
             snapshot

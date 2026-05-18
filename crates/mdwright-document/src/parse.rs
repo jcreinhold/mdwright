@@ -26,7 +26,7 @@ use crate::{ParseOptions, source::CanonicalSource};
 /// `cm::refs` does its own pre-pass for `[label]: dest` definitions with
 /// base `CommonMark` options only; that's the one exception and lives
 /// at its own (test-only) call site.
-pub fn options(opts: ParseOptions) -> Options {
+pub(crate) fn options(opts: ParseOptions) -> Options {
     let mut pulldown = Options::ENABLE_STRIKETHROUGH
         .union(Options::ENABLE_FOOTNOTES)
         .union(Options::ENABLE_TABLES)
@@ -45,7 +45,7 @@ pub fn options(opts: ParseOptions) -> Options {
 /// `Parser` directly so callers retain pulldown's lifetime parameter
 /// — wrapping the iterator buys nothing.
 #[must_use]
-pub fn events(src: CanonicalSource<'_>, opts: Options) -> Parser<'_> {
+pub(crate) fn events(src: CanonicalSource<'_>, opts: Options) -> Parser<'_> {
     Parser::new_ext(src.as_str(), opts)
 }
 
@@ -53,6 +53,6 @@ pub fn events(src: CanonicalSource<'_>, opts: Options) -> Parser<'_> {
 /// need absolute byte ranges (the IR builder, the safety ladder) use
 /// this; everyone else uses [`events`].
 #[must_use]
-pub fn events_with_offsets(src: CanonicalSource<'_>, opts: Options) -> OffsetIter<'_> {
+pub(crate) fn events_with_offsets(src: CanonicalSource<'_>, opts: Options) -> OffsetIter<'_> {
     Parser::new_ext(src.as_str(), opts).into_offset_iter()
 }

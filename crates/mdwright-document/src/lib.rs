@@ -1,17 +1,23 @@
 #![forbid(unsafe_code)]
 
 mod document;
+mod format_facts;
 mod heading;
 mod ir;
 mod line_index;
-#[doc(hidden)]
-pub mod parse;
+mod parse;
 mod refs;
+mod signature;
 mod source;
 mod tree;
 mod util;
 
 pub use document::{Document, render_html};
+pub use format_facts::{
+    BlockCheckpointFact, HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite,
+    OrderedItemSite, OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan,
+    UnorderedListSite, WrappableParagraph, top_level_block_checkpoints,
+};
 pub use heading::{HeadingAttrs, find_attr_trailer_range};
 pub use ir::{
     AllowScope, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode, InlineHtml, LinkDef,
@@ -20,6 +26,7 @@ pub use ir::{
 pub use line_index::{LineIndex, LineIndexError};
 pub use mdwright_math::{MathError, MathRegion, MathSpan};
 pub use refs::NormalisedLabel;
+pub use signature::{MarkdownSignature, markdown_signature};
 pub use source::{ByteSpan, CanonicalSource, OffsetMap, OriginalSpan, Source};
 pub use tree::{Node, NodeId, NodeKind, TableAlign, Tree};
 

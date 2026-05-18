@@ -3,7 +3,7 @@
 mdwright does not load lint rules at runtime. The supported
 extension path is the one [Writing a lint rule](lint-rules.md)
 describes: depend on the `mdwright` crate, implement `LintRule`,
-call `mdwright::cli::run_with_rules`, and ship your own binary.
+call `mdwright_cli::run_with_rules`, and ship your own binary.
 This page explains why — what dynamic loading would buy, what it
 would cost, and what would have to change for the decision to flip.
 
@@ -26,7 +26,7 @@ A user writes a rule in their own crate, depends on `mdwright` from
 crates.io, and ships a small binary:
 
 ```rust,no_run
-use mdwright::{cli, stdlib};
+use mdwright::stdlib;
 # struct MyRule;
 # impl mdwright::LintRule for MyRule {
 #     fn name(&self) -> &str { "my-rule" }
@@ -37,19 +37,19 @@ use mdwright::{cli, stdlib};
 fn main() -> std::process::ExitCode {
     let mut rules = stdlib::all();
     rules.add(Box::new(MyRule)).expect("unique name");
-    cli::run_with_rules(rules)
+    mdwright_cli::run_with_rules(rules)
 }
 ```
 
 |                         |                                              |
 | ----------------------- | -------------------------------------------- |
 | **Capability**          | Full library access. Any rule the stdlib could write, an external rule can write. |
-| **Complexity**          | One library function (`run_with_rules`). The rest is the trait that already shipped. |
+| **Complexity**          | One CLI-crate function (`run_with_rules`). The rest is the trait that already shipped. |
 | **Cost to user**        | They ship a Rust binary. CI needs `cargo`. They pin a major version of `mdwright`. |
-| **Cost to maintainer**  | None new. The `LintRule` trait and the `cli::run_with_rules` signature are the surface; semver protects them. |
+| **Cost to maintainer**  | None new. The `LintRule` trait and the `mdwright_cli::run_with_rules` signature are the surface; semver protects them. |
 | **Semver implications** | `LintRule` is `1.0`-grade. `cli::run_with_rules` is a `fn(RuleSet) -> ExitCode`; that signature is stable. |
 
-This is what mdwright ships, in `src/cli.rs` and the
+This is what mdwright ships, in the `mdwright-cli` crate and the
 `examples/extending/` workspace member.
 
 ## Architecture B — dynamic loading via `libloading` (rejected)

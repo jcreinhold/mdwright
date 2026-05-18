@@ -316,7 +316,7 @@ impl Source {
 /// canonicalisation (CM §2.1 CR/CRLF→LF + CM §2.3 NUL→U+FFFD).
 ///
 /// The only public constructor is [`CanonicalSource::from_source`], so
-/// every byte fed to `pulldown_cmark::Parser` via the [`crate::parse`]
+/// every byte fed to `pulldown_cmark::Parser` via the parser
 /// chokepoint is guaranteed to be CR-free and NUL-free. Sub-views over
 /// already-canonical buffers are produced by
 /// [`CanonicalSource::trusted_subrange`] (the math-region builder and

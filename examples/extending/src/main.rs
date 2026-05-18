@@ -2,11 +2,11 @@
 //! (`no-todo-in-prose`) on top of the stdlib. Everything else —
 //! `--rules` selection, `mdwright fmt`, `mdwright lsp`, output
 //! formats, suppression comments — is inherited from
-//! [`mdwright::cli::run_with_rules`] for free.
+//! [`mdwright_cli::run_with_rules`] for free.
 
 mod no_todo;
 
-use mdwright::{cli, stdlib};
+use mdwright::stdlib;
 
 use crate::no_todo::NoTodoInProse;
 
@@ -16,5 +16,5 @@ fn main() -> std::process::ExitCode {
         eprintln!("mdwright-extra-example: failed to register rule: {err}");
         return std::process::ExitCode::from(2);
     }
-    cli::run_with_rules(rules)
+    mdwright_cli::run_with_rules(rules)
 }

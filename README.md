@@ -38,15 +38,15 @@ Full manual: **<https://jcreinhold.github.io/mdwright/>**
 
 ```bash
 # From crates.io (builds from source).
-cargo install mdwright
+cargo install mdwright-cli
 
 # Prebuilt binary (Linux x86_64, macOS aarch64).
-cargo binstall mdwright
+cargo binstall mdwright-cli
 ```
 
 Tarballs for each release are attached to the
 [GitHub Releases page](https://github.com/jcreinhold/mdwright/releases). Other targets work from
-source via `cargo install`. See [Installation](https://jcreinhold.github.io/mdwright/installation.html)
+source via `cargo install mdwright-cli`. See [Installation](https://jcreinhold.github.io/mdwright/installation.html)
 for the full platform support matrix.
 
 ## Wire into an existing project
@@ -179,12 +179,12 @@ right-to-left.
 
 ## Extending
 
-mdwright's `LintRule` trait is public, and `mdwright::cli::run_with_rules` lets you
+mdwright's `LintRule` trait is public, and `mdwright_cli::run_with_rules` lets you
 ship a custom binary that adds your own rules on top of the stdlib without
 re-implementing arg parsing, config discovery, output formats, or the LSP server:
 
 ```rust,no_run
-use mdwright::{cli, stdlib};
+use mdwright::stdlib;
 # struct MyRule;
 # impl mdwright::LintRule for MyRule {
 #     fn name(&self) -> &str { "my-rule" }
@@ -195,7 +195,7 @@ use mdwright::{cli, stdlib};
 fn main() -> std::process::ExitCode {
     let mut rules = stdlib::all();
     rules.add(Box::new(MyRule)).expect("unique name");
-    cli::run_with_rules(rules)
+    mdwright_cli::run_with_rules(rules)
 }
 ```
 

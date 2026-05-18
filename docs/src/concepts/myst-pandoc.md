@@ -24,13 +24,13 @@ Turn individual recognisers off in `.mdwright.toml` when running mdwright on non
 false-positives matters more than coverage:
 
 ```toml,no-check
-[fmt.extensions.myst]
+[parse.extensions.myst]
 directive-containers = false
 inline-roles = false
 substitution-references = false
 comments = false
 
-[fmt.extensions.pandoc]
+[parse.extensions.pandoc]
 fenced-divs = false
 short-form-divs = false
 inline-attribute-spans = false

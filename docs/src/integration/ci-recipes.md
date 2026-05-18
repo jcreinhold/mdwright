@@ -11,7 +11,7 @@ mdwright:
     paths:
       - .cargo/
   script:
-    - cargo install --root .cargo mdwright --locked
+    - cargo install --root .cargo mdwright-cli --locked
     - ./.cargo/bin/mdwright check --check .
     - ./.cargo/bin/mdwright fmt-check .
   rules:
@@ -29,7 +29,7 @@ jobs:
       - image: cimg/rust:1.91
     steps:
       - checkout
-      - run: cargo install mdwright --locked
+      - run: cargo install mdwright-cli --locked
       - run: mdwright check --check .
       - run: mdwright fmt-check .
 workflows:
@@ -44,7 +44,7 @@ workflows:
 steps:
   - label: ":memo: mdwright"
     command: |
-      cargo install mdwright --locked
+      cargo install mdwright-cli --locked
       mdwright check --check .
       mdwright fmt-check .
     plugins:
@@ -62,7 +62,7 @@ steps:
   - name: mdwright
     image: rust:1.91
     commands:
-      - cargo install mdwright --locked
+      - cargo install mdwright-cli --locked
       - mdwright check --check .
       - mdwright fmt-check .
 ```

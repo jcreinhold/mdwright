@@ -25,7 +25,7 @@ use std::ops::Range;
 use std::path::PathBuf;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use mdwright::{CheckpointTable, FmtOptions, format_range_with_checkpoints};
+use mdwright::{CheckpointTable, Document, FmtOptions, format_range_with_checkpoints};
 
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -61,10 +61,11 @@ fn sample_edit_ranges(source_len: usize, count: usize) -> Vec<Range<usize>> {
 }
 
 fn bench_editing_session(c: &mut Criterion) {
-    let doc = load_large_fixture();
+    let source = load_large_fixture();
+    let doc = Document::parse(&source);
     let opts = FmtOptions::default();
-    let table = CheckpointTable::build(&doc);
-    let edits = sample_edit_ranges(doc.len(), 1_000);
+    let table = CheckpointTable::build(doc.source());
+    let edits = sample_edit_ranges(doc.source().len(), 1_000);
 
     let mut g = c.benchmark_group("incremental");
     // Whole-session throughput: 1000 edits per iteration.
@@ -80,7 +81,7 @@ fn bench_editing_session(c: &mut Criterion) {
     // Per-edit latency: one format_range call per iteration over a
     // deterministic mid-document range, so Criterion's outlier stats
     // surface tail latency for the LSP's worst-case keystroke.
-    let half = doc.len().checked_div(2).unwrap_or(0);
+    let half = doc.source().len().checked_div(2).unwrap_or(0);
     let mid = half..half.saturating_add(100);
     g.bench_function("single_edit_mid", |b| {
         b.iter(|| {

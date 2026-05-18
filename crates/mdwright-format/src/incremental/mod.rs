@@ -32,10 +32,7 @@
 
 use std::ops::Range;
 
-use pulldown_cmark::{Event, Tag, TagEnd};
-
-use mdwright_document::parse;
-use mdwright_document::{ByteSpan, CanonicalSource, Source};
+use mdwright_document::{ParseOptions, top_level_block_checkpoints};
 
 /// One block boundary in the caller's source.
 #[derive(Copy, Clone, Debug)]
@@ -73,58 +70,24 @@ impl CheckpointTable {
     /// per checkpoint, one `Vec` allocation.
     #[must_use]
     pub fn build(source: &str) -> Self {
+        Self::build_with_options(source, ParseOptions::default())
+    }
+
+    /// Build a checkpoint table under explicit recognition policy.
+    #[must_use]
+    pub fn build_with_options(source: &str, parse_options: ParseOptions) -> Self {
         let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
-        let src = Source::new(source);
-        let canonical = src.canonical();
-        let map_is_identity = src.offset_map().is_identity();
-        let fm_end = frontmatter_end(canonical);
-        let body = CanonicalSource::from_source(&src).trusted_subrange(fm_end..canonical.len());
-
-        // Capacity heuristic: one checkpoint per ~64 source bytes is a
-        // generous upper bound for prose-heavy docs (typical paragraph
-        // is hundreds of bytes). Pre-allocate once so growth on the
-        // hot path is free.
-        let cap = (source.len() / 64).saturating_add(2);
-        let mut points: Vec<BlockCheckpoint> = Vec::with_capacity(cap);
-        points.push(BlockCheckpoint {
-            byte: 0,
-            parser_state: 0,
-        });
-
-        let mut depth: u32 = 0;
-        let mut event_count: u32 = 0;
-        let try_push = |points: &mut Vec<BlockCheckpoint>, range_start: usize, depth: u32, event_count: u32| {
-            let abs_canonical = u32::try_from(range_start.saturating_add(fm_end)).unwrap_or(u32::MAX);
-            let abs_original = if map_is_identity {
-                abs_canonical
-            } else {
-                src.to_original(ByteSpan::new(abs_canonical, abs_canonical)).start
-            };
-            // Pulldown may emit a block Start at the same byte as the
-            // last recorded checkpoint (a document opening with a
-            // paragraph reports the paragraph's Start at byte 0, which
-            // is already in the table). Don't record duplicates — the
-            // sort invariant is strict for the binary search.
-            if points.last().is_none_or(|last| last.byte < abs_original) {
-                points.push(BlockCheckpoint {
-                    byte: abs_original,
-                    parser_state: parser_state_hash(depth, event_count),
-                });
-            }
-        };
-        for (event, range) in
-            parse::events_with_offsets(body, parse::options(mdwright_document::ParseOptions::default()))
-        {
-            event_count = event_count.saturating_add(1);
-            walk_event(event, range.start, &mut depth, event_count, &mut points, &try_push);
-        }
-
-        // Sentinel at end-of-source so `snap_to_block_boundaries` can
-        // always find an upper bound without a special case.
+        let mut points: Vec<BlockCheckpoint> = top_level_block_checkpoints(source, parse_options)
+            .into_iter()
+            .map(|point| BlockCheckpoint {
+                byte: point.byte,
+                parser_state: point.parser_state,
+            })
+            .collect();
         if points.last().is_none_or(|last| last.byte < source_len) {
             points.push(BlockCheckpoint {
                 byte: source_len,
-                parser_state: parser_state_hash(depth, event_count),
+                parser_state: 0,
             });
         }
 
@@ -171,139 +134,6 @@ impl CheckpointTable {
     pub fn is_empty(&self) -> bool {
         self.points.len() <= 2
     }
-}
-
-/// Walk one event from the boundary scan. Fall-through is the design:
-/// inline events, leaves, container Starts/Ends, and any future
-/// pulldown variant we don't yet handle simply leave the table state
-/// unchanged. The substring proptest catches the case where a new
-/// top-level block kind would need a checkpoint here.
-#[allow(clippy::wildcard_enum_match_arm)]
-fn walk_event(
-    event: Event<'_>,
-    range_start: usize,
-    depth: &mut u32,
-    event_count: u32,
-    points: &mut Vec<BlockCheckpoint>,
-    try_push: &impl Fn(&mut Vec<BlockCheckpoint>, usize, u32, u32),
-) {
-    match event {
-        Event::Start(tag) if *depth == 0 && is_top_level_block(&tag) => {
-            try_push(points, range_start, *depth, event_count);
-            if is_container(&tag) {
-                *depth = depth.saturating_add(1);
-            }
-        }
-        Event::Start(tag) if is_container(&tag) => {
-            *depth = depth.saturating_add(1);
-        }
-        Event::End(end) if is_container_end(end) => {
-            *depth = depth.saturating_sub(1);
-        }
-        Event::Rule if *depth == 0 => {
-            try_push(points, range_start, *depth, event_count);
-        }
-        _ => {}
-    }
-}
-
-fn is_top_level_block(tag: &Tag<'_>) -> bool {
-    matches!(
-        tag,
-        Tag::Paragraph
-            | Tag::Heading { .. }
-            | Tag::BlockQuote(_)
-            | Tag::CodeBlock(_)
-            | Tag::HtmlBlock
-            | Tag::List(_)
-            | Tag::Table(_)
-            | Tag::FootnoteDefinition(_)
-    )
-}
-
-fn is_container(tag: &Tag<'_>) -> bool {
-    matches!(
-        tag,
-        Tag::BlockQuote(_)
-            | Tag::List(_)
-            | Tag::Item
-            | Tag::FootnoteDefinition(_)
-            | Tag::Table(_)
-            | Tag::TableHead
-            | Tag::TableRow
-            | Tag::TableCell
-    )
-}
-
-fn is_container_end(end: TagEnd) -> bool {
-    matches!(
-        end,
-        TagEnd::BlockQuote(_)
-            | TagEnd::List(_)
-            | TagEnd::Item
-            | TagEnd::FootnoteDefinition
-            | TagEnd::Table
-            | TagEnd::TableHead
-            | TagEnd::TableRow
-            | TagEnd::TableCell
-    )
-}
-
-/// Mirrors `ir::split_frontmatter`'s offset return without
-/// constructing the `Frontmatter` payload. Keep the two in sync: the
-/// `ir.rs` version is the authority on what counts as a frontmatter
-/// block (see its body for the YAML/TOML disambiguation rule).
-fn frontmatter_end(source: &str) -> usize {
-    let Some(first_line_end) = source.find('\n') else {
-        return 0;
-    };
-    let first_line = source.get(..first_line_end).unwrap_or("");
-    let trimmed = first_line.trim_end();
-    let close_pat: &[&str] = match trimmed {
-        "---" => &["---", "..."],
-        "+++" => &["+++"],
-        _ => return 0,
-    };
-    let body_start = first_line_end.saturating_add(1);
-    let Some(rest) = source.get(body_start..) else {
-        return 0;
-    };
-    let mut cursor = 0usize;
-    let mut saw_key = false;
-    while cursor < rest.len() {
-        let nl = rest
-            .get(cursor..)
-            .and_then(|s| s.find('\n'))
-            .unwrap_or_else(|| rest.len().saturating_sub(cursor));
-        let end_excl = cursor.saturating_add(nl);
-        let line = rest.get(cursor..end_excl).unwrap_or("");
-        let line_trim = line.trim_end();
-        if close_pat.contains(&line_trim) {
-            if !saw_key {
-                return 0;
-            }
-            return body_start.saturating_add(end_excl).saturating_add(1).min(source.len());
-        }
-        if line_has_key(line_trim, trimmed == "+++") {
-            saw_key = true;
-        }
-        cursor = end_excl.saturating_add(1);
-    }
-    0
-}
-
-fn line_has_key(line: &str, toml: bool) -> bool {
-    let trimmed = line.trim_start();
-    let sep = if toml { '=' } else { ':' };
-    let Some(idx) = trimmed.find(sep) else {
-        return false;
-    };
-    let key = trimmed.get(..idx).unwrap_or("").trim();
-    !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-}
-
-fn parser_state_hash(depth: u32, event_count: u32) -> u64 {
-    (u64::from(depth) << 32) | u64::from(event_count)
 }
 
 #[cfg(test)]

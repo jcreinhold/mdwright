@@ -11,6 +11,7 @@
 use crate::FmtOptions;
 use crate::format::rewrite;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
+use mdwright_document::ParseOptions;
 
 /// Format `source` per `opts`. Returns the resulting string.
 ///
@@ -20,13 +21,13 @@ use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trai
 /// transformations route through the canonicalise pass; each rewrite
 /// verifies before commit so a failed rewrite silently skips and the
 /// source bytes survive.
-pub(crate) fn format_document(source: &str, opts: &FmtOptions) -> String {
+pub(crate) fn format_document(source: &str, opts: &FmtOptions, parse_options: ParseOptions) -> String {
     let mut out = source.to_string();
     let has_canonicalisation = opts.has_any_canonicalisation();
     let has_wrap = !matches!(opts.wrap(), crate::Wrap::Keep);
 
     if has_canonicalisation || has_wrap {
-        out = rewrite::apply_rewrites(&out, opts);
+        out = rewrite::apply_rewrites(&out, opts, parse_options);
     }
     // Defensive: `Source::canonical()` already normalises CR/CRLF to LF
     // before parse, so `source` here is LF-only in practice. The pass is a

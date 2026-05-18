@@ -11,6 +11,15 @@ repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
+[package.metadata.binstall]
+bin-dir = "mdwright-{ target }/mdwright"
+pkg-fmt = "txz"
+pkg-url = "{ repo }/releases/download/v{ version }/mdwright-{ target }.tar.xz"
+
+[[bin]]
+name = "mdwright"
+path = "src/bin/mdwright.rs"
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true }
@@ -31,6 +40,7 @@ tracing-subscriber = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
+xtask = { path = "../../xtask" }
 
 [lints]
 workspace = true

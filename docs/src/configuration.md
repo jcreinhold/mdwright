@@ -36,8 +36,6 @@ The following knobs accept CLI flags that take precedence over the
 config file:
 
 - `lint.rules` — `--rules`
-- (formatter mode is exposed via `--mode` but is not currently a
-  config-file knob)
 - `--no-suppress` toggles whether `<!-- mdwright: allow ... -->`
   comments are honoured; there is no config-file equivalent.
 
@@ -73,16 +71,21 @@ All other `[fmt]` knobs are config-file-only.
 | `fmt.footnotes.placement` | "end" \| "preserve" | `"preserve"` | `—` | Where footnote definitions are emitted. Default is `preserve` because pulldown-cmark's HTML renderer ties footnote position to parse order; moving definitions would change the rendered HTML. |
 | `fmt.frontmatter.preserve` | bool | `true` | `—` | Whether to emit document frontmatter byte-verbatim. `false` strips it. |
 | `fmt.heading-attrs` | "preserve" \| "canonicalise" | `"preserve"` | `—` | ATX heading `{#id .class key=val}` trailer emission. `preserve` (default) emits the source trailer byte-verbatim. `canonicalise` emits id first, then classes (source order), then key=value pairs (source order). See [Markdown extensions](concepts/extensions.md#heading-attribute-lists). |
-| `fmt.extensions.definition-lists` | bool | `true` | `—` | Recognise `Term\n: definition\n` definition lists. Default on; turn off on non-mkdocs corpora to suppress recognition. |
-| `fmt.extensions.abbreviation-lists` | bool | `true` | `—` | Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does. |
-| `fmt.extensions.heading-attribute-lists` | bool | `true` | `—` | Recognise `# Heading {#id .class}` trailers via pulldown's `ENABLE_HEADING_ATTRIBUTES`. When off, the trailer reads as plain text in the heading body. |
-| `fmt.extensions.block-attribute-lists` | bool | `true` | `—` | Recognise `{ .class }` on a line by itself after a non-empty block as a scan-and-preserve overlay. Inline attribute lists (mid-paragraph) are out of scope. |
-| `fmt.extensions.myst.directive-containers` | bool | `true` | `—` | Recognise MyST `:::{name}` directive containers (with `:KEY: value` options) as a scan-and-preserve overlay. mdwright does not expand directives; downstream renderers (Sphinx, jupyter-book) do. |
-| `fmt.extensions.myst.inline-roles` | bool | `true` | `—` | Recognise MyST `` {role}`payload` `` inline roles as a scan-and-preserve overlay inside paragraph text. |
-| `fmt.extensions.myst.substitution-references` | bool | `true` | `—` | Recognise MyST `{{name}}` inline substitution references as a scan-and-preserve overlay. Declarations live in YAML frontmatter under `myst_substitutions:` and round-trip through the frontmatter verbatim path. |
-| `fmt.extensions.myst.comments` | bool | `true` | `—` | Recognise MyST `%` line comments at line-start as a scan-and-preserve overlay. |
-| `fmt.extensions.pandoc.fenced-divs` | bool | `true` | `—` | Recognise Pandoc `::: {.cls}` fenced div openers (attribute form). Closer is a colon-only line of matching count. |
-| `fmt.extensions.pandoc.short-form-divs` | bool | `true` | `—` | Recognise Pandoc `:::name` fenced div openers (short form). |
-| `fmt.extensions.pandoc.inline-attribute-spans` | bool | `true` | `—` | Recognise Pandoc `[content]{.cls}` inline attribute spans as a scan-and-preserve overlay. |
+
+### `[parse]` and nested tables
+
+| Key | Type | Default | CLI override | Description |
+| --- | --- | --- | --- | --- |
+| `parse.extensions.definition-lists` | bool | `true` | `—` | Recognise `Term\n: definition\n` definition lists. Default on; turn off on non-mkdocs corpora to suppress recognition. |
+| `parse.extensions.abbreviation-lists` | bool | `true` | `—` | Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does. |
+| `parse.extensions.heading-attribute-lists` | bool | `true` | `—` | Recognise `# Heading {#id .class}` trailers via pulldown's `ENABLE_HEADING_ATTRIBUTES`. When off, the trailer reads as plain text in the heading body. |
+| `parse.extensions.block-attribute-lists` | bool | `true` | `—` | Recognise `{ .class }` on a line by itself after a non-empty block as a scan-and-preserve overlay. Inline attribute lists (mid-paragraph) are out of scope. |
+| `parse.extensions.myst.directive-containers` | bool | `true` | `—` | Recognise MyST `:::{name}` directive containers (with `:KEY: value` options) as a scan-and-preserve overlay. mdwright does not expand directives; downstream renderers (Sphinx, jupyter-book) do. |
+| `parse.extensions.myst.inline-roles` | bool | `true` | `—` | Recognise MyST `` {role}`payload` `` inline roles as a scan-and-preserve overlay inside paragraph text. |
+| `parse.extensions.myst.substitution-references` | bool | `true` | `—` | Recognise MyST `{{name}}` inline substitution references as a scan-and-preserve overlay. Declarations live in YAML frontmatter under `myst_substitutions:` and round-trip through the frontmatter verbatim path. |
+| `parse.extensions.myst.comments` | bool | `true` | `—` | Recognise MyST `%` line comments at line-start as a scan-and-preserve overlay. |
+| `parse.extensions.pandoc.fenced-divs` | bool | `true` | `—` | Recognise Pandoc `::: {.cls}` fenced div openers (attribute form). Closer is a colon-only line of matching count. |
+| `parse.extensions.pandoc.short-form-divs` | bool | `true` | `—` | Recognise Pandoc `:::name` fenced div openers (short form). |
+| `parse.extensions.pandoc.inline-attribute-spans` | bool | `true` | `—` | Recognise Pandoc `[content]{.cls}` inline attribute spans as a scan-and-preserve overlay. |
 
 <!-- END GENERATED -->

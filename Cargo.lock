@@ -837,6 +837,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "xtask",
 ]
 
 [[package]]
@@ -868,6 +869,7 @@ name = "mdwright-extra-example"
 version = "0.0.0"
 dependencies = [
  "mdwright",
+ "mdwright-cli",
 ]
 
 [[package]]
@@ -877,7 +879,6 @@ dependencies = [
  "anyhow",
  "mdwright-document",
  "mdwright-math",
- "pulldown-cmark",
  "tracing",
  "unicode-width",
 ]

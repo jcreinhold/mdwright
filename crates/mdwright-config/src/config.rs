@@ -145,14 +145,13 @@ impl Config {
     }
 
     fn from_schema(schema: Schema, source: Option<PathBuf>) -> Self {
-        let Schema { lint, mut fmt } = schema;
-        let extensions = fmt.extensions.take();
+        let Schema { lint, fmt, parse } = schema;
         Self {
             rules_spec: lint.rules,
             exclude_globs: lint.exclude,
             extra_info_strings: lint.info_strings.extra,
             fmt_options: fmt_options_from_schema(fmt),
-            parse_options: parse_options_from_extensions(extensions),
+            parse_options: parse_options_from_schema(parse),
             source,
         }
     }
@@ -199,6 +198,8 @@ struct Schema {
     lint: LintSchema,
     #[serde(default)]
     fmt: FmtSchema,
+    #[serde(default)]
+    parse: ParseSchema,
 }
 
 #[derive(Debug, Deserialize)]
@@ -264,8 +265,6 @@ struct FmtSchema {
     math: Option<MathSchema>,
     #[serde(default, rename = "heading-attrs")]
     heading_attrs: Option<HeadingAttrsSchema>,
-    #[serde(default)]
-    extensions: Option<ExtensionsSchema>,
 }
 
 fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
@@ -319,9 +318,16 @@ fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
     opts
 }
 
-fn parse_options_from_extensions(extensions: Option<ExtensionsSchema>) -> ParseOptions {
-    extensions.map_or_else(ParseOptions::default, |schema| {
-        ParseOptions::default().with_extensions(ExtensionOptions::from(schema))
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ParseSchema {
+    #[serde(default)]
+    extensions: Option<ExtensionsSchema>,
+}
+
+fn parse_options_from_schema(schema: ParseSchema) -> ParseOptions {
+    schema.extensions.map_or_else(ParseOptions::default, |extensions| {
+        ParseOptions::default().with_extensions(ExtensionOptions::from(extensions))
     })
 }
 
@@ -832,6 +838,43 @@ exclude = ["docs/generated/**"]
         let columns = config_from_str("[fmt]\nwrap = 70\n")?;
         assert_eq!(columns.fmt_options().wrap(), Wrap::At(70));
         assert_eq!(columns.fmt_options().wrap().columns(), 70);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_extensions_are_parse_policy() -> Result<()> {
+        let cfg = config_from_str(
+            r"
+[parse.extensions]
+definition-lists = false
+heading-attribute-lists = false
+
+[parse.extensions.myst]
+comments = false
+
+[parse.extensions.pandoc]
+inline-attribute-spans = false
+",
+        )?;
+        let extensions = cfg.parse_options().extensions();
+        assert!(!extensions.definition_lists);
+        assert!(!extensions.heading_attribute_lists);
+        assert!(!extensions.myst.comments);
+        assert!(!extensions.pandoc.inline_attribute_spans);
+        Ok(())
+    }
+
+    #[test]
+    fn formatter_extension_table_is_not_a_schema_key() -> Result<()> {
+        let src = concat!("[fmt", ".extensions]\ndefinition-lists = false\n");
+        let err = toml::from_str::<Schema>(src)
+            .err()
+            .ok_or_else(|| anyhow!("expected error"))?;
+        let rendered = err.to_string();
+        assert!(
+            rendered.contains("extensions"),
+            "error should name rejected formatter extension table: {rendered}"
+        );
         Ok(())
     }
 

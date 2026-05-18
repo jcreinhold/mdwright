@@ -110,13 +110,13 @@ name fail fast.
 
 ## Shipping a custom binary
 
-The library entry point [`mdwright::cli::run_with_rules`][run] takes
+The CLI crate entry point [`mdwright_cli::run_with_rules`][run] takes
 your assembled `RuleSet` and runs the whole CLI on top of it — clap
 parsing, config discovery, every output format, the LSP server, the
 suppression machinery. Your `main` is ten lines:
 
 ```rust,no_run
-use mdwright::{cli, stdlib};
+use mdwright::stdlib;
 # struct NoTodoInProse;
 # impl mdwright::LintRule for NoTodoInProse {
 #     fn name(&self) -> &str { "no-todo-in-prose" }
@@ -127,7 +127,7 @@ use mdwright::{cli, stdlib};
 fn main() -> std::process::ExitCode {
     let mut rules = stdlib::all();
     rules.add(Box::new(NoTodoInProse)).expect("unique name");
-    cli::run_with_rules(rules)
+    mdwright_cli::run_with_rules(rules)
 }
 ```
 
@@ -176,5 +176,5 @@ in place of `mdwright` — the command-line interface is identical.
 [fix]: https://docs.rs/mdwright/latest/mdwright/struct.Fix.html
 [ruleset]: https://docs.rs/mdwright/latest/mdwright/struct.RuleSet.html
 [ruleset-add]: https://docs.rs/mdwright/latest/mdwright/struct.RuleSet.html#method.add
-[run]: https://docs.rs/mdwright/latest/mdwright/cli/fn.run_with_rules.html
+[run]: https://docs.rs/mdwright-cli/latest/mdwright_cli/fn.run_with_rules.html
 [trait]: https://docs.rs/mdwright/latest/mdwright/trait.LintRule.html

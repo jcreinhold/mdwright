@@ -14,7 +14,6 @@ version.workspace = true
 [dependencies]
 mdwright-document = { workspace = true }
 mdwright-math = { workspace = true }
-pulldown-cmark = { workspace = true }
 tracing = { workspace = true }
 unicode-width = { workspace = true }
 

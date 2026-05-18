@@ -10,7 +10,7 @@
 use std::fs;
 use std::os::unix::fs::symlink;
 
-use mdwright::discover_markdown;
+use mdwright_cli::discover_markdown;
 use tempfile::tempdir;
 
 #[test]

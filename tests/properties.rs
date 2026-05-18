@@ -141,7 +141,7 @@ proptest! {
         let len = src.len();
         let lo = range_pair.0.min(len);
         let hi = range_pair.1.min(len).max(lo);
-        let part = format_range(&src, &opts, lo..hi);
+        let part = format_range(&Document::parse(&src), &opts, lo..hi);
         if !whole.contains(&part) {
             dump_counterexample("range-substring", &src);
             eprintln!("range = {lo}..{hi}");

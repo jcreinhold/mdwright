@@ -1,7 +1,7 @@
 # CLI reference
 
 Auto-generated from clap's `--help` output by `cargo xtask doc-cli`. Edit the CLI definition in
-`src/bin/mdwright.rs` (or the rule registry for `list-rules`); never edit this file by hand.
+`crates/mdwright-cli/src/bin/mdwright.rs` (or the rule registry for `list-rules`); never edit this file by hand.
 
 ## `mdwright`
 

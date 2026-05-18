@@ -563,7 +563,7 @@ fn run_fmt(
         if !(args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-")) {
             bail!("--range reads from stdin; pass `-` for paths or omit them");
         }
-        return run_fmt_range_stdin(&opts, range_arg, args, policy);
+        return run_fmt_range_stdin(&opts, parse_options, range_arg, args, policy);
     }
 
     if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
@@ -652,6 +652,7 @@ fn run_fmt(
 
 fn run_fmt_range_stdin(
     opts: &FmtOptions,
+    parse_options: ParseOptions,
     range_arg: RangeArg,
     args: &FmtArgs,
     policy: InputPolicy,
@@ -686,8 +687,9 @@ fn run_fmt_range_stdin(
     if hi < lo {
         bail!("range end ({hi}) precedes range start ({lo})");
     }
-    let table = CheckpointTable::build(&buf);
-    let formatted = format_range_with_checkpoints(&buf, opts, &table, lo..hi);
+    let doc = Document::parse_with_options(&buf, parse_options);
+    let table = CheckpointTable::build_with_options(doc.source(), parse_options);
+    let formatted = format_range_with_checkpoints(&doc, opts, &table, lo..hi);
     let stdout = io::stdout();
     let mut out = stdout.lock();
     out.write_all(formatted.as_bytes())?;

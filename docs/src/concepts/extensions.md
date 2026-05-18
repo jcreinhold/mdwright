@@ -23,7 +23,7 @@ Defaults are **on**: these are features the source already uses, not formatter o
 `.mdwright.toml` when you run mdwright on non-mkdocs corpora and don't want any of the four to fire by accident:
 
 ```toml,no-check
-[fmt.extensions]
+[parse.extensions]
 definition-lists = false
 abbreviation-lists = false
 heading-attribute-lists = false

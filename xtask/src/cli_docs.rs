@@ -23,7 +23,7 @@ const SUBCOMMANDS: &[&str] = &["", "check", "fix", "fmt", "fmt-check", "list-rul
 /// Build the expected contents of [`CLI_DOC_PATH`] by invoking each
 /// subcommand's `--help`. Pass `Some(path)` to use an already-built
 /// binary (e.g. from `env!("CARGO_BIN_EXE_mdwright")` in tests);
-/// pass `None` to build via `cargo build --bin mdwright`.
+/// pass `None` to build via `cargo build -p mdwright-cli --bin mdwright`.
 ///
 /// # Errors
 ///
@@ -38,7 +38,7 @@ pub fn render(workspace: &Path, binary_override: Option<&Path>) -> Result<String
     let mut out = String::from("# CLI reference\n\n");
     out.push_str(
         "Auto-generated from clap's `--help` output by `cargo xtask doc-cli`. Edit the CLI definition in\n\
-         `src/bin/mdwright.rs` (or the rule registry for `list-rules`); never edit this file by hand.\n",
+         `crates/mdwright-cli/src/bin/mdwright.rs` (or the rule registry for `list-rules`); never edit this file by hand.\n",
     );
 
     for subcmd in SUBCOMMANDS {
@@ -121,12 +121,12 @@ pub fn check(workspace: &Path, binary_override: Option<&Path>) -> Result<Vec<Dri
 /// absolute path. Used when no override is provided.
 fn ensure_binary(workspace: &Path) -> Result<PathBuf> {
     let status = Command::new("cargo")
-        .args(["build", "--quiet", "--bin", "mdwright"])
+        .args(["build", "--quiet", "-p", "mdwright-cli", "--bin", "mdwright"])
         .current_dir(workspace)
         .status()
-        .context("invoke `cargo build --bin mdwright`")?;
+        .context("invoke `cargo build -p mdwright-cli --bin mdwright`")?;
     if !status.success() {
-        bail!("`cargo build --bin mdwright` exited with {status}");
+        bail!("`cargo build -p mdwright-cli --bin mdwright` exited with {status}");
     }
 
     let bin = workspace

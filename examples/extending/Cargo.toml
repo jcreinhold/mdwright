@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 mdwright = { path = "../.." }
+mdwright-cli = { path = "../../crates/mdwright-cli" }
 
 [lints.rust]
 unsafe-code = "forbid"

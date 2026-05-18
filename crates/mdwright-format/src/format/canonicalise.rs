@@ -40,13 +40,9 @@
 //!    three byte choices.
 //! 6. link destination style — angle/bare toggle, per definition.
 
-use pulldown_cmark::{Event, Tag, TagEnd};
-
 use crate::format::rewrite::{Candidate, OwnerKind, Phase, Snapshot, Verification};
 use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender};
-use mdwright_document::parse;
-use mdwright_document::{CanonicalSource, Source};
-use mdwright_document::{HeadingAttrs, find_attr_trailer_range};
+use mdwright_document::InlineDelimiterKind;
 use mdwright_math::MathRegion;
 use mdwright_math::MathSpan;
 use mdwright_math::normalise::{align_env_body, body_braces_balanced};
@@ -120,20 +116,6 @@ impl EmphasisKind {
         }
     }
 
-    fn matches_start(self, ev: &Event<'_>) -> bool {
-        match self {
-            Self::Italic => matches!(ev, Event::Start(Tag::Emphasis)),
-            Self::Strong => matches!(ev, Event::Start(Tag::Strong)),
-        }
-    }
-
-    fn matches_end(self, ev: &Event<'_>) -> bool {
-        match self {
-            Self::Italic => matches!(ev, Event::End(TagEnd::Emphasis)),
-            Self::Strong => matches!(ev, Event::End(TagEnd::Strong)),
-        }
-    }
-
     fn label(self) -> &'static str {
         match self {
             Self::Italic => "italic",
@@ -147,15 +129,25 @@ impl EmphasisKind {
             Self::Strong => Phase::Strong,
         }
     }
+
+    fn document_kind(self) -> InlineDelimiterKind {
+        match self {
+            Self::Italic => InlineDelimiterKind::Emphasis,
+            Self::Strong => InlineDelimiterKind::Strong,
+        }
+    }
 }
 
 fn collect_emphasis_delim(snapshot: &Snapshot<'_>, kind: EmphasisKind, target: u8, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let spans = collect_emphasis_spans(out, kind);
+    let spans = snapshot.document().inline_delimiter_spans(kind.document_kind());
     let delim_len = kind.delim_len();
 
     for span in spans {
-        let (open_lo, open_hi, close_lo, close_hi) = span;
+        let open_lo = span.open_lo;
+        let open_hi = span.open_hi;
+        let close_lo = span.close_lo;
+        let close_hi = span.close_hi;
         let bytes = out.as_bytes();
         let Some(open) = bytes.get(open_lo..open_hi) else {
             continue;
@@ -194,55 +186,11 @@ fn collect_emphasis_delim(snapshot: &Snapshot<'_>, kind: EmphasisKind, target: u
     }
 }
 
-/// Returns `(open_lo, open_hi, close_lo, close_hi)` for every span of
-/// `kind` in source order. Indices reference `out`'s byte buffer.
-fn collect_emphasis_spans(out: &str, kind: EmphasisKind) -> Vec<(usize, usize, usize, usize)> {
-    let src = Source::new(out);
-    let mut starts: Vec<usize> = Vec::new();
-    let mut spans: Vec<(usize, usize, usize, usize)> = Vec::new();
-    let delim_len = kind.delim_len();
-    let bytes = out.as_bytes();
-    for (ev, range) in parse::events_with_offsets(
-        CanonicalSource::from_source(&src),
-        parse::options(mdwright_document::ParseOptions::default()),
-    ) {
-        if kind.matches_start(&ev) {
-            starts.push(range.start);
-        } else if kind.matches_end(&ev) {
-            let Some(open_lo) = starts.pop() else { continue };
-            let close_hi = range.end;
-            if close_hi < delim_len {
-                continue;
-            }
-            let close_lo = close_hi.saturating_sub(delim_len);
-            let open_hi = open_lo.saturating_add(delim_len);
-            if open_hi > close_lo {
-                continue;
-            }
-            let Some(open) = bytes.get(open_lo..open_hi) else {
-                continue;
-            };
-            let Some(close) = bytes.get(close_lo..close_hi) else {
-                continue;
-            };
-            if !is_emphasis_delim_run(open) || !is_emphasis_delim_run(close) {
-                continue;
-            }
-            spans.push((open_lo, open_hi, close_lo, close_hi));
-        }
-    }
-    spans
-}
-
-fn is_emphasis_delim_run(bytes: &[u8]) -> bool {
-    !bytes.is_empty() && bytes.iter().all(|&b| b == b'*' || b == b'_')
-}
-
 // ----- Unordered list bullet rewrite ----------------------------
 
 fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let lists = collect_unordered_lists(out);
+    let lists = snapshot.document().unordered_list_sites();
     for list in lists {
         if list.bullets.is_empty() {
             continue;
@@ -252,7 +200,8 @@ fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates
         if already_target {
             continue;
         }
-        let (lo, hi) = list.range;
+        let lo = list.raw_range.start;
+        let hi = list.raw_range.end;
         let Some(slice) = bytes.get(lo..hi) else {
             continue;
         };
@@ -279,77 +228,11 @@ fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates
     }
 }
 
-struct ListSites {
-    range: (usize, usize),
-    bullets: Vec<usize>,
-}
-
-fn collect_unordered_lists(out: &str) -> Vec<ListSites> {
-    let src = Source::new(out);
-    let bytes = out.as_bytes();
-    let mut stack: Vec<(bool, ListSites)> = Vec::new();
-    let mut completed: Vec<ListSites> = Vec::new();
-
-    for (ev, range) in parse::events_with_offsets(
-        CanonicalSource::from_source(&src),
-        parse::options(mdwright_document::ParseOptions::default()),
-    ) {
-        #[allow(clippy::wildcard_enum_match_arm, reason = "only list events drive this walk")]
-        match ev {
-            Event::Start(Tag::List(start)) => {
-                stack.push((
-                    start.is_none(),
-                    ListSites {
-                        range: (range.start, range.end),
-                        bullets: Vec::new(),
-                    },
-                ));
-            }
-            Event::End(TagEnd::List(_)) => {
-                if let Some((unordered, sites)) = stack.pop()
-                    && unordered
-                {
-                    completed.push(sites);
-                }
-            }
-            Event::Start(Tag::Item) => {
-                let Some((unordered, sites)) = stack.last_mut() else {
-                    continue;
-                };
-                if !*unordered {
-                    continue;
-                }
-                if let Some(p) = find_unordered_bullet(bytes, range.start, range.end) {
-                    sites.bullets.push(p);
-                }
-            }
-            _ => {}
-        }
-    }
-    completed
-}
-
-fn find_unordered_bullet(bytes: &[u8], start: usize, end: usize) -> Option<usize> {
-    let end = end.min(bytes.len());
-    let mut i = start;
-    while i < end {
-        let b = bytes.get(i).copied()?;
-        if b == b'-' || b == b'*' || b == b'+' {
-            return Some(i);
-        }
-        if b != b' ' && b != b'\t' {
-            return None;
-        }
-        i = i.saturating_add(1);
-    }
-    None
-}
-
 // ----- Ordered list renumber ------------------------------------
 
 fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let lists = collect_ordered_lists(out);
+    let lists = snapshot.document().ordered_list_sites();
 
     for list in lists {
         let Some(first) = list.items.first() else {
@@ -359,7 +242,8 @@ fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, candidates: &mut Vec<C
         let Some(start_num) = scan_ordered_marker_number(bytes_view, first.marker_lo, first.marker_hi) else {
             continue;
         };
-        let (lo, hi) = list.range;
+        let lo = list.raw_range.start;
+        let hi = list.raw_range.end;
         let Some(slice) = bytes_view.get(lo..hi) else {
             continue;
         };
@@ -400,85 +284,6 @@ fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, candidates: &mut Vec<C
     }
 }
 
-struct OrderedListSites {
-    range: (usize, usize),
-    items: Vec<OrderedItemSite>,
-}
-
-struct OrderedItemSite {
-    marker_lo: usize,
-    marker_hi: usize,
-}
-
-fn collect_ordered_lists(out: &str) -> Vec<OrderedListSites> {
-    let src = Source::new(out);
-    let bytes = out.as_bytes();
-    let mut stack: Vec<(bool, OrderedListSites)> = Vec::new();
-    let mut completed: Vec<OrderedListSites> = Vec::new();
-
-    for (ev, range) in parse::events_with_offsets(
-        CanonicalSource::from_source(&src),
-        parse::options(mdwright_document::ParseOptions::default()),
-    ) {
-        #[allow(clippy::wildcard_enum_match_arm, reason = "only list events drive this walk")]
-        match ev {
-            Event::Start(Tag::List(start)) => {
-                stack.push((
-                    start.is_some(),
-                    OrderedListSites {
-                        range: (range.start, range.end),
-                        items: Vec::new(),
-                    },
-                ));
-            }
-            Event::End(TagEnd::List(_)) => {
-                if let Some((ordered, sites)) = stack.pop()
-                    && ordered
-                {
-                    completed.push(sites);
-                }
-            }
-            Event::Start(Tag::Item) => {
-                let Some((ordered, sites)) = stack.last_mut() else {
-                    continue;
-                };
-                if !*ordered {
-                    continue;
-                }
-                if let Some((mlo, mhi)) = find_ordered_marker_digits(bytes, range.start, range.end) {
-                    sites.items.push(OrderedItemSite {
-                        marker_lo: mlo,
-                        marker_hi: mhi,
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-    completed
-}
-
-fn find_ordered_marker_digits(bytes: &[u8], start: usize, end: usize) -> Option<(usize, usize)> {
-    let end = end.min(bytes.len());
-    let mut i = start;
-    while i < end {
-        let b = bytes.get(i).copied()?;
-        if b == b' ' || b == b'\t' {
-            i = i.saturating_add(1);
-            continue;
-        }
-        if !b.is_ascii_digit() {
-            return None;
-        }
-        let digit_lo = i;
-        while i < end && bytes.get(i).copied().is_some_and(|c| c.is_ascii_digit()) {
-            i = i.saturating_add(1);
-        }
-        return Some((digit_lo, i));
-    }
-    None
-}
-
 fn scan_ordered_marker_number(bytes: &[u8], lo: usize, hi: usize) -> Option<u64> {
     let slice = bytes.get(lo..hi)?;
     let s = std::str::from_utf8(slice).ok()?;
@@ -489,8 +294,9 @@ fn scan_ordered_marker_number(bytes: &[u8], lo: usize, hi: usize) -> Option<u64>
 
 fn collect_thematic(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let sites = collect_thematic_breaks(out);
-    for (lo, hi) in sites {
+    for range in snapshot.document().thematic_break_ranges() {
+        let lo = range.start;
+        let hi = range.end;
         let bytes = out.as_bytes();
         let Some(line) = bytes.get(lo..hi) else { continue };
         if line.is_empty() {
@@ -521,25 +327,6 @@ fn collect_thematic(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Ca
     }
 }
 
-fn collect_thematic_breaks(out: &str) -> Vec<(usize, usize)> {
-    let src = Source::new(out);
-    let mut sites: Vec<(usize, usize)> = Vec::new();
-    for (ev, range) in parse::events_with_offsets(
-        CanonicalSource::from_source(&src),
-        parse::options(mdwright_document::ParseOptions::default()),
-    ) {
-        if matches!(ev, Event::Rule) {
-            let bytes = out.as_bytes();
-            let mut hi = range.end.min(bytes.len());
-            while hi > range.start && matches!(bytes.get(hi.saturating_sub(1)).copied(), Some(b'\n' | b'\r')) {
-                hi = hi.saturating_sub(1);
-            }
-            sites.push((range.start, hi));
-        }
-    }
-    sites
-}
-
 // ----- Heading attribute trailer canonicalisation ---------------
 
 /// Rewrite every ATX heading's `{...}` attribute trailer to canonical
@@ -549,13 +336,11 @@ fn collect_thematic_breaks(out: &str) -> Vec<(usize, usize)> {
 /// reparse check would fail.
 fn collect_heading_attrs(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let sites = collect_heading_attr_sites(out);
+    let sites = snapshot.document().heading_attr_sites();
     for site in sites {
-        let HeadingAttrSite {
-            attrs,
-            trailer_lo,
-            trailer_hi,
-        } = site;
+        let attrs = site.attrs;
+        let trailer_lo = site.trailer.start;
+        let trailer_hi = site.trailer.end;
         let bytes = out.as_bytes();
         let Some(existing) = bytes.get(trailer_lo..trailer_hi) else {
             continue;
@@ -575,51 +360,6 @@ fn collect_heading_attrs(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
             candidates.push(candidate);
         }
     }
-}
-
-struct HeadingAttrSite {
-    attrs: HeadingAttrs,
-    trailer_lo: usize,
-    trailer_hi: usize,
-}
-
-fn collect_heading_attr_sites(out: &str) -> Vec<HeadingAttrSite> {
-    let src = Source::new(out);
-    let mut sites: Vec<HeadingAttrSite> = Vec::new();
-    for (ev, range) in parse::events_with_offsets(
-        CanonicalSource::from_source(&src),
-        parse::options(mdwright_document::ParseOptions::default()),
-    ) {
-        #[allow(clippy::wildcard_enum_match_arm, reason = "only heading start drives the walk")]
-        if let Event::Start(Tag::Heading { id, classes, attrs, .. }) = ev
-            && (id.is_some() || !classes.is_empty() || !attrs.is_empty())
-        {
-            let heading_attrs = HeadingAttrs {
-                id: id.map(|s| s.to_string()),
-                classes: classes.iter().map(|c| c.to_string()).collect(),
-                attrs: attrs
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.as_ref().map(std::string::ToString::to_string)))
-                    .collect(),
-                source_trailer: String::new(),
-            };
-            let bytes = out.as_bytes();
-            let Some(slice_bytes) = bytes.get(range.clone()) else {
-                continue;
-            };
-            let Ok(slice) = std::str::from_utf8(slice_bytes) else {
-                continue;
-            };
-            if let Some(trailer_range) = find_attr_trailer_range(slice) {
-                sites.push(HeadingAttrSite {
-                    attrs: heading_attrs,
-                    trailer_lo: range.start.saturating_add(trailer_range.start),
-                    trailer_hi: range.start.saturating_add(trailer_range.end),
-                });
-            }
-        }
-    }
-    sites
 }
 
 // ----- Link destination style -----------------------------------
@@ -691,31 +431,12 @@ struct LinkDestinationSite {
 }
 
 fn collect_link_destination_sites(snapshot: &Snapshot<'_>) -> Vec<LinkDestinationSite> {
-    let out = snapshot.source();
-    let src = Source::new(out);
-    let bytes = out.as_bytes();
     let mut sites: Vec<LinkDestinationSite> = Vec::new();
-    let mut link_stack: Vec<usize> = Vec::new();
-    for (ev, range) in parse::events_with_offsets(
-        CanonicalSource::from_source(&src),
-        parse::options(mdwright_document::ParseOptions::default()),
-    ) {
-        #[allow(clippy::wildcard_enum_match_arm, reason = "only link events drive this walk")]
-        match ev {
-            Event::Start(Tag::Link { .. }) => {
-                link_stack.push(range.start);
-            }
-            Event::End(TagEnd::Link) => {
-                let Some(open) = link_stack.pop() else { continue };
-                if let Some(site) = find_inline_dest_range(bytes, open, range.end) {
-                    sites.push(LinkDestinationSite {
-                        range: site.0..site.1,
-                        owner: None,
-                    });
-                }
-            }
-            _ => {}
-        }
+    for site in snapshot.document().inline_link_destination_sites() {
+        sites.push(LinkDestinationSite {
+            range: site.range,
+            owner: None,
+        });
     }
     for site in snapshot.reference_destination_sites() {
         sites.push(LinkDestinationSite {
@@ -724,85 +445,6 @@ fn collect_link_destination_sites(snapshot: &Snapshot<'_>) -> Vec<LinkDestinatio
         });
     }
     sites
-}
-
-fn find_inline_dest_range(bytes: &[u8], start: usize, end: usize) -> Option<(usize, usize)> {
-    let end = end.min(bytes.len());
-    if bytes.get(start).copied()? != b'[' {
-        return None;
-    }
-    let mut depth: i32 = 1;
-    let mut i = start.saturating_add(1);
-    while i < end {
-        let b = bytes.get(i).copied()?;
-        match b {
-            b'\\' => {
-                i = i.saturating_add(2);
-                continue;
-            }
-            b'[' => depth = depth.saturating_add(1),
-            b']' => {
-                depth = depth.saturating_sub(1);
-                if depth == 0 {
-                    break;
-                }
-            }
-            _ => {}
-        }
-        i = i.saturating_add(1);
-    }
-    if depth != 0 || bytes.get(i).copied() != Some(b']') {
-        return None;
-    }
-    let after_close = i.saturating_add(1);
-    if bytes.get(after_close).copied() != Some(b'(') {
-        return None;
-    }
-    let mut j = after_close.saturating_add(1);
-    while j < end && matches!(bytes.get(j).copied(), Some(b' ' | b'\t' | b'\n')) {
-        j = j.saturating_add(1);
-    }
-    let dest_lo = j;
-    let dest_hi = if bytes.get(j).copied() == Some(b'<') {
-        let mut k = j.saturating_add(1);
-        while k < end && bytes.get(k).copied() != Some(b'>') {
-            if bytes.get(k).copied() == Some(b'\n') {
-                return None;
-            }
-            k = k.saturating_add(1);
-        }
-        if bytes.get(k).copied() != Some(b'>') {
-            return None;
-        }
-        k.saturating_add(1)
-    } else {
-        let mut depth: i32 = 0;
-        let mut k = j;
-        while k < end {
-            let b = bytes.get(k).copied()?;
-            match b {
-                b'\\' => {
-                    k = k.saturating_add(2);
-                    continue;
-                }
-                b'(' => depth = depth.saturating_add(1),
-                b')' => {
-                    if depth == 0 {
-                        break;
-                    }
-                    depth = depth.saturating_sub(1);
-                }
-                b' ' | b'\t' | b'\n' => break,
-                _ => {}
-            }
-            k = k.saturating_add(1);
-        }
-        k
-    };
-    if dest_hi <= dest_lo {
-        return None;
-    }
-    Some((dest_lo, dest_hi))
 }
 
 // ----- Frontmatter strip ---------------------------------------

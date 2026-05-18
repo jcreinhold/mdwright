@@ -96,9 +96,9 @@ struct OpenDoc {
 }
 
 impl OpenDoc {
-    fn new(text: String, version: i32) -> Self {
+    fn new(text: String, version: i32, parse_options: ParseOptions) -> Self {
         let line_index = Arc::new(LineIndex::new(&text));
-        let table = Arc::new(CheckpointTable::build(&text));
+        let table = Arc::new(CheckpointTable::build_with_options(&text, parse_options));
         Self {
             text,
             version,
@@ -109,9 +109,9 @@ impl OpenDoc {
         }
     }
 
-    fn replace(&mut self, text: String, version: i32) {
+    fn replace(&mut self, text: String, version: i32, parse_options: ParseOptions) {
         self.line_index = Arc::new(LineIndex::new(&text));
-        self.table = Arc::new(CheckpointTable::build(&text));
+        self.table = Arc::new(CheckpointTable::build_with_options(&text, parse_options));
         self.text = text;
         self.version = version;
         if let Some(prev) = self.lint_task.take() {
@@ -247,7 +247,8 @@ impl LanguageServer for MdwrightLs {
         let text = params.text_document.text;
         let version = params.text_document.version;
         let mut state = self.state.lock().await;
-        let doc = OpenDoc::new(text, version);
+        let parse_options = state.config.parse_options();
+        let doc = OpenDoc::new(text, version, parse_options);
         state.docs.insert(uri.clone(), doc);
         let (text, version, line_index, rules, parse_options) = {
             let Some(entry) = state.docs.get(&uri) else { return };
@@ -272,15 +273,15 @@ impl LanguageServer for MdwrightLs {
         };
         let text = change.text;
         let mut state = self.state.lock().await;
+        let parse_options = state.config.parse_options();
         let entry = state
             .docs
             .entry(uri.clone())
-            .or_insert_with(|| OpenDoc::new(String::new(), version));
-        entry.replace(text, version);
+            .or_insert_with(|| OpenDoc::new(String::new(), version, parse_options));
+        entry.replace(text, version, parse_options);
         let text_snapshot = entry.text.clone();
         let line_index = Arc::clone(&entry.line_index);
         let rules = build_rules(&state.config);
-        let parse_options = state.config.parse_options();
         let state_handle = Arc::clone(&self.state);
         let client = self.client.clone();
         let uri_for_task = uri.clone();
@@ -377,11 +378,19 @@ impl LanguageServer for MdwrightLs {
             return Ok(None);
         };
         let opts = state.config.fmt_options().clone();
+        let parse_options = state.config.parse_options();
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
         let table = Arc::clone(&doc.table);
         drop(state);
-        Ok(format_range_edits(&source, &line_index, &table, &opts, lsp_range))
+        Ok(format_range_edits(
+            &source,
+            parse_options,
+            &line_index,
+            &table,
+            &opts,
+            lsp_range,
+        ))
     }
 
     async fn on_type_formatting(&self, params: DocumentOnTypeFormattingParams) -> RpcResult<Option<Vec<TextEdit>>> {
@@ -395,6 +404,7 @@ impl LanguageServer for MdwrightLs {
             return Ok(None);
         };
         let opts = state.config.fmt_options().clone();
+        let parse_options = state.config.parse_options();
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
         let table = Arc::clone(&doc.table);
@@ -403,7 +413,14 @@ impl LanguageServer for MdwrightLs {
             start: position,
             end: position,
         };
-        Ok(format_range_edits(&source, &line_index, &table, &opts, zero_width))
+        Ok(format_range_edits(
+            &source,
+            parse_options,
+            &line_index,
+            &table,
+            &opts,
+            zero_width,
+        ))
     }
 
     async fn code_action(&self, params: CodeActionParams) -> RpcResult<Option<CodeActionResponse>> {
@@ -750,6 +767,7 @@ fn overlaps(a_start: usize, a_end: usize, b_start: Option<usize>, b_end: Option<
 
 fn format_range_edits(
     source: &str,
+    parse_options: ParseOptions,
     line_index: &LineIndex,
     table: &CheckpointTable,
     opts: &FmtOptions,
@@ -758,7 +776,8 @@ fn format_range_edits(
     let lo = byte_of_position(line_index, source, lsp_range.start)?;
     let hi = byte_of_position(line_index, source, lsp_range.end).unwrap_or(source.len());
     let (lo, hi) = if hi < lo { (hi, lo) } else { (lo, hi) };
-    let formatted = format_range_with_checkpoints(source, opts, table, lo..hi);
+    let doc = Document::parse_with_options(source, parse_options);
+    let formatted = format_range_with_checkpoints(&doc, opts, table, lo..hi);
     // The formatter snaps outward to whole-block boundaries; we need
     // the snapped byte range to compute the LSP edit range. Recompute
     // by asking the checkpoint table.

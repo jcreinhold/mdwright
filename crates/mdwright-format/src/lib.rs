@@ -43,7 +43,7 @@ impl std::error::Error for FormatError {}
 #[must_use]
 #[tracing::instrument(level = "info", name = "format_document", skip_all, fields(out_len = tracing::field::Empty))]
 pub fn format_document(doc: &Document, opts: &FmtOptions) -> String {
-    let out = format::document::format_document(doc.source(), opts);
+    let out = format::document::format_document(doc.source(), opts, doc.parse_options());
     tracing::Span::current().record("out_len", out.len());
     out
 }
@@ -62,8 +62,9 @@ pub fn format_source(source: &str, opts: &FmtOptions) -> String {
 /// different canonical event stream.
 pub fn format_validated(doc: &Document, opts: &FmtOptions) -> Result<String, FormatError> {
     let formatted = format_document(doc, opts);
-    let twice = format_source(&formatted, opts);
-    match first_divergence(&formatted, &twice) {
+    let formatted_doc = Document::parse_with_options(&formatted, doc.parse_options());
+    let twice = format_document(&formatted_doc, opts);
+    match format::semantic::first_divergence_with_options(&formatted, &twice, doc.parse_options()) {
         None => Ok(formatted),
         Some(diff_summary) => Err(FormatError::SemanticDivergence {
             source: formatted.clone(),
@@ -76,15 +77,15 @@ pub fn format_validated(doc: &Document, opts: &FmtOptions) -> Result<String, For
 /// Format the smallest set of whole top-level blocks that covers
 /// `range` in `source`.
 #[must_use]
-pub fn format_range(source: &str, opts: &FmtOptions, range: Range<usize>) -> String {
-    let table = CheckpointTable::build(source);
-    format_range_with_checkpoints(source, opts, &table, range)
+pub fn format_range(doc: &Document, opts: &FmtOptions, range: Range<usize>) -> String {
+    let table = CheckpointTable::build_with_options(doc.source(), doc.parse_options());
+    format_range_with_checkpoints(doc, opts, &table, range)
 }
 
 /// Range-format using a pre-built [`CheckpointTable`].
 #[must_use]
 pub fn format_range_with_checkpoints(
-    source: &str,
+    doc: &Document,
     opts: &FmtOptions,
     table: &CheckpointTable,
     range: Range<usize>,
@@ -94,6 +95,29 @@ pub fn format_range_with_checkpoints(
     let snapped = table.snap_to_block_boundaries(req_lo..req_hi);
     let lo = snapped.start as usize;
     let hi = snapped.end as usize;
+    let source = doc.source();
     let slice = source.get(lo..hi).unwrap_or("");
-    format_source(slice, opts)
+    format::document::format_document(slice, opts, doc.parse_options())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mdwright_document::{ExtensionOptions, ParseOptions};
+
+    #[test]
+    fn format_document_uses_document_parse_options() {
+        let source = "# Heading {.class #id}\n";
+        let opts = FmtOptions::default().with_heading_attrs(HeadingAttrsStyle::Canonicalise);
+
+        let enabled = Document::parse(source);
+        assert_eq!(format_document(&enabled, &opts), "# Heading {#id .class}\n");
+
+        let parse_options = ParseOptions::default().with_extensions(ExtensionOptions {
+            heading_attribute_lists: false,
+            ..ExtensionOptions::default()
+        });
+        let disabled = Document::parse_with_options(source, parse_options);
+        assert_eq!(format_document(&disabled, &opts), source);
+    }
 }

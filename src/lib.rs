@@ -19,9 +19,8 @@
 pub use mdwright_config::{Config, ConfigError};
 pub use mdwright_document::{
     AllowScope, CodeBlock, Document, ExtensionOptions, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock,
-    InlineCode, InlineHtml, LineIndex, LineIndexError, LinkDef, ListGroup, ListItem, MathError, MathRegion, MathSpan,
-    MystOptions, Node, NodeId, NodeKind, PandocOptions, ParseOptions, Source, Suppression, SuppressionKind, TableAlign,
-    TextSlice, Tree, contains_rejected_control_chars, render_html,
+    InlineCode, InlineHtml, LinkDef, ListGroup, ListItem, MathError, MathRegion, MathSpan, MystOptions, PandocOptions,
+    ParseOptions, Suppression, SuppressionKind, TextSlice, contains_rejected_control_chars,
 };
 pub use mdwright_format::{
     CheckpointTable, EndOfLine, FmtOptions, FormatError, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle,
@@ -38,13 +37,6 @@ pub use mdwright_lint::{
 pub mod stdlib {
     pub use mdwright_lint::stdlib::{all, by_name, defaults, names};
 }
-
-/// Command-line entry points for custom binaries.
-pub mod cli {
-    pub use mdwright_cli::run_with_rules;
-}
-
-pub use mdwright_cli::discover_markdown;
 
 #[cfg(test)]
 mod tests {

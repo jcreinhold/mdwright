@@ -7,13 +7,14 @@ use crate::format::rewrite::signature::{verify_batch, verify_one};
 use crate::format::rewrite::snapshot::Snapshot;
 use crate::format::wrap_pass;
 use crate::{FmtOptions, Wrap};
+use mdwright_document::ParseOptions;
 
 const MAX_REWRITE_ITERS: u32 = 8;
 
-pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions) -> String {
+pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions, parse_options: ParseOptions) -> String {
     let mut out = source.to_owned();
     for iter in 0..MAX_REWRITE_ITERS {
-        let snapshot = Snapshot::new(&out);
+        let snapshot = Snapshot::new(&out, parse_options);
         let mut candidates = Vec::new();
         if opts.has_any_canonicalisation() {
             canonicalise::collect_candidates(&snapshot, opts, &mut candidates);
@@ -41,13 +42,13 @@ pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions) -> String {
             .all(|c| matches!(c.verification(), Verification::PreserveMarkdownAndMath))
         {
             let candidate = apply_batch(&before, &selected);
-            if verify_batch(&before, &candidate, &selected, opts) {
+            if verify_batch(&before, &candidate, &selected, opts, parse_options) {
                 out = candidate;
             } else {
-                out = apply_isolated(&before, selected, opts);
+                out = apply_isolated(&before, selected, opts, parse_options);
             }
         } else {
-            out = apply_isolated(&before, selected, opts);
+            out = apply_isolated(&before, selected, opts, parse_options);
         }
 
         if out == before {
@@ -100,7 +101,12 @@ fn apply_batch(before: &str, candidates: &[Candidate]) -> String {
     out
 }
 
-fn apply_isolated(before: &str, mut candidates: Vec<Candidate>, opts: &FmtOptions) -> String {
+fn apply_isolated(
+    before: &str,
+    mut candidates: Vec<Candidate>,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+) -> String {
     candidates.sort_by_key(|candidate| Reverse(candidate.range().start));
     let mut out = before.to_owned();
     for candidate in candidates {
@@ -112,7 +118,7 @@ fn apply_isolated(before: &str, mut candidates: Vec<Candidate>, opts: &FmtOption
         }
         let mut scratch = out.clone();
         scratch.replace_range(candidate.range().clone(), candidate.replacement());
-        if verify_one(&out, &scratch, &candidate, opts) {
+        if verify_one(&out, &scratch, &candidate, opts, parse_options) {
             out = scratch;
         } else {
             tracing::warn!(
@@ -134,12 +140,13 @@ mod tests {
     use crate::FmtOptions;
     use crate::format::rewrite::snapshot::{OwnerKind, Snapshot};
     use crate::format::rewrite::{Phase, Verification};
+    use mdwright_document::ParseOptions;
 
     use super::*;
 
     #[test]
     fn overlapping_candidates_keep_earlier_phase() {
-        let snapshot = Snapshot::new("*x*");
+        let snapshot = Snapshot::new("*x*", ParseOptions::default());
         let a = snapshot
             .candidate(
                 Phase::Italic,
@@ -167,7 +174,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_boundary_candidate_is_rejected() {
-        let snapshot = Snapshot::new("é");
+        let snapshot = Snapshot::new("é", ParseOptions::default());
         assert!(
             snapshot
                 .candidate(
@@ -184,7 +191,7 @@ mod tests {
 
     #[test]
     fn isolated_failed_candidate_leaves_source_unchanged() {
-        let snapshot = Snapshot::new("- a\n+ b\n");
+        let snapshot = Snapshot::new("- a\n+ b\n", ParseOptions::default());
         let candidate = snapshot
             .candidate(
                 Phase::UnorderedList,
@@ -195,7 +202,12 @@ mod tests {
                 "merge",
             )
             .expect("candidate");
-        let out = apply_isolated(snapshot.source(), vec![candidate], &FmtOptions::default());
+        let out = apply_isolated(
+            snapshot.source(),
+            vec![candidate],
+            &FmtOptions::default(),
+            ParseOptions::default(),
+        );
         assert_eq!(out, snapshot.source());
     }
 }

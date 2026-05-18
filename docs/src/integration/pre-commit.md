@@ -5,7 +5,7 @@ mdwright ships a `.pre-commit-hooks.yaml` at its repo root, so adding it to a pr
 
 ## Quickest path: prebuilt binary
 
-If contributors already have `mdwright` on their `$PATH` (e.g. via `cargo binstall mdwright` or a
+If contributors already have `mdwright` on their `$PATH` (e.g. via `cargo binstall mdwright-cli` or a
 GitHub release tarball), the `-system` variants avoid any toolchain dance:
 
 ```yaml,no-check
@@ -23,9 +23,9 @@ fmt-check`. Both exit non-zero on issues, blocking the commit.
 
 ## Letting pre-commit build mdwright
 
-If you don't want to require an out-of-band install, the `language: rust` hooks let `pre-commit`
-build mdwright from source into its cache. First commit after a clean cache takes ~30 s; subsequent
-runs are fast.
+If you don't want to require an out-of-band install, the source-build hooks invoke
+`cargo run -p mdwright-cli` from the checked-out repository. First commit after a clean cache takes
+~30 s; subsequent runs reuse Cargo's cache.
 
 ```yaml,no-check
 repos:
@@ -42,9 +42,9 @@ Each contributor needs a Rust toolchain on the machine running the hook.
 
 | ID                          | Equivalent CLI            | Language  |
 | --------------------------- | ------------------------- | --------- |
-| `mdwright-check`            | `mdwright check --check`  | `rust`    |
-| `mdwright-fmt`              | `mdwright fmt`            | `rust`    |
-| `mdwright-fmt-check`        | `mdwright fmt-check`      | `rust`    |
+| `mdwright-check`            | `mdwright check --check`  | `system` via Cargo |
+| `mdwright-fmt`              | `mdwright fmt`            | `system` via Cargo |
+| `mdwright-fmt-check`        | `mdwright fmt-check`      | `system` via Cargo |
 | `mdwright-check-system`     | `mdwright check --check`  | `system`  |
 | `mdwright-fmt-system`       | `mdwright fmt`            | `system`  |
 | `mdwright-fmt-check-system` | `mdwright fmt-check`      | `system`  |

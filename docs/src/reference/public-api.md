@@ -62,8 +62,7 @@ The standard rule registry is under `mdwright::stdlib::{defaults, all, by_name, 
 | Item | Kind | Reached via |
 | --- | --- | --- |
 | `Config`, `ConfigError` | types | TOML discovery and resolved options |
-| `discover_markdown` | fn | CLI file discovery |
-| `mdwright::cli::run_with_rules` | fn | downstream custom binaries |
+| `mdwright_cli::run_with_rules` | fn | downstream custom binaries |
 
 The LSP server lives in the `mdwright-lsp` crate. The facade does not re-export it so ordinary library users do not
 pull in `tokio` and `tower-lsp`.
@@ -72,7 +71,6 @@ pull in `tokio` and `tower-lsp`.
 
 | Module | Why it is public |
 | --- | --- |
-| `mdwright::cli` | custom CLI binaries can reuse mdwright's command-line delivery. |
 | `mdwright::stdlib` | users and custom binaries can select standard lint rules. |
 
 ## Not Public Surface

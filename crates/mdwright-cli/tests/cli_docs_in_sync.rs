@@ -28,5 +28,5 @@ fn cli_docs_in_sync() {
 
 fn workspace_root() -> PathBuf {
     let manifest: &Path = Path::new(env!("CARGO_MANIFEST_DIR"));
-    manifest.to_path_buf()
+    manifest.join("../..")
 }

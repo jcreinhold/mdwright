@@ -5,11 +5,12 @@ mdwright has no runtime dependencies. Pick whichever channel matches your enviro
 ## From crates.io
 
 ```sh
-cargo install mdwright
+cargo install mdwright-cli
 ```
 
 Requires Rust 1.91 or later (the MSRV is enforced in CI). The install drops a single binary,
-`mdwright`, on your `$PATH`.
+`mdwright`, on your `$PATH`. The library facade crate is `mdwright`; the command-line package is
+`mdwright-cli`.
 
 ## Prebuilt binary
 
@@ -17,7 +18,7 @@ Requires Rust 1.91 or later (the MSRV is enforced in CI). The install drops a si
 if no prebuilt binary is available:
 
 ```sh
-cargo binstall mdwright
+cargo binstall mdwright-cli
 ```
 
 Or download a `.tar.gz` directly from the
@@ -29,7 +30,7 @@ binary on your `$PATH`.
 ```sh
 git clone https://github.com/jcreinhold/mdwright
 cd mdwright
-cargo build --release
+cargo build --release -p mdwright-cli
 ./target/release/mdwright --help
 ```
 

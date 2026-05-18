@@ -8,21 +8,26 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ### Changed (breaking, pre-1.0)
 
-- Split the library into a real workspace of deep crates. The root `mdwright` crate is now a curated facade over
-  `mdwright-document`, `mdwright-math`, `mdwright-format`, `mdwright-lint`, `mdwright-config`, `mdwright-cli`, and
-  `mdwright-lsp`; CLI behaviour is unchanged.
+- Split the library into a real workspace of deep crates. The root `mdwright` crate is now a library-only facade over
+  document, formatter, lint, and config APIs; CLI behaviour is unchanged.
+- Moved the executable target into the `mdwright-cli` package. The binary name remains `mdwright`, but command users
+  install the `mdwright-cli` package while library users depend on `mdwright` without pulling in CLI/LSP dependencies.
 - Moved operation methods off `Document`. `Document` is now parse/query only: use `mdwright::format_document`,
   `mdwright::format_source`, or `mdwright::format_validated` for formatting; use `rules.check(&doc)` /
   `rules.check_with(&doc, opts)` for linting; use `mdwright::apply_safe_fixes(&doc, &diags)` for safe lint fixes.
 - Moved recognition toggles into `ParseOptions`. `FmtOptions` now owns formatting policy only; extension, MyST, and
-  Pandoc recognition policy belong to document parsing and config resolution.
+  Pandoc recognition policy belong to document parsing and config resolution. Config files now use
+  `[parse.extensions]` instead of the previous formatter-owned extension table.
+- Formatter entry points over `Document` now honour the document's parse policy throughout rewrite snapshots,
+  verification reparses, semantic signatures, and range-format checkpointing.
 - Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. User-facing
   types and functions remain re-exported from the root crate, while implementation details live in their owner crates.
 
 ### Architecture
 
 - `mdwright-document` owns source coordinates, canonical source mapping, pulldown invocation, parse options, document
-  facts, reference/frontmatter/list/code/html inventories, and document queries.
+  facts, reference/frontmatter/list/code/html inventories, and document queries. Formatter and lint crates consume
+  domain facts rather than pulldown parser events.
 - `mdwright-math` owns pure TeX/math span recognition, renderer conversion helpers, and body normalisation helpers.
 - `mdwright-format` owns `FmtOptions`, range formatting, semantic formatter oracles, and the private transactional
   rewrite engine.
@@ -30,6 +35,7 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   application.
 - `mdwright-config`, `mdwright-cli`, and `mdwright-lsp` own configuration interpretation and delivery surfaces without
   leaking TOML, terminal, or editor dependencies into parser/format/lint users.
+- Internal workspace dependencies are versioned as well as path-based so every publishable crate can be packaged.
 
 ### Performance
 

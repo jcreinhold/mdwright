@@ -21,20 +21,10 @@ repository = "https://github.com/jcreinhold/mdwright"
 rust-version = "1.91"
 version = "0.1.0"
 
-[package.metadata.binstall]
-bin-dir = "mdwright-{ target }/mdwright"
-pkg-fmt = "txz"
-pkg-url = "{ repo }/releases/download/v{ version }/mdwright-{ target }.tar.xz"
-
-[[bin]]
-name = "mdwright"
-path = "src/bin/mdwright.rs"
-
 [lib]
 path = "src/lib.rs"
 
 [dependencies]
-mdwright-cli = { workspace = true }
 mdwright-config = { workspace = true }
 mdwright-document = { workspace = true }
 mdwright-format = { workspace = true }
@@ -44,6 +34,7 @@ mdwright-lint = { workspace = true }
 anyhow = { workspace = true }
 criterion = { version = "0.5", features = ["html_reports"] }
 futures = { version = "0.3", default-features = false, features = ["std"] }
+mdwright-cli = { workspace = true }
 mdwright-lsp = { workspace = true }
 proptest = "1"
 pulldown-cmark = { workspace = true, default-features = false }
@@ -106,13 +97,13 @@ version = "0.1.0"
 anyhow = "1"
 clap = { version = "4", features = ["color", "derive"] }
 ignore = "0.4"
-mdwright-cli = { path = "crates/mdwright-cli" }
-mdwright-config = { path = "crates/mdwright-config" }
-mdwright-document = { path = "crates/mdwright-document" }
-mdwright-format = { path = "crates/mdwright-format" }
-mdwright-lint = { path = "crates/mdwright-lint" }
-mdwright-lsp = { path = "crates/mdwright-lsp" }
-mdwright-math = { path = "crates/mdwright-math" }
+mdwright-cli = { version = "0.1.0", path = "crates/mdwright-cli" }
+mdwright-config = { version = "0.1.0", path = "crates/mdwright-config" }
+mdwright-document = { version = "0.1.0", path = "crates/mdwright-document" }
+mdwright-format = { version = "0.1.0", path = "crates/mdwright-format" }
+mdwright-lint = { version = "0.1.0", path = "crates/mdwright-lint" }
+mdwright-lsp = { version = "0.1.0", path = "crates/mdwright-lsp" }
+mdwright-math = { version = "0.1.0", path = "crates/mdwright-math" }
 owo-colors = "4"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
 rayon = "1"

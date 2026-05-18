@@ -7,7 +7,7 @@
 
 //! End-to-end test for `examples/extending/`: the sample downstream
 //! crate compiles, registers `no-todo-in-prose` on top of the stdlib
-//! via `mdwright::cli::run_with_rules`, and the rule actually fires
+//! via `mdwright_cli::run_with_rules`, and the rule actually fires
 //! against a fixture document.
 //!
 //! The test invokes `cargo run -p mdwright-extra-example` from the

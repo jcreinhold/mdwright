@@ -2,7 +2,7 @@
 
 This crate shows the supported pattern for adding a third-party lint
 rule to mdwright: depend on the library, implement
-[`mdwright::LintRule`], and call [`mdwright::cli::run_with_rules`]
+[`mdwright::LintRule`], and call [`mdwright_cli::run_with_rules`]
 from your own `main`. You ship one binary; it has the full mdwright
 UX (`check`, `fix`, `fmt`, `lsp`, `--rules`, JSON output, suppression
 comments) plus your rule.
@@ -22,7 +22,7 @@ skipping for you.
 fn main() -> std::process::ExitCode {
     let mut rules = mdwright::stdlib::all();
     rules.add(Box::new(NoTodoInProse)).expect("unique name");
-    mdwright::cli::run_with_rules(rules)
+    mdwright_cli::run_with_rules(rules)
 }
 ```
 
@@ -45,7 +45,8 @@ as it would if it were a stdlib rule.
 Outside this workspace, the steps are:
 
 1. `cargo new --bin my-mdwright`
-1. In `Cargo.toml`, add `mdwright = "0.4"` (whatever version is
+1. In `Cargo.toml`, add `mdwright = "0.1"` and `mdwright-cli = "0.1"`
+    (whatever version is
     current; the public extension API follows mdwright's
     [semver policy](../../docs/src/reference/semver.md)).
 1. Copy `src/no_todo.rs` as a template; replace the rule's logic
@@ -66,5 +67,5 @@ the official `mdwright`.
     runtime).
 
 [`mdwright::LintRule`]: https://docs.rs/mdwright/latest/mdwright/trait.LintRule.html
-[`mdwright::cli::run_with_rules`]: https://docs.rs/mdwright/latest/mdwright/cli/fn.run_with_rules.html
+[`mdwright_cli::run_with_rules`]: https://docs.rs/mdwright-cli/latest/mdwright_cli/fn.run_with_rules.html
 [`Document::prose_chunks`]: https://docs.rs/mdwright/latest/mdwright/struct.Document.html#method.prose_chunks
