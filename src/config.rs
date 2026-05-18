@@ -170,7 +170,6 @@ pub struct FmtOptions {
     footnote_placement: Placement,
     preserve_frontmatter: bool,
     thematic_break_style: ThematicStyle,
-    mode: FormatMode,
     math: MathOptions,
     heading_attrs: HeadingAttrsStyle,
     extensions: ExtensionOptions,
@@ -448,13 +447,6 @@ impl FmtOptions {
         self.thematic_break_style
     }
 
-    /// Formatter mode: [`FormatMode::Normalise`] applies enabled
-    /// rewrites; [`FormatMode::Verbatim`] emits source bytes 1-to-1.
-    #[must_use]
-    pub fn mode(&self) -> FormatMode {
-        self.mode
-    }
-
     /// Math pretty-printer configuration. See [`MathOptions`] for the
     /// reason every field defaults off.
     #[must_use]
@@ -500,15 +492,6 @@ impl FmtOptions {
     #[must_use]
     pub fn with_extensions(mut self, extensions: ExtensionOptions) -> Self {
         self.extensions = extensions;
-        self
-    }
-
-    /// Override the formatter mode. Used by the CLI's `--mode` flag
-    /// and by callers (benches, tests) that need to opt into verbatim
-    /// emission programmatically.
-    #[must_use]
-    pub fn with_mode(mut self, mode: FormatMode) -> Self {
-        self.mode = mode;
         self
     }
 
@@ -666,6 +649,10 @@ impl FmtOptions {
             || self.thematic_target_byte().is_some()
             || self.should_renumber_ordered_lists()
             || self.link_def_target().is_some()
+            || matches!(self.heading_attrs, HeadingAttrsStyle::Canonicalise)
+            || matches!(self.math.render, MathRender::Dollar)
+            || self.math.normalise
+            || !self.preserve_frontmatter
     }
 
     fn from_schema(schema: FmtSchema) -> Self {
@@ -691,7 +678,6 @@ impl FmtOptions {
             thematic_break_style: schema
                 .thematic_break
                 .map_or(default.thematic_break_style, ThematicStyle::from),
-            mode: default.mode,
             math: schema.math.map_or(default.math, MathOptions::from),
             heading_attrs: schema
                 .heading_attrs
@@ -727,7 +713,6 @@ impl Default for FmtOptions {
             footnote_placement: Placement::Preserve,
             preserve_frontmatter: true,
             thematic_break_style: ThematicStyle::Preserve,
-            mode: FormatMode::Normalise,
             math: MathOptions::default(),
             heading_attrs: HeadingAttrsStyle::default(),
             extensions: ExtensionOptions::default(),
@@ -762,25 +747,6 @@ pub enum TrailingNewline {
     Strip,
     /// Force exactly one trailing `\n`, appending if absent.
     Ensure,
-}
-
-/// Formatter operating mode.
-///
-/// [`Normalise`] (default) applies every enabled rewrite — italic
-/// delimiter normalisation, list-marker style, fence canonicalisation,
-/// wrap, escape sieve, and so on. [`Verbatim`] emits every block byte-
-/// for-byte from the source; only document-boundary normalisations
-/// (trailing newline, end-of-line policy) still apply.
-///
-/// [`Normalise`]: FormatMode::Normalise
-/// [`Verbatim`]: FormatMode::Verbatim
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub enum FormatMode {
-    /// Apply all enabled normalisations.
-    #[default]
-    Normalise,
-    /// Emit source bytes verbatim for every node.
-    Verbatim,
 }
 
 /// Emission position for collected items (link reference definitions,

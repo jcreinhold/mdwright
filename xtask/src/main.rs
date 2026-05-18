@@ -2,6 +2,7 @@
 //! `cargo xtask doc-cli`           — regenerate or verify `docs/src/reference/cli.md`.
 //! `cargo xtask doc-config`        — regenerate or verify `docs/src/configuration.md`.
 //! `cargo xtask bump-docs-version` — sync `vX.Y.Z` pins in integration docs to `Cargo.toml`.
+//! `cargo xtask diagnose-fuzz`     — explain a libFuzzer crash artifact.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -52,6 +53,15 @@ enum Command {
         /// compares to `Cargo.toml`).
         #[arg(long)]
         check: bool,
+    },
+    /// Replay a libFuzzer crash artifact the way the fuzz target does,
+    /// and print the option-byte decoding plus the
+    /// `SemanticDivergence` summary (or whatever else the artifact
+    /// surfaces). Read-only.
+    DiagnoseFuzz {
+        /// One or more paths to fuzz artifact files.
+        #[arg(required = true)]
+        artifacts: Vec<PathBuf>,
     },
 }
 
@@ -122,6 +132,16 @@ fn run() -> Result<ExitCode> {
                 xtask::config_docs::regenerate(&workspace)?;
                 Ok(ExitCode::SUCCESS)
             }
+        }
+        Command::DiagnoseFuzz { artifacts } => {
+            for (i, path) in artifacts.iter().enumerate() {
+                if i > 0 {
+                    println!();
+                }
+                let diagnosis = xtask::diagnose_fuzz::diagnose(path)?;
+                xtask::diagnose_fuzz::render(path, &diagnosis);
+            }
+            Ok(ExitCode::SUCCESS)
         }
         Command::BumpDocsVersion { version, check } => {
             if check {

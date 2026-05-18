@@ -12,8 +12,7 @@
 //! is admissible by CM §6.2 in the source position, so the source byte
 //! always names a valid delimiter.
 
-use crate::format::doc::{Doc, concat, text};
-
+#![allow(dead_code)]
 /// Resolved delimiter byte for an emphasis or strong run.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) enum EmphasisDelim {
@@ -55,15 +54,6 @@ impl EmphasisRun {
     pub(crate) fn resolve(self) -> EmphasisDelim {
         EmphasisDelim::from_byte(self.source_delim)
     }
-
-    /// Wrap `body` in the source delimiter byte (`*` or `_`).
-    pub(crate) fn pretty(self, body: Doc<'_>) -> Doc<'_> {
-        let delim = match self.resolve() {
-            EmphasisDelim::Asterisk => "*",
-            EmphasisDelim::Underscore => "_",
-        };
-        concat([text(delim), body, text(delim)])
-    }
 }
 
 impl StrongRun {
@@ -75,15 +65,6 @@ impl StrongRun {
     /// Never consults `FmtOptions`.
     pub(crate) fn resolve(self) -> EmphasisDelim {
         EmphasisDelim::from_byte(self.source_delim)
-    }
-
-    /// Wrap `body` in the doubled source delimiter (`**` or `__`).
-    pub(crate) fn pretty(self, body: Doc<'_>) -> Doc<'_> {
-        let delim = match self.resolve() {
-            EmphasisDelim::Asterisk => "**",
-            EmphasisDelim::Underscore => "__",
-        };
-        concat([text(delim), body, text(delim)])
     }
 }
 

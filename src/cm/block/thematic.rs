@@ -7,8 +7,6 @@
 //! canonicalisation (always-dash etc.) is a separate post-pass.
 
 use crate::config::ThematicStyle;
-use crate::format::doc::{Doc, concat, hard_line, text};
-use crate::format::pretty::PrettyCtx;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ThematicBreak {
@@ -24,16 +22,6 @@ impl ThematicBreak {
     #[cfg(test)]
     pub(crate) fn style(self) -> ThematicStyle {
         self.style
-    }
-
-    /// Emit the source thematic-break line verbatim, terminated by a
-    /// hard newline. Reads source bytes via
-    /// [`crate::tree::Tree::raw_text`]; never consults `FmtOptions`.
-    #[tracing::instrument(level = "trace", skip_all)]
-    #[allow(clippy::unused_self)]
-    pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, id: crate::tree::NodeId) -> Doc<'a> {
-        let raw = ctx.tree.raw_text(ctx.source, id).trim_end_matches('\n');
-        concat([text(raw.to_owned()), hard_line()])
     }
 }
 

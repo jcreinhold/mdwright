@@ -5,12 +5,8 @@
 //! refuses the setext-plus-level-3+ combination — setext underlines
 //! exist only for H1 (`===`) and H2 (`---`).
 
+#![allow(dead_code)]
 use std::ops::Range;
-
-use crate::config::HeadingAttrsStyle;
-use crate::format::doc::{Doc, concat, hard_line, text, unbreakable};
-use crate::format::pretty::PrettyCtx;
-use crate::tree::NodeId;
 
 /// First byte of `s` after skipping spaces, tabs, and line-feeds.
 /// `None` iff `s` is whitespace-only.
@@ -91,7 +87,7 @@ impl HeadingAttrs {
     /// containing whitespace are double-quoted; values containing a
     /// double quote are double-quoted with embedded `\"` (Pandoc /
     /// python-markdown convention).
-    fn canonical_trailer(&self) -> String {
+    pub(crate) fn canonical_trailer(&self) -> String {
         let mut tokens: Vec<String> = Vec::new();
         if let Some(id) = &self.id {
             tokens.push(format!("#{id}"));
@@ -220,82 +216,6 @@ impl Heading {
     pub(crate) fn with_attrs(mut self, attrs: Option<HeadingAttrs>) -> Self {
         self.attrs = attrs;
         self
-    }
-
-    /// Emit an ATX (`# Body`) or setext (`Body\n===`) heading. `body`
-    /// is the already-rendered inline doc; the dispatcher produces it.
-    /// Setext headings carry their underline width at render time so
-    /// the line matches the inline's display width (minimum 3).
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'a>(&self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
-        let body = crate::format::inline::pretty_inline_children(ctx, id);
-        let level = self.level.as_u8();
-        if matches!(self.style, HeadingStyle::Setext) && level <= 2 {
-            // The setext-vs-ATX decision and the rendered body both
-            // come from source bytes here. Two reasons:
-            //   (a) the decision predicate must be a pure function of
-            //       inputs that re-parse identically — the rendered
-            //       inline `Doc`'s `HardLine`/`Line` placement shifts
-            //       between passes when control bytes or escape
-            //       choices change, so it cannot drive the decision;
-            //   (b) the emitted body must preserve the source's
-            //       line structure so the next parse classifies the
-            //       heading the same way. The rendered `Doc` joins
-            //       soft breaks as spaces under default options,
-            //       collapsing a multi-line body to one line — pass 2
-            //       would then see a single-line setext body whose
-            //       first byte triggers ATX. Source verbatim emit
-            //       breaks that cycle.
-            // Inline normalisations (italic style, etc.) do not apply
-            // inside setext bodies; the trade-off is acceptable —
-            // setext bodies are typically plain text and idempotence
-            // is the load-bearing invariant.
-            let raw = ctx
-                .tree
-                .node(id)
-                .and_then(|n| ctx.source.get(n.raw_range.clone()))
-                .unwrap_or("");
-            if let Some((body_source, _underline_source)) = split_setext_source(raw)
-                && setext_body_safe(body_source)
-            {
-                // Canonicalise CR → LF *once*: both the underline
-                // width calculation and the emitted bytes must agree
-                // on what "line 1 of the body" is. `Doc::Text`
-                // canonicalises internally; doing the same here keeps
-                // the width and the bytes derived from the same
-                // string, so the renderer's output and the next
-                // parser's view of it match.
-                let canonical_body: String = if body_source.contains('\r') {
-                    body_source.replace("\r\n", "\n").replace('\r', "\n")
-                } else {
-                    body_source.to_owned()
-                };
-                // `unbreakable` keeps the body source's embedded `\n`
-                // bytes from being split by the wrap pass (which
-                // treats `\n` as ASCII whitespace, joining lines with
-                // spaces and collapsing a multi-line setext body to a
-                // single line — exactly the bug this fix targets).
-                let first_line_width = canonical_body.lines().next().map_or(3, |l| l.chars().count()).max(3);
-                let body_doc = unbreakable(text(canonical_body));
-                let underline_char = if level == 1 { '=' } else { '-' };
-                let underline: String = std::iter::repeat_n(underline_char, first_line_width).collect();
-                drop(body);
-                return concat([body_doc, hard_line(), text(underline), hard_line()]);
-            }
-        }
-        let lvl = level.clamp(1, 6) as usize;
-        let prefix: String = std::iter::repeat_n('#', lvl).collect::<String>() + " ";
-        let trailer = self.attrs.as_ref().map(|a| {
-            let trailer_text = match ctx.opts.heading_attrs() {
-                HeadingAttrsStyle::Preserve if !a.source_trailer.is_empty() => a.source_trailer.clone(),
-                HeadingAttrsStyle::Preserve | HeadingAttrsStyle::Canonicalise => a.canonical_trailer(),
-            };
-            concat([text(" ".to_owned()), unbreakable(text(trailer_text))])
-        });
-        match trailer {
-            Some(t) => concat([text(prefix), body, t, hard_line()]),
-            None => concat([text(prefix), body, hard_line()]),
-        }
     }
 }
 

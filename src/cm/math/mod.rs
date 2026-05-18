@@ -22,7 +22,7 @@
 //! delimiter pairs match greedily on first close.
 
 pub(crate) mod env;
-pub(crate) mod pretty;
+pub(crate) mod normalise;
 pub(crate) mod render;
 pub(crate) mod scan;
 pub(crate) mod span;

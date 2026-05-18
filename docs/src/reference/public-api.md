@@ -31,7 +31,6 @@ the public surface for a reason, not to enumerate every use.
 | `MathOptions` | struct | returned by `FmtOptions::math`; `tests/golden_math.rs` |
 | `MathRender` | enum | accepted by `FmtOptions::with_math_render`; `src/cli.rs` |
 | `HeadingAttrsStyle` | enum | accepted by `FmtOptions::with_heading_attrs`; `tests/regressions_heading_attrs.rs` |
-| `FormatMode` | enum | accepted by `FmtOptions::with_mode`; `src/cli.rs` |
 | `Wrap` | enum | returned by `FmtOptions::wrap` |
 | `ItalicStyle` | enum | returned by `FmtOptions::italic` |
 | `StrongStyle` | enum | returned by `FmtOptions::strong` |

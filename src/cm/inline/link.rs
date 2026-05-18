@@ -25,11 +25,9 @@
 //! and the builder downgrades them to raw text per CM §4.7's
 //! "leave as text" rule.
 
-use std::borrow::Cow;
-
+#![allow(dead_code)]
 #[cfg(test)]
 use crate::cm::refs::ReferenceTable;
-use crate::format::doc::Doc;
 
 /// Source CM grammar variant for a reference link. Inline links never
 /// reach this enum — production constructs them via
@@ -215,23 +213,6 @@ impl LinkRun {
     pub(crate) fn emit_style<'s>(&'s self, body_text: &str) -> EmitLinkStyle<'s> {
         decide_style(&self.source, body_text)
     }
-
-    /// Emit this link in its source CM form. `source_id` is this
-    /// link's node; we read the source bytes via
-    /// [`crate::tree::Tree::raw_text`] to recover the inline-link
-    /// destination's bare-vs-angle form so the output round-trips.
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(
-        &self,
-        body: Doc<'b>,
-        ctx: &crate::format::pretty::PrettyCtx<'b>,
-        source_id: crate::tree::NodeId,
-    ) -> Doc<'b> {
-        let body_text = flatten_body_doc(&body);
-        let style = self.emit_style(&body_text);
-        let dest_form = source_inline_dest_form(ctx, source_id);
-        assemble_link(body, self.dest(), self.title(), &style, false, dest_form)
-    }
 }
 
 impl ImageRun {
@@ -285,21 +266,6 @@ impl ImageRun {
     #[tracing::instrument(level = "trace", skip(self, body_text))]
     pub(crate) fn emit_style<'s>(&'s self, body_text: &str) -> EmitLinkStyle<'s> {
         decide_style(&self.source, body_text)
-    }
-
-    /// Emit this image in its source CM form. See [`LinkRun::pretty`]
-    /// for the `source_id` contract.
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(
-        &self,
-        body: Doc<'b>,
-        ctx: &crate::format::pretty::PrettyCtx<'b>,
-        source_id: crate::tree::NodeId,
-    ) -> Doc<'b> {
-        let body_text = flatten_body_doc(&body);
-        let style = self.emit_style(&body_text);
-        let dest_form = source_inline_dest_form(ctx, source_id);
-        assemble_link(body, self.dest(), self.title(), &style, true, dest_form)
     }
 }
 
@@ -369,206 +335,6 @@ fn cm_normalise_label(s: &str) -> String {
         }
     }
     out
-}
-
-/// Flatten a [`Doc`] to a string for the body-vs-label identity check.
-/// Soft and hard breaks become a single space — CM label normalisation
-/// collapses internal whitespace anyway, so the difference does not
-/// survive the next stage.
-fn flatten_body_doc(doc: &Doc<'_>) -> String {
-    let mut out = String::new();
-    let mut stack: Vec<&Doc<'_>> = vec![doc];
-    while let Some(node) = stack.pop() {
-        match node {
-            Doc::Text(s) => out.push_str(s),
-            Doc::Line | Doc::SoftSpace | Doc::HardLine => out.push(' '),
-            Doc::Atomic(inner) | Doc::Prefix(_, inner) => stack.push(inner),
-            Doc::Concat(items) => {
-                for item in items.iter().rev() {
-                    stack.push(item);
-                }
-            }
-        }
-    }
-    out
-}
-
-/// Source-derived bare-vs-angle form of an inline link's destination.
-/// Returns [`DestForm::Angle`] iff the byte after `](` in the link's
-/// source is `<`. Reference-style links and any link with no
-/// recoverable `](` substring fall back to [`DestForm::Bare`]; the
-/// caller's escape path will still upgrade to angle if the URL bytes
-/// require it.
-fn source_inline_dest_form(ctx: &crate::format::pretty::PrettyCtx<'_>, source_id: crate::tree::NodeId) -> DestForm {
-    let raw = ctx.tree.raw_text(ctx.source, source_id).as_bytes();
-    let mut i: usize = 0;
-    while i.saturating_add(1) < raw.len() {
-        if raw.get(i).copied() == Some(b']') && raw.get(i.saturating_add(1)).copied() == Some(b'(') {
-            let next = i.saturating_add(2);
-            return match raw.get(next).copied() {
-                Some(b'<') => DestForm::Angle,
-                _ => DestForm::Bare,
-            };
-        }
-        i = i.saturating_add(1);
-    }
-    DestForm::Bare
-}
-
-/// Source-derived destination form for an inline link or image.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum DestForm {
-    Bare,
-    Angle,
-}
-
-// ============================================================
-// Link / image assembly
-// ============================================================
-
-/// Shared between [`LinkRun::pretty`] and [`ImageRun::pretty`]:
-/// emits the body wrapped in `[…](…)` (inline), `[…][label]` (full),
-/// `[…][]` (collapsed), or `[…]` (shortcut) per `style`. `dest_form`
-/// controls bare vs angle form for inline links; reference-style
-/// emit ignores it.
-fn assemble_link<'a>(
-    body_doc: Doc<'a>,
-    dest: &str,
-    title: &str,
-    style: &EmitLinkStyle<'_>,
-    is_image: bool,
-    dest_form: DestForm,
-) -> Doc<'a> {
-    use crate::format::doc::{concat, text, unbreakable};
-    let prefix = if is_image { "![" } else { "[" };
-    match style {
-        EmitLinkStyle::Inline => {
-            let dest_str = render_inline_destination(dest, dest_form);
-            let mut parts: Vec<Doc<'a>> = Vec::with_capacity(6);
-            parts.push(text(prefix));
-            parts.push(body_doc);
-            parts.push(text("]("));
-            parts.push(text(dest_str));
-            if !title.is_empty() {
-                parts.push(text(format!(" \"{}\"", escape_title(title))));
-            }
-            parts.push(text(")"));
-            unbreakable(concat(parts))
-        }
-        EmitLinkStyle::ReferenceFull { label } => {
-            unbreakable(concat([text(prefix), body_doc, text(format!("][{label}]"))]))
-        }
-        EmitLinkStyle::ReferenceCollapsed => unbreakable(concat([text(prefix), body_doc, text("][]")])),
-        EmitLinkStyle::ReferenceShortcut => unbreakable(concat([text(prefix), body_doc, text("]")])),
-    }
-}
-
-/// Render an inline link's URL using the source-derived bare-vs-angle
-/// form. Bare URLs that contain whitespace are still upgraded to angle
-/// form (CM grammar requirement); otherwise the source form wins.
-fn render_inline_destination(url: &str, dest_form: DestForm) -> String {
-    if matches!(dest_form, DestForm::Angle) {
-        return format!("<{}>", escape_angle_url(url));
-    }
-    match escape_url(url) {
-        EscapedUrl::Bare(s) => s.into_owned(),
-        EscapedUrl::Angle(s) => format!("<{s}>"),
-    }
-}
-
-/// Render a reference-definition URL destination. The reference table
-/// does not currently track the source's bare-vs-angle form, so this
-/// always falls back to the existing `escape_url` inference: bare
-/// when safe, angle when bytes require it. (A future canonicalisation
-/// pass will read [`crate::config::FmtOptions::link_def_style`] to
-/// override.)
-pub(crate) fn render_url_destination_owned(url: &str, _style: crate::config::LinkDefStyle) -> String {
-    match escape_url(url) {
-        EscapedUrl::Bare(s) => s.into_owned(),
-        EscapedUrl::Angle(s) => format!("<{s}>"),
-    }
-}
-
-enum EscapedUrl<'a> {
-    Bare(Cow<'a, str>),
-    Angle(Cow<'a, str>),
-}
-
-fn escape_url(url: &str) -> EscapedUrl<'_> {
-    if url.bytes().any(|b| matches!(b, b' ' | b'\t' | b'\n' | b'\r')) {
-        return EscapedUrl::Angle(escape_angle_url(url));
-    }
-    EscapedUrl::Bare(escape_bare_url(url))
-}
-
-fn escape_bare_url(url: &str) -> Cow<'_, str> {
-    let bytes = url.as_bytes();
-    let mut needs_escape: Vec<bool> = vec![false; bytes.len()];
-    let mut open_stack: Vec<usize> = Vec::new();
-    for (i, &b) in bytes.iter().enumerate() {
-        match b {
-            b'(' => open_stack.push(i),
-            b')' => {
-                if open_stack.pop().is_none()
-                    && let Some(slot) = needs_escape.get_mut(i)
-                {
-                    *slot = true;
-                }
-            }
-            _ => {}
-        }
-    }
-    for i in &open_stack {
-        if let Some(slot) = needs_escape.get_mut(*i) {
-            *slot = true;
-        }
-    }
-    let any = needs_escape.iter().any(|&b| b);
-    if !any {
-        return Cow::Borrowed(url);
-    }
-    let mut out = String::with_capacity(url.len().saturating_add(open_stack.len()));
-    for (i, &b) in bytes.iter().enumerate() {
-        if needs_escape.get(i).copied().unwrap_or(false) {
-            out.push('\\');
-        }
-        out.push(char::from(b));
-    }
-    Cow::Owned(out)
-}
-
-fn escape_angle_url(url: &str) -> Cow<'_, str> {
-    if url.bytes().all(|b| !matches!(b, b'<' | b'>' | b'\\')) {
-        return Cow::Borrowed(url);
-    }
-    let mut out = String::with_capacity(url.len().saturating_add(4));
-    for ch in url.chars() {
-        match ch {
-            '<' | '>' | '\\' => {
-                out.push('\\');
-                out.push(ch);
-            }
-            _ => out.push(ch),
-        }
-    }
-    Cow::Owned(out)
-}
-
-fn escape_title(title: &str) -> Cow<'_, str> {
-    if title.bytes().all(|b| !matches!(b, b'\\' | b'"')) {
-        return Cow::Borrowed(title);
-    }
-    let mut out = String::with_capacity(title.len().saturating_add(4));
-    for ch in title.chars() {
-        match ch {
-            '\\' | '"' => {
-                out.push('\\');
-                out.push(ch);
-            }
-            _ => out.push(ch),
-        }
-    }
-    Cow::Owned(out)
 }
 
 #[cfg(test)]

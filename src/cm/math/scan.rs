@@ -238,14 +238,15 @@ fn body_runs_empty(body_range: &Range<usize>, transparent_runs: &[Range<usize>])
 
 /// Push a `MathError::UnbalancedBraces` if `body`'s clean content has
 /// unbalanced `{` / `}`. Delegates to the shared validator in
-/// [`super::pretty::body_braces_balanced`] so the scanner and the
-/// pretty-printer agree on what counts as balanced. The check runs
-/// over the clean body, so container prefixes cannot affect brace
-/// balance, and the local offset is mapped back to a source-absolute
-/// byte via [`MathBody::clean_offset_to_source`].
+/// [`super::normalise::body_braces_balanced`] so the scanner, the
+/// canonicalise math rewrite, and the lint rule agree on what counts
+/// as balanced. The check runs over the clean body, so container
+/// prefixes cannot affect brace balance, and the local offset is
+/// mapped back to a source-absolute byte via
+/// [`MathBody::clean_offset_to_source`].
 fn record_brace_errors(source: &str, region: &Range<usize>, body: &MathBody, errors: &mut Vec<MathError>) {
     let clean = body.as_str(source);
-    if let Err(local_offset) = super::pretty::body_braces_balanced(clean.as_ref()) {
+    if let Err(local_offset) = super::normalise::body_braces_balanced(clean.as_ref()) {
         errors.push(MathError::UnbalancedBraces {
             offset: body.clean_offset_to_source(local_offset),
             region: region.clone(),

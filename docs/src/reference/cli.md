@@ -206,12 +206,6 @@ Options:
       --explain-divergence
           When the HTML-equivalence gate rejects a file, print a unified diff of the source's HTML against the formatted output's HTML to stderr. Diagnostic surface for triaging gate failures; does not change the gate's pass/fail decision
 
-      --mode <MODE>
-          Formatter mode. `normalise` (default) applies every enabled rewrite; `verbatim` emits source bytes 1-to-1
-          
-          [default: normalise]
-          [possible values: normalise, verbatim]
-
       --range <LINE:COL-LINE:COL>
           Format only the smallest set of whole top-level blocks covering `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of end; 0-based LSP convention). Reads from stdin only; writes the covering blocks to stdout. Mutually exclusive with `--check` and `--diff`.
           
@@ -266,12 +260,6 @@ Options:
 
       --explain-divergence
           When the HTML-equivalence gate rejects a file, print a unified diff of the source's HTML against the formatted output's HTML to stderr. Diagnostic surface for triaging gate failures; does not change the gate's pass/fail decision
-
-      --mode <MODE>
-          Formatter mode. `normalise` (default) applies every enabled rewrite; `verbatim` emits source bytes 1-to-1
-          
-          [default: normalise]
-          [possible values: normalise, verbatim]
 
       --range <LINE:COL-LINE:COL>
           Format only the smallest set of whole top-level blocks covering `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of end; 0-based LSP convention). Reads from stdin only; writes the covering blocks to stdout. Mutually exclusive with `--check` and `--diff`.

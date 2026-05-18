@@ -1,15 +1,13 @@
 Operating system
-
 :   The software that manages hardware resources. Notable examples:
 
-    - Linux
-    - macOS
-    - Windows
+    -   Linux
+    -   macOS
+    -   Windows
 
     Run `uname -a` to see your kernel version.
 
 Programming language
-
 :   A formal language for expressing computation. Two examples:
 
     ```rust

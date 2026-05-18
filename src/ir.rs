@@ -19,6 +19,7 @@
 //! objects, not abstractions, and information-hiding on a position
 //! record buys nothing.
 
+#![allow(dead_code)]
 use std::ops::Range;
 use std::sync::OnceLock;
 

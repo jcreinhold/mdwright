@@ -14,6 +14,7 @@
 //! policy across the combined buffer, and segments the result back at
 //! the break positions.
 
+#![allow(dead_code)]
 use crate::cm::inline::escape_policy::{EscapeScope, any_byte_needs_escape, escape_buffer};
 
 /// Input event handed to [`InlineRun::new`]. The IR builder produces
@@ -169,27 +170,6 @@ impl InlineRun {
     pub(crate) fn parts(&self) -> &[RunPart] {
         &self.parts
     }
-
-    /// Emit the run's parts as a `Doc`. Text segments map to
-    /// [`crate::format::doc::Doc::Text`]; soft breaks to
-    /// [`crate::format::doc::Doc::Line`]; hard breaks to either
-    /// `"\\" + HardLine` or `<br/>` depending on the form the run
-    /// committed to at construction.
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
-        use crate::format::doc::{Doc, concat, hard_line, line, text};
-        let mut parts: Vec<Doc<'b>> = Vec::with_capacity(self.parts.len());
-        for part in &self.parts {
-            match part {
-                RunPart::Text(s) => parts.push(text(s.clone())),
-                RunPart::SoftBreak => parts.push(line()),
-                RunPart::HardLineBreak => parts.push(concat([text("\\"), hard_line()])),
-                RunPart::HardBreakTag => parts.push(text("<br/>")),
-            }
-        }
-        concat(parts)
-    }
-
     /// `true` iff the run has no parts. The IR builder uses this to
     /// avoid materialising empty `NodeKind::Run` leaves.
     pub(crate) fn is_empty(&self) -> bool {

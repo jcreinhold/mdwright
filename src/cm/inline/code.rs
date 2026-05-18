@@ -23,6 +23,7 @@
 //! would either inflate the output across formats or produce bytes
 //! that strip back to something other than `body`.
 
+#![allow(dead_code)]
 use crate::cm::inline::escape_policy::EscapeScope;
 
 /// A code span whose bytes are the final emission form: fence,
@@ -51,15 +52,6 @@ impl InlineCodeRun {
     #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.bytes
-    }
-
-    /// Emit the canonicalised bytes as a single `Doc::Text`. Text is
-    /// atomic by the Wadler/Lindig discipline, so the inline code
-    /// span stays on one line without an extra `unbreakable` wrapper.
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
-        use crate::format::doc::text;
-        text(self.bytes.clone())
     }
 }
 

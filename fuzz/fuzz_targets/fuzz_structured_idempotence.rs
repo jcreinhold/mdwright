@@ -17,7 +17,7 @@
 
 use arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::fuzz_target;
-use mdwright::{Document, FmtOptions, FormatMode, MathOptions, Wrap};
+use mdwright::{Document, FmtOptions, MathOptions, Wrap};
 
 const MAX_OUTPUT: usize = 16_384;
 const MAX_BLOCKS: usize = 16;
@@ -132,19 +132,13 @@ fn opts_from_byte(byte: u8) -> FmtOptions {
         3 => Wrap::At(80),
         _ => Wrap::At(120),
     };
-    let mode = if byte & 0b100 != 0 {
-        FormatMode::Verbatim
-    } else {
-        FormatMode::Normalise
-    };
+    // Bit 2 is reserved; preserves the option-byte width so existing
+    // corpus seeds remain meaningful.
     let math = MathOptions {
         normalise: byte & 0b1000 != 0,
         ..MathOptions::default()
     };
-    FmtOptions::default()
-        .with_wrap(wrap)
-        .with_mode(mode)
-        .with_math(math)
+    FmtOptions::default().with_wrap(wrap).with_math(math)
 }
 
 fuzz_target!(|data: &[u8]| {

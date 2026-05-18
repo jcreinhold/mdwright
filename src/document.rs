@@ -332,27 +332,14 @@ impl Document {
 
     /// Reformat the document.
     ///
-    /// Produces a Markdown string by walking the tree IR through the
-    /// structural-preserve formatter: every `.pretty()` emits source
-    /// bytes, so a single render is a fixed point by construction.
+    /// Returns the source bytes after the canonicalise pass and the
+    /// wrap pass have applied any opt-in transformations from `opts`.
     /// Use [`Self::format_validated`] when the caller needs the
     /// runtime semantic-equivalence gate as well.
     #[must_use]
     #[tracing::instrument(level = "info", name = "Document::format", skip_all, fields(out_len = tracing::field::Empty))]
     pub fn format(&self, opts: &FmtOptions) -> String {
-        let out = format::format_document(
-            self.source.canonical(),
-            opts,
-            self.tree(),
-            self.ir.frontmatter.as_ref(),
-            &self.ir.admonitions,
-            &self.ir.abbreviations,
-            &self.ir.block_attrs,
-            &self.ir.directives,
-            &self.ir.comments,
-            &self.ir.inline_overlays,
-            &self.ir.refs,
-        );
+        let out = format::format_document(self.source.canonical(), opts);
         tracing::Span::current().record("out_len", out.len());
         out
     }

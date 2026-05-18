@@ -13,18 +13,12 @@
 //! # Why a separate pass
 //!
 //! Structural emit ([`crate::format::document::format_document`]) is
-//! pure source-byte preservation: every emit site picks the source's
-//! own representation, which by construction re-parses to the
-//! source's IR. That makes the structural pipeline idempotent and
-//! perturbation-free.
-//!
-//! Style canonicalisation is the *opposite* concern: deliberately
-//! rewrite source bytes per user preference. Doing it during
-//! structural emit (the pre-prompt-51 design) meant every emit site's
-//! decision could perturb its neighbour's flank class, which required
-//! the safety ladder + convergence loop to detect and recover.
-//! Separating canonicalisation into its own pass localises the
-//! perturbation: each rewrite verifies itself before committing.
+//! pure source-byte preservation, so the structural pipeline is
+//! idempotent and perturbation-free by construction. Style
+//! canonicalisation is the opposite concern: deliberately rewrite
+//! source bytes per user preference. Keeping it in its own pass
+//! localises the perturbation — each rewrite verifies itself against
+//! a paragraph-window reparse before committing.
 //!
 //! # Per-rewrite verification
 //!
@@ -38,8 +32,8 @@
 //!    window in the scratch buffer.
 //! 4. If the two streams compare equal, commit; otherwise skip.
 //!
-//! Both parses route through [`crate::parse::events`] (the prompt-46
-//! chokepoint). Event canonicalisation matches the gate at
+//! Both parses route through [`crate::parse::events`]. Event
+//! canonicalisation matches the gate at
 //! [`crate::format::semantic::semantically_equivalent`].
 //!
 //! # Performance
@@ -47,20 +41,9 @@
 //! Default config (every knob `Preserve`) triggers the early-out in
 //! [`FmtOptions::has_any_canonicalisation`], so structural callers
 //! pay zero. With any knob set the pass reparses `out` per knob to
-//! collect rewrite sites; under prompt-54 benches (vs `post-52`
-//! baseline, `cargo bench --bench format_bench`):
-//!
-//! | Bench                       | Default mode | Notes                  |
-//! |-----------------------------|--------------|------------------------|
-//! | `parse_plus_format/medium`  | −1.2 %       | within noise           |
-//! | `format/wrap/keep`          | −3.7 %       | within noise           |
-//! | `format/wrap/at-80`         | +2.5 %       | within noise threshold |
-//! | `format/wrap/at-100`        | +2.5 %       | within noise threshold |
-//!
-//! All ±5 % vs baseline (gate is ±10 %). Per-canonicalisation-mode
-//! benches are out of scope for this prompt; the convergence loop
-//! caps iterations at [`MAX_CANONICALISE_ITERS`], which is enough
-//! for every input in the 4096-case property sweep.
+//! collect rewrite sites; the convergence loop caps iterations at
+//! [`MAX_CANONICALISE_ITERS`], which is enough for every input in
+//! the property sweep.
 //!
 //! # Order of rewrites
 //!
@@ -78,7 +61,12 @@
 
 use pulldown_cmark::{Event, Tag, TagEnd};
 
-use crate::config::{FmtOptions, LinkDefStyle};
+use crate::cm::block::heading::{HeadingAttrs, find_attr_trailer_range};
+use crate::cm::math::MathRegion;
+use crate::cm::math::normalise::{align_env_body, body_braces_balanced};
+use crate::cm::math::render::convert_for_renderer;
+use crate::cm::math::span::MathSpan;
+use crate::config::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender};
 use crate::format::semantic::{CanonicalEvent, canonical_events};
 use crate::parse::{self, FORMATTER_OPTIONS};
 use crate::source::{CanonicalSource, Source};
@@ -135,6 +123,19 @@ fn canonicalise_one_pass(out: &mut String, opts: &FmtOptions) {
     if let Some(target) = opts.link_def_target() {
         rewrite_link_def_style(out, target);
     }
+    if matches!(opts.heading_attrs(), HeadingAttrsStyle::Canonicalise) {
+        rewrite_heading_attrs(out);
+    }
+    if needs_math_rewrite(opts) {
+        rewrite_math(out, opts);
+    }
+    if !opts.preserve_frontmatter() {
+        rewrite_strip_frontmatter(out);
+    }
+}
+
+fn needs_math_rewrite(opts: &FmtOptions) -> bool {
+    matches!(opts.math().render, MathRender::Dollar) || opts.math().normalise
 }
 
 // ----- Verification primitive -----------------------------------
@@ -654,6 +655,84 @@ fn collect_thematic_breaks(out: &str) -> Vec<(usize, usize)> {
     sites
 }
 
+// ----- Heading attribute trailer canonicalisation ---------------
+
+/// Rewrite every ATX heading's `{...}` attribute trailer to canonical
+/// order: `#id` first, then classes in source order, then `key=value`
+/// pairs in source order. Skip the rewrite if the trailer is already
+/// canonical, if the heading has no trailer, or if the per-window
+/// reparse check would fail.
+fn rewrite_heading_attrs(out: &mut String) {
+    let sites = collect_heading_attr_sites(out);
+    for site in sites.into_iter().rev() {
+        let HeadingAttrSite {
+            attrs,
+            trailer_lo,
+            trailer_hi,
+        } = site;
+        let bytes = out.as_bytes();
+        let Some(existing) = bytes.get(trailer_lo..trailer_hi) else {
+            continue;
+        };
+        let canonical = attrs.canonical_trailer();
+        if existing == canonical.as_bytes() {
+            continue;
+        }
+        if rewrite_preserves_parse(out, canonical.as_bytes(), trailer_lo, trailer_hi) {
+            commit_rewrite(out, trailer_lo, trailer_hi, canonical.as_bytes());
+        } else {
+            tracing::warn!(
+                target: "mdwright::canonicalise",
+                trailer_lo,
+                trailer_hi,
+                "skipped heading-attrs rewrite: parse would diverge",
+            );
+        }
+    }
+}
+
+struct HeadingAttrSite {
+    attrs: HeadingAttrs,
+    trailer_lo: usize,
+    trailer_hi: usize,
+}
+
+fn collect_heading_attr_sites(out: &str) -> Vec<HeadingAttrSite> {
+    let src = Source::new(out);
+    let mut sites: Vec<HeadingAttrSite> = Vec::new();
+    for (ev, range) in parse::events_with_offsets(CanonicalSource::from_source(&src), FORMATTER_OPTIONS) {
+        #[allow(clippy::wildcard_enum_match_arm, reason = "only heading start drives the walk")]
+        if let Event::Start(Tag::Heading { id, classes, attrs, .. }) = ev
+            && (id.is_some() || !classes.is_empty() || !attrs.is_empty())
+        {
+            let heading_attrs = HeadingAttrs {
+                id: id.map(|s| s.to_string()),
+                classes: classes.iter().map(|c| c.to_string()).collect(),
+                attrs: attrs
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.as_ref().map(std::string::ToString::to_string)))
+                    .collect(),
+                source_trailer: String::new(),
+            };
+            let bytes = out.as_bytes();
+            let Some(slice_bytes) = bytes.get(range.clone()) else {
+                continue;
+            };
+            let Ok(slice) = std::str::from_utf8(slice_bytes) else {
+                continue;
+            };
+            if let Some(trailer_range) = find_attr_trailer_range(slice) {
+                sites.push(HeadingAttrSite {
+                    attrs: heading_attrs,
+                    trailer_lo: range.start.saturating_add(trailer_range.start),
+                    trailer_hi: range.start.saturating_add(trailer_range.end),
+                });
+            }
+        }
+    }
+    sites
+}
+
 // ----- Link destination style -----------------------------------
 
 fn rewrite_link_def_style(out: &mut String, target: LinkDefStyle) {
@@ -882,6 +961,98 @@ fn parse_ref_def_line(bytes: &[u8], lo: usize, hi: usize) -> Option<(usize, usiz
         return None;
     }
     Some((dest_lo, dest_hi))
+}
+
+// ----- Frontmatter strip ---------------------------------------
+
+/// Drop the document's frontmatter block (and the blank line that
+/// usually follows it) when `preserve_frontmatter = false`. Detection
+/// re-parses the buffer so the rewrite can be applied after other
+/// canonicalisations have rewritten interior bytes.
+fn rewrite_strip_frontmatter(out: &mut String) {
+    let fm_end = {
+        let doc = crate::Document::parse(out);
+        doc.frontmatter().map(|f| f.slice.raw_range.end)
+    };
+    let Some(end) = fm_end else { return };
+    let bytes = out.as_bytes();
+    let mut cut = end;
+    while bytes.get(cut).copied() == Some(b'\n') {
+        cut = cut.saturating_add(1);
+    }
+    out.replace_range(0..cut, "");
+}
+
+// ----- Math regions --------------------------------------------
+
+/// Apply the configured math rewrites to every recognised math
+/// region in `out`. Two transformations are supported:
+///
+/// 1. `MathRender::Dollar` — rewrite `\[…\]` / `\(…\)` regions to
+///    `$$…$$` / `$…$`. Environments (`\begin{…}…\end{…}`) are passed
+///    through unchanged because there is no dollar form of a LaTeX
+///    environment.
+/// 2. `math.normalise = true` — pad columns of aligning environments
+///    (`align`, matrix family, `cases`, …) so `&` separators line up.
+///
+/// Both transformations are deliberate, user-requested semantic
+/// changes. Unlike the per-window verification used by the inline
+/// style rewrites, math rewrites apply unconditionally; correctness
+/// is verified at the document level by the idempotence-on-mode gate
+/// in `Document::format_validated`.
+fn rewrite_math(out: &mut String, opts: &FmtOptions) {
+    let regions: Vec<MathRegion> = {
+        let doc = crate::Document::parse(out);
+        doc.math_regions().to_vec()
+    };
+    if regions.is_empty() {
+        return;
+    }
+    let snapshot = out.clone();
+    for region in regions.into_iter().rev() {
+        let Some(replacement) = compute_math_replacement(&snapshot, &region, opts) else {
+            continue;
+        };
+        let Some(existing) = snapshot.get(region.range.clone()) else {
+            continue;
+        };
+        if replacement == existing {
+            continue;
+        }
+        out.replace_range(region.range.clone(), &replacement);
+    }
+}
+
+fn compute_math_replacement(source: &str, region: &MathRegion, opts: &FmtOptions) -> Option<String> {
+    let span = &region.span;
+    let render_mode = opts.math().render;
+
+    // Dollar rewrite takes precedence — and only applies to non-
+    // environment math (there is no dollar form of an environment).
+    if matches!(render_mode, MathRender::Dollar) && !matches!(span, MathSpan::Environment { .. }) {
+        let cow = convert_for_renderer(source, &region.range, span, MathRender::Dollar);
+        return Some(cow.into_owned());
+    }
+
+    if !opts.math().normalise {
+        return None;
+    }
+
+    // Only aligning environments need a byte-level rewrite —
+    // everything else already round-trips through the identity emit.
+    let body = span.body().as_str(source);
+    if body_braces_balanced(body.as_ref()).is_err() {
+        return None;
+    }
+    let MathSpan::Environment { env, .. } = span else {
+        return None;
+    };
+    if !env.is_aligning() {
+        return None;
+    }
+    let name = env.name(source).to_owned();
+    let body_rendered = align_env_body(body.as_ref());
+    Some(format!("\\begin{{{name}}}\n{body_rendered}\n\\end{{{name}}}"))
 }
 
 #[cfg(test)]

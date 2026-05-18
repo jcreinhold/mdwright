@@ -1,72 +1,37 @@
-//! Top-level document printer.
+//! Top-level document formatter.
 //!
-//! Structural emit is pure preservation: every `.pretty()` method
-//! reads source bytes, so a single render is a fixed point by
-//! construction. There is no convergence loop and no per-site flank
-//! lookup — the safety ladder and the two-pass machinery were
-//! deleted once `FmtOptions` style consultation moved out of the
-//! `.pretty()` layer (prompt 51). Style canonicalisation (when any
-//! `FmtOptions` knob is set to a non-`Preserve` value) is a future
-//! separate pass that operates on the structural output.
-//!
-//! Trailing-newline and end-of-line policies run as post-passes on
-//! the rendered bytes — they are structural concerns, not style
-//! rewrites.
+//! Structural emit is the identity function: the canonicalised source bytes
+//! are the round-trip-safe baseline by construction. The formatter exists to
+//! apply opt-in transformations on top of that baseline — style
+//! canonicalisation, line wrap, end-of-line conversion, trailing-newline
+//! policy — each of which lives in the canonicalise pass (see
+//! [`crate::format::canonicalise`]) or in a post-pass on the rendered
+//! bytes.
 
-use crate::cm::refs::ReferenceTable;
-use crate::config::{FmtOptions, FormatMode};
-use crate::format::block;
+use crate::config::FmtOptions;
 use crate::format::canonicalise;
-use crate::format::doc::{self, RenderOptions};
-use crate::format::pretty::PrettyCtx;
-use crate::format::wrap::wrap_doc;
+use crate::format::wrap_pass;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
-use crate::ir::{
-    AbbreviationRegion, AdmonitionRegion, BlockAttrRegion, CommentRegion, DirectiveRegion, Frontmatter,
-    InlineOverlayRegion,
-};
-use crate::tree::Tree;
 
-/// Front-end used by `Document::format`. Renders the tree IR into a
-/// Markdown string in a single pass.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn format_document<'a>(
-    source: &'a str,
-    opts: &'a FmtOptions,
-    tree: &'a Tree,
-    frontmatter: Option<&'a Frontmatter>,
-    admonitions: &'a [AdmonitionRegion],
-    abbreviations: &'a [AbbreviationRegion],
-    block_attrs: &'a [BlockAttrRegion],
-    directives: &'a [DirectiveRegion],
-    comments: &'a [CommentRegion],
-    inline_overlays: &'a [InlineOverlayRegion],
-    refs: &'a ReferenceTable,
-) -> String {
-    let ctx = PrettyCtx {
-        source,
-        opts,
-        tree,
-        frontmatter,
-        admonitions,
-        abbreviations,
-        block_attrs,
-        directives,
-        comments,
-        inline_overlays,
-        refs,
-    };
-    let doc = if opts.mode() == FormatMode::Verbatim {
-        doc::unbreakable(doc::text(source))
-    } else {
-        block::pretty_block_sequence(&ctx, tree.root())
-    };
-    let wrapped = wrap_doc(doc, opts.wrap());
-    let mut out = doc::render(&wrapped, &RenderOptions);
-    normalize_line_endings_lf(&mut out);
+/// Format `source` per `opts`. Returns the resulting string.
+///
+/// Default-options callers (every style knob `Preserve`, wrap `Keep`)
+/// hit the identity early-out: the output is the canonicalised source,
+/// modulo line-ending and trailing-newline policies. Opt-in
+/// transformations route through the canonicalise pass; each rewrite
+/// verifies via per-paragraph reparse so a failed rewrite silently
+/// skips and the source bytes survive.
+pub(crate) fn format_document(source: &str, opts: &FmtOptions) -> String {
+    let mut out = source.to_string();
     if opts.has_any_canonicalisation() {
         canonicalise::canonicalise(&mut out, opts);
     }
+    wrap_pass::wrap_paragraphs(&mut out, opts.wrap());
+    // Defensive: `Source::canonical()` already normalises CR/CRLF to LF
+    // before parse, so `source` here is LF-only in practice. The pass is a
+    // cheap belt-and-braces (`.contains('\r')` early-out) in case a future
+    // caller bypasses the canonicalisation.
+    normalize_line_endings_lf(&mut out);
     normalize_trailing_newline(&mut out, opts.trailing_newline(), source);
     apply_end_of_line(&mut out, opts.end_of_line(), source);
     out

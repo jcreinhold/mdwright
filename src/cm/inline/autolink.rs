@@ -12,6 +12,7 @@
 //! a constructor for them this session would ship surface area with no
 //! caller.
 
+#![allow(dead_code)]
 /// Typed CM autolink.
 #[derive(Clone, Debug)]
 pub struct AutolinkRun {
@@ -26,15 +27,6 @@ impl AutolinkRun {
     #[cfg(test)]
     pub(crate) fn url(&self) -> &str {
         &self.url
-    }
-
-    /// Emit `<url>` as a single `Doc::Text`. Text is atomic by the
-    /// Wadler/Lindig discipline; the autolink stays on one line by
-    /// construction.
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
-        use crate::format::doc::text;
-        text(format!("<{}>", self.url))
     }
 }
 

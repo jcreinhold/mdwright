@@ -74,14 +74,14 @@ mod tree;
 mod util;
 
 pub use config::{
-    Config, ConfigError, EndOfLine, ExtensionOptions, FmtOptions, FormatMode, HeadingAttrsStyle, ItalicStyle,
-    LinkDefStyle, ListMarkerStyle, MathOptions, MathRender, MystOptions, OrderedListStyle, PandocOptions, Placement,
-    StrongStyle, ThematicStyle, TrailingNewline, Wrap,
+    Config, ConfigError, EndOfLine, ExtensionOptions, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle,
+    ListMarkerStyle, MathOptions, MathRender, MystOptions, OrderedListStyle, PandocOptions, Placement, StrongStyle,
+    ThematicStyle, TrailingNewline, Wrap,
 };
 pub use diagnostic::{DOCS_URL_DEFAULT, Diagnostic, Fix, Severity, Snippet, docs_url, rule_doc_url};
 pub use discover::discover_markdown;
 pub use document::{Document, FormatError, LintOptions, render_html};
-pub use format::semantic::semantically_equivalent;
+pub use format::semantic::{first_divergence, semantically_equivalent};
 pub use incremental::CheckpointTable;
 pub use ir::{
     AllowScope, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode, InlineHtml, LinkDef,

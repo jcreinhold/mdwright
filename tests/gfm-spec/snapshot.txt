@@ -2,10 +2,3 @@
 # Regenerate after a deliberate fix with:
 #   MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot
 # Allowlisted (editorial deviation) cases are filtered out — see allowlist.toml.
-169   idempotence Link reference definitions
-171   semantic    Link reference definitions
-235   idempotence List items
-280   idempotence Task list items (extension)
-293   idempotence Lists
-298   semantic    Lists
-336   idempotence Entity and numeric character references

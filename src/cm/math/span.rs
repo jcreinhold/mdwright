@@ -12,6 +12,7 @@
 //! `math/unbalanced-env`, and `math/unbalanced-braces` can surface a
 //! useful diagnostic without aborting the scan.
 
+#![allow(dead_code)]
 use std::borrow::Cow;
 use std::ops::Range;
 

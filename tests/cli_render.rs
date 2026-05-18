@@ -58,10 +58,12 @@ fn render_default_passes_math_through_verbatim() {
     // The HTML renderer (`render_html`) does not enable pulldown's
     // math extension, so `\(`/`\[` are treated as escape sequences
     // and the backslashes drop out of the rendered HTML. Default
-    // (`none`) mode does no rewriting, so the bracket and paren
-    // characters survive even though the leading backslash does not.
+    // (`none`) mode does no rewriting; the source bytes — including
+    // the inline single-line shape of `\[ A = B \]` — are preserved
+    // by the identity structural emit, so the HTML carries the same
+    // shape modulo the dropped backslashes.
     assert!(
-        stdout.contains("( A )") && stdout.contains("[\nA = B\n]"),
+        stdout.contains("( A )") && stdout.contains("[ A = B ]"),
         "expected verbatim math in HTML; got:\n{stdout}"
     );
     // The Dollar rewrite must not have happened.

@@ -162,8 +162,11 @@ async fn formatting_returns_expected_textedit() {
     let _body = initialize(&mut service, true).await;
 
     let uri = "file:///tmp/mdwright-test-fmt.md";
-    // Two consecutive blank lines collapse under the formatter.
-    let source = "alpha\n\n\nbeta\n";
+    // The LSP server discovers the repo's own `.mdwright.toml`
+    // (`wrap = 120`), so the source must be one the loaded config
+    // demonstrably rewrites. CRLF normalisation to LF is the
+    // shortest-path guaranteed edit (`end_of_line = "lf"` default).
+    let source = "alpha\r\nbeta\r\n";
     let _ack = service
         .ready()
         .await
@@ -205,7 +208,16 @@ async fn formatting_returns_expected_textedit() {
     );
     let edit = &edits[0];
     let new_text = edit["newText"].as_str().expect("newText is a string");
-    let expected = mdwright::Document::parse(source).format(&mdwright::FmtOptions::default());
+    // The LSP server discovers the repo's `.mdwright.toml` via the
+    // server's CWD; mirror the discovery here so the expected output
+    // uses the same fmt options.
+    let cfg = mdwright::Config::discover(
+        std::env::current_dir()
+            .as_deref()
+            .unwrap_or_else(|_| std::path::Path::new(".")),
+    )
+    .unwrap_or_else(|_| mdwright::Config::defaults());
+    let expected = mdwright::Document::parse(source).format(cfg.fmt_options());
     assert_eq!(new_text, expected, "LSP format must match CLI format byte-for-byte");
 }
 

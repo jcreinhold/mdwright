@@ -8,6 +8,7 @@
 //! indent on output, or CM §4.6 rule type-2 would re-parse the
 //! comment as an HTML block and split the surrounding paragraph.
 
+#![allow(dead_code)]
 /// One inline HTML span; the stored bytes are emission-ready under any
 /// CM-compliant tokenizer.
 #[derive(Clone, Debug)]
@@ -34,14 +35,6 @@ impl InlineHtmlSpan {
     #[cfg(test)]
     pub(crate) fn as_str(&self) -> &str {
         &self.bytes
-    }
-
-    /// Emit the raw HTML span as a single `Doc::Text`. Text is atomic
-    /// by the Wadler/Lindig discipline; the span stays on one line.
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(&self) -> crate::format::doc::Doc<'b> {
-        use crate::format::doc::text;
-        text(self.bytes.clone())
     }
 }
 

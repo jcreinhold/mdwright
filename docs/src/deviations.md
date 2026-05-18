@@ -73,9 +73,7 @@ By comparison kind: 13 HTML mismatches, 13 AST mismatches, 9 idempotence failure
 
 All entries here are real divergences in mdwright's output, not pulldown chunking artefacts — those moved to the
 editorial allowlist (see *Pulldown text-chunking deviations* above). Each case will need its own root-cause analysis to
-fix; some overlap with parked fuzz finds under `fuzz/known-issues/`. The `--mode=verbatim` flag bypasses the typed-IR
-path entirely and preserves the source byte-for-byte; users who need lossless preservation for a specific document
-should reach for it rather than expecting the default normalising mode to handle every edge case.
+fix; some overlap with parked fuzz finds under `fuzz/known-issues/`.
 
 ## mdformat-mkdocs parity deviations
 

@@ -1,5 +1,7 @@
 [bee][]
 
+[bee]: https://example.com/b
+
 paragraph between defs.
 
-[bee]: https://example.com/b
+[aye]: https://example.com/a

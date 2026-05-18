@@ -44,9 +44,9 @@ use rayon::prelude::*;
 use serde::Serialize;
 
 use crate::{
-    CheckpointTable, Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LineIndex, LintOptions,
-    MathRender, RuleSet, Severity, Snippet, contains_rejected_control_chars, discover_markdown,
-    format_range_with_checkpoints, render_html, rule_doc_url, stdlib,
+    CheckpointTable, Config, Diagnostic, Document, FmtOptions, FormatError, LineIndex, LintOptions, MathRender,
+    RuleSet, Severity, Snippet, contains_rejected_control_chars, discover_markdown, format_range_with_checkpoints,
+    render_html, rule_doc_url, stdlib,
 };
 
 /// Run the mdwright CLI with the given rule set.
@@ -240,11 +240,6 @@ struct FmtArgs {
     #[arg(long)]
     explain_divergence: bool,
 
-    /// Formatter mode. `normalise` (default) applies every enabled
-    /// rewrite; `verbatim` emits source bytes 1-to-1.
-    #[arg(long, value_enum, default_value_t = ModeArg::Normalise)]
-    mode: ModeArg,
-
     /// Format only the smallest set of whole top-level blocks covering
     /// `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of
     /// end; 0-based LSP convention). Reads from stdin only; writes the
@@ -298,21 +293,6 @@ impl std::str::FromStr for RangeArg {
             end_line: el,
             end_col: ec,
         })
-    }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
-enum ModeArg {
-    Normalise,
-    Verbatim,
-}
-
-impl From<ModeArg> for FormatMode {
-    fn from(m: ModeArg) -> Self {
-        match m {
-            ModeArg::Normalise => Self::Normalise,
-            ModeArg::Verbatim => Self::Verbatim,
-        }
     }
 }
 
@@ -574,7 +554,7 @@ fn run_fmt(
     policy: InputPolicy,
 ) -> Result<ExitCode> {
     let cfg = resolve_config(config_path)?;
-    let mut opts = cfg.fmt_options().clone().with_mode(args.mode.into());
+    let mut opts = cfg.fmt_options().clone();
     if let Some(mr) = args.math_render {
         opts = opts.with_math_render(mr.into());
     }

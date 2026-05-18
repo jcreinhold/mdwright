@@ -9,9 +9,10 @@
 //! it should emit.
 //!
 //! These values live on [`crate::tree::Node::typed`] alongside the
-//! legacy [`crate::tree::NodeKind`] enum. The Phase-R printer
-//! (prompt 27) dispatches every block through this module's
-//! [`TypedBlock::pretty`] — each typed value owns its serialisation.
+//! [`crate::tree::NodeKind`] enum. The structural-emit formatter is
+//! identity (see `crate::format::document::format_document`), so the
+//! typed values exist for IR consumers (lint rules, the canonicalise
+//! pass) rather than for per-construct serialisation.
 
 pub(crate) mod code;
 pub(crate) mod definition_list;
@@ -36,15 +37,12 @@ use quote::BlockQuote;
 use table::TableBlock;
 use thematic::ThematicBreak;
 
-use crate::format::doc::Doc;
-use crate::format::pretty::PrettyCtx;
-use crate::tree::NodeId;
-
 /// One typed block value attached to a [`crate::tree::Node`]. The
 /// variants mirror the `CommonMark` §4 and GFM §4.10 / extension
-/// block kinds whose well-formedness invariants Phase R has lifted
-/// into types. Post-prompt-26b every printable block kind has a
-/// variant here; [`TypedBlock::pretty`] is the printer entry point.
+/// block kinds. `ListBlock` is read by `Document::typed_list_blocks`
+/// for lint rules; the other variants are scaffolding for future
+/// canonicalise rewrites and are constructed but not yet inspected.
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub(crate) enum TypedBlock {
     Paragraph(Paragraph),
@@ -58,25 +56,4 @@ pub(crate) enum TypedBlock {
     Table(TableBlock),
     FootnoteDef(FootnoteDef),
     DefinitionList(DefinitionList),
-}
-
-impl TypedBlock {
-    /// Render this block. The exhaustive match makes adding a variant
-    /// a compile error here — surfacing the missing renderer rather
-    /// than silently falling through.
-    pub(crate) fn pretty<'a>(&self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
-        match self {
-            Self::Paragraph(p) => (*p).pretty(ctx, id),
-            Self::Heading(h) => h.pretty(ctx, id),
-            Self::FencedCodeBlock(c) => c.pretty(ctx, id),
-            Self::IndentedCodeBlock(c) => c.pretty(ctx, id),
-            Self::HtmlBlock(h) => h.pretty(ctx, id),
-            Self::BlockQuote(q) => (*q).pretty(ctx, id),
-            Self::ThematicBreak(t) => (*t).pretty(ctx, id),
-            Self::ListBlock(l) => l.pretty(ctx, id),
-            Self::Table(t) => t.pretty(ctx, id),
-            Self::FootnoteDef(f) => f.pretty(ctx, id),
-            Self::DefinitionList(d) => (*d).pretty(ctx, id),
-        }
-    }
 }

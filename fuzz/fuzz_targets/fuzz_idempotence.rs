@@ -22,8 +22,8 @@ use std::sync::Once;
 
 use libfuzzer_sys::fuzz_target;
 use mdwright::{
-    Document, FmtOptions, FormatMode, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle,
-    StrongStyle, ThematicStyle, Wrap, contains_rejected_control_chars,
+    Document, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
+    ThematicStyle, Wrap, contains_rejected_control_chars,
 };
 
 const MAX_INPUT: usize = 65_536;
@@ -47,12 +47,9 @@ fn opts_from_byte(byte: u8) -> FmtOptions {
         normalise: byte & 0b100 != 0,
         ..MathOptions::default()
     };
-    let mode = if byte & 0b1000 != 0 {
-        FormatMode::Verbatim
-    } else {
-        FormatMode::Normalise
-    };
-    let base = FmtOptions::default().with_wrap(wrap).with_math(math).with_mode(mode);
+    // Bit 3 is reserved; preserves the option-byte width so existing
+    // corpus seeds remain meaningful.
+    let base = FmtOptions::default().with_wrap(wrap).with_math(math);
     apply_canon_mode(base, (byte >> 4) & 0b1111)
 }
 

@@ -391,9 +391,11 @@ pub fn semantically_equivalent(source: &str, formatted: &str) -> bool {
 ///
 /// Used to populate `FormatError::SemanticDivergence::diff_summary`
 /// so the failure message points at the actual disagreement instead
-/// of dumping two HTML strings.
+/// of dumping two HTML strings. The same diff is what the
+/// `cargo xtask diagnose-fuzz` tool prints when explaining a
+/// libFuzzer crash artifact.
 #[must_use]
-pub(crate) fn first_divergence(source: &str, formatted: &str) -> Option<String> {
+pub fn first_divergence(source: &str, formatted: &str) -> Option<String> {
     let src = Source::new(source);
     let fmt = Source::new(formatted);
     let a = canonical_events(CanonicalSource::from_source(&src));

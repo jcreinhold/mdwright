@@ -1,22 +1,13 @@
 //! Markdown formatter.
 //!
-//! [`doc`] is the generic Wadler/Lindig `Doc` combinator (layout
-//! IR + renderer). [`block`] turns a [`crate::tree::Tree`] into a
-//! `Doc` for every block kind; [`inline`] does the same for inline
-//! content (stubbed in this session — see its module docs).
-//!
-//! See Wadler, "A Prettier Printer" (1998); Lindig, "Strictly
-//! Pretty" (2000); and the `prettyplease` crate for prior art.
+//! The structural emit is identity: [`document::format_document`]
+//! returns the source bytes after the canonicalise pass and the
+//! wrap pass have rewritten the buffer per [`crate::FmtOptions`].
 
-pub(crate) mod block;
 pub(crate) mod canonicalise;
-pub(crate) mod doc;
 pub(crate) mod document;
-pub(crate) mod inline;
-pub(crate) mod pretty;
 pub(crate) mod semantic;
-pub(crate) mod verbatim;
-pub(crate) mod wrap;
+pub(crate) mod wrap_pass;
 
 use crate::config::{EndOfLine, TrailingNewline};
 
@@ -42,37 +33,61 @@ use crate::config::{EndOfLine, TrailingNewline};
 /// (`fuzz_indented_code_trailing_ws_drop.in`).
 ///
 /// `Strip` drops every trailing `\n`. `Ensure` forces exactly one
-/// trailing `\n` — the pre-Preserve behaviour, now opt-in.
+/// trailing `\n`.
 pub(crate) fn normalize_trailing_newline(out: &mut String, policy: TrailingNewline, source: &str) {
-    while out.ends_with('\n') {
-        let _ = out.pop();
-    }
-    let want_trailing = match policy {
-        TrailingNewline::Preserve => source_has_effective_trailing_newline(source),
-        TrailingNewline::Strip => false,
-        TrailingNewline::Ensure => true,
-    };
-    if want_trailing {
-        out.push('\n');
+    match policy {
+        TrailingNewline::Preserve => {
+            // Match the source's trailing-LF count exactly. Constructs
+            // whose body content includes trailing LFs (e.g. an
+            // unclosed fenced code block whose body is one LF: source
+            // `` ```\n\n `` has the second LF as body content, the
+            // first as the opener terminator) would be corrupted by a
+            // strip-and-add-one policy. Counting source LFs (modulo
+            // trailing horizontal whitespace, see
+            // [`source_has_effective_trailing_newline`]) and matching
+            // exactly preserves the body without truncation.
+            let source_lf = trailing_lf_count(source);
+            let mut out_lf = trailing_lf_count(out);
+            while out_lf > source_lf {
+                let _ = out.pop();
+                out_lf = out_lf.saturating_sub(1);
+            }
+            while out_lf < source_lf {
+                out.push('\n');
+                out_lf = out_lf.saturating_add(1);
+            }
+        }
+        TrailingNewline::Strip => {
+            while out.ends_with('\n') {
+                let _ = out.pop();
+            }
+        }
+        TrailingNewline::Ensure => {
+            while out.ends_with('\n') {
+                let _ = out.pop();
+            }
+            out.push('\n');
+        }
     }
 }
 
-/// True when the source's effective content ends with `\n`, ignoring
-/// any final run of horizontal whitespace. See
-/// [`normalize_trailing_newline`] for the rationale.
-fn source_has_effective_trailing_newline(source: &str) -> bool {
-    source.trim_end_matches([' ', '\t']).ends_with('\n')
+/// Count of trailing `\n` bytes after first trimming any horizontal
+/// whitespace (`' '` / `'\t'`) suffix. The trim matches pulldown's
+/// effective-trailing-blank-line rule (CM §4.4 / 4.6): a final line of
+/// only spaces/tabs is stripped, so the document's effective
+/// trailing-LF count is the LF run immediately before that trailing
+/// whitespace.
+fn trailing_lf_count(s: &str) -> usize {
+    let trimmed = s.trim_end_matches([' ', '\t']);
+    trimmed.bytes().rev().take_while(|b| *b == b'\n').count()
 }
 
 /// Normalise every `\r\n` and lone `\r` in `out` to `\n`.
 ///
-/// **Defensive safety net.** The load-bearing invariant lives on
-/// [`crate::format::doc::text`]: every `Doc::Text` constructed from
-/// source bytes canonicalises CR at construction, so the rendered
-/// string already contains only `\n` terminators in practice. This
-/// pass remains as cheap belt-and-braces (`.contains('\r')` early-out;
-/// zero allocation when clean) in case a future emit site bypasses
-/// the `text()` helper.
+/// `format_document` operates on `Source::canonical()` bytes, which
+/// are already LF-only. This pass is cheap belt-and-braces
+/// (`.contains('\r')` early-out; zero allocation when clean) for
+/// callers that bypass the canonicalisation.
 pub(crate) fn normalize_line_endings_lf(out: &mut String) {
     if !out.contains('\r') {
         return;

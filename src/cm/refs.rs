@@ -34,6 +34,7 @@
 //! byte-verbatim from source. HTML round-trips because pulldown
 //! re-resolves to the same target on the reformatted output.
 
+#![allow(dead_code)]
 use std::ops::Range;
 use std::sync::OnceLock;
 

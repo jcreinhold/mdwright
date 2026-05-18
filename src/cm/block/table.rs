@@ -23,6 +23,7 @@
 //! at `Tag::TableCell` start; the typed view inherits the escape
 //! choices for free.
 
+#![allow(dead_code)]
 use unicode_width::UnicodeWidthStr;
 
 use crate::tree::{NodeId, TableAlign};
@@ -154,61 +155,6 @@ impl TableBlock {
     #[cfg(test)]
     pub(crate) fn body(&self) -> &[TableRow] {
         &self.body
-    }
-
-    /// Emit a GFM §4.10 table: head row, alignment row, body rows.
-    /// Cells are rendered via the inline pretty-printer, line breaks
-    /// inside cells collapsed to spaces. Per-column width is sized to
-    /// the widest cell content (and the alignment marker minimum);
-    /// rows that would otherwise exceed [`Wrap::columns`] fall back to
-    /// content-width-only padding.
-    #[tracing::instrument(level = "trace", skip_all)]
-    pub(crate) fn pretty<'b>(
-        &self,
-        ctx: &crate::format::pretty::PrettyCtx<'b>,
-        _id: NodeId,
-    ) -> crate::format::doc::Doc<'b> {
-        use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text};
-
-        let rows: Vec<Vec<String>> = core::iter::once(&self.head)
-            .chain(self.body.iter())
-            .map(|row| {
-                row.cells
-                    .iter()
-                    .map(|cell| {
-                        if row.is_pad(*cell) {
-                            String::new()
-                        } else {
-                            let inline = crate::format::inline::pretty_inline_children(ctx, cell.cell_id);
-                            let raw = render(&inline, &RenderOptions);
-                            normalize_table_cell(&raw)
-                        }
-                    })
-                    .collect()
-            })
-            .collect();
-
-        let n_cols = self.align.len();
-        let widths = compute_column_widths(&rows, &self.align, n_cols, ctx.opts.wrap());
-
-        // Each row emits as a single `Doc::Text`, which is atomic by
-        // the Wadler/Lindig discipline — the wrap pass never inspects
-        // its contents — so a pipe-table row whose width exceeds the
-        // wrap budget stays on one source line. Over-budget rows
-        // become forced-overflow lines (intentional: a broken table
-        // is worse than a long one).
-        let mut parts: Vec<Doc<'b>> = Vec::with_capacity(rows.len().saturating_mul(2).saturating_add(1));
-        if let Some(head) = rows.first() {
-            parts.push(text(format_table_row(head, &widths)));
-            parts.push(hard_line());
-            parts.push(text(format_alignment_row(&self.align, &widths)));
-            parts.push(hard_line());
-        }
-        for row in rows.iter().skip(1) {
-            parts.push(text(format_table_row(row, &widths)));
-            parts.push(hard_line());
-        }
-        concat(parts)
     }
 }
 

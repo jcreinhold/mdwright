@@ -21,6 +21,7 @@
 //!   heading. Applies in the same context as
 //!   `escape_for_paragraph_interrupt`.
 
+#![allow(dead_code)]
 /// What follows the current text fragment on the same source line.
 /// Several escape decisions depend on whether more content arrives
 /// before the next line break (e.g. a digit fragment ending in `1`

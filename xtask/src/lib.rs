@@ -19,6 +19,7 @@ use mdwright::{LintRule, RuleSet};
 
 pub mod cli_docs;
 pub mod config_docs;
+pub mod diagnose_fuzz;
 pub mod since;
 pub mod version_refs;
 
