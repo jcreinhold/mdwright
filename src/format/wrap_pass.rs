@@ -4,7 +4,7 @@
 //!
 //! ## Contract
 //!
-//! [`wrap_paragraphs`] walks `out`'s pulldown event stream to find
+//! [`collect_wrap_candidates`] walks `out`'s pulldown event stream to find
 //! every `Tag::Paragraph` and rewrites the paragraph's bytes per
 //! [`Wrap`]:
 //!
@@ -28,11 +28,8 @@
 //! For each paragraph, the rewrite extracts inline atomics by source
 //! byte range, tokenises the remaining text on whitespace, applies
 //! the DP, and re-emits with `\n` + the continuation prefix between
-//! lines. The candidate replacement is then checked in its whole
-//! document context with
-//! [`crate::format::semantic::semantically_equivalent`] before
-//! committing, because isolated paragraph slices inside containers
-//! can parse differently from the full document.
+//! lines. The replacement is submitted as a parsed-owner candidate;
+//! the rewrite engine verifies it in document context before commit.
 
 use std::ops::Range;
 use std::time::{Duration, Instant};
@@ -41,7 +38,7 @@ use pulldown_cmark::{Event, Tag, TagEnd};
 use unicode_width::UnicodeWidthStr;
 
 use crate::config::Wrap;
-use crate::format::semantic::semantically_equivalent;
+use crate::format::rewrite::{Candidate, OwnerKind, Phase, Snapshot, Verification};
 use crate::parse::{self, FORMATTER_OPTIONS};
 use crate::source::{CanonicalSource, Source};
 
@@ -51,14 +48,15 @@ const TIME_CHECK_STRIDE: usize = 1 << 10;
 const MAX_WRAP_TOKENS: usize = 100_000;
 const OVERFLOW_PENALTY: u64 = 1_000_000;
 
-/// Apply the wrap policy to every paragraph in `out`. No-op when
+/// Collect wrap candidates for every paragraph in `out`. No-op when
 /// `mode` is [`Wrap::Keep`].
-pub(crate) fn wrap_paragraphs(out: &mut String, mode: Wrap) {
+pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candidates: &mut Vec<Candidate>) {
     if matches!(mode, Wrap::Keep) {
         return;
     }
+    let out = snapshot.source();
     let paragraphs = collect_paragraphs(out);
-    for p in paragraphs.into_iter().rev() {
+    for p in paragraphs {
         let Some(replacement) = rewrap_paragraph(out, &p, mode) else {
             continue;
         };
@@ -68,16 +66,16 @@ pub(crate) fn wrap_paragraphs(out: &mut String, mode: Wrap) {
         if replacement == existing {
             continue;
         }
-        let mut candidate = out.clone();
-        candidate.replace_range(p.line_lo..p.line_hi, &replacement);
-        // Verify the rewrite preserves the parse in its document
-        // context. Paragraph slices inside lists and blockquotes can
-        // parse differently when isolated, so the candidate document
-        // is the verification unit.
-        if !semantically_equivalent(out, &candidate) {
-            continue;
+        if let Some(candidate) = snapshot.candidate(
+            Phase::Wrap,
+            OwnerKind::Paragraph,
+            p.line_lo..p.line_hi,
+            replacement,
+            Verification::PreserveMarkdownAndMath,
+            "paragraph-wrap",
+        ) {
+            candidates.push(candidate);
         }
-        *out = candidate;
     }
 }
 
@@ -806,12 +804,10 @@ fn badness(line_w: u32, target: u32, is_last_line: bool, boxes_on_line: usize) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::Wrap;
+    use crate::{Document, FmtOptions, Wrap};
 
     fn wrap(input: &str, mode: Wrap) -> String {
-        let mut out = input.to_owned();
-        wrap_paragraphs(&mut out, mode);
-        out
+        Document::parse(input).format(&FmtOptions::default().with_wrap(mode))
     }
 
     #[test]

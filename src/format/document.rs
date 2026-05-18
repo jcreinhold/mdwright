@@ -9,11 +9,8 @@
 //! bytes.
 
 use crate::config::FmtOptions;
-use crate::format::canonicalise;
-use crate::format::wrap_pass;
+use crate::format::rewrite;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
-
-const MAX_REWRITE_PIPELINE_ITERS: u32 = 8;
 
 /// Format `source` per `opts`. Returns the resulting string.
 ///
@@ -28,32 +25,8 @@ pub(crate) fn format_document(source: &str, opts: &FmtOptions) -> String {
     let has_canonicalisation = opts.has_any_canonicalisation();
     let has_wrap = !matches!(opts.wrap(), crate::config::Wrap::Keep);
 
-    if has_canonicalisation && has_wrap {
-        let mut iter = 0u32;
-        loop {
-            let before = out.clone();
-            canonicalise::canonicalise(&mut out, opts);
-            wrap_pass::wrap_paragraphs(&mut out, opts.wrap());
-            if out == before {
-                break;
-            }
-            iter = iter.saturating_add(1);
-            if iter >= MAX_REWRITE_PIPELINE_ITERS {
-                tracing::warn!(
-                    target: "mdwright::format",
-                    iters = iter,
-                    "format rewrite pipeline did not converge within iteration cap; leaving last-iter bytes in place",
-                );
-                break;
-            }
-        }
-    } else {
-        if has_canonicalisation {
-            canonicalise::canonicalise(&mut out, opts);
-        }
-        if has_wrap {
-            wrap_pass::wrap_paragraphs(&mut out, opts.wrap());
-        }
+    if has_canonicalisation || has_wrap {
+        out = rewrite::apply_rewrites(&out, opts);
     }
     // Defensive: `Source::canonical()` already normalises CR/CRLF to LF
     // before parse, so `source` here is LF-only in practice. The pass is a

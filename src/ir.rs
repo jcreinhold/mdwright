@@ -1177,5 +1177,4 @@ mod tests {
         let runs = compute_transparent_runs(src, &[], &[]);
         assert!(runs.is_empty(), "expected empty: {runs:?}");
     }
-
 }

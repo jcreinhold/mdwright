@@ -100,10 +100,7 @@ mod tests {
         let attrs = HeadingAttrs {
             id: Some("section".to_owned()),
             classes: vec!["warn".to_owned(), "imp".to_owned()],
-            attrs: vec![
-                ("data-x".to_owned(), Some("1".to_owned())),
-                ("flag".to_owned(), None),
-            ],
+            attrs: vec![("data-x".to_owned(), Some("1".to_owned())), ("flag".to_owned(), None)],
             source_trailer: "{.imp #section .warn data-x=1 flag}".to_owned(),
         };
         assert_eq!(attrs.canonical_trailer(), "{#section .warn .imp data-x=1 flag}");

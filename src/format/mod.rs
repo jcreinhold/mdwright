@@ -6,6 +6,7 @@
 
 pub(crate) mod canonicalise;
 pub(crate) mod document;
+pub(crate) mod rewrite;
 pub(crate) mod semantic;
 pub(crate) mod wrap_pass;
 

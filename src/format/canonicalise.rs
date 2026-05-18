@@ -3,12 +3,9 @@
 //!
 //! # Contract
 //!
-//! [`canonicalise`] rewrites `out` in place per the style knobs in
-//! `opts`. Each rewrite is self-verifying: rewrite a byte sequence
-//! in a candidate document, reparse the full candidate, confirm the
-//! event stream is unchanged. If verification fails, the rewrite is
-//! skipped (the source-preserved bytes stay) and a `tracing::warn!`
-//! records the skip with span context.
+//! This module recognises opt-in style edits and submits them as
+//! parse-owned candidates to the rewrite engine. It does not edit the
+//! formatter buffer directly.
 //!
 //! # Why a separate pass
 //!
@@ -17,23 +14,8 @@
 //! idempotent and perturbation-free by construction. Style
 //! canonicalisation is the opposite concern: deliberately rewrite
 //! source bytes per user preference. Keeping it in its own pass
-//! localises the perturbation — each rewrite verifies itself against
-//! a document-context reparse before committing.
-//!
-//! # Per-rewrite verification
-//!
-//! For each candidate rewrite at byte range `[lo, hi)`:
-//!
-//! 1. Compute the pre-rewrite canonical event stream over the whole
-//!    document.
-//! 2. Apply the rewrite to a scratch document.
-//! 3. Compute the post-rewrite canonical event stream over the whole
-//!    scratch document.
-//! 4. If the two streams compare equal, commit; otherwise skip.
-//!
-//! Both parses route through [`crate::parse::events`]. Event
-//! canonicalisation matches the gate at
-//! [`crate::format::semantic::semantically_equivalent`].
+//! localises the perturbation — the rewrite engine owns ordering,
+//! overlap handling, verification, and commit.
 //!
 //! # Performance
 //!
@@ -66,70 +48,37 @@ use crate::cm::math::normalise::{align_env_body, body_braces_balanced};
 use crate::cm::math::render::convert_for_renderer;
 use crate::cm::math::span::MathSpan;
 use crate::config::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender};
-use crate::format::semantic::{CanonicalEvent, canonical_events};
+use crate::format::rewrite::{Candidate, OwnerKind, Phase, Snapshot, Verification};
 use crate::parse::{self, FORMATTER_OPTIONS};
 use crate::source::{CanonicalSource, Source};
 
-/// Apply every opted-in style rewrite to `out`. No-op when every
-/// style knob is `Preserve` — callers should gate on
-/// [`FmtOptions::has_any_canonicalisation`] so the chokepoint reparse
-/// only happens when at least one rewrite is configured.
-///
-/// The pass iterates internally to a fixed point. A single rewrite can
-/// change the bytes around a neighbouring candidate, flipping that
-/// candidate's verification verdict on the next pass. We keep running
-/// per-knob passes until the buffer stops changing (capped by
-/// [`MAX_CANONICALISE_ITERS`] to detect genuine cycles, which would
-/// indicate a verification-predicate bug).
-pub(crate) fn canonicalise(out: &mut String, opts: &FmtOptions) {
-    let mut iter = 0u32;
-    loop {
-        let before = out.clone();
-        canonicalise_one_pass(out, opts);
-        if *out == before {
-            return;
-        }
-        iter = iter.saturating_add(1);
-        if iter >= MAX_CANONICALISE_ITERS {
-            tracing::warn!(
-                target: "mdwright::canonicalise",
-                iters = iter,
-                "canonicalise did not converge within iteration cap; leaving last-iter bytes in place",
-            );
-            return;
-        }
-    }
-}
-
-const MAX_CANONICALISE_ITERS: u32 = 8;
-
-fn canonicalise_one_pass(out: &mut String, opts: &FmtOptions) {
+pub(crate) fn collect_candidates(snapshot: &Snapshot<'_>, opts: &FmtOptions, candidates: &mut Vec<Candidate>) {
     if let Some(target) = opts.italic_target_byte() {
-        rewrite_emphasis_delim(out, EmphasisKind::Italic, target);
+        collect_emphasis_delim(snapshot, EmphasisKind::Italic, target, candidates);
     }
     if let Some(target) = opts.strong_target_byte() {
-        rewrite_emphasis_delim(out, EmphasisKind::Strong, target);
+        collect_emphasis_delim(snapshot, EmphasisKind::Strong, target, candidates);
     }
     if let Some(target) = opts.list_marker_target_byte() {
-        rewrite_unordered_list_marker(out, target);
+        collect_unordered_list_marker(snapshot, target, candidates);
     }
     if opts.should_renumber_ordered_lists() {
-        rewrite_ordered_list_renumber(out);
+        collect_ordered_list_renumber(snapshot, candidates);
     }
     if let Some(target) = opts.thematic_target_byte() {
-        rewrite_thematic(out, target);
+        collect_thematic(snapshot, target, candidates);
     }
     if let Some(target) = opts.link_def_target() {
-        rewrite_link_def_style(out, target);
+        collect_link_def_style(snapshot, target, candidates);
     }
     if matches!(opts.heading_attrs(), HeadingAttrsStyle::Canonicalise) {
-        rewrite_heading_attrs(out);
+        collect_heading_attrs(snapshot, candidates);
     }
     if needs_math_rewrite(opts) {
-        rewrite_math(out, opts);
+        collect_math(snapshot, opts, candidates);
     }
     if !opts.preserve_frontmatter() {
-        rewrite_strip_frontmatter(out);
+        collect_strip_frontmatter(snapshot, candidates);
     }
 }
 
@@ -137,38 +86,21 @@ fn needs_math_rewrite(opts: &FmtOptions) -> bool {
     matches!(opts.math().render, MathRender::Dollar) || opts.math().normalise
 }
 
-// ----- Verification primitive -----------------------------------
-
-/// True iff replacing `out[lo..hi]` with `rewrite` produces a document
-/// that reparses to the same canonical event stream.
-fn rewrite_preserves_parse(out: &str, rewrite: &[u8], lo: usize, hi: usize) -> bool {
-    let Some(prefix) = out.get(..lo) else {
-        return false;
+fn push_utf8_candidate(
+    snapshot: &Snapshot<'_>,
+    phase: Phase,
+    owner: OwnerKind,
+    range: std::ops::Range<usize>,
+    rewrite: Vec<u8>,
+    verification: Verification,
+    label: &'static str,
+    candidates: &mut Vec<Candidate>,
+) {
+    let Ok(replacement) = String::from_utf8(rewrite) else {
+        return;
     };
-    let Some(suffix) = out.get(hi..) else {
-        return false;
-    };
-    let total = prefix.len().saturating_add(rewrite.len()).saturating_add(suffix.len());
-    let mut after: Vec<u8> = Vec::with_capacity(total);
-    after.extend_from_slice(prefix.as_bytes());
-    after.extend_from_slice(rewrite);
-    after.extend_from_slice(suffix.as_bytes());
-    let Ok(after_str) = std::str::from_utf8(&after) else {
-        return false;
-    };
-
-    events_for(out) == events_for(after_str)
-}
-
-fn events_for(text: &str) -> Vec<CanonicalEvent> {
-    let src = Source::new(text);
-    canonical_events(CanonicalSource::from_source(&src))
-}
-
-/// Replace `out[lo..hi]` with `rewrite` if `rewrite` is valid UTF-8.
-fn commit_rewrite(out: &mut String, lo: usize, hi: usize, rewrite: &[u8]) {
-    if let Ok(s) = std::str::from_utf8(rewrite) {
-        out.replace_range(lo..hi, s);
+    if let Some(candidate) = snapshot.candidate(phase, owner, range, replacement, verification, label) {
+        candidates.push(candidate);
     }
 }
 
@@ -208,13 +140,21 @@ impl EmphasisKind {
             Self::Strong => "strong",
         }
     }
+
+    fn phase(self) -> Phase {
+        match self {
+            Self::Italic => Phase::Italic,
+            Self::Strong => Phase::Strong,
+        }
+    }
 }
 
-fn rewrite_emphasis_delim(out: &mut String, kind: EmphasisKind, target: u8) {
-    let candidates = collect_emphasis_spans(out, kind);
+fn collect_emphasis_delim(snapshot: &Snapshot<'_>, kind: EmphasisKind, target: u8, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
+    let spans = collect_emphasis_spans(out, kind);
     let delim_len = kind.delim_len();
 
-    for span in candidates.into_iter().rev() {
+    for span in spans {
         let (open_lo, open_hi, close_lo, close_hi) = span;
         let bytes = out.as_bytes();
         let Some(open) = bytes.get(open_lo..open_hi) else {
@@ -241,17 +181,16 @@ fn rewrite_emphasis_delim(out: &mut String, kind: EmphasisKind, target: u8) {
         for _ in 0..delim_len {
             rewrite.push(target);
         }
-        if rewrite_preserves_parse(out, &rewrite, open_lo, close_hi) {
-            commit_rewrite(out, open_lo, close_hi, &rewrite);
-        } else {
-            tracing::warn!(
-                target: "mdwright::canonicalise",
-                kind = kind.label(),
-                span_lo = open_lo,
-                span_hi = close_hi,
-                "skipped emphasis rewrite: parse would diverge",
-            );
-        }
+        push_utf8_candidate(
+            snapshot,
+            kind.phase(),
+            OwnerKind::Paragraph,
+            open_lo..close_hi,
+            rewrite,
+            Verification::PreserveMarkdownAndMath,
+            kind.label(),
+            candidates,
+        );
     }
 }
 
@@ -298,9 +237,10 @@ fn is_emphasis_delim_run(bytes: &[u8]) -> bool {
 
 // ----- Unordered list bullet rewrite ----------------------------
 
-fn rewrite_unordered_list_marker(out: &mut String, target: u8) {
+fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
     let lists = collect_unordered_lists(out);
-    for list in lists.into_iter().rev() {
+    for list in lists {
         if list.bullets.is_empty() {
             continue;
         }
@@ -323,17 +263,16 @@ fn rewrite_unordered_list_marker(out: &mut String, target: u8) {
                 *byte = target;
             }
         }
-        if rewrite_preserves_parse(out, &rewrite, lo, hi) {
-            commit_rewrite(out, lo, hi, &rewrite);
-        } else {
-            tracing::warn!(
-                target: "mdwright::canonicalise",
-                span_lo = lo,
-                span_hi = hi,
-                bullets = list.bullets.len(),
-                "skipped unordered-list marker rewrite: parse would diverge",
-            );
-        }
+        push_utf8_candidate(
+            snapshot,
+            Phase::UnorderedList,
+            OwnerKind::List,
+            lo..hi,
+            rewrite,
+            Verification::PreserveMarkdownAndMath,
+            "unordered-list-marker",
+            candidates,
+        );
     }
 }
 
@@ -402,10 +341,11 @@ fn find_unordered_bullet(bytes: &[u8], start: usize, end: usize) -> Option<usize
 
 // ----- Ordered list renumber ------------------------------------
 
-fn rewrite_ordered_list_renumber(out: &mut String) {
+fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
     let lists = collect_ordered_lists(out);
 
-    for list in lists.into_iter().rev() {
+    for list in lists {
         let Some(first) = list.items.first() else {
             continue;
         };
@@ -441,17 +381,16 @@ fn rewrite_ordered_list_renumber(out: &mut String) {
         if !needs_change {
             continue;
         }
-        if rewrite_preserves_parse(out, &rewrite, lo, hi) {
-            commit_rewrite(out, lo, hi, &rewrite);
-        } else {
-            tracing::warn!(
-                target: "mdwright::canonicalise",
-                span_lo = lo,
-                span_hi = hi,
-                items = list.items.len(),
-                "skipped ordered-list renumber: parse would diverge",
-            );
-        }
+        push_utf8_candidate(
+            snapshot,
+            Phase::OrderedList,
+            OwnerKind::List,
+            lo..hi,
+            rewrite,
+            Verification::PreserveMarkdownAndMath,
+            "ordered-list-renumber",
+            candidates,
+        );
     }
 }
 
@@ -539,9 +478,10 @@ fn scan_ordered_marker_number(bytes: &[u8], lo: usize, hi: usize) -> Option<u64>
 
 // ----- Thematic break -------------------------------------------
 
-fn rewrite_thematic(out: &mut String, target: u8) {
+fn collect_thematic(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
     let sites = collect_thematic_breaks(out);
-    for (lo, hi) in sites.into_iter().rev() {
+    for (lo, hi) in sites {
         let bytes = out.as_bytes();
         let Some(line) = bytes.get(lo..hi) else { continue };
         if line.is_empty() {
@@ -559,16 +499,16 @@ fn rewrite_thematic(out: &mut String, target: u8) {
                 *byte = target;
             }
         }
-        if rewrite_preserves_parse(out, &rewrite, lo, hi) {
-            commit_rewrite(out, lo, hi, &rewrite);
-        } else {
-            tracing::warn!(
-                target: "mdwright::canonicalise",
-                span_lo = lo,
-                span_hi = hi,
-                "skipped thematic-break rewrite: parse would diverge",
-            );
-        }
+        push_utf8_candidate(
+            snapshot,
+            Phase::ThematicBreak,
+            OwnerKind::ThematicBreak,
+            lo..hi,
+            rewrite,
+            Verification::PreserveMarkdownAndMath,
+            "thematic-break",
+            candidates,
+        );
     }
 }
 
@@ -595,9 +535,10 @@ fn collect_thematic_breaks(out: &str) -> Vec<(usize, usize)> {
 /// pairs in source order. Skip the rewrite if the trailer is already
 /// canonical, if the heading has no trailer, or if the document
 /// reparse check would fail.
-fn rewrite_heading_attrs(out: &mut String) {
+fn collect_heading_attrs(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
     let sites = collect_heading_attr_sites(out);
-    for site in sites.into_iter().rev() {
+    for site in sites {
         let HeadingAttrSite {
             attrs,
             trailer_lo,
@@ -611,15 +552,15 @@ fn rewrite_heading_attrs(out: &mut String) {
         if existing == canonical.as_bytes() {
             continue;
         }
-        if rewrite_preserves_parse(out, canonical.as_bytes(), trailer_lo, trailer_hi) {
-            commit_rewrite(out, trailer_lo, trailer_hi, canonical.as_bytes());
-        } else {
-            tracing::warn!(
-                target: "mdwright::canonicalise",
-                trailer_lo,
-                trailer_hi,
-                "skipped heading-attrs rewrite: parse would diverge",
-            );
+        if let Some(candidate) = snapshot.candidate(
+            Phase::HeadingAttrs,
+            OwnerKind::Heading,
+            trailer_lo..trailer_hi,
+            canonical,
+            Verification::PreserveMarkdownAndMath,
+            "heading-attrs",
+        ) {
+            candidates.push(candidate);
         }
     }
 }
@@ -668,9 +609,12 @@ fn collect_heading_attr_sites(out: &str) -> Vec<HeadingAttrSite> {
 
 // ----- Link destination style -----------------------------------
 
-fn rewrite_link_def_style(out: &mut String, target: LinkDefStyle) {
-    let sites = collect_link_destination_sites(out);
-    for (lo, hi) in sites.into_iter().rev() {
+fn collect_link_def_style(snapshot: &Snapshot<'_>, target: LinkDefStyle, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
+    let sites = collect_link_destination_sites(snapshot);
+    for site in sites {
+        let lo = site.range.start;
+        let hi = site.range.end;
         let bytes = out.as_bytes();
         let Some(slice) = bytes.get(lo..hi) else {
             continue;
@@ -699,23 +643,43 @@ fn rewrite_link_def_style(out: &mut String, target: LinkDefStyle) {
         } else {
             bare_slice.to_vec()
         };
-        if rewrite_preserves_parse(out, &rewrite, lo, hi) {
-            commit_rewrite(out, lo, hi, &rewrite);
-        } else {
-            tracing::warn!(
-                target: "mdwright::canonicalise",
-                span_lo = lo,
-                span_hi = hi,
-                "skipped link-destination style rewrite: parse would diverge",
-            );
+        let Ok(replacement) = String::from_utf8(rewrite) else {
+            continue;
+        };
+        if let Some(owner) = site.owner {
+            if let Some(candidate) = snapshot.candidate_for_owner(
+                owner,
+                Phase::LinkDestination,
+                lo..hi,
+                replacement,
+                Verification::PreserveMarkdownAndMath,
+                "link-destination-style",
+            ) {
+                candidates.push(candidate);
+            }
+        } else if let Some(candidate) = snapshot.candidate(
+            Phase::LinkDestination,
+            OwnerKind::Paragraph,
+            lo..hi,
+            replacement,
+            Verification::PreserveMarkdownAndMath,
+            "link-destination-style",
+        ) {
+            candidates.push(candidate);
         }
     }
 }
 
-fn collect_link_destination_sites(out: &str) -> Vec<(usize, usize)> {
+struct LinkDestinationSite {
+    range: std::ops::Range<usize>,
+    owner: Option<crate::format::rewrite::OwnerId>,
+}
+
+fn collect_link_destination_sites(snapshot: &Snapshot<'_>) -> Vec<LinkDestinationSite> {
+    let out = snapshot.source();
     let src = Source::new(out);
     let bytes = out.as_bytes();
-    let mut sites: Vec<(usize, usize)> = Vec::new();
+    let mut sites: Vec<LinkDestinationSite> = Vec::new();
     let mut link_stack: Vec<usize> = Vec::new();
     for (ev, range) in parse::events_with_offsets(CanonicalSource::from_source(&src), FORMATTER_OPTIONS) {
         #[allow(clippy::wildcard_enum_match_arm, reason = "only link events drive this walk")]
@@ -726,14 +690,20 @@ fn collect_link_destination_sites(out: &str) -> Vec<(usize, usize)> {
             Event::End(TagEnd::Link) => {
                 let Some(open) = link_stack.pop() else { continue };
                 if let Some(site) = find_inline_dest_range(bytes, open, range.end) {
-                    sites.push(site);
+                    sites.push(LinkDestinationSite {
+                        range: site.0..site.1,
+                        owner: None,
+                    });
                 }
             }
             _ => {}
         }
     }
-    for site in scan_reference_definitions(out) {
-        sites.push(site);
+    for site in snapshot.reference_destination_sites() {
+        sites.push(LinkDestinationSite {
+            range: site.range.clone(),
+            owner: Some(site.owner),
+        });
     }
     sites
 }
@@ -817,103 +787,32 @@ fn find_inline_dest_range(bytes: &[u8], start: usize, end: usize) -> Option<(usi
     Some((dest_lo, dest_hi))
 }
 
-fn scan_reference_definitions(out: &str) -> Vec<(usize, usize)> {
-    let mut sites: Vec<(usize, usize)> = Vec::new();
-    let bytes = out.as_bytes();
-    let len = bytes.len();
-    let mut line_start = 0usize;
-    while line_start <= len {
-        let tail = bytes.get(line_start..).unwrap_or(&[]);
-        let line_end = tail
-            .iter()
-            .position(|&b| b == b'\n')
-            .map_or(len, |p| line_start.saturating_add(p));
-        if let Some(site) = parse_ref_def_line(bytes, line_start, line_end) {
-            sites.push(site);
-        }
-        if line_end == len {
-            break;
-        }
-        line_start = line_end.saturating_add(1);
-    }
-    sites
-}
-
-fn parse_ref_def_line(bytes: &[u8], lo: usize, hi: usize) -> Option<(usize, usize)> {
-    let mut i = lo;
-    let mut spaces = 0usize;
-    while i < hi && bytes.get(i).copied() == Some(b' ') && spaces < 3 {
-        i = i.saturating_add(1);
-        spaces = spaces.saturating_add(1);
-    }
-    if bytes.get(i).copied() != Some(b'[') {
-        return None;
-    }
-    i = i.saturating_add(1);
-    while i < hi {
-        let b = bytes.get(i).copied()?;
-        match b {
-            b'\\' => i = i.saturating_add(2),
-            b']' => break,
-            b'\n' => return None,
-            _ => i = i.saturating_add(1),
-        }
-    }
-    if bytes.get(i).copied() != Some(b']') {
-        return None;
-    }
-    i = i.saturating_add(1);
-    if bytes.get(i).copied() != Some(b':') {
-        return None;
-    }
-    i = i.saturating_add(1);
-    while i < hi && matches!(bytes.get(i).copied(), Some(b' ' | b'\t')) {
-        i = i.saturating_add(1);
-    }
-    if i >= hi {
-        return None;
-    }
-    let dest_lo = i;
-    let dest_hi = if bytes.get(i).copied() == Some(b'<') {
-        let mut k = i.saturating_add(1);
-        while k < hi && bytes.get(k).copied() != Some(b'>') {
-            k = k.saturating_add(1);
-        }
-        if bytes.get(k).copied() != Some(b'>') {
-            return None;
-        }
-        k.saturating_add(1)
-    } else {
-        let mut k = i;
-        while k < hi && !matches!(bytes.get(k).copied(), Some(b' ' | b'\t')) {
-            k = k.saturating_add(1);
-        }
-        k
-    };
-    if dest_hi <= dest_lo {
-        return None;
-    }
-    Some((dest_lo, dest_hi))
-}
-
 // ----- Frontmatter strip ---------------------------------------
 
 /// Drop the document's frontmatter block (and the blank line that
 /// usually follows it) when `preserve_frontmatter = false`. Detection
 /// re-parses the buffer so the rewrite can be applied after other
 /// canonicalisations have rewritten interior bytes.
-fn rewrite_strip_frontmatter(out: &mut String) {
-    let fm_end = {
-        let doc = crate::Document::parse(out);
-        doc.frontmatter().map(|f| f.slice.raw_range.end)
+fn collect_strip_frontmatter(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
+    let Some(frontmatter) = snapshot.document().frontmatter() else {
+        return;
     };
-    let Some(end) = fm_end else { return };
     let bytes = out.as_bytes();
-    let mut cut = end;
+    let mut cut = frontmatter.slice.raw_range.end;
     while bytes.get(cut).copied() == Some(b'\n') {
         cut = cut.saturating_add(1);
     }
-    out.replace_range(0..cut, "");
+    if let Some(candidate) = snapshot.candidate(
+        Phase::Frontmatter,
+        OwnerKind::Frontmatter,
+        0..cut,
+        String::new(),
+        Verification::RemoveFrontmatter,
+        "frontmatter-strip",
+    ) {
+        candidates.push(candidate);
+    }
 }
 
 // ----- Math regions --------------------------------------------
@@ -922,36 +821,32 @@ fn rewrite_strip_frontmatter(out: &mut String) {
 /// region in `out`. Two transformations are supported:
 ///
 /// 1. `MathRender::Dollar` — rewrite `\[…\]` / `\(…\)` regions to
-///    `$$…$$` / `$…$`. Environments (`\begin{…}…\end{…}`) are passed
-///    through unchanged because there is no dollar form of a LaTeX
-///    environment.
-/// 2. `math.normalise = true` — pad columns of aligning environments
-///    (`align`, matrix family, `cases`, …) so `&` separators line up.
-///
-/// Both transformations are deliberate, user-requested semantic
-/// changes. Unlike the style rewrites above, math rewrites apply
-/// unconditionally; correctness is verified at the document level by
-/// the idempotence-on-mode gate in `Document::format_validated`.
-fn rewrite_math(out: &mut String, opts: &FmtOptions) {
-    let regions: Vec<MathRegion> = {
-        let doc = crate::Document::parse(out);
-        doc.math_regions().to_vec()
-    };
-    if regions.is_empty() {
-        return;
-    }
-    let snapshot = out.clone();
-    for region in regions.into_iter().rev() {
-        let Some(replacement) = compute_math_replacement(&snapshot, &region, opts) else {
+///    `$$…$$` / `$…$`. Environments (`\begin{env}…\end{env}`) are
+///    passed through unchanged because there is no dollar form of a
+///    LaTeX environment.
+/// 2. `math.normalise = true` — pad columns of aligning environments.
+fn collect_math(snapshot: &Snapshot<'_>, opts: &FmtOptions, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
+    for region in snapshot.document().math_regions() {
+        let Some(replacement) = compute_math_replacement(out, region, opts) else {
             continue;
         };
-        let Some(existing) = snapshot.get(region.range.clone()) else {
+        let Some(existing) = out.get(region.range.clone()) else {
             continue;
         };
         if replacement == existing {
             continue;
         }
-        out.replace_range(region.range.clone(), &replacement);
+        if let Some(candidate) = snapshot.candidate(
+            Phase::Math,
+            OwnerKind::MathRegion,
+            region.range.clone(),
+            replacement,
+            Verification::MathRewrite,
+            "math-rewrite",
+        ) {
+            candidates.push(candidate);
+        }
     }
 }
 
@@ -990,88 +885,105 @@ fn compute_math_replacement(source: &str, region: &MathRegion, opts: &FmtOptions
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Document, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, StrongStyle, ThematicStyle};
+
+    fn format_with(src: &str, opts: &FmtOptions) -> String {
+        Document::parse(src).format(opts)
+    }
 
     #[test]
     fn italic_underscore_to_asterisk() {
-        let mut out = String::from("_foo_\n");
-        rewrite_emphasis_delim(&mut out, EmphasisKind::Italic, b'*');
+        let out = format_with("_foo_\n", &FmtOptions::default().with_italic(ItalicStyle::Asterisk));
         assert_eq!(out, "*foo*\n");
     }
 
     #[test]
     fn italic_asterisk_already_target_is_noop() {
-        let mut out = String::from("*foo*\n");
-        rewrite_emphasis_delim(&mut out, EmphasisKind::Italic, b'*');
+        let out = format_with("*foo*\n", &FmtOptions::default().with_italic(ItalicStyle::Asterisk));
         assert_eq!(out, "*foo*\n");
     }
 
     #[test]
     fn italic_intraword_underscore_skips() {
-        let mut out = String::from("foo_bar_baz\n");
-        rewrite_emphasis_delim(&mut out, EmphasisKind::Italic, b'*');
+        let out = format_with(
+            "foo_bar_baz\n",
+            &FmtOptions::default().with_italic(ItalicStyle::Asterisk),
+        );
         assert_eq!(out, "foo_bar_baz\n");
     }
 
     #[test]
     fn strong_double_underscore_to_asterisk() {
-        let mut out = String::from("__foo__\n");
-        rewrite_emphasis_delim(&mut out, EmphasisKind::Strong, b'*');
+        let out = format_with("__foo__\n", &FmtOptions::default().with_strong(StrongStyle::Asterisk));
         assert_eq!(out, "**foo**\n");
     }
 
     #[test]
     fn list_marker_dash_to_asterisk_atomic() {
-        let mut out = String::from("- a\n- b\n- c\n");
-        rewrite_unordered_list_marker(&mut out, b'*');
+        let out = format_with(
+            "- a\n- b\n- c\n",
+            &FmtOptions::default().with_list_marker(ListMarkerStyle::Asterisk),
+        );
         assert_eq!(out, "* a\n* b\n* c\n");
     }
 
     #[test]
     fn list_marker_rewrite_skips_when_it_would_merge_adjacent_lists() {
-        let mut out = String::from("+\n\n-");
-        rewrite_unordered_list_marker(&mut out, b'+');
+        let out = format_with("+\n\n-", &FmtOptions::default().with_list_marker(ListMarkerStyle::Plus));
         assert_eq!(out, "+\n\n-");
     }
 
     #[test]
     fn list_marker_rewrite_skips_when_definition_list_context_would_merge() {
-        let mut out = String::from("M\n\n:\n-\n\n+");
-        rewrite_unordered_list_marker(&mut out, b'-');
+        let out = format_with(
+            "M\n\n:\n-\n\n+",
+            &FmtOptions::default().with_list_marker(ListMarkerStyle::Dash),
+        );
         assert_eq!(out, "M\n\n:\n-\n\n+");
     }
 
     #[test]
     fn thematic_dash_to_asterisk() {
-        let mut out = String::from("before\n\n---\n\nafter\n");
-        rewrite_thematic(&mut out, b'*');
+        let out = format_with(
+            "before\n\n---\n\nafter\n",
+            &FmtOptions::default().with_thematic_break(ThematicStyle::Asterisk),
+        );
         assert_eq!(out, "before\n\n***\n\nafter\n");
     }
 
     #[test]
     fn ordered_list_renumber_consistent() {
-        let mut out = String::from("3. a\n5. b\n9. c\n");
-        rewrite_ordered_list_renumber(&mut out);
+        let out = format_with(
+            "3. a\n5. b\n9. c\n",
+            &FmtOptions::default().with_ordered_list(OrderedListStyle::Consistent),
+        );
         assert_eq!(out, "3. a\n4. b\n5. c\n");
     }
 
     #[test]
     fn link_def_to_angle() {
-        let mut out = String::from("[ref]: https://example.com\n");
-        rewrite_link_def_style(&mut out, LinkDefStyle::Angle);
+        let out = format_with(
+            "[ref]: https://example.com\n",
+            &FmtOptions::default().with_link_def_style(LinkDefStyle::Angle),
+        );
         assert_eq!(out, "[ref]: <https://example.com>\n");
     }
 
     #[test]
     fn link_def_style_skips_reference_like_html_block_line() {
-        let mut out = String::from("<?J\n\n[_]:#");
-        rewrite_link_def_style(&mut out, LinkDefStyle::Angle);
+        let out = format_with(
+            "<?J\n\n[_]:#",
+            &FmtOptions::default().with_link_def_style(LinkDefStyle::Angle),
+        );
         assert_eq!(out, "<?J\n\n[_]:#");
     }
 
     #[test]
     fn link_def_to_bare() {
-        let mut out = String::from("[ref]: <https://example.com>\n");
-        rewrite_link_def_style(&mut out, LinkDefStyle::Bare);
+        let out = format_with(
+            "[ref]: <https://example.com>\n",
+            &FmtOptions::default().with_link_def_style(LinkDefStyle::Bare),
+        );
         assert_eq!(out, "[ref]: https://example.com\n");
     }
 }

@@ -45,7 +45,6 @@ impl NodeId {
     pub(crate) fn idx(self) -> usize {
         self.0 as usize
     }
-
 }
 
 /// One node in the document tree. A pure data carrier; behaviour
