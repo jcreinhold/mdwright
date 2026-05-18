@@ -9,6 +9,7 @@
 //! Pretty" (2000); and the `prettyplease` crate for prior art.
 
 pub(crate) mod block;
+pub(crate) mod canonicalise;
 pub(crate) mod doc;
 pub(crate) mod document;
 pub(crate) mod inline;

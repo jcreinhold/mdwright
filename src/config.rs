@@ -136,17 +136,20 @@ impl Config {
 
 /// Formatter knobs.
 ///
-/// Style knobs (`italic`, `list_marker`, `ordered_list`,
+/// Style knobs (`italic`, `strong`, `list_marker`, `ordered_list`,
 /// `link_def_style`, `thematic_break_style`) default to `Preserve`;
 /// the structural-emit pipeline never consults them, so the defaults
-/// round-trip source bytes verbatim. Style rewrites arrive later as
-/// a separate post-pass that reads these knobs. Structural defaults:
+/// round-trip source bytes verbatim. Style rewrites are applied by
+/// the canonicalisation post-pass at
+/// [`crate::format::canonicalise::canonicalise`], which reads the
+/// per-knob `_target()` accessors below. Structural defaults:
 /// `wrap = keep`, `trailing-newline = preserve`, `end-of-line = lf`,
 /// empty exclude list.
 #[derive(Debug, Clone)]
 pub struct FmtOptions {
     wrap: Wrap,
     italic: ItalicStyle,
+    strong: StrongStyle,
     list_marker: ListMarkerStyle,
     ordered_list: OrderedListStyle,
     trailing_newline: TrailingNewline,
@@ -187,6 +190,12 @@ impl FmtOptions {
     #[must_use]
     pub fn italic(&self) -> ItalicStyle {
         self.italic
+    }
+
+    /// Strong-emphasis delimiter normalisation policy.
+    #[must_use]
+    pub fn strong(&self) -> StrongStyle {
+        self.strong
     }
 
     /// Unordered-list bullet normalisation policy.
@@ -309,6 +318,49 @@ impl FmtOptions {
         self
     }
 
+    /// Override the italic style. Used by callers that build options
+    /// programmatically (property tests, CLI overrides).
+    #[must_use]
+    pub fn with_italic(mut self, italic: ItalicStyle) -> Self {
+        self.italic = italic;
+        self
+    }
+
+    /// Override the strong style.
+    #[must_use]
+    pub fn with_strong(mut self, strong: StrongStyle) -> Self {
+        self.strong = strong;
+        self
+    }
+
+    /// Override the unordered-list bullet style.
+    #[must_use]
+    pub fn with_list_marker(mut self, list_marker: ListMarkerStyle) -> Self {
+        self.list_marker = list_marker;
+        self
+    }
+
+    /// Override the ordered-list numbering policy.
+    #[must_use]
+    pub fn with_ordered_list(mut self, ordered_list: OrderedListStyle) -> Self {
+        self.ordered_list = ordered_list;
+        self
+    }
+
+    /// Override the thematic-break canonicalisation policy.
+    #[must_use]
+    pub fn with_thematic_break(mut self, thematic_break: ThematicStyle) -> Self {
+        self.thematic_break_style = thematic_break;
+        self
+    }
+
+    /// Override the link-destination style.
+    #[must_use]
+    pub fn with_link_def_style(mut self, link_def_style: LinkDefStyle) -> Self {
+        self.link_def_style = link_def_style;
+        self
+    }
+
     /// Resolve the unordered-list bullet to emit, given the byte the
     /// source used (`b'-'`, `b'*'`, or `b'+'`).
     #[must_use]
@@ -321,6 +373,85 @@ impl FmtOptions {
         }
     }
 
+    // ----- Canonicalisation post-pass targets ---------------------
+    //
+    // Each accessor below maps a style knob to `Some(target)` when the
+    // user opted into canonicalisation and `None` when the knob is
+    // `Preserve`. The canonicalisation pass at
+    // `src/format/canonicalise.rs` is the only consumer; structural
+    // emit never reads these.
+
+    /// Italic-delimiter target byte. `None` keeps source bytes.
+    #[must_use]
+    pub(crate) fn italic_target_byte(&self) -> Option<u8> {
+        match self.italic {
+            ItalicStyle::Asterisk => Some(b'*'),
+            ItalicStyle::Underscore => Some(b'_'),
+            ItalicStyle::Preserve => None,
+        }
+    }
+
+    /// Strong-delimiter target byte. `None` keeps source bytes.
+    #[must_use]
+    pub(crate) fn strong_target_byte(&self) -> Option<u8> {
+        match self.strong {
+            StrongStyle::Asterisk => Some(b'*'),
+            StrongStyle::Underscore => Some(b'_'),
+            StrongStyle::Preserve => None,
+        }
+    }
+
+    /// Unordered-list bullet target byte. `None` keeps source bytes.
+    #[must_use]
+    pub(crate) fn list_marker_target_byte(&self) -> Option<u8> {
+        match self.list_marker {
+            ListMarkerStyle::Dash => Some(b'-'),
+            ListMarkerStyle::Asterisk => Some(b'*'),
+            ListMarkerStyle::Plus => Some(b'+'),
+            ListMarkerStyle::Preserve => None,
+        }
+    }
+
+    /// Thematic-break target byte. `None` keeps source bytes.
+    #[must_use]
+    pub(crate) fn thematic_target_byte(&self) -> Option<u8> {
+        match self.thematic_break_style {
+            ThematicStyle::Dash => Some(b'-'),
+            ThematicStyle::Asterisk => Some(b'*'),
+            ThematicStyle::Underscore => Some(b'_'),
+            ThematicStyle::Preserve => None,
+        }
+    }
+
+    /// `true` iff ordered lists should be renumbered.
+    #[must_use]
+    pub(crate) fn should_renumber_ordered_lists(&self) -> bool {
+        matches!(self.ordered_list, OrderedListStyle::Consistent)
+    }
+
+    /// Link-destination angle-bracket rewrite target. `None` keeps
+    /// source form per definition.
+    #[must_use]
+    pub(crate) fn link_def_target(&self) -> Option<LinkDefStyle> {
+        match self.link_def_style {
+            LinkDefStyle::Bare => Some(LinkDefStyle::Bare),
+            LinkDefStyle::Angle => Some(LinkDefStyle::Angle),
+            LinkDefStyle::Preserve => None,
+        }
+    }
+
+    /// True iff any style knob is set to a non-`Preserve` value. When
+    /// false, the canonicalisation pass is skipped entirely.
+    #[must_use]
+    pub(crate) fn has_any_canonicalisation(&self) -> bool {
+        self.italic_target_byte().is_some()
+            || self.strong_target_byte().is_some()
+            || self.list_marker_target_byte().is_some()
+            || self.thematic_target_byte().is_some()
+            || self.should_renumber_ordered_lists()
+            || self.link_def_target().is_some()
+    }
+
     fn from_schema(schema: FmtSchema) -> Self {
         let default = Self::default();
         let refs = schema.refs.unwrap_or_default();
@@ -329,6 +460,7 @@ impl FmtOptions {
         Self {
             wrap: schema.wrap.map_or(default.wrap, Wrap::from),
             italic: schema.italic.map_or(default.italic, ItalicStyle::from),
+            strong: schema.strong.map_or(default.strong, StrongStyle::from),
             list_marker: schema.list_marker.map_or(default.list_marker, ListMarkerStyle::from),
             ordered_list: schema.ordered_list.map_or(default.ordered_list, OrderedListStyle::from),
             trailing_newline: schema
@@ -340,7 +472,9 @@ impl FmtOptions {
             link_def_style: refs.style.map_or(default.link_def_style, LinkDefStyle::from),
             footnote_placement: footnotes.placement.map_or(default.footnote_placement, Placement::from),
             preserve_frontmatter: frontmatter.preserve.unwrap_or(default.preserve_frontmatter),
-            thematic_break_style: default.thematic_break_style,
+            thematic_break_style: schema
+                .thematic_break
+                .map_or(default.thematic_break_style, ThematicStyle::from),
             mode: default.mode,
             math: default.math,
         }
@@ -352,10 +486,11 @@ impl Default for FmtOptions {
         Self {
             wrap: Wrap::Keep,
             // Style knobs default to Preserve so structural emit
-            // round-trips source bytes. A separate canonicalisation
-            // post-pass (future work) reads these knobs to opt in to
-            // rewrites.
+            // round-trips source bytes. The canonicalisation post-pass
+            // at `crate::format::canonicalise` reads these knobs to
+            // opt in to rewrites.
             italic: ItalicStyle::Preserve,
+            strong: StrongStyle::Preserve,
             list_marker: ListMarkerStyle::Preserve,
             ordered_list: OrderedListStyle::Preserve,
             trailing_newline: TrailingNewline::Preserve,
@@ -485,9 +620,19 @@ impl Wrap {
 
 /// Italic delimiter normalisation policy. Defaults to `Preserve`:
 /// structural emit preserves each run's source delimiter. Fixed
-/// variants are consumed only by the future canonicalisation pass.
+/// variants are consumed only by the canonicalisation post-pass.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum ItalicStyle {
+    Asterisk,
+    Underscore,
+    Preserve,
+}
+
+/// Strong-emphasis delimiter normalisation policy. Defaults to
+/// `Preserve`. Independent of [`ItalicStyle`] so an author can
+/// canonicalise one without forcing the other.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum StrongStyle {
     Asterisk,
     Underscore,
     Preserve,
@@ -629,10 +774,14 @@ struct FmtSchema {
     wrap: Option<WrapSchema>,
     #[serde(default)]
     italic: Option<ItalicSchema>,
+    #[serde(default)]
+    strong: Option<StrongSchema>,
     #[serde(default, rename = "list-marker")]
     list_marker: Option<ListMarkerSchema>,
     #[serde(default, rename = "ordered-list")]
     ordered_list: Option<OrderedListSchema>,
+    #[serde(default, rename = "thematic-break")]
+    thematic_break: Option<ThematicSchema>,
     #[serde(default, rename = "trailing-newline")]
     trailing_newline: Option<TrailingNewlineSchema>,
     #[serde(default, rename = "end-of-line")]
@@ -709,6 +858,14 @@ enum ItalicSchema {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
+enum StrongSchema {
+    Asterisk,
+    Underscore,
+    Preserve,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
 enum ListMarkerSchema {
     Dash,
     Asterisk,
@@ -720,6 +877,15 @@ enum ListMarkerSchema {
 #[serde(rename_all = "lowercase")]
 enum OrderedListSchema {
     Consistent,
+    Preserve,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum ThematicSchema {
+    Dash,
+    Asterisk,
+    Underscore,
     Preserve,
 }
 
@@ -777,6 +943,27 @@ impl From<ItalicSchema> for ItalicStyle {
             ItalicSchema::Asterisk => Self::Asterisk,
             ItalicSchema::Underscore => Self::Underscore,
             ItalicSchema::Preserve => Self::Preserve,
+        }
+    }
+}
+
+impl From<StrongSchema> for StrongStyle {
+    fn from(s: StrongSchema) -> Self {
+        match s {
+            StrongSchema::Asterisk => Self::Asterisk,
+            StrongSchema::Underscore => Self::Underscore,
+            StrongSchema::Preserve => Self::Preserve,
+        }
+    }
+}
+
+impl From<ThematicSchema> for ThematicStyle {
+    fn from(s: ThematicSchema) -> Self {
+        match s {
+            ThematicSchema::Dash => Self::Dash,
+            ThematicSchema::Asterisk => Self::Asterisk,
+            ThematicSchema::Underscore => Self::Underscore,
+            ThematicSchema::Preserve => Self::Preserve,
         }
     }
 }
@@ -897,7 +1084,8 @@ mod tests {
     use anyhow::{Result, anyhow};
 
     use super::{
-        Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema, TrailingNewline, Wrap,
+        Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema, StrongStyle,
+        ThematicStyle, TrailingNewline, Wrap,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -920,8 +1108,10 @@ extra = ["promql"]
 [fmt]
 wrap = 70
 italic = "asterisk"
+strong = "underscore"
 list-marker = "dash"
 ordered-list = "consistent"
+thematic-break = "asterisk"
 trailing-newline = true
 end-of-line = "lf"
 exclude = ["docs/generated/**"]
@@ -933,8 +1123,10 @@ exclude = ["docs/generated/**"]
         let fmt = cfg.fmt_options();
         assert_eq!(fmt.wrap(), Wrap::At(70));
         assert_eq!(fmt.italic(), ItalicStyle::Asterisk);
+        assert_eq!(fmt.strong(), StrongStyle::Underscore);
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::Consistent);
+        assert_eq!(fmt.thematic_break_style(), ThematicStyle::Asterisk);
         assert_eq!(fmt.trailing_newline(), TrailingNewline::Ensure);
         assert_eq!(fmt.end_of_line(), EndOfLine::Lf);
         assert_eq!(fmt.exclude_globs(), &["docs/generated/**".to_owned()]);
@@ -1009,6 +1201,23 @@ exclude = ["docs/generated/**"]
         ] {
             let cfg = config_from_str(&format!("[fmt]\nitalic = {lit}\n"))?;
             assert_eq!(cfg.fmt_options().italic(), expected);
+        }
+        for (lit, expected) in [
+            ("\"asterisk\"", StrongStyle::Asterisk),
+            ("\"underscore\"", StrongStyle::Underscore),
+            ("\"preserve\"", StrongStyle::Preserve),
+        ] {
+            let cfg = config_from_str(&format!("[fmt]\nstrong = {lit}\n"))?;
+            assert_eq!(cfg.fmt_options().strong(), expected);
+        }
+        for (lit, expected) in [
+            ("\"dash\"", ThematicStyle::Dash),
+            ("\"asterisk\"", ThematicStyle::Asterisk),
+            ("\"underscore\"", ThematicStyle::Underscore),
+            ("\"preserve\"", ThematicStyle::Preserve),
+        ] {
+            let cfg = config_from_str(&format!("[fmt]\nthematic-break = {lit}\n"))?;
+            assert_eq!(cfg.fmt_options().thematic_break_style(), expected);
         }
         for (lit, expected) in [
             ("\"dash\"", ListMarkerStyle::Dash),

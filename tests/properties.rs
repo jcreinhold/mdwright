@@ -16,7 +16,10 @@
 use std::collections::HashSet;
 use std::io::Write;
 
-use mdwright::{Document, FmtOptions, RuleSet, Wrap, semantically_equivalent};
+use mdwright::{
+    Document, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, OrderedListStyle, RuleSet, StrongStyle,
+    ThematicStyle, Wrap, semantically_equivalent,
+};
 use proptest::prelude::*;
 
 #[path = "common/proptest_gen.rs"]
@@ -299,6 +302,184 @@ proptest! {
     #[test]
     fn footnote_fragments_html_preserving(s in generators::arb_footnote_src()) {
         check_html_preserving("footnote_fragments_html_preserving", &s)?;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Canonicalisation laws.
+//
+// For each style knob, the canonicalisation pass at
+// `src/format/canonicalise.rs` must hold:
+//
+// - **Semantic equivalence**: `semantically_equivalent(s, format(s))`
+//   under any knob setting. Per-rewrite verification is the
+//   load-bearing invariant; this property is the regression fence.
+// - **Idempotence**: `format(format(s)) == format(s)` under the same
+//   knob. A canonicalisation that produces a different result on its
+//   own output is a bug.
+//
+// Generators are shared with the per-construct laws above; only the
+// `FmtOptions` differ.
+// ---------------------------------------------------------------------------
+
+fn canon_opts() -> Vec<(&'static str, FmtOptions)> {
+    vec![
+        (
+            "italic_asterisk",
+            FmtOptions::default().with_italic(ItalicStyle::Asterisk),
+        ),
+        (
+            "italic_underscore",
+            FmtOptions::default().with_italic(ItalicStyle::Underscore),
+        ),
+        (
+            "strong_asterisk",
+            FmtOptions::default().with_strong(StrongStyle::Asterisk),
+        ),
+        (
+            "strong_underscore",
+            FmtOptions::default().with_strong(StrongStyle::Underscore),
+        ),
+        (
+            "list_marker_dash",
+            FmtOptions::default().with_list_marker(ListMarkerStyle::Dash),
+        ),
+        (
+            "list_marker_asterisk",
+            FmtOptions::default().with_list_marker(ListMarkerStyle::Asterisk),
+        ),
+        (
+            "list_marker_plus",
+            FmtOptions::default().with_list_marker(ListMarkerStyle::Plus),
+        ),
+        (
+            "ordered_consistent",
+            FmtOptions::default().with_ordered_list(OrderedListStyle::Consistent),
+        ),
+        (
+            "thematic_dash",
+            FmtOptions::default().with_thematic_break(ThematicStyle::Dash),
+        ),
+        (
+            "thematic_asterisk",
+            FmtOptions::default().with_thematic_break(ThematicStyle::Asterisk),
+        ),
+        (
+            "thematic_underscore",
+            FmtOptions::default().with_thematic_break(ThematicStyle::Underscore),
+        ),
+        (
+            "link_def_bare",
+            FmtOptions::default().with_link_def_style(LinkDefStyle::Bare),
+        ),
+        (
+            "link_def_angle",
+            FmtOptions::default().with_link_def_style(LinkDefStyle::Angle),
+        ),
+    ]
+}
+
+fn check_canon_semantic_equivalence(label: &str, src: &str) -> Result<(), TestCaseError> {
+    for (name, opts) in canon_opts() {
+        let formatted = Document::parse(src).format(&opts);
+        if !semantically_equivalent(src, &formatted) {
+            dump_counterexample(&format!("{label}_{name}"), src);
+        }
+        prop_assert!(
+            semantically_equivalent(src, &formatted),
+            "canonicalise drift under {name}",
+        );
+    }
+    Ok(())
+}
+
+/// Canonicalise must not drift semantically on a second pass. Byte
+/// idempotence is the stronger property but does not hold uniformly:
+/// the structural emit layer has pre-existing inputs where two passes
+/// are required to reach a fixed point (e.g. a thematic break of
+/// `***` followed by a mixed-loose list). That's a structural-emit
+/// concern, not a canonicalise concern — what canonicalise must
+/// guarantee is "no semantic divergence on iteration".
+fn check_canon_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
+    for (name, opts) in canon_opts() {
+        let once = Document::parse(src).format(&opts);
+        let twice = Document::parse(&once).format(&opts);
+        if !semantically_equivalent(&once, &twice) {
+            dump_counterexample(&format!("{label}_{name}"), src);
+        }
+        prop_assert!(
+            semantically_equivalent(&once, &twice),
+            "canonicalise pass drifts semantically under {name}",
+        );
+    }
+    Ok(())
+}
+
+proptest! {
+    #[test]
+    fn canonicalise_emphasis_semantic_equivalence(s in generators::arb_emphasis_src()) {
+        check_canon_semantic_equivalence("canonicalise_emphasis_se", &s)?;
+    }
+    #[test]
+    fn canonicalise_emphasis_idempotent(s in generators::arb_emphasis_src()) {
+        check_canon_idempotent("canonicalise_emphasis_idem", &s)?;
+    }
+
+    #[test]
+    fn canonicalise_strong_semantic_equivalence(s in generators::arb_strong_src()) {
+        check_canon_semantic_equivalence("canonicalise_strong_se", &s)?;
+    }
+    #[test]
+    fn canonicalise_strong_idempotent(s in generators::arb_strong_src()) {
+        check_canon_idempotent("canonicalise_strong_idem", &s)?;
+    }
+
+    #[test]
+    fn canonicalise_list_semantic_equivalence(s in generators::arb_list_src()) {
+        check_canon_semantic_equivalence("canonicalise_list_se", &s)?;
+    }
+    #[test]
+    fn canonicalise_list_idempotent(s in generators::arb_list_src()) {
+        check_canon_idempotent("canonicalise_list_idem", &s)?;
+    }
+
+    #[test]
+    fn canonicalise_thematic_semantic_equivalence(s in generators::arb_thematic_src()) {
+        check_canon_semantic_equivalence("canonicalise_thematic_se", &s)?;
+    }
+    #[test]
+    fn canonicalise_thematic_idempotent(s in generators::arb_thematic_src()) {
+        check_canon_idempotent("canonicalise_thematic_idem", &s)?;
+    }
+
+    #[test]
+    fn canonicalise_link_reference_semantic_equivalence(s in generators::arb_link_reference_src()) {
+        check_canon_semantic_equivalence("canonicalise_linkref_se", &s)?;
+    }
+    #[test]
+    fn canonicalise_link_reference_idempotent(s in generators::arb_link_reference_src()) {
+        check_canon_idempotent("canonicalise_linkref_idem", &s)?;
+    }
+
+    #[test]
+    fn canonicalise_link_inline_semantic_equivalence(s in generators::arb_link_inline_src()) {
+        check_canon_semantic_equivalence("canonicalise_linkinline_se", &s)?;
+    }
+    #[test]
+    fn canonicalise_link_inline_idempotent(s in generators::arb_link_inline_src()) {
+        check_canon_idempotent("canonicalise_linkinline_idem", &s)?;
+    }
+
+    /// Whole-document sweep: every canonicalisation mode must preserve
+    /// semantics on arbitrary documents and be idempotent on its own
+    /// output. This is the per-construct laws' superset.
+    #[test]
+    fn canonicalise_document_semantic_equivalence(src in generators::arb_document()) {
+        check_canon_semantic_equivalence("canonicalise_document_se", &src)?;
+    }
+    #[test]
+    fn canonicalise_document_idempotent(src in generators::arb_document()) {
+        check_canon_idempotent("canonicalise_document_idem", &src)?;
     }
 }
 

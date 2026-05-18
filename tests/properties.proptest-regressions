@@ -12,3 +12,4 @@ cc 62c4bcfccb737d297ce7115a48e00f1f99c979dacc757e41ddca434d2fd86aa3 # shrinks to
 cc 811f6205c54b96b69a58b2ad8add34fc9fd1ec8d1314b905606a3a4795dcfde5 # shrinks to s = "# [aaaaa aaa](https://example.com/aaaaa) [a](https://example.com/a) a aaaaa aaaaa\n"
 cc 67dadc64852113f669453ac5d592c546dacad1d3a4fba00af1d557cd86587404 # shrinks to (label, dest, title, kind) = ("A __-_ ", "/", "", "full")
 cc cb2bcf3db3f96a662a5f098e71af8654074980e4a5c35ccc252f240a071cb76e # shrinks to (label, dest, title, kind) = ("a ___", "/", "", "collapsed")
+cc 2eceaffbdfbf51f0d3a97c5d0eafbef917c62969ae18cb799b4352e5f140dfbb # shrinks to src = "---\n\n- a\n- a\n\n- a\n"

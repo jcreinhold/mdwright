@@ -16,6 +16,7 @@
 use crate::cm::refs::ReferenceTable;
 use crate::config::{FmtOptions, FormatMode};
 use crate::format::block;
+use crate::format::canonicalise;
 use crate::format::doc::{self, RenderOptions};
 use crate::format::pretty::PrettyCtx;
 use crate::format::wrap::wrap_doc;
@@ -49,6 +50,9 @@ pub(crate) fn format_document<'a>(
     let wrapped = wrap_doc(doc, opts.wrap());
     let mut out = doc::render(&wrapped, &RenderOptions);
     normalize_line_endings_lf(&mut out);
+    if opts.has_any_canonicalisation() {
+        canonicalise::canonicalise(&mut out, opts);
+    }
     normalize_trailing_newline(&mut out, opts.trailing_newline(), source);
     apply_end_of_line(&mut out, opts.end_of_line(), source);
     out
