@@ -9,10 +9,8 @@
 //! This module is the structural recogniser. [`scan::scan_math_regions`]
 //! consumes source plus the IR's inline / block atoms and produces:
 //!
-//! - [`MathRegion`] values consumed by the format pipeline's overlay
-//!   (see `crate::format::block::block_overlaps_math`). The region
-//!   carries a [`span::MathSpan`] tag the pretty-printer ([`pretty`])
-//!   dispatches on.
+//! - [`MathRegion`] values consumed by the format pipeline. The region
+//!   carries a [`span::MathSpan`] tag with delimiter and body data.
 //! - [`span::MathError`] values surfaced by the
 //!   `math/unbalanced-delim`, `math/unbalanced-env`, and
 //!   `math/unbalanced-braces` lint rules.
@@ -32,11 +30,9 @@ use std::ops::Range;
 use span::MathSpan;
 
 /// One recognised math region in source order. `range` covers both
-/// delimiters and everything between them; the formatter reads this
-/// to drive the math overlay in `format::block::pretty_block`. The
-/// `span` tag carries the typed classification (inline / display /
-/// environment) plus the body byte range that the pretty-printer
-/// resolves against source.
+/// delimiters and everything between them. The `span` tag carries the
+/// typed classification (inline / display / environment) plus the body
+/// byte range resolved against source.
 #[derive(Clone, Debug)]
 pub struct MathRegion {
     pub range: Range<usize>,

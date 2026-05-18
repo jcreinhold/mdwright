@@ -1,21 +1,18 @@
-//! Tightness derived from the typed [`ListBlock`] disagrees with
-//! tightness derived from the raw source bytes.
+//! Tightness derived from the structural tree disagrees with tightness
+//! derived from the raw source bytes.
 //!
 //! CM §5.3 makes a list tight iff no item is separated from the next
 //! by a blank line and no item contains a direct paragraph child.
-//! The typed view reads "direct paragraph child" off the structural
-//! tree; the source view reads "blank line between items" off the
-//! bytes between consecutive item `raw_range`s. On well-formed input
-//! these always agree. Disagreement typically signals an unusual
-//! structural shape (e.g., an item whose last child is a fenced or
-//! indented code block whose body contains an empty line) where the
-//! formatter's reconstruction risks flipping tightness on reformat.
+//! The tree view reads "direct paragraph child" off parsed list items;
+//! the source view reads "blank line between items" off the bytes
+//! between consecutive item `raw_range`s. On well-formed input these
+//! always agree. Disagreement typically signals an unusual structural
+//! shape (e.g., an item whose last child is a fenced or indented code
+//! block whose body contains an empty line).
 //!
-//! Advisory in this session — the typed-list redesign aims to make
-//! the disagreement *impossible* in steady state, so a non-advisory
-//! promotion waits until the corpus shows zero hits.
+//! Advisory: this is a detector for source/tree disagreement, not a
+//! formatter safety gate.
 
-use crate::cm::block::list::Tightness;
 use crate::diagnostic::Diagnostic;
 use crate::document::Document;
 use crate::ir::ListGroup;
@@ -29,7 +26,7 @@ impl LintRule for ListTightnessFlipped {
     }
 
     fn description(&self) -> &str {
-        "list tightness from typed items disagrees with tightness from source bytes"
+        "list tightness from the tree disagrees with tightness from source bytes"
     }
 
     fn explain(&self) -> &str {
@@ -46,16 +43,15 @@ impl LintRule for ListTightnessFlipped {
 
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let source = doc.source();
-        for (group, lb) in doc.typed_list_blocks() {
-            let typed_tight = matches!(lb.tightness(), Tightness::Tight);
+        for (group, tree_tight) in doc.list_tightness_view() {
             let source_tight = source_view_tight(group, source);
-            if typed_tight == source_tight {
+            if tree_tight == source_tight {
                 continue;
             }
-            let message = if typed_tight {
-                "list reads as tight from typed items but source has a blank line between items".to_owned()
+            let message = if tree_tight {
+                "list reads as tight from parsed items but source has a blank line between items".to_owned()
             } else {
-                "list reads as loose from typed items but source has no blank line between items".to_owned()
+                "list reads as loose from parsed items but source has no blank line between items".to_owned()
             };
             let start = group.raw_range.start;
             let local = 0..1;

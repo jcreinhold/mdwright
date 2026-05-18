@@ -250,8 +250,7 @@ pub fn arb_emphasis_src() -> impl Strategy<Value = String> {
 pub fn arb_strong_src() -> impl Strategy<Value = String> {
     prop_oneof![
         (arb_word(), prop_oneof![Just("**"), Just("__")]).prop_map(|(w, d)| format!("{d}{w}{d}\n")),
-        // Strong wrapping an emphasis: hits the nested-fusion delimiter
-        // decision documented in `cm::inline::emphasis`.
+        // Strong wrapping an emphasis: hits nested delimiter fusion.
         (arb_word(), arb_word()).prop_map(|(a, b)| format!("**{a} *{b}***\n")),
     ]
 }

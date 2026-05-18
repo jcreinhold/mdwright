@@ -6,11 +6,9 @@
 //! this module rewrites those delimiters at emit time so the resulting
 //! bytes match the shape the downstream renderer expects.
 //!
-//! The pass is a thin function rather than a method on
-//! [`super::MathRegion`] because the call site
-//! ([`super::pretty::MathSpan::pretty`]) already has a
-//! `(&MathSpan, &Range<usize>)` pair in scope — constructing a
-//! synthetic region just to pass it back would be busywork.
+//! The pass is a function rather than a method on [`super::MathRegion`]
+//! because canonicalisation already has the `(&MathSpan, &Range<usize>)`
+//! pair in scope.
 
 use std::borrow::Cow;
 use std::ops::Range;

@@ -4,8 +4,8 @@
 //! # Contract
 //!
 //! [`canonicalise`] rewrites `out` in place per the style knobs in
-//! `opts`. Each rewrite is local and self-verifying: rewrite a byte
-//! sequence, reparse the affected paragraph window, confirm the
+//! `opts`. Each rewrite is self-verifying: rewrite a byte sequence
+//! in a candidate document, reparse the full candidate, confirm the
 //! event stream is unchanged. If verification fails, the rewrite is
 //! skipped (the source-preserved bytes stay) and a `tracing::warn!`
 //! records the skip with span context.
@@ -18,18 +18,17 @@
 //! canonicalisation is the opposite concern: deliberately rewrite
 //! source bytes per user preference. Keeping it in its own pass
 //! localises the perturbation — each rewrite verifies itself against
-//! a paragraph-window reparse before committing.
+//! a document-context reparse before committing.
 //!
 //! # Per-rewrite verification
 //!
 //! For each candidate rewrite at byte range `[lo, hi)`:
 //!
-//! 1. Compute the pre-rewrite canonical event stream over a window
-//!    enclosing `[lo, hi)` (the previous blank line, inclusive, to
-//!    the next blank line, exclusive).
-//! 2. Apply the rewrite to a scratch buffer.
-//! 3. Compute the post-rewrite canonical event stream over the same
-//!    window in the scratch buffer.
+//! 1. Compute the pre-rewrite canonical event stream over the whole
+//!    document.
+//! 2. Apply the rewrite to a scratch document.
+//! 3. Compute the post-rewrite canonical event stream over the whole
+//!    scratch document.
 //! 4. If the two streams compare equal, commit; otherwise skip.
 //!
 //! Both parses route through [`crate::parse::events`]. Event
@@ -140,31 +139,25 @@ fn needs_math_rewrite(opts: &FmtOptions) -> bool {
 
 // ----- Verification primitive -----------------------------------
 
-/// True iff replacing `out[lo..hi]` with `rewrite` produces a paragraph
-/// window that reparses to the same canonical event stream.
+/// True iff replacing `out[lo..hi]` with `rewrite` produces a document
+/// that reparses to the same canonical event stream.
 fn rewrite_preserves_parse(out: &str, rewrite: &[u8], lo: usize, hi: usize) -> bool {
-    let win_lo = previous_blank_line_or_start(out, lo);
-    let win_hi = next_blank_line_or_end(out, hi);
-    let Some(before_window) = out.get(win_lo..win_hi) else {
+    let Some(prefix) = out.get(..lo) else {
         return false;
     };
-    let Some(prefix) = out.get(win_lo..lo) else {
+    let Some(suffix) = out.get(hi..) else {
         return false;
     };
-    let Some(suffix) = out.get(hi..win_hi) else {
-        return false;
-    };
-
     let total = prefix.len().saturating_add(rewrite.len()).saturating_add(suffix.len());
-    let mut after_window: Vec<u8> = Vec::with_capacity(total);
-    after_window.extend_from_slice(prefix.as_bytes());
-    after_window.extend_from_slice(rewrite);
-    after_window.extend_from_slice(suffix.as_bytes());
-    let Ok(after_str) = std::str::from_utf8(&after_window) else {
+    let mut after: Vec<u8> = Vec::with_capacity(total);
+    after.extend_from_slice(prefix.as_bytes());
+    after.extend_from_slice(rewrite);
+    after.extend_from_slice(suffix.as_bytes());
+    let Ok(after_str) = std::str::from_utf8(&after) else {
         return false;
     };
 
-    events_for(before_window) == events_for(after_str)
+    events_for(out) == events_for(after_str)
 }
 
 fn events_for(text: &str) -> Vec<CanonicalEvent> {
@@ -177,66 +170,6 @@ fn commit_rewrite(out: &mut String, lo: usize, hi: usize, rewrite: &[u8]) {
     if let Ok(s) = std::str::from_utf8(rewrite) {
         out.replace_range(lo..hi, s);
     }
-}
-
-/// Walk backward from `lo` to find the byte position immediately after
-/// the most recent blank-line break (`\n\n`, with any horizontal
-/// whitespace allowed inside). Returns 0 if no blank line precedes
-/// `lo`.
-fn previous_blank_line_or_start(s: &str, lo: usize) -> usize {
-    let bytes = s.as_bytes();
-    let lo = lo.min(bytes.len());
-    let mut i = lo;
-    while i > 0 {
-        let prefix = bytes.get(..i).unwrap_or(&[]);
-        let Some(nl) = prefix.iter().rposition(|&b| b == b'\n') else {
-            break;
-        };
-        // Find the start of the line that ends at `nl`.
-        let prev_prefix = bytes.get(..nl).unwrap_or(&[]);
-        let line_start = prev_prefix
-            .iter()
-            .rposition(|&b| b == b'\n')
-            .map_or(0, |p| p.saturating_add(1));
-        let line = bytes.get(line_start..nl).unwrap_or(&[]);
-        let line_is_blank = line.iter().all(|&b| b == b' ' || b == b'\t');
-        if line_is_blank {
-            return nl.saturating_add(1);
-        }
-        i = line_start;
-    }
-    0
-}
-
-/// Walk forward from `hi` to find the byte position of the next
-/// blank-line break (`\n\n`, with any horizontal whitespace allowed
-/// inside). Returns the document length if no blank line follows.
-fn next_blank_line_or_end(s: &str, hi: usize) -> usize {
-    let bytes = s.as_bytes();
-    let len = bytes.len();
-    let hi = hi.min(len);
-    let mut i = hi;
-    while i < len {
-        let tail = bytes.get(i..).unwrap_or(&[]);
-        let Some(rel) = tail.iter().position(|&b| b == b'\n') else {
-            return len;
-        };
-        let nl = i.saturating_add(rel);
-        let next_line_start = nl.saturating_add(1);
-        let next_tail = bytes.get(next_line_start..).unwrap_or(&[]);
-        let next_nl_rel = next_tail.iter().position(|&b| b == b'\n');
-        let next_nl = match next_nl_rel {
-            Some(p) => next_line_start.saturating_add(p),
-            None => len,
-        };
-        let next_line = bytes.get(next_line_start..next_nl).unwrap_or(&[]);
-        let blank = next_line.iter().all(|&b| b == b' ' || b == b'\t');
-        if blank {
-            return nl;
-        }
-        i = next_nl;
-    }
-    len
 }
 
 // ----- Emphasis (italic + strong) -------------------------------
@@ -660,7 +593,7 @@ fn collect_thematic_breaks(out: &str) -> Vec<(usize, usize)> {
 /// Rewrite every ATX heading's `{...}` attribute trailer to canonical
 /// order: `#id` first, then classes in source order, then `key=value`
 /// pairs in source order. Skip the rewrite if the trailer is already
-/// canonical, if the heading has no trailer, or if the per-window
+/// canonical, if the heading has no trailer, or if the document
 /// reparse check would fail.
 fn rewrite_heading_attrs(out: &mut String) {
     let sites = collect_heading_attr_sites(out);
@@ -996,10 +929,9 @@ fn rewrite_strip_frontmatter(out: &mut String) {
 ///    (`align`, matrix family, `cases`, …) so `&` separators line up.
 ///
 /// Both transformations are deliberate, user-requested semantic
-/// changes. Unlike the per-window verification used by the inline
-/// style rewrites, math rewrites apply unconditionally; correctness
-/// is verified at the document level by the idempotence-on-mode gate
-/// in `Document::format_validated`.
+/// changes. Unlike the style rewrites above, math rewrites apply
+/// unconditionally; correctness is verified at the document level by
+/// the idempotence-on-mode gate in `Document::format_validated`.
 fn rewrite_math(out: &mut String, opts: &FmtOptions) {
     let regions: Vec<MathRegion> = {
         let doc = crate::Document::parse(out);
@@ -1060,28 +992,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn previous_blank_line_at_document_start() {
-        assert_eq!(previous_blank_line_or_start("foo\nbar", 4), 0);
-    }
-
-    #[test]
-    fn previous_blank_line_after_blank() {
-        let s = "alpha\n\nbeta gamma\n";
-        assert_eq!(previous_blank_line_or_start(s, 7), 7);
-    }
-
-    #[test]
-    fn next_blank_line_at_eof() {
-        assert_eq!(next_blank_line_or_end("foo bar", 0), 7);
-    }
-
-    #[test]
-    fn next_blank_line_at_blank() {
-        let s = "alpha\n\nbeta\n";
-        assert_eq!(next_blank_line_or_end(s, 0), 5);
-    }
-
-    #[test]
     fn italic_underscore_to_asterisk() {
         let mut out = String::from("_foo_\n");
         rewrite_emphasis_delim(&mut out, EmphasisKind::Italic, b'*');
@@ -1117,6 +1027,20 @@ mod tests {
     }
 
     #[test]
+    fn list_marker_rewrite_skips_when_it_would_merge_adjacent_lists() {
+        let mut out = String::from("+\n\n-");
+        rewrite_unordered_list_marker(&mut out, b'+');
+        assert_eq!(out, "+\n\n-");
+    }
+
+    #[test]
+    fn list_marker_rewrite_skips_when_definition_list_context_would_merge() {
+        let mut out = String::from("M\n\n:\n-\n\n+");
+        rewrite_unordered_list_marker(&mut out, b'-');
+        assert_eq!(out, "M\n\n:\n-\n\n+");
+    }
+
+    #[test]
     fn thematic_dash_to_asterisk() {
         let mut out = String::from("before\n\n---\n\nafter\n");
         rewrite_thematic(&mut out, b'*');
@@ -1135,6 +1059,13 @@ mod tests {
         let mut out = String::from("[ref]: https://example.com\n");
         rewrite_link_def_style(&mut out, LinkDefStyle::Angle);
         assert_eq!(out, "[ref]: <https://example.com>\n");
+    }
+
+    #[test]
+    fn link_def_style_skips_reference_like_html_block_line() {
+        let mut out = String::from("<?J\n\n[_]:#");
+        rewrite_link_def_style(&mut out, LinkDefStyle::Angle);
+        assert_eq!(out, "<?J\n\n[_]:#");
     }
 
     #[test]

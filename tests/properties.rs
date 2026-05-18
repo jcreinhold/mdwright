@@ -192,8 +192,8 @@ proptest! {
 // Per-construct laws live at the same layer as the document laws on
 // purpose: the user-visible contract is "formatted Markdown reparses
 // to the same meaning", which only exists at the public surface.
-// Coupling tests to internal IR types (`cm::inline::EmphasisRun`, etc.)
-// would bake an implementation choice into the test suite — see
+// Coupling tests to internal representation types would bake an
+// implementation choice into the test suite — see
 // `/Users/jcreinhold/.claude/plans/phase-r-per-construct-keen-firefly.md`.
 // ---------------------------------------------------------------------------
 

@@ -28,12 +28,11 @@
 //! For each paragraph, the rewrite extracts inline atomics by source
 //! byte range, tokenises the remaining text on whitespace, applies
 //! the DP, and re-emits with `\n` + the continuation prefix between
-//! lines. Because the source bytes of inline atomics are copied
-//! verbatim, the pulldown event stream over the rewritten paragraph
-//! agrees with the original modulo soft-break positions —
-//! semantically equivalent under
-//! [`crate::format::semantic::semantically_equivalent`] by
-//! construction.
+//! lines. The candidate replacement is then checked in its whole
+//! document context with
+//! [`crate::format::semantic::semantically_equivalent`] before
+//! committing, because isolated paragraph slices inside containers
+//! can parse differently from the full document.
 
 use std::ops::Range;
 use std::time::{Duration, Instant};
@@ -69,15 +68,16 @@ pub(crate) fn wrap_paragraphs(out: &mut String, mode: Wrap) {
         if replacement == existing {
             continue;
         }
-        // Verify the rewrite preserves the parse. The wrap pass
-        // changes whitespace inside a paragraph; in pathological
-        // cases (e.g. a paragraph whose collapsed words spell out a
-        // thematic break `_ _ _`) the reparse diverges. Skip the
-        // rewrite when that happens so the source bytes survive.
-        if !semantically_equivalent(existing, &replacement) {
+        let mut candidate = out.clone();
+        candidate.replace_range(p.line_lo..p.line_hi, &replacement);
+        // Verify the rewrite preserves the parse in its document
+        // context. Paragraph slices inside lists and blockquotes can
+        // parse differently when isolated, so the candidate document
+        // is the verification unit.
+        if !semantically_equivalent(out, &candidate) {
             continue;
         }
-        out.replace_range(p.line_lo..p.line_hi, &replacement);
+        *out = candidate;
     }
 }
 
@@ -389,8 +389,8 @@ fn extract_line_hi(bytes: &[u8], content_hi: usize) -> usize {
 /// Derive the continuation-line prefix from the first-line prefix.
 /// Blockquote `>` markers are preserved (continuation lines need to
 /// stay inside the same blockquote); list markers (`-`, `*`, `+`,
-/// `1.`, `1)`) are replaced with same-width spaces so continuation
-/// lines align under the marker.
+/// `1.`, `1)`), definition-list markers, and footnote definition
+/// labels are replaced with continuation indentation.
 fn derive_continuation_prefix(first: &str) -> Option<String> {
     let bytes = first.as_bytes();
     let mut out = String::with_capacity(first.len());
@@ -433,11 +433,42 @@ fn derive_continuation_prefix(first: &str) -> Option<String> {
                     out.push(' ');
                 }
             }
+            b'[' if bytes.get(i.saturating_add(1)).copied() == Some(b'^') => {
+                i = i.saturating_add(2);
+                let mut closed = false;
+                while let Some(c) = bytes.get(i).copied() {
+                    i = i.saturating_add(1);
+                    if c == b']' && bytes.get(i).copied() == Some(b':') {
+                        i = i.saturating_add(1);
+                        closed = true;
+                        break;
+                    }
+                }
+                if !closed {
+                    return None;
+                }
+                while bytes.get(i).copied().is_some_and(|c| matches!(c, b' ' | b'\t')) {
+                    i = i.saturating_add(1);
+                }
+                out.push_str("    ");
+            }
+            b':' => {
+                let start = i;
+                i = i.saturating_add(1);
+                while bytes.get(i).copied().is_some_and(|c| matches!(c, b' ' | b'\t')) {
+                    i = i.saturating_add(1);
+                }
+                if i == start.saturating_add(1) {
+                    return None;
+                }
+                let consumed = i.saturating_sub(start);
+                for _ in 0..consumed {
+                    out.push(' ');
+                }
+            }
             _ => {
-                // Unknown prefix byte (footnote `[^id]:`, definition
-                // list `:`, etc.) — return `None` so the caller skips
-                // wrapping this paragraph and the identity pass keeps
-                // its bytes intact.
+                // Unknown prefix byte: return `None` so the caller
+                // skips wrapping this paragraph and preserves bytes.
                 return None;
             }
         }
@@ -839,9 +870,25 @@ mod tests {
     }
 
     #[test]
+    fn footnote_definition_continuation_uses_four_space_indent() {
+        assert_eq!(derive_continuation_prefix("[^long-label]: "), Some("    ".to_owned()));
+    }
+
+    #[test]
+    fn definition_list_continuation_uses_marker_width_indent() {
+        assert_eq!(derive_continuation_prefix(":   "), Some("    ".to_owned()));
+    }
+
+    #[test]
     fn hard_break_preserves_marker() {
         let s = "first sentence.\\\nsecond sentence.\n";
         let out = wrap(s, Wrap::At(40));
         assert!(out.contains("\\\n"));
+    }
+
+    #[test]
+    fn hard_break_rewrite_skips_when_list_context_would_change() {
+        let s = "* \\\n|\\\n  *";
+        assert_eq!(wrap(s, Wrap::No), s);
     }
 }

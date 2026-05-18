@@ -1,10 +1,7 @@
 //! Pure string-to-string math-body normalisations.
 //!
-//! Lifted out of the deleted pretty-printer (`super::pretty`) so the
-//! canonicalise pass at `crate::format::canonicalise::rewrite_math`
-//! can apply align-environment column padding and display/inline
-//! whitespace normalisation against rendered output bytes without
-//! routing through the Doc IR.
+//! The canonicalise pass at `crate::format::canonicalise::rewrite_math`
+//! applies these transforms to rendered output bytes.
 //!
 //! Every function in this module takes a body slice and returns an
 //! owned `String`. The opener / closer reconstruction lives in the
@@ -14,7 +11,6 @@
 //! lint rule, the scanner, and the canonicalise gate agree on what
 //! "balanced" means; see [`body_braces_balanced`].
 
-#![allow(dead_code)]
 use unicode_width::UnicodeWidthStr;
 
 /// Walk `body` and confirm `{` / `}` balance. `\{` and `\}` are
@@ -42,54 +38,6 @@ pub(crate) fn body_braces_balanced(body: &str) -> Result<(), usize> {
         i = i.saturating_add(1);
     }
     if depth == 0 { Ok(()) } else { Err(0) }
-}
-
-/// Collapse runs of ` ` / `\t` to a single space outside LaTeX escape
-/// sequences. `\,`, `\ `, `\;`, `\!` and other backslash escapes are
-/// preserved verbatim.
-pub(crate) fn collapse_inline_ws(body: &str) -> String {
-    let bytes = body.as_bytes();
-    let mut out = String::with_capacity(body.len());
-    let mut i = 0usize;
-    let mut in_ws = false;
-    while let Some(b) = bytes.get(i).copied() {
-        if b == b'\\' {
-            in_ws = false;
-            out.push('\\');
-            if let Some(next) = bytes.get(i.saturating_add(1)).copied() {
-                out.push(next as char);
-                i = i.saturating_add(2);
-            } else {
-                i = i.saturating_add(1);
-            }
-            continue;
-        }
-        if b == b' ' || b == b'\t' {
-            if !in_ws {
-                out.push(' ');
-                in_ws = true;
-            }
-            i = i.saturating_add(1);
-            continue;
-        }
-        in_ws = false;
-        out.push(b as char);
-        i = i.saturating_add(1);
-    }
-    out
-}
-
-/// For display bodies: trim each line of trailing whitespace and trim
-/// leading/trailing blank lines.
-pub(crate) fn trim_display_body(body: &str) -> String {
-    let mut lines: Vec<&str> = body.lines().map(str::trim_end).collect();
-    while lines.first().is_some_and(|l| l.is_empty()) {
-        lines.remove(0);
-    }
-    while lines.last().is_some_and(|l| l.is_empty()) {
-        lines.pop();
-    }
-    lines.join("\n")
 }
 
 /// Lay out an aligning-environment body: split on `\\` rows, then on
@@ -190,16 +138,6 @@ fn split_cells(row: &str) -> Vec<&str> {
 #[allow(clippy::indexing_slicing)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn collapse_inline_ws_collapses_runs() {
-        assert_eq!(collapse_inline_ws("x  +   y"), "x + y");
-    }
-
-    #[test]
-    fn collapse_inline_ws_preserves_thin_space() {
-        assert_eq!(collapse_inline_ws(r"a\,b"), r"a\,b");
-    }
 
     #[test]
     fn body_braces_balanced_accepts_matched() {

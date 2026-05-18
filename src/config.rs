@@ -311,7 +311,7 @@ impl Default for PandocOptions {
     }
 }
 
-/// Math pretty-printer configuration.
+/// Math canonicalisation configuration.
 ///
 /// All fields are off by default. Math regions are opaque to
 /// `CommonMark`: pulldown-cmark parses their bytes as prose, so any
@@ -320,9 +320,8 @@ impl Default for PandocOptions {
 /// math downstream (`KaTeX`, `MathJax`) opt in.
 #[derive(Copy, Clone, Debug, Default)]
 pub struct MathOptions {
-    /// Whether the math pretty-printer at `mdwright::cm::math::pretty`
-    /// is active for whole-block math regions (display `\[…\]` /
-    /// `$$…$$` and environments standing alone).
+    /// Whether whole-block math regions (display `\[…\]` / `$$…$$`
+    /// and environments standing alone) are normalised.
     pub normalise: bool,
     /// How math regions are emitted for downstream renderers. See
     /// [`MathRender`] for the modes; default is [`MathRender::None`]
@@ -447,7 +446,7 @@ impl FmtOptions {
         self.thematic_break_style
     }
 
-    /// Math pretty-printer configuration. See [`MathOptions`] for the
+    /// Math canonicalisation configuration. See [`MathOptions`] for the
     /// reason every field defaults off.
     #[must_use]
     pub fn math(&self) -> MathOptions {

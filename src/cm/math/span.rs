@@ -4,15 +4,13 @@
 //! The recogniser ([`super::scan::scan_math_regions`]) produces one
 //! [`super::MathRegion`] per recognised math region, each tagged with
 //! a [`MathSpan`] that records *which* delimiter family or environment
-//! introduced it plus the body byte range. The pretty-printer
-//! ([`super::pretty`]) dispatches on the span variant.
+//! introduced it plus the body byte range.
 //!
 //! Unmatched openers and brace-imbalanced bodies become [`MathError`]
 //! values so the lint rules `math/unbalanced-delim`,
 //! `math/unbalanced-env`, and `math/unbalanced-braces` can surface a
 //! useful diagnostic without aborting the scan.
 
-#![allow(dead_code)]
 use std::borrow::Cow;
 use std::ops::Range;
 
@@ -64,22 +62,6 @@ pub enum InlineDelim {
     Dollar,
 }
 
-impl InlineDelim {
-    pub(crate) const fn open(self) -> &'static str {
-        match self {
-            Self::Paren => r"\(",
-            Self::Dollar => "$",
-        }
-    }
-
-    pub(crate) const fn close(self) -> &'static str {
-        match self {
-            Self::Paren => r"\)",
-            Self::Dollar => "$",
-        }
-    }
-}
-
 /// Display delimiter pair carried on [`MathSpan::Display`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DisplayDelim {
@@ -89,29 +71,12 @@ pub enum DisplayDelim {
     Dollar2,
 }
 
-impl DisplayDelim {
-    pub(crate) const fn open(self) -> &'static str {
-        match self {
-            Self::Bracket => r"\[",
-            Self::Dollar2 => "$$",
-        }
-    }
-
-    pub(crate) const fn close(self) -> &'static str {
-        match self {
-            Self::Bracket => r"\]",
-            Self::Dollar2 => "$$",
-        }
-    }
-}
-
 /// Per-region classification produced by the scanner.
 ///
 /// Each variant carries the body as a [`MathBody`] — a hidden
 /// abstraction that yields clean math content regardless of where the
 /// math appeared in the source (top-level, blockquote, list item).
-/// The pretty-printer dispatches on the variant and reads the body
-/// via [`MathBody::as_str`].
+/// Callers read the body through [`MathBody::as_str`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum MathSpan {
     Inline { delim: InlineDelim, body: MathBody },
@@ -153,16 +118,6 @@ pub struct MathBody {
 impl MathBody {
     pub(crate) fn new(range: Range<usize>, transparent: Box<[Range<usize>]>) -> Self {
         Self { range, transparent }
-    }
-
-    /// `true` iff the body has any transparent (container-prefix)
-    /// runs. The pretty-printer uses this as a fast probe: container-
-    /// nested math is rendered structurally so the surrounding
-    /// `Doc::Prefix` cascade can re-apply the prefixes; the
-    /// alternative line-standalone byte check only matters when the
-    /// math is at the document root.
-    pub(crate) fn has_transparent_runs(&self) -> bool {
-        !self.transparent.is_empty()
     }
 
     /// Materialised body content with transparent runs removed.
@@ -247,9 +202,8 @@ pub enum MathError {
         range: Range<usize>,
     },
     /// `{` and `}` inside a recognised math body do not balance. The
-    /// region still scans (markers are balanced); the pretty-printer
-    /// falls back to verbatim emission because we cannot safely
-    /// normalise content with broken brace nesting.
+    /// region still scans because markers are balanced, but body
+    /// normalisation is skipped.
     UnbalancedBraces {
         /// Byte offset (absolute, into the source) of the offending
         /// brace — either an unmatched `}` or the start of the body

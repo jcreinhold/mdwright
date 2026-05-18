@@ -8,7 +8,7 @@ since: 0.2.0
 
 # list-tightness-flipped
 
-list tightness from typed items disagrees with tightness from source bytes
+list tightness from the tree disagrees with tightness from source bytes
 
 ## What it does
 

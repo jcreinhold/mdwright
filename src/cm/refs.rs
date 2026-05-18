@@ -1,13 +1,9 @@
 //! CM §4.7 link reference definitions and the link-resolution algorithm.
 //!
 //! The [`ReferenceTable`] is built once per document in
-//! [`crate::ir::Ir::parse`] and is immutable thereafter. Reference-style
-//! [`LinkRun`](crate::cm::inline::link::LinkRun) /
-//! [`ImageRun`](crate::cm::inline::link::ImageRun) carry
-//! [`ReferenceHandle`] values into the table; resolution happens at IR
-//! build time, not at emit. Labels that fail to resolve never reach the
-//! formatter — the tree builder downgrades them to raw source text per
-//! CM §4.7's "leave as text" rule.
+//! [`crate::ir::Ir::parse`] and is immutable thereafter. The tree
+//! builder uses it to downgrade unresolved reference links and images
+//! to raw-source text per CM §4.7's "leave as text" rule.
 //!
 //! This module is the *sole* site of CM §4.7 label normalisation
 //! ([`NormalisedLabel::from_raw`]). Every lookup goes through that type.
@@ -29,12 +25,8 @@
 //! text). A regex scanner gets the simple shapes right and the hard
 //! ones wrong; pulldown gets both right by construction.
 //!
-//! Cost: the formatter's trailing-def block becomes canonical (one
-//! `[label]: dest "title"\n` line per unique label) rather than
-//! byte-verbatim from source. HTML round-trips because pulldown
-//! re-resolves to the same target on the reformatted output.
-
-#![allow(dead_code)]
+//! Canonicalisation passes read the table when they need reference
+//! definitions in normalised label order.
 use std::ops::Range;
 use std::sync::OnceLock;
 
@@ -177,6 +169,7 @@ impl ReferenceTable {
         self.targets.iter()
     }
 
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.targets.is_empty()
     }
@@ -201,20 +194,6 @@ impl ReferenceTable {
             raw_range: usize::MAX..usize::MAX,
         });
         self.by_label.insert(norm, handle);
-    }
-}
-
-impl LinkTarget {
-    pub(crate) fn label_raw(&self) -> &str {
-        &self.label_raw
-    }
-
-    pub(crate) fn dest(&self) -> &str {
-        &self.dest
-    }
-
-    pub(crate) fn title(&self) -> Option<&str> {
-        self.title.as_deref()
     }
 }
 

@@ -1,11 +1,5 @@
-//! CommonMark-spec-aligned IR types.
-//!
-//! Each submodule owns one CM concept and exposes typed values whose
-//! constructors enforce the round-trip invariant by construction. The
-//! IR builder in [`crate::tree`] is the deep module that produces
-//! these values; the format pipeline consumes them as final-form bytes.
+//! CommonMark-spec-aligned helper APIs.
 
 pub(crate) mod block;
-pub(crate) mod inline;
 pub(crate) mod math;
 pub(crate) mod refs;

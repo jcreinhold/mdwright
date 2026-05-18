@@ -16,14 +16,13 @@
 //!   name does not close the outer.
 //!
 //! Each recognised region carries a [`MathSpan`] tag (inline, display,
-//! or environment) with the body byte range; the pretty-printer
-//! ([`super::pretty`]) dispatches on it.
+//! or environment) with the body byte range.
 //!
 //! Unmatched openers become [`MathError`] values without aborting the
 //! scan. Brace imbalance inside a recognised body is checked once per
 //! region and surfaces as [`MathError::UnbalancedBraces`]; the region
-//! still scans (its markers are balanced) but the pretty-printer
-//! falls back to verbatim emission.
+//! still scans because its markers are balanced; canonicalisation
+//! skips body rewrites for that region.
 
 use std::ops::Range;
 

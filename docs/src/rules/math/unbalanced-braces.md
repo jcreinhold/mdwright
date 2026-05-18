@@ -8,7 +8,7 @@ since: 0.1.0
 
 # math/unbalanced-braces
 
-`{` / `}` inside a math body do not balance; the pretty-printer falls back to verbatim emission for that region.
+`{` / `}` inside a math body do not balance; math body normalisation is skipped for that region.
 
 ## What it does
 

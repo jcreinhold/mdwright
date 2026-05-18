@@ -2,16 +2,15 @@
 //!
 //! Each `\begin{name} … \end{name}` region scanned in
 //! [`super::scan::scan_math_regions`] resolves its `name` to one of
-//! the variants here. Known environments drive the pretty-printer's
-//! per-environment formatting decisions (aligning vs non-aligning,
-//! matrix bracketing); unknown names fall through as [`EnvKind::Custom`]
-//! and the body is preserved verbatim — we don't pretend to model
-//! environments we don't understand.
+//! the variants here. Known environments drive canonicalisation
+//! decisions such as aligning vs non-aligning bodies; unknown names
+//! fall through as [`EnvKind::Custom`] and the body is preserved
+//! verbatim.
 
 use std::ops::Range;
 
-/// One of the standard LaTeX / `amsmath` environments the pretty-
-/// printer knows how to handle, or an unrecognised name.
+/// One of the standard LaTeX / `amsmath` environments mdwright knows
+/// how to classify, or an unrecognised name.
 ///
 /// The `Custom` variant carries the byte range of the name inside the
 /// source so callers can recover the original spelling without
@@ -25,7 +24,7 @@ pub enum EnvKind {
     Custom(Range<usize>),
 }
 
-/// Standard environments recognised by the pretty-printer. Names
+/// Standard environments recognised by math canonicalisation. Names
 /// follow `amsmath` conventions; the starred variants are the
 /// unnumbered forms.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -100,7 +99,7 @@ impl KnownEnv {
     }
 
     /// Whether rows in this environment are organised by `&` column
-    /// separators that should be aligned by the pretty-printer.
+    /// separators that should be aligned by canonicalisation.
     /// `equation`, `gather`, and `multline` are vertical-list
     /// environments without column alignment.
     pub(crate) const fn is_aligning(self) -> bool {

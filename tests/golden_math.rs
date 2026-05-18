@@ -3,12 +3,12 @@
     reason = "test fixture loader; missing-file panics are the desired failure mode"
 )]
 
-//! Math pretty-printer golden tests.
+//! Math canonicalisation golden tests.
 //!
 //! Each fixture is an `*.in` / `*.out` pair under `tests/golden_math/`.
 //! Math normalisation is gated behind `FmtOptions::math().normalise`
 //! (default `false`) — see `src/config.rs` for the reason; this
-//! runner flips it on so the fixtures exercise the pretty path.
+//! runner flips it on so the fixtures exercise the math rewrite path.
 
 use std::fs;
 use std::path::Path;
