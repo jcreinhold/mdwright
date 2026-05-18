@@ -14,6 +14,7 @@
 - [Math regions](concepts/math-regions.md)
 - [Math rendering](concepts/math-rendering.md)
 - [Markdown extensions](concepts/extensions.md)
+- [MyST + Pandoc directives](concepts/myst-pandoc.md)
 - [Lint vs. format](concepts/lint-vs-format.md)
 - [Suppression comments](concepts/suppression-comments.md)
 

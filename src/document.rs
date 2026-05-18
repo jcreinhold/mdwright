@@ -348,6 +348,9 @@ impl Document {
             &self.ir.admonitions,
             &self.ir.abbreviations,
             &self.ir.block_attrs,
+            &self.ir.directives,
+            &self.ir.comments,
+            &self.ir.inline_overlays,
             &self.ir.refs,
         );
         tracing::Span::current().record("out_len", out.len());

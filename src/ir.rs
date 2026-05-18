@@ -207,6 +207,9 @@ pub(crate) struct Ir {
     pub(crate) admonitions: Vec<AdmonitionRegion>,
     pub(crate) abbreviations: Vec<AbbreviationRegion>,
     pub(crate) block_attrs: Vec<BlockAttrRegion>,
+    pub(crate) directives: Vec<DirectiveRegion>,
+    pub(crate) comments: Vec<CommentRegion>,
+    pub(crate) inline_overlays: Vec<InlineOverlayRegion>,
     pub(crate) math_regions: Vec<MathRegion>,
     pub(crate) math_errors: Vec<MathError>,
     pub(crate) line_index: LineIndex,
@@ -254,6 +257,87 @@ pub(crate) struct BlockAttrRegion {
     pub(crate) target_range: Range<usize>,
     #[allow(dead_code)]
     pub(crate) attrs_range: Range<usize>,
+}
+
+/// One `MyST` / `Pandoc` directive container detected by [`scan_directives`].
+///
+/// `range` covers opener line start through closer line end inclusive
+/// (with the trailing newline if present). Nested directives sit inside
+/// the outer region's bytes — only the outermost is recorded; the
+/// verbatim emit reproduces inner directives implicitly.
+#[derive(Clone, Debug)]
+pub(crate) struct DirectiveRegion {
+    pub(crate) range: Range<usize>,
+    #[allow(dead_code)]
+    pub(crate) style: DirectiveStyle,
+    #[allow(dead_code)]
+    pub(crate) colon_count: u8,
+    #[allow(dead_code)]
+    pub(crate) opener_line: Range<usize>,
+    #[allow(dead_code)]
+    pub(crate) closer_line: Range<usize>,
+}
+
+/// The three syntactic flavours of directive opener mdwright recognises.
+/// Each is independently gated:
+/// [`crate::config::MystOptions::directive_containers`] for `MystBrace`,
+/// [`crate::config::PandocOptions::fenced_divs`] for `PandocAttrs`, and
+/// [`crate::config::PandocOptions::short_form_divs`] for `PandocShort`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum DirectiveStyle {
+    /// `:::{name}` (`MyST` brace form, with optional `:KEY: value` option
+    /// lines).
+    MystBrace,
+    /// `::: {.cls}` (`Pandoc` attribute form).
+    PandocAttrs,
+    /// `:::name` (`Pandoc` short form).
+    PandocShort,
+}
+
+/// One `MyST` `%` line comment detected by [`scan_comments`].
+///
+/// `range` covers the comment line including the trailing newline.
+#[derive(Clone, Debug)]
+pub(crate) struct CommentRegion {
+    pub(crate) range: Range<usize>,
+}
+
+/// One inline overlay region (role, substitution, or `Pandoc` inline
+/// attribute span) detected by [`scan_inline_overlays`].
+///
+/// `range` covers the entire overlay literal; `kind` carries the
+/// per-flavour offsets for future lint rules. The inline-overlay
+/// formatter at `src/format/inline.rs::apply_inline_overlay` consults
+/// only `range`, emitting the slice verbatim and skipping any tree
+/// nodes whose `raw_range` falls inside.
+#[derive(Clone, Debug)]
+pub(crate) struct InlineOverlayRegion {
+    pub(crate) range: Range<usize>,
+    #[allow(dead_code)]
+    pub(crate) kind: InlineOverlayKind,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum InlineOverlayKind {
+    /// `MyST` inline role: `` {role}`payload` ``.
+    Role {
+        #[allow(dead_code)]
+        name_range: Range<usize>,
+        #[allow(dead_code)]
+        payload_range: Range<usize>,
+    },
+    /// `MyST` substitution reference: `{{name}}`.
+    Substitution {
+        #[allow(dead_code)]
+        name_range: Range<usize>,
+    },
+    /// `Pandoc` inline attribute span: `[content]{.cls}`.
+    PandocSpan {
+        #[allow(dead_code)]
+        content_range: Range<usize>,
+        #[allow(dead_code)]
+        attrs_range: Range<usize>,
+    },
 }
 
 use crate::cm::math::MathRegion;
@@ -346,6 +430,29 @@ impl Ir {
             &builder.html_blocks,
             &builder.inline_html,
         );
+        let directives = scan_directives(
+            source,
+            &builder.code_blocks,
+            &builder.inline_codes,
+            &builder.html_blocks,
+            &builder.inline_html,
+        );
+        let comments = scan_comments(
+            source,
+            &builder.code_blocks,
+            &builder.inline_codes,
+            &builder.html_blocks,
+            &builder.inline_html,
+        );
+        let inline_overlays = scan_inline_overlays(
+            source,
+            &builder.code_blocks,
+            &builder.inline_codes,
+            &builder.html_blocks,
+            &builder.inline_html,
+            &math_regions,
+            &directives,
+        );
 
         Self {
             prose_chunks: builder.prose_chunks,
@@ -361,6 +468,9 @@ impl Ir {
             admonitions,
             abbreviations,
             block_attrs,
+            directives,
+            comments,
+            inline_overlays,
             math_regions,
             math_errors,
             line_index,
@@ -1128,6 +1238,436 @@ fn scan_block_attrs(
     out
 }
 
+fn directive_opener_regex() -> &'static Regex {
+    // `:::` (≥ 3 colons) optionally followed by either:
+    //   - `{name}` or `{ .cls #id }` (`MyST` brace / `Pandoc` attrs),
+    //     plus an optional argument tail (e.g. `:::{figure} ./img.png`);
+    //   - a bare identifier `name` (`Pandoc` short form), plus an
+    //     optional argument tail;
+    //   - nothing (anonymous opener — left to the disambiguator).
+    // Leading whitespace permitted up to 3 spaces.
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        compile_static(
+            r"^ {0,3}(?P<colons>:{3,})(?:[ \t]*(?P<brace>\{[^}\n]*\})[ \t]*[^\n]*|[ \t]*(?P<short>[A-Za-z][\w-]*)[ \t]*[^\n]*)?[ \t]*$",
+        )
+    })
+}
+
+fn directive_closer_regex() -> &'static Regex {
+    // Closer: only colons (no name / no attrs), ≥ the opener's count.
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| compile_static(r"^ {0,3}(?P<colons>:{3,})[ \t]*$"))
+}
+
+/// Scan source for `MyST` / `Pandoc` directive containers.
+///
+/// Recognises three opener flavours: `MyST` `:::{name}`, `Pandoc`
+/// `::: {.cls}`, and `Pandoc` `:::name`. An opener of *n* colons is
+/// matched by the next colon-only line of count ≥ *n*; the recorded
+/// region spans opener-line-start through closer-line-end inclusive.
+///
+/// Nested directives sit inside the outer region's bytes — only the
+/// outermost is recorded; the verbatim emit at
+/// `format::block::pretty_block_sequence` reproduces inner directives
+/// implicitly.
+///
+/// The scan is unconditional at parse time; the overlay arm gates
+/// emission on [`crate::config::MystOptions::directive_containers`]
+/// (plus the `Pandoc` style toggles).
+fn scan_directives(
+    source: &str,
+    code_blocks: &[CodeBlock],
+    inline_codes: &[InlineCode],
+    html_blocks: &[HtmlBlock],
+    inline_html: &[InlineHtml],
+) -> Vec<DirectiveRegion> {
+    if !source.contains(":::") {
+        return Vec::new();
+    }
+    let line_starts: Vec<usize> = std::iter::once(0)
+        .chain(
+            source
+                .bytes()
+                .enumerate()
+                .filter_map(|(i, b)| if b == b'\n' { i.checked_add(1) } else { None }),
+        )
+        .collect();
+    let line_end = |idx: usize| line_starts.get(idx.saturating_add(1)).copied().unwrap_or(source.len());
+    let excluded = |range: Range<usize>| -> bool {
+        let overlaps = |r: &Range<usize>| r.start < range.end && range.start < r.end;
+        code_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_codes.iter().any(|c| overlaps(&c.raw_range))
+            || html_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_html.iter().any(|c| overlaps(&c.raw_range))
+    };
+    let opener = directive_opener_regex();
+    let closer = directive_closer_regex();
+
+    let mut out = Vec::new();
+    let mut idx = 0usize;
+    while idx < line_starts.len() {
+        let start = line_starts.get(idx).copied().unwrap_or(source.len());
+        let end = line_end(idx);
+        if excluded(start..end) {
+            idx = idx.saturating_add(1);
+            continue;
+        }
+        let line = source.get(start..end).unwrap_or("");
+        let stripped = line.trim_end_matches('\n');
+        // Closer-style lines (colon-only) cannot themselves be openers;
+        // skip them here so they're available for a parent opener's
+        // close pass. The opener regex's optional `{…}` / short suffix
+        // means a colon-only line would otherwise be ambiguous; the
+        // structural rule below disambiguates by requiring a brace or
+        // short name for `MystBrace` / `PandocAttrs` / `PandocShort` and
+        // marks the bare form as an anonymous opener only when no
+        // matching closer follows.
+        let Some(opener_caps) = opener.captures(stripped) else {
+            idx = idx.saturating_add(1);
+            continue;
+        };
+        let colon_run = opener_caps.name("colons").map_or("", |m| m.as_str());
+        let style = if opener_caps.name("brace").is_some() {
+            // Brace form. Decide MystBrace vs PandocAttrs by inspecting
+            // the first non-whitespace char inside the braces: `{name}`
+            // is `MyST`, `{.cls}` / `{#id}` is `Pandoc`.
+            let brace = opener_caps.name("brace").map_or("", |m| m.as_str());
+            let inner = brace.trim_start_matches('{').trim_end_matches('}').trim();
+            if inner.starts_with('.') || inner.starts_with('#') {
+                DirectiveStyle::PandocAttrs
+            } else {
+                DirectiveStyle::MystBrace
+            }
+        } else if opener_caps.name("short").is_some() {
+            DirectiveStyle::PandocShort
+        } else {
+            // Bare `:::` on a line by itself — cannot tell opener from
+            // closer in isolation; skip.
+            idx = idx.saturating_add(1);
+            continue;
+        };
+        let count = u8::try_from(colon_run.len()).unwrap_or(u8::MAX);
+
+        // Find a matching closer (colon-only, count ≥ opener count).
+        let mut search = idx.saturating_add(1);
+        let mut matched: Option<usize> = None;
+        while search < line_starts.len() {
+            let s = line_starts.get(search).copied().unwrap_or(source.len());
+            let e = line_end(search);
+            if excluded(s..e) {
+                search = search.saturating_add(1);
+                continue;
+            }
+            let cl = source.get(s..e).unwrap_or("").trim_end_matches('\n');
+            if let Some(c_caps) = closer.captures(cl) {
+                let c_run = c_caps.name("colons").map_or("", |m| m.as_str());
+                if c_run.len() >= colon_run.len() {
+                    matched = Some(search);
+                    break;
+                }
+            }
+            search = search.saturating_add(1);
+        }
+        let Some(closer_idx) = matched else {
+            idx = idx.saturating_add(1);
+            continue;
+        };
+        let closer_start = line_starts.get(closer_idx).copied().unwrap_or(source.len());
+        let closer_end = line_end(closer_idx);
+        out.push(DirectiveRegion {
+            range: start..closer_end,
+            style,
+            colon_count: count,
+            opener_line: start..end,
+            closer_line: closer_start..closer_end,
+        });
+        idx = closer_idx.saturating_add(1);
+    }
+    out
+}
+
+/// Scan source for `MyST` `%` line comments.
+///
+/// Recognises a line whose first non-whitespace byte is `%` (outside
+/// fenced code / HTML blocks / inline code / inline HTML). One line
+/// per region. Subject to
+/// [`crate::config::MystOptions::comments`] gating at the overlay arm.
+fn scan_comments(
+    source: &str,
+    code_blocks: &[CodeBlock],
+    inline_codes: &[InlineCode],
+    html_blocks: &[HtmlBlock],
+    inline_html: &[InlineHtml],
+) -> Vec<CommentRegion> {
+    if !source.contains('%') {
+        return Vec::new();
+    }
+    let line_starts: Vec<usize> = std::iter::once(0)
+        .chain(
+            source
+                .bytes()
+                .enumerate()
+                .filter_map(|(i, b)| if b == b'\n' { i.checked_add(1) } else { None }),
+        )
+        .collect();
+    let line_end = |idx: usize| line_starts.get(idx.saturating_add(1)).copied().unwrap_or(source.len());
+    let excluded = |range: Range<usize>| -> bool {
+        let overlaps = |r: &Range<usize>| r.start < range.end && range.start < r.end;
+        code_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_codes.iter().any(|c| overlaps(&c.raw_range))
+            || html_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_html.iter().any(|c| overlaps(&c.raw_range))
+    };
+    let mut out = Vec::new();
+    let bytes = source.as_bytes();
+    for idx in 0..line_starts.len() {
+        let start = line_starts.get(idx).copied().unwrap_or(source.len());
+        // Quick byte scan past leading spaces / tabs without slicing
+        // or allocating; bail early on the first non-whitespace byte
+        // that isn't `%`. This is on the hot path for any corpus that
+        // contains `%` somewhere (LaTeX math, percent signs in prose).
+        let mut p = start;
+        while bytes.get(p).is_some_and(|&b| b == b' ' || b == b'\t') {
+            p = p.saturating_add(1);
+        }
+        if bytes.get(p) != Some(&b'%') {
+            continue;
+        }
+        let end = line_end(idx);
+        if excluded(start..end) {
+            continue;
+        }
+        out.push(CommentRegion { range: start..end });
+    }
+    out
+}
+
+fn inline_role_regex() -> &'static Regex {
+    // `{name}` immediately followed by one or more backticks. We only
+    // anchor the opener here; the backtick run + payload + closing
+    // run are matched programmatically because the run length is
+    // determined dynamically (CommonMark code-span pairing).
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| compile_static(r"\{(?P<name>[A-Za-z][\w-]*)\}(?P<ticks>`+)"))
+}
+
+fn inline_substitution_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| compile_static(r"\{\{(?P<name>[A-Za-z][\w-]*)\}\}"))
+}
+
+/// Scan source for inline overlay constructs: `MyST` inline roles
+/// (`` {role}`payload` ``), `MyST` substitution references (`{{name}}`),
+/// and `Pandoc` inline attribute spans (`[content]{.cls}`).
+///
+/// Excludes regions inside fenced code, inline code, HTML blocks /
+/// inline HTML, math regions, and block-level directive regions
+/// (whose verbatim emit owns the bytes outright).
+///
+/// Gated per-kind at the inline overlay site:
+/// [`crate::config::MystOptions::inline_roles`],
+/// [`crate::config::MystOptions::substitution_references`],
+/// [`crate::config::PandocOptions::inline_attribute_spans`].
+fn scan_inline_overlays(
+    source: &str,
+    code_blocks: &[CodeBlock],
+    inline_codes: &[InlineCode],
+    html_blocks: &[HtmlBlock],
+    inline_html: &[InlineHtml],
+    math_regions: &[MathRegion],
+    directives: &[DirectiveRegion],
+) -> Vec<InlineOverlayRegion> {
+    // Fast path: every overlay shape starts with `{` or `[`; if the
+    // source has neither, skip the whole pass.
+    if !source.contains('{') && !source.contains('[') {
+        return Vec::new();
+    }
+    let excluded = |range: &Range<usize>| -> bool {
+        let overlaps = |r: &Range<usize>| r.start < range.end && range.start < r.end;
+        code_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_codes.iter().any(|c| overlaps(&c.raw_range))
+            || html_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_html.iter().any(|c| overlaps(&c.raw_range))
+            || math_regions.iter().any(|m| overlaps(&m.range))
+            || directives.iter().any(|d| overlaps(&d.range))
+    };
+    let mut out: Vec<InlineOverlayRegion> = Vec::new();
+
+    // Pass 1: substitutions. Scan first so `{{name}}` is not eaten by
+    // the role pattern. Fast-path on `{{` — without it the regex still
+    // scans every byte on documents that have no substitutions.
+    if source.contains("{{") {
+        for caps in inline_substitution_regex().captures_iter(source) {
+            let Some(m) = caps.get(0) else { continue };
+            let r = m.start()..m.end();
+            if excluded(&r) {
+                continue;
+            }
+            let Some(name_m) = caps.name("name") else { continue };
+            out.push(InlineOverlayRegion {
+                range: r,
+                kind: InlineOverlayKind::Substitution {
+                    name_range: name_m.start()..name_m.end(),
+                },
+            });
+        }
+    }
+
+    // Pass 2: inline roles. The role opener is `{name}` immediately
+    // followed by one or more backticks; the payload is closed by a
+    // backtick run of the same length (CommonMark code-span pairing).
+    // Fast-path: a role requires both `{` and a backtick.
+    if source.contains('{') && source.contains('`') {
+        let role_re = inline_role_regex();
+        for caps in role_re.captures_iter(source) {
+            let Some(opener) = caps.get(0) else { continue };
+            let Some(name_m) = caps.name("name") else { continue };
+            let Some(ticks_m) = caps.name("ticks") else { continue };
+            let tick_len = ticks_m.end().saturating_sub(ticks_m.start());
+            let payload_start = ticks_m.end();
+            // Find a matching backtick run of exactly `tick_len` (CommonMark
+            // §6.1: pairing on equal run length).
+            let needle = "`".repeat(tick_len);
+            let rest = source.get(payload_start..).unwrap_or("");
+            let mut search_from = 0usize;
+            let payload_end_local = loop {
+                let Some(rel) = rest.get(search_from..).and_then(|s| s.find(&needle)) else {
+                    break None;
+                };
+                let abs = search_from.saturating_add(rel);
+                // Ensure this is a run of exactly tick_len (not a longer run).
+                let before_ok = abs == 0 || rest.as_bytes().get(abs.saturating_sub(1)) != Some(&b'`');
+                let after_idx = abs.saturating_add(tick_len);
+                let after_ok = rest.as_bytes().get(after_idx) != Some(&b'`');
+                if before_ok && after_ok {
+                    break Some(abs);
+                }
+                search_from = abs.saturating_add(tick_len);
+            };
+            let Some(payload_end_local) = payload_end_local else {
+                continue;
+            };
+            let payload_end = payload_start.saturating_add(payload_end_local);
+            let region_end = payload_end.saturating_add(tick_len);
+            let r = opener.start()..region_end;
+            if excluded(&r) {
+                continue;
+            }
+            out.push(InlineOverlayRegion {
+                range: r,
+                kind: InlineOverlayKind::Role {
+                    name_range: name_m.start()..name_m.end(),
+                    payload_range: payload_start..payload_end,
+                },
+            });
+        }
+    }
+
+    // Pass 3: `Pandoc` inline attribute spans `[content]{.cls}`. Skip if
+    // followed by `(` (CommonMark link). Fast-path on `]{` substring
+    // presence — corpora with lots of links but no Pandoc spans pay an
+    // O(n) walk otherwise, dominating per-document scanner cost.
+    if !source.contains("]{") {
+        out.sort_by_key(|r| r.range.start);
+        return out;
+    }
+    let bytes = source.as_bytes();
+    let mut i = 0usize;
+    while i < bytes.len() {
+        if bytes.get(i) != Some(&b'[') {
+            i = i.saturating_add(1);
+            continue;
+        }
+        // Find balanced `]` on the same line.
+        let mut depth = 1i32;
+        let mut j = i.saturating_add(1);
+        let mut closed = false;
+        while j < bytes.len() {
+            match bytes.get(j) {
+                Some(&b'\n') => break,
+                Some(&b'\\') => {
+                    j = j.saturating_add(2);
+                    continue;
+                }
+                Some(&b'[') => depth = depth.saturating_add(1),
+                Some(&b']') => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        closed = true;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+            j = j.saturating_add(1);
+        }
+        if !closed {
+            i = i.saturating_add(1);
+            continue;
+        }
+        let content_start = i.saturating_add(1);
+        let content_end = j;
+        let after_bracket = j.saturating_add(1);
+        // Must be immediately followed by `{`; if followed by `(`, it's
+        // a CommonMark link — skip.
+        let Some(&first) = bytes.get(after_bracket) else {
+            i = j.saturating_add(1);
+            continue;
+        };
+        if first == b'(' {
+            i = j.saturating_add(1);
+            continue;
+        }
+        if first != b'{' {
+            i = j.saturating_add(1);
+            continue;
+        }
+        let attrs_open = after_bracket;
+        let mut k = attrs_open.saturating_add(1);
+        let mut attrs_close: Option<usize> = None;
+        while k < bytes.len() {
+            match bytes.get(k) {
+                Some(&b'\n') => break,
+                Some(&b'}') => {
+                    attrs_close = Some(k);
+                    break;
+                }
+                _ => {}
+            }
+            k = k.saturating_add(1);
+        }
+        let Some(attrs_close) = attrs_close else {
+            i = j.saturating_add(1);
+            continue;
+        };
+        let r = i..attrs_close.saturating_add(1);
+        if excluded(&r) {
+            i = j.saturating_add(1);
+            continue;
+        }
+        // Avoid double-recording: if this region overlaps any previously
+        // recorded inline overlay (role or substitution), skip.
+        let conflict = out.iter().any(|o| o.range.start < r.end && r.start < o.range.end);
+        if conflict {
+            i = j.saturating_add(1);
+            continue;
+        }
+        out.push(InlineOverlayRegion {
+            range: r,
+            kind: InlineOverlayKind::PandocSpan {
+                content_range: content_start..content_end,
+                attrs_range: attrs_open.saturating_add(1)..attrs_close,
+            },
+        });
+        i = attrs_close.saturating_add(1);
+    }
+
+    // Caller / overlay site expects regions in source order.
+    out.sort_by_key(|r| r.range.start);
+    out
+}
+
 fn suppression_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     // Order matters: `allow-next-line` must precede `allow`, and
@@ -1192,6 +1732,10 @@ fn scan_suppressions(html_blocks: &[HtmlBlock]) -> Vec<Suppression> {
 }
 
 #[cfg(test)]
+#[allow(
+    clippy::indexing_slicing,
+    reason = "test asserts; panic surface is the test framework"
+)]
 mod tests {
     use anyhow::{Result, anyhow};
 
@@ -1570,5 +2114,150 @@ mod tests {
         let src = "hello\nworld\n";
         let runs = compute_transparent_runs(src, &[], &[]);
         assert!(runs.is_empty(), "expected empty: {runs:?}");
+    }
+
+    use super::{DirectiveStyle, InlineOverlayKind, scan_comments, scan_directives, scan_inline_overlays};
+
+    fn empty_ir_excludes() -> (
+        Vec<super::CodeBlock>,
+        Vec<super::InlineCode>,
+        Vec<super::HtmlBlock>,
+        Vec<super::InlineHtml>,
+    ) {
+        (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+    }
+
+    #[test]
+    fn scan_directives_finds_myst_brace() {
+        let src = ":::{note}\nbody\n:::\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_directives(src, &cb, &ic, &hb, &ih);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].style, DirectiveStyle::MystBrace);
+        assert_eq!(&src[out[0].range.clone()], src);
+    }
+
+    #[test]
+    fn scan_directives_finds_pandoc_attrs_and_short() {
+        let attrs = "::: {.warning}\nbody\n:::\n";
+        let short = ":::note\nbody\n:::\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        assert_eq!(
+            scan_directives(attrs, &cb, &ic, &hb, &ih)[0].style,
+            DirectiveStyle::PandocAttrs
+        );
+        assert_eq!(
+            scan_directives(short, &cb, &ic, &hb, &ih)[0].style,
+            DirectiveStyle::PandocShort
+        );
+    }
+
+    #[test]
+    fn scan_directives_allows_trailing_arg() {
+        // `MyST` directives often carry an argument after the brace.
+        let src = ":::{figure} ./img.png\n:alt: A diagram\n\nCaption.\n:::\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_directives(src, &cb, &ic, &hb, &ih);
+        assert_eq!(out.len(), 1, "expected one region: {out:?}");
+        assert_eq!(out[0].style, DirectiveStyle::MystBrace);
+    }
+
+    #[test]
+    fn scan_directives_nested_records_outermost_only() {
+        let src = "::::{note}\nouter\n\n:::{tip}\ninner\n:::\n::::\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_directives(src, &cb, &ic, &hb, &ih);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].colon_count, 4);
+    }
+
+    #[test]
+    fn scan_directives_siblings_at_same_count() {
+        let src = ":::{note}\nfirst\n:::\n\n:::{tip}\nsecond\n:::\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_directives(src, &cb, &ic, &hb, &ih);
+        assert_eq!(out.len(), 2, "expected two sibling regions: {out:?}");
+    }
+
+    #[test]
+    fn scan_directives_skips_unclosed_opener() {
+        let src = ":::{note}\nbody never closes\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        assert!(scan_directives(src, &cb, &ic, &hb, &ih).is_empty());
+    }
+
+    #[test]
+    fn scan_directives_empty_source() {
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        assert!(scan_directives("", &cb, &ic, &hb, &ih).is_empty());
+        assert!(scan_directives("no directives here\n", &cb, &ic, &hb, &ih).is_empty());
+    }
+
+    #[test]
+    fn scan_comments_recognises_line_start_percent() {
+        let src = "para.\n\n% a comment\n\nafter.\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_comments(src, &cb, &ic, &hb, &ih);
+        assert_eq!(out.len(), 1);
+        assert_eq!(&src[out[0].range.clone()], "% a comment\n");
+    }
+
+    #[test]
+    fn scan_comments_rejects_mid_paragraph_percent() {
+        let src = "this is 50% complete and not a comment.\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        assert!(scan_comments(src, &cb, &ic, &hb, &ih).is_empty());
+    }
+
+    #[test]
+    fn scan_comments_allows_leading_whitespace() {
+        let src = "  % indented comment\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_comments(src, &cb, &ic, &hb, &ih);
+        assert_eq!(out.len(), 1);
+    }
+
+    #[test]
+    fn scan_inline_overlays_recognises_role() {
+        let src = "see {term}`Vector Space` here\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_inline_overlays(src, &cb, &ic, &hb, &ih, &[], &[]);
+        assert_eq!(out.len(), 1);
+        assert!(matches!(out[0].kind, InlineOverlayKind::Role { .. }));
+        assert_eq!(&src[out[0].range.clone()], "{term}`Vector Space`");
+    }
+
+    #[test]
+    fn scan_inline_overlays_recognises_substitution() {
+        let src = "use {{name}} here\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_inline_overlays(src, &cb, &ic, &hb, &ih, &[], &[]);
+        assert_eq!(out.len(), 1);
+        assert!(matches!(out[0].kind, InlineOverlayKind::Substitution { .. }));
+    }
+
+    #[test]
+    fn scan_inline_overlays_recognises_pandoc_span() {
+        let src = "a [bracketed bit]{.note} here\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_inline_overlays(src, &cb, &ic, &hb, &ih, &[], &[]);
+        assert_eq!(out.len(), 1, "expected one span: {out:?}");
+        assert!(matches!(out[0].kind, InlineOverlayKind::PandocSpan { .. }));
+    }
+
+    #[test]
+    fn scan_inline_overlays_rejects_link_disguised_as_span() {
+        // `[content](url)` is a CommonMark link, not a `Pandoc` span.
+        let src = "a [link text](https://example.com) here\n";
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        let out = scan_inline_overlays(src, &cb, &ic, &hb, &ih, &[], &[]);
+        assert!(out.is_empty(), "expected no overlays: {out:?}");
+    }
+
+    #[test]
+    fn scan_inline_overlays_empty_source() {
+        let (cb, ic, hb, ih) = empty_ir_excludes();
+        assert!(scan_inline_overlays("", &cb, &ic, &hb, &ih, &[], &[]).is_empty());
+        assert!(scan_inline_overlays("plain text\n", &cb, &ic, &hb, &ih, &[], &[]).is_empty());
     }
 }

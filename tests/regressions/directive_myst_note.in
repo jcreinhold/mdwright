@@ -1,0 +1,9 @@
+Before the directive.
+
+:::{note}
+This is a MyST note. It can contain *inline* and
+
+multiple paragraphs.
+:::
+
+After the directive.

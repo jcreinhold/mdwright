@@ -77,5 +77,12 @@ All other `[fmt]` knobs are config-file-only.
 | `fmt.extensions.abbreviation-lists` | bool | `true` | `—` | Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does. |
 | `fmt.extensions.heading-attribute-lists` | bool | `true` | `—` | Recognise `# Heading {#id .class}` trailers via pulldown's `ENABLE_HEADING_ATTRIBUTES`. When off, the trailer reads as plain text in the heading body. |
 | `fmt.extensions.block-attribute-lists` | bool | `true` | `—` | Recognise `{ .class }` on a line by itself after a non-empty block as a scan-and-preserve overlay. Inline attribute lists (mid-paragraph) are out of scope. |
+| `fmt.extensions.myst.directive-containers` | bool | `true` | `—` | Recognise MyST `:::{name}` directive containers (with `:KEY: value` options) as a scan-and-preserve overlay. mdwright does not expand directives; downstream renderers (Sphinx, jupyter-book) do. |
+| `fmt.extensions.myst.inline-roles` | bool | `true` | `—` | Recognise MyST `` {role}`payload` `` inline roles as a scan-and-preserve overlay inside paragraph text. |
+| `fmt.extensions.myst.substitution-references` | bool | `true` | `—` | Recognise MyST `{{name}}` inline substitution references as a scan-and-preserve overlay. Declarations live in YAML frontmatter under `myst_substitutions:` and round-trip through the frontmatter verbatim path. |
+| `fmt.extensions.myst.comments` | bool | `true` | `—` | Recognise MyST `%` line comments at line-start as a scan-and-preserve overlay. |
+| `fmt.extensions.pandoc.fenced-divs` | bool | `true` | `—` | Recognise Pandoc `::: {.cls}` fenced div openers (attribute form). Closer is a colon-only line of matching count. |
+| `fmt.extensions.pandoc.short-form-divs` | bool | `true` | `—` | Recognise Pandoc `:::name` fenced div openers (short form). |
+| `fmt.extensions.pandoc.inline-attribute-spans` | bool | `true` | `—` | Recognise Pandoc `[content]{.cls}` inline attribute spans as a scan-and-preserve overlay. |
 
 <!-- END GENERATED -->

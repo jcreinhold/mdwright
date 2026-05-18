@@ -91,6 +91,19 @@ parser doesn't surface enough information for mdwright to round-trip the source 
 The parity test refuses to silently accept new divergences: any byte-for-byte mismatch fails the test and forces a
 deliberate add to this table (with a rationale and an upstream pointer) or a fix in mdwright's emit path.
 
+## MyST + Pandoc directive parity
+
+mdwright preserves MyST directive containers, Pandoc fenced divs, inline roles, MyST substitutions, Pandoc inline
+attribute spans, and MyST `%` line comments byte-verbatim. See [MyST + Pandoc directives](concepts/myst-pandoc.md)
+for the full scope. The bar is **idempotence-on-mode**, not byte-equal round-trip with mdformat-mkdocs: mdformat-mkdocs
+does not implement these constructs at all, so there is no upstream reference to diff against. The vendored
+jupyter-book demo at `tests/external/jupyter_book_minimal/` plus the per-construct regressions at
+`tests/regressions/{directive_*,inline_role_*,myst_*}.in` are the safety net.
+
+| Construct                       | Source pattern that diverges                      | Why                                                                                                                                                              |
+| ------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Malformed `:::{name}` source    | Bare `:::{warning} Experimental` with no closer   | Pulldown parses the opener as part of a definition-list or paragraph; mdwright's directive overlay matches on byte-range overlap and emits the union of the tree-node range and the directive region, so the bytes survive — but the surrounding misclassified bytes flow through pulldown's normal path. Fix the source by closing the directive. |
+
 ## How to read the live numbers
 
 ```sh

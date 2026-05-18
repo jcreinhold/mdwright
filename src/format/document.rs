@@ -21,7 +21,10 @@ use crate::format::doc::{self, RenderOptions};
 use crate::format::pretty::PrettyCtx;
 use crate::format::wrap::wrap_doc;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
-use crate::ir::{AbbreviationRegion, AdmonitionRegion, BlockAttrRegion, Frontmatter};
+use crate::ir::{
+    AbbreviationRegion, AdmonitionRegion, BlockAttrRegion, CommentRegion, DirectiveRegion, Frontmatter,
+    InlineOverlayRegion,
+};
 use crate::tree::Tree;
 
 /// Front-end used by `Document::format`. Renders the tree IR into a
@@ -35,6 +38,9 @@ pub(crate) fn format_document<'a>(
     admonitions: &'a [AdmonitionRegion],
     abbreviations: &'a [AbbreviationRegion],
     block_attrs: &'a [BlockAttrRegion],
+    directives: &'a [DirectiveRegion],
+    comments: &'a [CommentRegion],
+    inline_overlays: &'a [InlineOverlayRegion],
     refs: &'a ReferenceTable,
 ) -> String {
     let ctx = PrettyCtx {
@@ -45,6 +51,9 @@ pub(crate) fn format_document<'a>(
         admonitions,
         abbreviations,
         block_attrs,
+        directives,
+        comments,
+        inline_overlays,
         refs,
     };
     let doc = if opts.mode() == FormatMode::Verbatim {

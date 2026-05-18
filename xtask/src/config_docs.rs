@@ -184,6 +184,57 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         description: "Recognise `{ .class }` on a line by itself after a non-empty block as a scan-and-preserve overlay. Inline attribute lists (mid-paragraph) are out of scope.",
         cli_override: None,
     },
+    // ---- [fmt.extensions.myst] ---------------------------------------
+    FieldDoc {
+        key: "fmt.extensions.myst.directive-containers",
+        ty: "bool",
+        default: "true",
+        description: "Recognise MyST `:::{name}` directive containers (with `:KEY: value` options) as a scan-and-preserve overlay. mdwright does not expand directives; downstream renderers (Sphinx, jupyter-book) do.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.myst.inline-roles",
+        ty: "bool",
+        default: "true",
+        description: "Recognise MyST `` {role}`payload` `` inline roles as a scan-and-preserve overlay inside paragraph text.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.myst.substitution-references",
+        ty: "bool",
+        default: "true",
+        description: "Recognise MyST `{{name}}` inline substitution references as a scan-and-preserve overlay. Declarations live in YAML frontmatter under `myst_substitutions:` and round-trip through the frontmatter verbatim path.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.myst.comments",
+        ty: "bool",
+        default: "true",
+        description: "Recognise MyST `%` line comments at line-start as a scan-and-preserve overlay.",
+        cli_override: None,
+    },
+    // ---- [fmt.extensions.pandoc] -------------------------------------
+    FieldDoc {
+        key: "fmt.extensions.pandoc.fenced-divs",
+        ty: "bool",
+        default: "true",
+        description: "Recognise Pandoc `::: {.cls}` fenced div openers (attribute form). Closer is a colon-only line of matching count.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.pandoc.short-form-divs",
+        ty: "bool",
+        default: "true",
+        description: "Recognise Pandoc `:::name` fenced div openers (short form).",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.pandoc.inline-attribute-spans",
+        ty: "bool",
+        default: "true",
+        description: "Recognise Pandoc `[content]{.cls}` inline attribute spans as a scan-and-preserve overlay.",
+        cli_override: None,
+    },
 ];
 
 const PREAMBLE: &str = r#"# Configuration

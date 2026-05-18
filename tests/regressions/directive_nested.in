@@ -1,0 +1,11 @@
+Outer paragraph.
+
+::::{note}
+Outer body.
+
+:::{tip}
+Inner body.
+:::
+::::
+
+Trailing paragraph.

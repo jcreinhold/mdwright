@@ -1,0 +1,11 @@
+Two divs at the same colon count.
+
+:::{note}
+First.
+:::
+
+:::{tip}
+Second.
+:::
+
+After.

@@ -195,3 +195,38 @@ default), the source bytes round-trip verbatim via the source-tail
 read after the inline body.
 
 Test: `heading_attributes_populate_tag_fields`.
+
+## §10 MyST / Pandoc directives, roles, substitutions, comments
+
+pulldown-cmark v0.13.3 emits **no** events for any of the following constructs; they are recognised entirely
+through scan-and-preserve overlays in `src/ir.rs`:
+
+| Construct                          | Scanner                  | Overlay site                                    |
+| ---------------------------------- | ------------------------ | ----------------------------------------------- |
+| MyST / Pandoc directive containers | `scan_directives`        | `pretty_block_sequence` (block arm)             |
+| MyST `%` line comments             | `scan_comments`          | `pretty_block_sequence` (block arm)             |
+| MyST inline roles                  | `scan_inline_overlays`   | `apply_inline_overlay` in `src/format/inline.rs` |
+| MyST substitution references       | `scan_inline_overlays`   | `apply_inline_overlay` in `src/format/inline.rs` |
+| Pandoc inline attribute spans      | `scan_inline_overlays`   | `apply_inline_overlay` in `src/format/inline.rs` |
+
+Pulldown sees these as plain paragraph / text events, so each scanner consults the same exclusion vectors
+(code blocks, inline code, HTML blocks, inline HTML; the inline scanner additionally excludes math regions and the
+block-level directive regions) to avoid eating bytes that are already classified as something else.
+
+A directive opener whose colon count is *n* matches the next colon-only line of count ≥ *n*. The scanner records
+the outermost directive only; nested directives sit inside the outer region's bytes and are preserved implicitly.
+The block overlay arm matches **by byte-range overlap** (not exact-range equality), so pulldown's
+definition-list / paragraph misclassification of malformed MyST source still emits the directive bytes correctly:
+when the tree node containing the bytes spans more than the directive itself, mdwright emits the union of the
+tree-node range and the directive-region range verbatim.
+
+The inline overlay (`apply_inline_overlay`) is the **first inline-level overlay** in the formatter. It splices
+into both `walk_paragraph_inline` (paragraph context, with `ParagraphSafetyState`) and
+`pretty_inline_children_for_ids` (emphasis / link bodies, heading inlines, list-item virtual paragraphs) before
+the per-node `match`. A child whose `raw_range.start` lies inside a previously-emitted overlay region is silently
+swallowed — this is the multi-child-swallow logic that handles `` {term}`payload` ``, where the role spans both
+the `{term}` literal-text node and the following code-span node.
+
+There is no drift-test for these constructs because pulldown emits nothing to drift on; the scanner's per-fixture
+regression coverage in `tests/regressions/{directive_*,inline_role_*,myst_*}.in` plus the vendored
+jupyter-book round-trip at `tests/external_corpora.rs` is the safety net.

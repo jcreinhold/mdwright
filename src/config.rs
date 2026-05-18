@@ -229,6 +229,12 @@ pub struct ExtensionOptions {
     /// image, or fenced block (scan-and-preserve overlay). Inline
     /// attribute lists (mid-paragraph) are explicitly out of scope.
     pub block_attribute_lists: bool,
+    /// MyST-flavoured directive recognition (block directive
+    /// containers, inline roles, substitutions, `%` comments).
+    pub myst: MystOptions,
+    /// Pandoc-flavoured directive recognition (fenced divs in their
+    /// attr and short forms, inline attribute spans).
+    pub pandoc: PandocOptions,
 }
 
 impl Default for ExtensionOptions {
@@ -238,6 +244,70 @@ impl Default for ExtensionOptions {
             abbreviation_lists: true,
             heading_attribute_lists: true,
             block_attribute_lists: true,
+            myst: MystOptions::default(),
+            pandoc: PandocOptions::default(),
+        }
+    }
+}
+
+/// Recognition toggles for `MyST`-flavoured extensions.
+///
+/// `MyST` (Markedly Structured Text) is the substrate for jupyter-book
+/// and Sphinx-`MyST`. All toggles default **on** because they recognise
+/// what the source already says, not formatter opinion. See
+/// [`ExtensionOptions`] for the preserve-by-default ethos.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one toggle per MyST construct; recognition gates are independent"
+)]
+pub struct MystOptions {
+    /// Recognise `:::{name}` directive containers (with options) as a
+    /// scan-and-preserve region.
+    pub directive_containers: bool,
+    /// Recognise `` {role}`payload` `` inline roles as a
+    /// scan-and-preserve region.
+    pub inline_roles: bool,
+    /// Recognise `{{name}}` inline substitution references.
+    pub substitution_references: bool,
+    /// Recognise `%` line comments at line-start.
+    pub comments: bool,
+}
+
+impl Default for MystOptions {
+    fn default() -> Self {
+        Self {
+            directive_containers: true,
+            inline_roles: true,
+            substitution_references: true,
+            comments: true,
+        }
+    }
+}
+
+/// Recognition toggles for `Pandoc`-flavoured extensions.
+///
+/// Defaults on. See [`ExtensionOptions`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one toggle per Pandoc construct; recognition gates are independent"
+)]
+pub struct PandocOptions {
+    /// Recognise `::: {.cls}` fenced div openers (attr form).
+    pub fenced_divs: bool,
+    /// Recognise `:::name` fenced div openers (short form).
+    pub short_form_divs: bool,
+    /// Recognise `[content]{.cls}` inline attribute spans.
+    pub inline_attribute_spans: bool,
+}
+
+impl Default for PandocOptions {
+    fn default() -> Self {
+        Self {
+            fenced_divs: true,
+            short_form_divs: true,
+            inline_attribute_spans: true,
         }
     }
 }
@@ -986,6 +1056,10 @@ struct ExtensionsSchema {
     heading_attribute_lists: Option<bool>,
     #[serde(default, rename = "block-attribute-lists")]
     block_attribute_lists: Option<bool>,
+    #[serde(default)]
+    myst: Option<MystSchema>,
+    #[serde(default)]
+    pandoc: Option<PandocSchema>,
 }
 
 impl From<ExtensionsSchema> for ExtensionOptions {
@@ -996,6 +1070,56 @@ impl From<ExtensionsSchema> for ExtensionOptions {
             abbreviation_lists: s.abbreviation_lists.unwrap_or(default.abbreviation_lists),
             heading_attribute_lists: s.heading_attribute_lists.unwrap_or(default.heading_attribute_lists),
             block_attribute_lists: s.block_attribute_lists.unwrap_or(default.block_attribute_lists),
+            myst: s.myst.map_or(default.myst, MystOptions::from),
+            pandoc: s.pandoc.map_or(default.pandoc, PandocOptions::from),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(clippy::struct_excessive_bools, reason = "shape mirrors `MystOptions`")]
+struct MystSchema {
+    #[serde(default, rename = "directive-containers")]
+    directive_containers: Option<bool>,
+    #[serde(default, rename = "inline-roles")]
+    inline_roles: Option<bool>,
+    #[serde(default, rename = "substitution-references")]
+    substitution_references: Option<bool>,
+    #[serde(default)]
+    comments: Option<bool>,
+}
+
+impl From<MystSchema> for MystOptions {
+    fn from(s: MystSchema) -> Self {
+        let default = Self::default();
+        Self {
+            directive_containers: s.directive_containers.unwrap_or(default.directive_containers),
+            inline_roles: s.inline_roles.unwrap_or(default.inline_roles),
+            substitution_references: s.substitution_references.unwrap_or(default.substitution_references),
+            comments: s.comments.unwrap_or(default.comments),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PandocSchema {
+    #[serde(default, rename = "fenced-divs")]
+    fenced_divs: Option<bool>,
+    #[serde(default, rename = "short-form-divs")]
+    short_form_divs: Option<bool>,
+    #[serde(default, rename = "inline-attribute-spans")]
+    inline_attribute_spans: Option<bool>,
+}
+
+impl From<PandocSchema> for PandocOptions {
+    fn from(s: PandocSchema) -> Self {
+        let default = Self::default();
+        Self {
+            fenced_divs: s.fenced_divs.unwrap_or(default.fenced_divs),
+            short_form_divs: s.short_form_divs.unwrap_or(default.short_form_divs),
+            inline_attribute_spans: s.inline_attribute_spans.unwrap_or(default.inline_attribute_spans),
         }
     }
 }

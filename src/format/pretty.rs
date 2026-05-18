@@ -18,7 +18,10 @@
 
 use crate::cm::refs::ReferenceTable;
 use crate::config::FmtOptions;
-use crate::ir::{AbbreviationRegion, AdmonitionRegion, BlockAttrRegion, Frontmatter};
+use crate::ir::{
+    AbbreviationRegion, AdmonitionRegion, BlockAttrRegion, CommentRegion, DirectiveRegion, Frontmatter,
+    InlineOverlayRegion,
+};
 use crate::tree::Tree;
 
 #[derive(Clone, Copy)]
@@ -35,6 +38,15 @@ pub(crate) struct PrettyCtx<'a> {
     /// `{ #id .class }` block-attribute trailer regions, recognised by
     /// `scan_block_attrs` in `crate::ir`.
     pub block_attrs: &'a [BlockAttrRegion],
+    /// `MyST` / `Pandoc` directive container regions, recognised by
+    /// `scan_directives` in `crate::ir`.
+    pub directives: &'a [DirectiveRegion],
+    /// `MyST` `%` line comment regions, recognised by `scan_comments`.
+    pub comments: &'a [CommentRegion],
+    /// Inline-level overlay regions (roles, substitutions, `Pandoc`
+    /// inline attribute spans), recognised by `scan_inline_overlays`.
+    /// Consulted at the inline splice in `format::inline`.
+    pub inline_overlays: &'a [InlineOverlayRegion],
     /// Resolved link reference definitions in insertion order.
     /// `LinkReferenceDefinition` is not a tree node — the table is
     /// the single source of truth.

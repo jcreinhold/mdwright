@@ -1,0 +1,7 @@
+Pandoc fenced div with attributes.
+
+::: {.warning}
+Body text.
+:::
+
+After.

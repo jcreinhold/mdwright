@@ -1,0 +1,11 @@
+Caption a figure with options.
+
+:::{figure} ./img.png
+:alt: A diagram of the system
+:width: 300px
+:align: center
+
+The figure caption text.
+:::
+
+Trailing paragraph.

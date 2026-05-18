@@ -1,0 +1,7 @@
+---
+myst_substitutions:
+  my-sub: "Replacement text"
+  another: "{{my-sub}} again"
+---
+
+Body content.

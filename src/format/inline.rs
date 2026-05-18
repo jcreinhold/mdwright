@@ -22,9 +22,61 @@ use crate::cm::block::paragraph_safety::{
 };
 use crate::cm::inline::run::{InlineRun, RunPart};
 use crate::cm::inline::strikethrough::Strikethrough;
-use crate::format::doc::{Doc, concat, hard_line, line, prose, text};
+use crate::format::doc::{Doc, concat, hard_line, line, prose, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
+use crate::ir::InlineOverlayKind;
 use crate::tree::{NodeId, NodeKind};
+
+/// Result of consulting the inline-overlay scanner at a given byte
+/// position in the inline walk. See [`classify_inline_overlay`].
+enum InlineOverlayDispatch<'a> {
+    /// No overlay covers this position; do normal handling.
+    Passthrough,
+    /// Emit this Doc and skip the current child.
+    Emit(Doc<'a>),
+    /// Skip the current child silently (an earlier sibling already
+    /// emitted the overlay slice covering this region).
+    Skip,
+}
+
+/// Decide what to do at the inline walk's current child position.
+///
+/// The inline scanner records each role / substitution / Pandoc inline
+/// attribute span as one `InlineOverlayRegion`. When a tree child's
+/// `raw_range.start` falls inside a region, the walker emits the
+/// region's verbatim source slice exactly once and swallows any
+/// subsequent children whose start is also inside the region.
+fn classify_inline_overlay<'a>(
+    ctx: &PrettyCtx<'a>,
+    pos: usize,
+    last_emitted: &mut Option<usize>,
+) -> InlineOverlayDispatch<'a> {
+    let Some((idx, region)) = ctx
+        .inline_overlays
+        .iter()
+        .enumerate()
+        .find(|(_, r)| pos >= r.range.start && pos < r.range.end)
+    else {
+        *last_emitted = None;
+        return InlineOverlayDispatch::Passthrough;
+    };
+    let ext = ctx.opts.extensions();
+    let enabled = match region.kind {
+        InlineOverlayKind::Role { .. } => ext.myst.inline_roles,
+        InlineOverlayKind::Substitution { .. } => ext.myst.substitution_references,
+        InlineOverlayKind::PandocSpan { .. } => ext.pandoc.inline_attribute_spans,
+    };
+    if !enabled {
+        *last_emitted = None;
+        return InlineOverlayDispatch::Passthrough;
+    }
+    if *last_emitted == Some(idx) {
+        return InlineOverlayDispatch::Skip;
+    }
+    *last_emitted = Some(idx);
+    let slice = ctx.source.get(region.range.clone()).unwrap_or("");
+    InlineOverlayDispatch::Emit(unbreakable(text(slice.to_owned())))
+}
 
 /// Render every inline child of `parent`.
 #[tracing::instrument(level = "trace", skip_all)]
@@ -35,10 +87,19 @@ pub(crate) fn pretty_inline_children<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) ->
 
 fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Doc<'a> {
     let mut parts: Vec<Doc<'a>> = Vec::with_capacity(ids.len());
+    let mut last_overlay: Option<usize> = None;
     for &cid in ids {
         let Some(node) = ctx.tree.node(cid) else {
             continue;
         };
+        match classify_inline_overlay(ctx, node.raw_range.start, &mut last_overlay) {
+            InlineOverlayDispatch::Emit(doc) => {
+                parts.push(doc);
+                continue;
+            }
+            InlineOverlayDispatch::Skip => continue,
+            InlineOverlayDispatch::Passthrough => {}
+        }
         match &node.kind {
             NodeKind::Run(run) => parts.push(run.pretty()),
             NodeKind::CodeRun(code) => parts.push(code.pretty()),
@@ -207,11 +268,21 @@ fn walk_paragraph_inline<'a>(
     state: &mut ParagraphSafetyState,
 ) {
     let last_idx = ids.len().saturating_sub(1);
+    let mut last_overlay: Option<usize> = None;
     for (i, &cid) in ids.iter().enumerate() {
         let Some(node) = ctx.tree.node(cid) else {
             continue;
         };
         let has_next_sibling = i < last_idx;
+        match classify_inline_overlay(ctx, node.raw_range.start, &mut last_overlay) {
+            InlineOverlayDispatch::Emit(doc) => {
+                out.push(doc);
+                state.note_content();
+                continue;
+            }
+            InlineOverlayDispatch::Skip => continue,
+            InlineOverlayDispatch::Passthrough => {}
+        }
         match &node.kind {
             NodeKind::Run(run) => {
                 emit_run_with_safety(run, has_next_sibling, out, state);

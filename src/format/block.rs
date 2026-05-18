@@ -15,11 +15,20 @@
 
 use crate::cm::block::TypedBlock;
 use crate::cm::block::paragraph::Paragraph;
-use crate::config::{LinkDefStyle, Placement};
+use crate::config::{ExtensionOptions, LinkDefStyle, Placement};
 use crate::format::doc::{Doc, RenderOptions, concat, hard_line, render, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
 use crate::format::verbatim::emit_verbatim;
+use crate::ir::DirectiveStyle;
 use crate::tree::{NodeId, NodeKind};
+
+fn directive_style_enabled(style: DirectiveStyle, ext: &ExtensionOptions) -> bool {
+    match style {
+        DirectiveStyle::MystBrace => ext.myst.directive_containers,
+        DirectiveStyle::PandocAttrs => ext.pandoc.fenced_divs,
+        DirectiveStyle::PandocShort => ext.pandoc.short_form_divs,
+    }
+}
 
 /// Render every direct block child of `parent` separated by a blank
 /// line. Block helpers emit a trailing `HardLine`, so two consecutive
@@ -48,6 +57,10 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
     let mut emitted_abbr: Option<usize> = None;
     let mut battr_idx = 0usize;
     let mut emitted_battr: Option<usize> = None;
+    let mut dir_idx = 0usize;
+    let mut emitted_dir_end: Option<usize> = None;
+    let mut cmt_idx = 0usize;
+    let mut emitted_cmt: Option<usize> = None;
     for child in ctx.tree.children(parent) {
         if is_doc_root
             && footnote_end
@@ -116,6 +129,77 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
                         emitted = emitted.saturating_add(1);
                         emitted_abbr = Some(abbr_idx);
                         abbr_idx = end_idx;
+                    }
+                    continue;
+                }
+            }
+
+            // Skip any tree node whose bytes have already been
+            // emitted as part of a wider directive span. Pulldown can
+            // bundle a directive's body (and even trailing siblings)
+            // into a single block when the surrounding source confuses
+            // its definition-list / paragraph recogniser; once the
+            // directive overlay emits that wider span verbatim, any
+            // subsequent tree child whose start lies inside the
+            // emitted bytes must be swallowed.
+            if let Some(end) = emitted_dir_end
+                && cr.start < end
+            {
+                continue;
+            }
+
+            // Directive container overlay (MyST `:::{name}`, Pandoc
+            // `::: {.cls}`, Pandoc `:::name`). Each style is gated
+            // independently at the scanner; at the overlay site we
+            // emit any region whose byte range overlaps the tree node
+            // — pulldown frequently bundles directive lines into
+            // larger paragraph / definition-list / blockquote nodes
+            // when the surrounding source is malformed MyST. In that
+            // case we emit the union of the tree node range and the
+            // directive region, byte-verbatim, so both the directive
+            // and the misclassified bytes around it survive intact.
+            if ext.myst.directive_containers || ext.pandoc.fenced_divs || ext.pandoc.short_form_divs {
+                while dir_idx < ctx.directives.len()
+                    && ctx.directives.get(dir_idx).map_or(0, |d| d.range.end) <= cr.start
+                {
+                    dir_idx = dir_idx.saturating_add(1);
+                }
+                if let Some(region) = ctx.directives.get(dir_idx)
+                    && region.range.start < cr.end
+                    && region.range.end > cr.start
+                    && directive_style_enabled(region.style, &ext)
+                {
+                    if emitted > 0 {
+                        parts.push(hard_line());
+                    }
+                    let span_start = region.range.start.min(cr.start);
+                    let span_end = region.range.end.max(cr.end);
+                    let slice = ctx.source.get(span_start..span_end).unwrap_or("");
+                    parts.push(unbreakable(verbatim_lines(slice)));
+                    emitted = emitted.saturating_add(1);
+                    emitted_dir_end = Some(span_end);
+                    continue;
+                }
+            }
+
+            // MyST `%` line comment overlay. Pulldown parses the line
+            // as a plain paragraph; we emit it verbatim.
+            if ext.myst.comments {
+                while cmt_idx < ctx.comments.len() && ctx.comments.get(cmt_idx).map_or(0, |c| c.range.end) <= cr.start {
+                    cmt_idx = cmt_idx.saturating_add(1);
+                }
+                if let Some(region) = ctx.comments.get(cmt_idx)
+                    && cr.start >= region.range.start
+                    && cr.start < region.range.end
+                {
+                    if emitted_cmt != Some(cmt_idx) {
+                        if emitted > 0 {
+                            parts.push(hard_line());
+                        }
+                        let slice = ctx.source.get(region.range.clone()).unwrap_or("");
+                        parts.push(unbreakable(verbatim_lines(slice)));
+                        emitted = emitted.saturating_add(1);
+                        emitted_cmt = Some(cmt_idx);
                     }
                     continue;
                 }
