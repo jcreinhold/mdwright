@@ -57,7 +57,7 @@ for the full platform support matrix.
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/jcreinhold/mdwright
-    rev: v0.4.0
+    rev: v0.1.0
     hooks:
       - id: mdwright-check-system
       - id: mdwright-fmt-check-system
@@ -66,7 +66,7 @@ repos:
 GitHub Actions:
 
 ```yaml
-- uses: jcreinhold/mdwright@v0.4.0
+- uses: jcreinhold/mdwright@v0.1.0
   with:
     args: check --check .
 ```

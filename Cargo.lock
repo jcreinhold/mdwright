@@ -789,7 +789,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright"
-version = "0.4.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",

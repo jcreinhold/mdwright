@@ -37,8 +37,7 @@ italic = "asterisk"
 | `"underscore"` | Rewrite `**…**` to `__…__`. |
 
 Independent of `italic`. With `italic = "asterisk"` and `strong = "underscore"` you get
-`*italic*` alongside `__strong__`. The pre-v0.4.0 schema folded the two into one knob;
-they are separate now.
+`*italic*` alongside `__strong__`. `italic` and `strong` are independent knobs.
 
 ```toml
 [fmt]

@@ -13,7 +13,7 @@ inputs:
   version:
     description: |
       mdwright version to install. Use `latest` to resolve from the
-      GitHub releases API, or pin to a concrete tag (`v0.4.0`).
+      GitHub releases API, or pin to a concrete tag (`v0.1.0`).
     required: false
     default: latest
 
@@ -35,7 +35,7 @@ runs:
 
         # Map (kernel, arch) to the cargo-dist target triple that
         # actually ships a binary. Linux x86_64 and macOS aarch64 are
-        # the supported targets for v0.4.0; other combinations are
+        # the supported targets for v0.1.0; other combinations are
         # rejected loudly rather than silently falling back.
         kernel="$(uname -s)"
         arch="$(uname -m)"

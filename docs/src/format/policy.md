@@ -41,7 +41,7 @@ recovery machinery).
 
 With structural emit pure-preserving, the perturbation source is gone. With
 canonicalisation isolated to one verified pass, failed rewrites are localised rather than
-global. The convergence loop and safety ladder were deleted in the v0.4.0 redesign.
+global. The convergence loop and safety ladder were deleted in the structural-preserve redesign.
 
 ## How to opt in
 

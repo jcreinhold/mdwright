@@ -14,8 +14,8 @@ verbatim. The scanner identifies math regions before any other pass touches the 
 `\frac{a}{b}` into `\\frac{a}{b}` and the linter never flags a backslash inside `\begin{align*} … \end{align*}`. See
 [Math regions](concepts/math-regions.md) for the design.
 
-**Fast.** On a 2,107-file corpus mdwright runs about 500× faster than `mdformat --check`. The benchmark and
-methodology are in the [README](https://github.com/jcreinhold/mdwright#performance); the design rationale is in
+**Fast.** On a 2,107-file corpus mdwright runs about 500× faster than `mdformat --check`. The benchmarks live
+under [`benches/`](https://github.com/jcreinhold/mdwright/tree/main/benches); the design rationale is in
 [Architecture](extending/architecture.md).
 
 ## Who this site is for
@@ -30,5 +30,12 @@ methodology are in the [README](https://github.com/jcreinhold/mdwright#performan
 ## What this site is not
 
 This is the manual. The narrative pages (concepts, extending) explain the *why*; the reference pages
-([rules](rules/index.md), [CLI](reference/cli.md), [diagnostic schema](reference/diagnostic-schema.md)) are the
-source-of-truth *what*. The [README](https://github.com/jcreinhold/mdwright) is the 90-second pitch.
+([rules](rules/index.md), [CLI](reference/cli.md), [public API](reference/public-api.md),
+[diagnostic schema](reference/diagnostic-schema.md)) are the source-of-truth *what*. The
+[README](https://github.com/jcreinhold/mdwright) is the 90-second pitch.
+
+## Stability
+
+mdwright is pre-1.0. The release surface — public Rust API, CLI, configuration schema, diagnostic JSON, and lint-rule
+trait — is documented descriptively at [Public API](reference/public-api.md), but minor versions may include breaking
+changes until 1.0; see [Semver policy](reference/semver.md#pre-10-caveats). Patch releases never break.

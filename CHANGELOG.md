@@ -4,410 +4,245 @@ All notable changes to mdwright are listed here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions
 follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
-> Note on the version jump: 0.1.0 → 0.3.0 skips 0.2.0 deliberately.
-> An interim 0.2.0 was reserved for the unreleased pre-Phase-R baseline
-> (tagged in git as `phase-r-baseline-pre-tracing`) but was never cut;
-> the spec-alignment redesign ships as 0.3.0 to keep the released
-> sequence in step with the in-repo Phase-R prompt block.
-
 ## [Unreleased]
 
-### Added
+## [0.1.0] — 2026-05-18
 
-- `.pre-commit-hooks.yaml` at the repo root, exposing six hook IDs
-  for the [`pre-commit`](https://pre-commit.com) framework:
-  `mdwright-check` / `mdwright-fmt` / `mdwright-fmt-check` (built
-  from source via `language: rust`) and `*-system` variants that
-  invoke a pre-installed binary on `$PATH`.
-- `action.yml` at the repo root: a composite GitHub Action that
-  downloads the matching release tarball
-  (`x86_64-unknown-linux-gnu` or `aarch64-apple-darwin`) and runs
-  `mdwright` with caller-provided `args`. Usage:
-  `uses: jcreinhold/mdwright@v0.4.0`.
-- `cargo xtask bump-docs-version`: rewrites `rev: vX.Y.Z` and
-  `@vX.Y.Z` pins in integration docs and example configs to match
-  `Cargo.toml`'s `[package].version`. Drift gated in CI by
-  `tests/integration_versions_in_sync.rs`.
-- `examples/downstream/`: minimal end-to-end fixture (good +
-  intentionally bad Markdown files plus a `.pre-commit-config.yaml`)
-  exercised by `tests/downstream_integration.rs`.
+First crates.io release. mdwright has been developed internally
+through a sequence of in-repo versions (0.1, 0.3, 0.4) that were
+never published; this 0.1.0 is the first version external users
+can pin to. Pre-1.0 caveats apply — see
+[reference/semver.md](https://jcreinhold.github.io/mdwright/reference/semver.html#pre-10-caveats)
+and the public-surface snapshot at
+[reference/public-api.md](https://jcreinhold.github.io/mdwright/reference/public-api.html).
 
-## [0.4.0] — 2026-05-17
+### Lint
 
-Preserve-by-default formatter, plus a built-in LSP server.
+- Standard library of fifteen rules under `mdwright::stdlib`:
+  `adjacent-code-no-space`, `bare-url`, `duplicate-heading`,
+  `duplicate-link-label`, `escaped-emphasis`, `heading-punctuation`,
+  `inconsistent-list-marker`, `info-string-typo`, `latex-command`,
+  `list-tightness-flipped`, `orphan-reference-link`, `stray-dollar`,
+  `subscript-damage`, `trailing-whitespace`, `unbalanced-backtick`,
+  `unicodeable-subscript`, plus three math rules
+  (`math/unbalanced-braces`, `math/unbalanced-delim`,
+  `math/unbalanced-env`). `RuleSet::stdlib_defaults` returns the
+  curated default-on subset; `RuleSet::stdlib_all` returns the lot.
+- Third-party rules via the [`LintRule`] trait and `RuleSet::add`.
+  See `examples/extending/` for the canonical plugin recipe.
+- Inline suppression comments: `<!-- mdwright: allow ... -->`,
+  `<!-- mdwright: allow-next-line ... -->`,
+  `<!-- mdwright: disable [...] -->` / `enable`, `disable-all` /
+  `enable-all`.
 
-### Breaking changes
+### Format
 
-- `FmtOptions` style knobs (`italic`, `strong`, `list_marker`,
-  `thematic_break_style`, `ordered_list`, `link_def_style`) default to
-  `Preserve` rather than to a normalised target. The default formatter
-  now leaves source style unchanged. Users who relied on the old
-  normalising defaults must set the desired style explicitly in
-  `.mdwright.toml`. To restore the pre-0.4.0 emphasis-to-asterisk
-  behaviour:
-
-  ```toml
-  [fmt]
-  italic = "asterisk"
-  strong = "asterisk"
-  list-marker = "dash"
-  thematic-break = "dash"
-  ```
-
-- New `StrongStyle` knob added (`[fmt] strong = "asterisk" |
-  "underscore" | "preserve"`, default `preserve`). Previously, strong
-  emphasis shared the italic knob's delimiter. The two are now
-  independent: `*italic*` with `__strong__` is expressible.
-
-- New `[fmt] thematic-break` TOML key surfaces a knob that was
-  previously not deserialised from configuration (`dash` / `asterisk`
-  / `underscore` / `preserve`).
-
-- `FmtOptions` gains six fluent setters: `with_italic`, `with_strong`,
-  `with_list_marker`, `with_ordered_list`, `with_thematic_break`,
-  `with_link_def_style`. Programmatic callers (CLI overrides,
-  property tests, downstream library users) construct options through
-  these.
-
-- `FormatError::DidNotConverge` is gone. The formatter no longer has a
-  convergence loop, so this variant cannot fire. Match arms that
-  spelled it explicitly will not compile.
-
-### Architecture
-
-- Structural emit is a single pass with pure source-byte preservation
-  (`src/format/document.rs`). Every `.pretty()` method reads source
-  bytes through `Tree::raw_text` or a node's source-recorded field;
-  none consult `FmtOptions` style knobs. Idempotent by construction.
-
-- Style canonicalisation runs as a separate post-structural pass at
-  `src/format/canonicalise.rs`. Each rewrite is verified locally by
-  reparsing the affected paragraph window through the prompt-46
-  chokepoint; failed verifications skip silently with
-  `tracing::warn!`. The pass iterates internally to a fixed point
-  (cap `MAX_CANONICALISE_ITERS = 8`).
-
-- The safety ladder (`src/format/emit_safety.rs`, ~474 lines), the
-  two-pass convergence loop, `FlankSource`, `DraftView`,
-  `Tree::corresponding_node_map`, `format::ConvergenceError`, and
-  `verbatim_source_fallback` are deleted (~800 lines net).
-
-- Property tests at `tests/properties.rs` matrix every style knob:
-  15 canonicalisation modes × {byte idempotence,
-  `semantically_equivalent`} on per-construct generators + a
-  whole-document sweep at 4096 cases (`#[ignore]`-gated).
-
-- Fuzz harnesses `fuzz_idempotence` and `fuzz_parse_format` extend
-  their first-byte `FmtOptions` encoding to cover the
-  canonicalisation matrix (bit layout documented in target source).
-
-- Round-3 fuzz evidence fixtures promoted to
-  `tests/regressions/fuzz_round3_*.in`. Both byte-preserve under
-  structural defaults.
-
-- See `docs/src/format/policy.md` (user-facing) and
-  `docs/architecture/stability.md` (contributor-facing) for the
-  design.
-
-### Bug fixes
-
-- `cm/inline/escape_policy::needs_emphasis_escape` no longer escapes
-  adjacent `**`/`__`/`***` runs that pulldown parses as plain text
-  (the body between candidate delimiters must contain a
-  non-delimiter byte). Round-3 fixture 02 idempotence bug.
-
-- `ir::split_frontmatter` returns `(0, None)` when a YAML/TOML opener
-  appears without a matching closing delimiter, falling back to
-  pulldown's thematic-break interpretation. Previously the whole
-  document was swallowed into a verbatim frontmatter slab.
-
-- `cm::block::quote::BlockQuote::pretty` emits `>\n` for an empty
-  blockquote (rather than `> ` with no trailing newline), so
-  consecutive blockquotes don't collapse into one on re-parse.
-
-### Added
-- `mdwright explain <rule>` subcommand prints the long-form explanation
-  of one lint rule. Unknown rule names are matched by Jaro-Winkler
-  similarity for a "did you mean?" suggestion. Each stdlib rule ships a
-  multi-paragraph prose body under `src/stdlib/explain/`; the same
-  bytes are exposed through `LintRule::explain()` and through the
-  generated per-rule pages.
-- Per-rule documentation pages at `docs/rules/<name>.md` (and
-  `docs/rules/index.md`), generated by `cargo xtask doc-rules`. CI test
-  `rule_docs_in_sync` fails on drift; fix by re-running the xtask.
-- Pretty output is now rustc-style: severity header (`error[rule]:`,
-  `advisory[rule]:`, …), `--> path:line:col` location, source snippet
-  with caret underline, `help:` line drawn from the rule's `explain()`,
-  optional `fix:` preview, and a `note: see mdwright explain <rule>`
-  footer. Coloured by `owo-colors` when stdout is a TTY.
-- `--color=always|never|auto` flag on `check` and `fix`. Compact and
-  JSON output are never coloured regardless.
-- JSON Lines v2 schema at `docs/diagnostic-schema.json` + prose at
-  `docs/diagnostic-schema.md`. v2 records carry `schema_version: 2`,
-  `severity`, a nested `rule` object with `url` into the per-rule
-  pages, and a `source` object with the offending line text. v1
-  remains available under `--format=json-v1` for one release cycle
-  and prints a deprecation warning to stderr.
-- Public exports `Severity`, `Snippet`, and `LineIndex::line_bounds`
-  for downstream consumers that build their own diagnostic renderers.
-- `LintRule` gains two opt-in trait methods with empty/false defaults:
-  `explain(&self) -> &str` (long-form prose) and
-  `produces_fix(&self) -> bool` (used by `list-rules` and the
-  generated docs). Third-party rules continue to compile unchanged.
-
-### Changed
-- Math recognition moved out of `src/format/math.rs` into a structural
-  recogniser at `mdwright::cm::math`. The new scanner runs over the
-  same source bytes but uses the IR's inline / block atoms — including
-  inline HTML, which the heuristic scanner did not consult — as
-  exclusion zones, closing the "odd `$` in an HTML attribute anchors
-  a phantom region" class of false positive. `\begin{env} … \end{env}`
-  is recognised with same-name nesting; the four primitive delimiter
-  pairs (`\[ \]`, `\( \)`, `$$ $$`, `$ $`) keep their existing
-  greedy-first-close semantics, and the dollar variants remain
+- Math-resilient round-trip formatter. Math regions
+  (`\[…\]`, `$$…$$`, `\(…\)`, `$…$`, and LaTeX environments) are
+  preserved verbatim by default; the structural recogniser at
+  `mdwright::cm::math` uses the IR's inline and block atoms — including
+  inline HTML — as exclusion zones, closing the "stray `$` anchors a
+  phantom math region" class of false positive. Dollar variants remain
   opt-in via `MathConfig`.
-- The `unbalanced-math-delim` lint rule splits into namespaced
-  siblings `math/unbalanced-delim` (primitive delimiter imbalance)
-  and `math/unbalanced-env` (LaTeX environment imbalance). No alias
-  is kept; users referencing the old name in `<!-- mdwright: allow
-  unbalanced-math-delim -->` need to update to the namespaced names.
+- Preserve-by-default style knobs. `italic`, `strong`,
+  `list_marker`, `thematic_break_style`, `ordered_list`,
+  `link_def_style` all default to `Preserve`; the default formatter
+  leaves source style unchanged. Each knob has an opt-in canonicalising
+  target (`asterisk`, `underscore`, `dash`, etc.) configurable via
+  `.mdwright.toml` or programmatically through fluent setters
+  (`with_italic`, `with_strong`, `with_list_marker`, `with_ordered_list`,
+  `with_thematic_break`, `with_link_def_style`).
+- `StrongStyle` is independent of `ItalicStyle`. `*italic*` with
+  `__strong__` is expressible (`[fmt] strong = "asterisk" |
+  "underscore" | "preserve"`, default `preserve`).
+- `--math-render={none, commonmark-katex, dollar}` flag on `fmt` plus
+  a `mdwright render` subcommand for one-shot conversion. The
+  converter at `src/cm/math/render.rs` lifts LaTeX-flavoured delimiters
+  to CommonMark-compatible `$…$` / `$$…$$` for downstream KaTeX
+  rendering.
+- Math pretty-printer at `mdwright::cm::math::pretty`. Whole-block math
+  regions are normalised: whitespace inside the body, opener / closer
+  on their own lines, and `&` columns inside aligning environments
+  padded to per-column Unicode display width. Gated behind
+  `FmtOptions::math().normalise` (default `false`) because pulldown
+  parses math bodies as prose; opt-in for authors with a downstream
+  math renderer.
+- MyST + Pandoc directive preservation: directive containers
+  (`:::{name}`), fenced divs (`::: {.cls}` / `:::name`), inline roles
+  (`` {role}`payload` ``), substitutions (`{{name}}`), Pandoc inline
+  attribute spans (`[content]{.cls}`), and `%` line comments. The
+  first inline overlay lives at
+  `src/format/inline.rs::apply_inline_overlay`; idempotence is gated
+  by `tests/external_corpora.rs` against the vendored jupyter-book
+  demo.
+- mdformat-mkdocs parity: definition lists and heading attribute
+  lists via pulldown events; abbreviations and non-heading block
+  attribute lists as scan-and-preserve overlays. Defaults on. Inline
+  attribute lists are explicitly out of scope. Byte parity gated by
+  `tests/extension_parity.rs`.
+- Line wrap: `Wrap::Keep` / `Wrap::No` / `Wrap::At(n)`. The
+  Knuth-Plass-lite DP at `src/format/wrap.rs` is bounded
+  (paragraphs > 100 000 boxes skip the DP and emit verbatim; 100 ms
+  time budget).
+- Frontmatter preservation: YAML (`---`) and TOML (`+++`) opening
+  fences. `Frontmatter::delimiter` is read back through
+  `Document::frontmatter`.
+- Range formatting: `format_range` and `format_range_with_checkpoints`
+  re-emit the smallest set of whole top-level blocks covering a
+  caller-supplied byte range. Substring contract fenced by
+  `tests/properties.rs::range_format_is_substring_of_whole`.
 
-### Added
-- Math pretty-printer at `mdwright::cm::math::pretty`. When a block
-  is entirely a math region (display `\[…\]` / `$$…$$` or an
-  environment standing alone), the renderer normalises:
-  whitespace inside the body, the opener / closer onto their own
-  lines, and `&` columns inside aligning environments (`align`,
-  `aligned`, `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, `cases`,
-  `array`, `split`) padded to per-column Unicode display width.
-  Gated behind `FmtOptions::math().normalise` (default `false`) —
-  pulldown-cmark parses math bodies as prose, so any whitespace
-  change shifts the byte-level HTML output and trips
-  `Document::format_validated`. Authors with a downstream math
-  renderer (KaTeX, MathJax) opt in. Paragraphs containing inline
-  math fragments continue to emit verbatim so the recogniser's
-  ambiguous calls (`\(` as math vs. as punctuation escape) cannot
-  rewrite prose. New `math/unbalanced-braces` lint rule surfaces
-  imbalanced `{` / `}` inside a math body; on imbalance the
-  pretty-printer falls back to verbatim. Golden fixtures under
-  `tests/golden_math/`.
-- Coverage-guided fuzz harness at [`fuzz/`](./fuzz) with three
-  targets: `fuzz_parse_format`, `fuzz_idempotence`, `fuzz_lint`.
-  See [README §Safety](./README.md#safety).
-- `--max-input-bytes` global CLI flag (default 10 MB) caps the size
-  of any single file or stdin payload. Pass `0` to disable.
-- `tests/discover_symlink_loop.rs` pins the symlink-handling
-  contract; `discover_markdown` does not follow symlinks and so is
-  immune to symlink loops.
-- `SECURITY.md` disclosure template.
+### CLI
 
-### Changed
-- `src/format/wrap.rs` bounds the Knuth-Plass-lite DP: paragraphs
-  exceeding 100 000 boxes skip the DP and emit verbatim; a 100 ms
-  time budget guards against generators we did not anticipate.
-- `src/cm/block/heading.rs` falls back to ATX form when a setext
-  body would re-parse as a different block (e.g. `*`, `>`, `#`,
-  digits, fenced-code leaders) and keeps setext for multi-line
-  bodies (which ATX cannot represent). Fixes two fuzz-found
-  idempotence regressions.
-- `src/cm/block/list.rs` emits a hard-line for an empty list item
-  so adjacent empty items do not collapse into a thematic-break
-  shape on re-parse. Fixes one fuzz-found idempotence regression
-  and resolves six GFM-spec list-item snapshot cases.
-
-- `src/cm/block/paragraph.rs` introduces a typed `ParagraphBody<'a>`
-  newtype whose single constructor (`from_inline`) runs the
-  line-start safety pass. `Paragraph::pretty` and
-  `list.rs::render_item_body` are switched to it; the previously-public
-  `escape_paragraph_line_starts` is gone. This makes the
-  "paragraph continuation line re-tokenises as a different block on
-  reparse" bug class **unrepresentable** — every paragraph body is,
-  by construction, paragraph-safe; adding coverage for a new
-  interrupter character is a one-line edit inside one helper rather
-  than per-caller-path discipline. The safety pass uses a strict
-  CM-correct paragraph-interrupter set
-  (`escape_for_paragraph_interrupt`) for the soft-break case: only
-  `>`, ATX with required space, bullet-with-content, ordered list at
-  start=1, fenced code, thematic break. Closes the previously-deferred
-  `fuzz_236b414f.in` (setext underline) AND `fuzz_09a8d6b1.in` (tab
-  + `>>>>` re-parsing as nested blockquote). Resolves 5 more
-  GFM-spec snapshot cases (ATX heading 40 idem; Block quotes 216
-  idem; Task list items 280 html+ast; Lists 292 html+ast); leaves a
-  pre-existing nested-list-indent bug visible as 280 idempotence.
-- `src/ir.rs::split_frontmatter` now requires the candidate body to
-  contain at least one `key:` (YAML) or `key =` (TOML) line. Without
-  this gate, a document whose first line is a thematic break (`---`)
-  and whose body contains another thematic break is misidentified
-  as YAML frontmatter, silently dropping everything between. Caught
-  by proptest after the thematic-break normalisation made the round
-  trip reach the shape. New regression at
-  `tests/regressions/frontmatter_false_positive.in`.
-- `src/cm/block/paragraph.rs::flatten` and
-  `src/cm/inline/link.rs::flatten_body_doc` are now iterative —
-  no stack risk on deeply nested `Doc::Concat`.
-
-- `ParagraphBody::from_inline` (`src/cm/block/paragraph.rs`) gains
-  a second construction-time invariant: the body has no leading or
-  trailing `Doc::Line` / `Doc::HardLine`. Pulldown can emit a
-  trailing `SoftBreak` when a paragraph's last content line is
-  followed by a whitespace-only line that the parser elides (e.g.
-  form-feed content). Without trimming, the break rendered as an
-  extra `\n` before the block terminator, producing blank-line
-  drift between formats. The trim makes the bug class unrepresentable
-  at the same boundary as the line-start escape invariant.
-- `tests/regressions.rs` gains an `.idem.in` filename convention:
-  fixtures whose stem ends in `.idem` are exercised for idempotence
-  only, skipping the HTML-equivalence gate. Reserved for inputs
-  whose source contains bytes pulldown elides during parse, where
-  the source → events trip already loses information mdwright cannot
-  reconstruct. The production `mdwright fmt --validate` gate still
-  refuses to write such outputs. First user:
-  `tests/regressions/fuzz_25240f9e.idem.in`.
-
-- `src/cm/inline/code.rs::InlineCodeRun::new` padding rule
-  corrected to CM §6.1 exactly: the constructor now pads only when
-  an edge byte is a backtick (fence collision) or when both edges
-  are spaces **and** content has at least one non-space byte (the
-  case where pulldown's strip rule applies). Previously the rule
-  padded eagerly on any edge-space, which inflated all-space code
-  spans by 2 bytes per format pass (`` ` ` `` → `` `   ` `` →
-  `` `     ` `` …). The constructor also gains a debug-only
-  `reparses_to` self-check that runs the emitted bytes through
-  pulldown and asserts the recovered `Event::Code(body)` matches
-  the input — encoding the round-trip invariant in code, not just
-  in prose. Resolves the parked
-  `tests/regressions/fuzz_9abf9d1d.in` and 2 GFM-spec snapshot
-  cases (Fenced code blocks 108 idem; Code spans 344 idem).
-
-- `src/cm/inline/strikethrough.rs::Strikethrough::pretty` now
-  escapes every unescaped `~` byte in the body's text leaves before
-  wrapping in `~~ … ~~`. Without this, a body containing literal
-  `~~` (e.g. from the input strikethrough's own content) closed the
-  wrapping `~~` early on reparse, producing a structurally different
-  paragraph. The escape skips `~` bytes already preceded by `\` so
-  source-preserved escapes (via
-  `cm::inline::run::forced_escapes_from_source`) are not
-  double-escaped on each format pass. Atomic children (inline code
-  spans) are passed through verbatim — their `~` bytes are fenced
-  and cannot reach the surrounding strikethrough delimiter
-  detector. The invariant is enforced by a debug-time
-  `body_has_no_unescaped_tilde` walk inside `pretty`. Resolves the
-  parked `tests/regressions/fuzz_66c5d21c.in` and the downstream
-  `*`-escape drift it produced.
-
-- `src/format/mod.rs` gains `normalize_line_endings_lf`, called once
-  in `format_document` immediately after `doc::render`. The function
-  strips every `\r\n` and lone `\r` in the rendered string to `\n`,
-  enforcing the invariant the existing `apply_end_of_line`
-  doc-comment had always claimed but the verbatim-source-passthrough
-  emitters quietly violated. The CRLF and Keep end-of-line policies
-  now operate on a uniformly-LF input, so mixed line endings can no
-  longer appear in mdwright output.
-- `src/format/block.rs` lifts the "no `\r` in source" precondition
-  out of `Paragraph::is_verbatim_eligible` and into a new private
-  `root_verbatim_safe` gate in `pretty_block`. All three root-level
-  verbatim short-circuits (HtmlBlock, indented CodeBlock, verbatim-
-  eligible Paragraph) now share one CR-refusal: CR-bearing root
-  blocks fall through to the IR-driven `typed.pretty()` path, which
-  materialises canonical LF Markdown. The bug class "root-verbatim
-  bytes leak `\r` that the chokepoint LF-norm rewrites into a
-  structurally different shape on reparse" is unrepresentable at
-  the routing boundary. Closes the previously-deferred
-  `fuzz/known-issues/idempotence-indented-code-line-drop.in`
-  (whitespace-only first line of an indented code block was
-  dropped on the second format pass when the source had a `\r`
-  separator); regression at
-  `tests/regressions/fuzz_2ed01ab2.idem.in`.
-- `src/cm/block/paragraph.rs` collapses the two line-end lookahead
-  helpers (`next_on_same_line`, `next_on_same_source_line`) into
-  one that treats both `Doc::HardLine` and `Doc::Line` (soft
-  break) as the end of the current line. The first-line escape
-  decision now sees a trailing soft break as a line terminator,
-  which it is under `Wrap::Keep` once the soft break promotes to
-  a hard `\n`. The bug class "a soft break is treated as
-  continuation-on-the-same-line for the line-start escape but as
-  end-of-line for the setext escape" is unrepresentable — one
-  helper, one rule. Closes the parked
-  `fuzz/known-issues/idempotence-bullet-marker-rewrite.in`
-  (paragraph whose first inline text fragment was a lone `*`
-  followed by a soft break reparsed as an empty bullet-list
-  marker on the second format pass); regression at
-  `tests/regressions/fuzz_6695c40b.in`.
-
-### Known issues
-- One new (different-class) fuzz find: a paragraph whose lines
-  are separated by a form-feed-only line is re-split by the
-  formatter such that a continuation-line `+` ends up at a
-  block-start position on reparse, promoting it to an empty
-  bullet-list marker. Class is "block-boundary classification
-  disagrees between once and twice when a whitespace-only line
-  carries non-blank-line whitespace (form-feed, line tabulation,
-  …)." Reproducer at
-  [`fuzz/known-issues/idempotence-formfeed-paragraph-resplit.in`](./fuzz/known-issues/README.md).
+- Subcommands: `check`, `fmt`, `fmt-check`, `fix`, `list-rules`,
+  `explain`, `render`, `lsp`. Run `mdwright --help` for the full
+  surface; see [`reference/cli.md`](https://jcreinhold.github.io/mdwright/reference/cli.html).
+- `mdwright explain <rule>` prints the long-form prose for a rule.
+  Unknown names get a Jaro-Winkler "did you mean?" suggestion.
+- Rustc-style pretty diagnostic output: severity header
+  (`error[rule]:`, `advisory[rule]:`, …), `--> path:line:col`
+  location, source snippet with caret underline, `help:` line drawn
+  from the rule's `explain()`, optional `fix:` preview, and a
+  `note: see mdwright explain <rule>` footer. Coloured by
+  `owo-colors` when stdout is a TTY; controlled by
+  `--color=always|never|auto`.
+- JSON Lines v2 schema at
+  [`docs/diagnostic-schema.json`](https://github.com/jcreinhold/mdwright/blob/main/docs/src/reference/diagnostic-schema.json)
+  with prose at
+  [`reference/diagnostic-schema.md`](https://jcreinhold.github.io/mdwright/reference/diagnostic-schema.html).
+  Records carry `schema_version: 2`, `severity`, a nested `rule`
+  object with `url` into the per-rule pages, and a `source` object
+  with the offending line text. v1 remains available under
+  `--format=json-v1` for one release cycle; a deprecation warning is
+  printed to stderr.
+- `--max-input-bytes` (default 10 MB) caps the size of any single
+  file or stdin payload. Pass `0` to disable.
+- `--reject-control-chars` opts into rejecting C0 control bytes
+  (other than TAB, LF, FF, CR) that pulldown would silently rewrite.
+- `--mode={normalise,verbatim}` selects the formatter dispatch policy.
+- `--verbose` / `-v` count-flag controls the `tracing` log level.
+  Logs are silent by default; `-vvv` shows per-construct decisions.
 
 ### Editor integration
 
 - `mdwright lsp` subcommand: a built-in Language Server Protocol server
   (stdio transport, `tower-lsp` backend) exposing diagnostics, code
   actions for safe autofixes, hover docs sourced from `mdwright explain`,
-  and `textDocument/formatting` / `rangeFormatting` / `onTypeFormatting`.
-  Editor recipes for Helix, Zed, VS Code, and Neovim live at
-  [`docs/src/integration/editor-integrations.md`](docs/src/integration/editor-integrations.md).
-- `Config::defaults()`: synchronous constructor for the all-defaults
-  config, used by the LSP server when discovery encounters an
-  unreadable config file mid-walk.
+  and `textDocument/formatting` / `rangeFormatting` /
+  `onTypeFormatting`. Editor recipes for Helix, Zed, VS Code, and
+  Neovim live at
+  [`integration/editor-integrations.md`](https://jcreinhold.github.io/mdwright/integration/editor-integrations.html).
 
-## [0.3.0] — 2026-05-16 — spec-alignment redesign
+### Configuration
 
-### Changed
-- IR is now spec-aligned: each CM/GFM construct is a typed
-  Rust value whose constructor enforces well-formedness.
-- The `format::*` sieve is replaced by per-construct `pretty()`
-  methods on each typed value, dispatched through
-  `TypedBlock::pretty`. ~1,500 LOC deleted net.
-- Spec conformance is a construction-time property rather than
-  a 672-case runtime sieve.
-- `--verbose` / `-v` count-flag controls `tracing` log level.
-  Logs are silent by default; `-vvv` shows per-construct
-  decisions.
+- `.mdwright.toml` / `mdwright.toml` / `pyproject.toml [tool.mdwright]`.
+  `Config::discover` walks ancestors until it hits a `.git/` boundary;
+  `Config::load_explicit` loads a single named file.
+- Schema documented at
+  [`configuration.md`](https://jcreinhold.github.io/mdwright/configuration.html)
+  (auto-generated by `build.rs` from a single source of truth).
+- `Config::defaults()` is a synchronous constructor for the
+  all-defaults config; used by the LSP server when discovery
+  encounters an unreadable config file mid-walk.
 
-### Added
-- `mdwright::cm::{inline, block, refs}` typed IR modules with
-  per-construct `pretty()` methods.
-- Per-construct round-trip proptests; the whole-document GFM-
-  spec runner is now a snapshot.
-- `--mode={normalise,verbatim}` flag.
-- `docs/deviations.md` — user-facing index of where the
-  formatter diverges from the spec, with the snapshot /
-  allowlist mechanism described.
+### CI integrations
 
-### Removed
-- The per-byte escape sieve (moved into the typed-value
-  constructor in prompt 20).
-- `FULL_BASELINE_FAILURES` ratchet.
-- Legacy `render_*` family: `render_emphasis`, `render_strong`,
-  `render_link`, `render_image`, `render_heading`,
-  `render_blockquote`, `render_list`, `render_table`.
-- `NodeKind::LinkReferenceDefinition`: link reference data is
-  now read from the per-document `ReferenceTable` directly
-  rather than synthesised as a tree node.
+- `.pre-commit-hooks.yaml` at the repo root exposes six hook IDs for
+  the [`pre-commit`](https://pre-commit.com) framework:
+  `mdwright-check` / `mdwright-fmt` / `mdwright-fmt-check` built from
+  source via `language: rust`, and `*-system` variants that invoke a
+  pre-installed binary on `$PATH`.
+- `action.yml` at the repo root: a composite GitHub Action that
+  downloads the matching release tarball
+  (`x86_64-unknown-linux-gnu` or `aarch64-apple-darwin`) and runs
+  `mdwright` with caller-provided `args`. Usage:
+  `uses: jcreinhold/mdwright@v0.1.0`.
+- `examples/downstream/`: minimal end-to-end fixture (good +
+  intentionally bad Markdown files plus a `.pre-commit-config.yaml`)
+  exercised by `tests/downstream_integration.rs`.
+- `cargo xtask bump-docs-version`: rewrites `rev: vX.Y.Z` and
+  `@vX.Y.Z` pins in integration docs and example configs to match
+  `Cargo.toml`'s `[package].version`. Drift gated in CI by
+  `tests/integration_versions_in_sync.rs`.
 
-### Performance
-- Format-only steady-state benches are **25–27 % faster** than the
-  v0.2.0 sieve (`format/small`, `format/medium`, `format_wrap/keep`).
-- `format_wrap/at-{80,100,120}` are 9–12 % faster.
-- The end-to-end parse-plus-format path is 8–15 % slower per call
-  because IR construction now does more work per pulldown event; the
-  parallel CLI wall-clock metric is dominated by I/O and parse so the
-  regression is not visible there. A follow-up release will close the
-  parse-side gap.
+### Documentation
 
-### Fixed
-- All 17 HTML-divergent CM/GFM spec cases.
-- All 17 idempotence-failing CM/GFM spec cases.
-- ≈ 100 AST-only divergences (most were pulldown-cmark text-run
-  chunking and now go via the verbatim path).
+- mdBook site at <https://jcreinhold.github.io/mdwright/> deployed by
+  `.github/workflows/docs.yml`.
+- Per-rule pages at `docs/rules/<name>.md` generated by
+  `cargo xtask doc-rules`. CI test `rule_docs_in_sync` fails on
+  drift.
+- CLI reference at
+  [`reference/cli.md`](https://jcreinhold.github.io/mdwright/reference/cli.html)
+  generated by `cargo xtask doc-cli`.
+- Public-API surface snapshot at
+  [`reference/public-api.md`](https://jcreinhold.github.io/mdwright/reference/public-api.html).
+  Pre-1.0, this snapshot is descriptive — see the [Pre-1.0
+  caveats](https://jcreinhold.github.io/mdwright/reference/semver.html#pre-10-caveats)
+  in the semver policy.
 
-## [0.1.0] — initial release
+### Architecture
 
-First public release. Linter only; no formatter.
+- IR is spec-aligned: each CM/GFM construct is a typed Rust value
+  whose constructor enforces well-formedness. Spec conformance is a
+  construction-time property rather than a runtime sieve.
+- The `format::*` pipeline dispatches per-construct `pretty()` methods
+  through `TypedBlock::pretty`. Structural emit is a single pass with
+  pure source-byte preservation (`src/format/document.rs`): every
+  `.pretty()` reads source bytes through `Tree::raw_text` or a node's
+  source-recorded field; none consult `FmtOptions` style knobs.
+  Idempotent by construction.
+- Style canonicalisation runs as a separate post-structural pass at
+  `src/format/canonicalise.rs`. Each rewrite is verified locally by
+  reparsing the affected paragraph window through the parse chokepoint
+  (`src/parse.rs::events`); failed verifications skip silently with
+  `tracing::warn!`. The pass iterates to a fixed point
+  (cap `MAX_CANONICALISE_ITERS = 8`).
+- Math recognition lives at `mdwright::cm::math` and runs before the
+  tree build so the IR sees math as opaque atoms.
+- Plugin extension model: `mdwright::cli::run_with_rules(RuleSet) ->
+  ExitCode` lets downstream binaries embed mdwright with extra lint
+  rules over the published IR. Dynamic / WASM plugin loading is
+  explicitly deferred (see
+  [`extending/plugin-loading.md`](https://jcreinhold.github.io/mdwright/extending/plugin-loading.html)).
+- See [`format/policy.md`](https://jcreinhold.github.io/mdwright/format/policy.html)
+  (user-facing) and `docs/architecture/stability.md` (contributor-facing)
+  for the design.
+
+### Testing & QA
+
+- Property tests at `tests/properties.rs` matrix every style knob:
+  canonicalisation modes × {byte idempotence,
+  `semantically_equivalent`} on per-construct generators plus a
+  whole-document sweep at 4096 cases (`#[ignore]`-gated).
+- Coverage-guided fuzz harness at [`fuzz/`](./fuzz) with three
+  targets: `fuzz_parse_format`, `fuzz_idempotence`, `fuzz_lint`. See
+  [README §Safety](./README.md#safety).
+- Full CommonMark / GFM spec runner at `tests/gfm_spec.rs` with a
+  snapshot mechanism for documented deviations; see
+  [`deviations.md`](https://jcreinhold.github.io/mdwright/deviations.html).
+- Cross-platform CI matrix: Linux / macOS / Windows × {stable, MSRV
+  floor 1.91}. `.gitattributes` forces LF.
+- `tests/discover_symlink_loop.rs` pins the symlink-handling contract;
+  `discover_markdown` does not follow symlinks and so is immune to
+  symlink loops.
+- `SECURITY.md` disclosure template.
+
+### Distribution
+
+- cargo-dist release pipeline at `.github/workflows/release.yml`
+  builds binaries and a shell installer for
+  `x86_64-unknown-linux-gnu` and `aarch64-apple-darwin`. `binstall`
+  metadata in `Cargo.toml` pins the `.tar.xz` URL pattern.
+- MSRV: `rust-version = "1.91"`, edition 2024 (edition floor 1.85).
+
+### Known issues
+
+- Idempotence regression on paragraphs whose lines are separated by a
+  form-feed-only line: the formatter re-splits such paragraphs so a
+  continuation-line `+` ends up at a block-start position on reparse,
+  promoting it to an empty bullet-list marker. Class is "block-boundary
+  classification disagrees between once and twice when a whitespace-only
+  line carries non-blank-line whitespace (form-feed, line tabulation,
+  …)." Reproducer at
+  [`fuzz/known-issues/idempotence-formfeed-paragraph-resplit.in`](./fuzz/known-issues/README.md).
