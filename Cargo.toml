@@ -59,6 +59,10 @@ name = "lint_bench"
 harness = false
 name = "format_bench"
 
+[[bench]]
+harness = false
+name = "incremental"
+
 [workspace]
 exclude = ["fuzz"]
 members = [".", "xtask"]

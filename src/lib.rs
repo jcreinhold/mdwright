@@ -59,6 +59,7 @@ mod diagnostic;
 mod discover;
 mod document;
 mod format;
+mod incremental;
 mod ir;
 mod line_index;
 mod parse;
@@ -78,6 +79,7 @@ pub use diagnostic::{DOCS_URL_DEFAULT, Diagnostic, Fix, Severity, Snippet, docs_
 pub use discover::discover_markdown;
 pub use document::{Document, FormatError, LintOptions, render_html};
 pub use format::semantic::semantically_equivalent;
+pub use incremental::CheckpointTable;
 pub use ir::{
     AllowScope, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode, InlineHtml, LinkDef,
     ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,
@@ -85,6 +87,94 @@ pub use ir::{
 pub use line_index::LineIndex;
 pub use rule::LintRule;
 pub use rule_set::{DuplicateRuleName, RuleSet};
+
+/// Format the smallest set of whole top-level blocks that covers
+/// `range` in `source`.
+///
+/// Range formatting exists to make editor latency proportional to the
+/// edit, not the document. The headline consumer is the LSP server
+/// (`textDocument/rangeFormatting`, `textDocument/onTypeFormatting`):
+/// given the byte range the user is editing, mdwright re-emits the
+/// covering blocks and returns just those bytes.
+///
+/// `range` is snapped outward to whole-block boundaries — empty,
+/// out-of-bounds, partial-block, and frontmatter-only ranges all
+/// resolve to a well-defined slice (empty when the request is wholly
+/// past the source end). Errors are defined out of existence.
+///
+/// **Substring contract.** For every well-formed `source` that does
+/// not contain document-scope reorderable constructs (link definitions,
+/// footnote definitions), and every range `r`:
+///
+/// ```text
+/// format(source, opts).contains(&format_range(source, opts, r))
+/// ```
+///
+/// The proptest at `tests/properties.rs::range_format_is_substring_of_whole`
+/// fences this contract.
+///
+/// **Caveat — link / footnote definitions.** Link defs (`[label]: dest`)
+/// and footnote defs (`[^label]: …`) are document-scope: the
+/// formatter may move them to a canonical location per [`LinkDefStyle`]
+/// or [`Placement`]. A slice containing both a reference and its def
+/// keeps them adjacent in the range output; the whole-document output
+/// may insert other blocks between them. Range output is still a valid
+/// formatting of the covered blocks — just not necessarily a verbatim
+/// substring. The LSP server's expected workflow (per-keystroke range
+/// format, periodic whole-doc save) absorbs this without user-visible
+/// drift in practice.
+///
+/// For callers that range-format the same source many times (the LSP
+/// case), build a [`CheckpointTable`] once and call
+/// [`format_range_with_checkpoints`] instead — that skips the per-call
+/// boundary scan. For one-shot CLI use this function is the right
+/// entry point.
+///
+/// # Example
+///
+/// ```
+/// use mdwright::{format_range, FmtOptions};
+///
+/// let src = "first\n\nsecond\n\nthird\n";
+/// let opts = FmtOptions::default();
+/// // The "second" paragraph starts at byte 7.
+/// let out = format_range(src, &opts, 8..10);
+/// assert!(out.contains("second"));
+/// assert!(!out.contains("first"));
+/// assert!(!out.contains("third"));
+/// ```
+#[must_use]
+pub fn format_range(source: &str, opts: &FmtOptions, range: std::ops::Range<usize>) -> String {
+    let table = CheckpointTable::build(source);
+    format_range_with_checkpoints(source, opts, &table, range)
+}
+
+/// Range-format using a pre-built [`CheckpointTable`].
+///
+/// Identical to [`format_range`] but skips rebuilding the boundary
+/// table. The LSP server holds one `CheckpointTable` per open buffer,
+/// rebuilt on each `didChange` notification (a single event walk, no
+/// IR construction).
+///
+/// `table` must have been built from the same `source` bytes the
+/// caller is passing here. Passing a stale table produces output that
+/// may not satisfy the substring contract — the LSP must rebuild the
+/// table on every edit.
+#[must_use]
+pub fn format_range_with_checkpoints(
+    source: &str,
+    opts: &FmtOptions,
+    table: &CheckpointTable,
+    range: std::ops::Range<usize>,
+) -> String {
+    let req_lo = u32::try_from(range.start).unwrap_or(0);
+    let req_hi = u32::try_from(range.end).unwrap_or(u32::MAX);
+    let snapped = table.snap_to_block_boundaries(req_lo..req_hi);
+    let lo = snapped.start as usize;
+    let hi = snapped.end as usize;
+    let slice = source.get(lo..hi).unwrap_or("");
+    Document::parse(slice).format(opts)
+}
 
 /// Input-boundary predicate: returns `true` when `s` carries a C0
 /// control byte that mdwright treats as evidence the input is not
@@ -186,6 +276,38 @@ mod tests {
     fn detects_heading_punctuation() {
         let d = diags("## Heading.\n");
         assert!(d.iter().any(|d| d.rule == "heading-punctuation"));
+    }
+
+    #[test]
+    fn format_range_returns_substring_of_whole() {
+        let src = "first\n\nsecond\n\nthird\n";
+        let opts = super::FmtOptions::default();
+        let whole = Document::parse(src).format(&opts);
+        let mid = super::format_range(src, &opts, 8..10);
+        assert!(whole.contains(&mid), "substring contract: whole={whole:?} mid={mid:?}");
+        assert!(mid.contains("second"), "mid={mid:?}");
+        assert!(!mid.contains("first"), "mid={mid:?}");
+        assert!(!mid.contains("third"), "mid={mid:?}");
+    }
+
+    #[test]
+    fn format_range_empty_at_eof_is_empty() {
+        let src = "a\n";
+        let opts = super::FmtOptions::default();
+        let past = super::format_range(src, &opts, 99..100);
+        assert_eq!(past, "");
+    }
+
+    #[test]
+    fn format_range_with_cached_table_matches_whole() {
+        let src = "alpha\n\nbeta\n\ngamma\n";
+        let opts = super::FmtOptions::default();
+        let table = super::CheckpointTable::build(src);
+        let whole = Document::parse(src).format(&opts);
+        let beta_at = src.find("beta").unwrap_or(0);
+        let part = super::format_range_with_checkpoints(src, &opts, &table, beta_at..beta_at + 1);
+        assert!(whole.contains(&part), "whole={whole:?} part={part:?}");
+        assert!(part.contains("beta"));
     }
 
     #[test]

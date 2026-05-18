@@ -70,6 +70,53 @@ impl LineIndex {
         Ok((idx.saturating_add(1), column))
     }
 
+    /// Byte offset of the codepoint at LSP-convention `(line, column)`
+    /// (both 0-indexed; column counts Unicode codepoints).
+    ///
+    /// Returns `None` if `line` is past the end of the source, if
+    /// `column` lands past the end of its line, or if the position
+    /// isn't on a UTF-8 boundary.
+    ///
+    /// The 0-based input convention matches the Language Server
+    /// Protocol (`Position { line, character }`); the existing
+    /// [`Self::locate`] reverses the mapping and returns 1-based
+    /// coordinates suitable for `file:line:col` diagnostic display.
+    /// Don't conflate the two.
+    #[must_use]
+    pub fn byte_of_position_0based(&self, source: &str, line: usize, column: usize) -> Option<usize> {
+        let line_start = self.line_starts.get(line).copied()? as usize;
+        let line_end = self
+            .line_starts
+            .get(line.saturating_add(1))
+            .copied()
+            .map_or(source.len(), |n| n as usize);
+        // Strip the trailing newline (and an optional preceding `\r`)
+        // so a request for column == line length resolves at the byte
+        // before the line terminator rather than past it.
+        let mut visible_end = line_end;
+        if visible_end > line_start && source.as_bytes().get(visible_end.saturating_sub(1)) == Some(&b'\n') {
+            visible_end = visible_end.saturating_sub(1);
+            if visible_end > line_start && source.as_bytes().get(visible_end.saturating_sub(1)) == Some(&b'\r') {
+                visible_end = visible_end.saturating_sub(1);
+            }
+        }
+        let line_text = source.get(line_start..visible_end)?;
+        let mut cursor = line_start;
+        let mut remaining = column;
+        for ch in line_text.chars() {
+            if remaining == 0 {
+                return Some(cursor);
+            }
+            cursor = cursor.saturating_add(ch.len_utf8());
+            remaining = remaining.saturating_sub(1);
+        }
+        // Column lands at — or past — the end of the visible line text.
+        // LSP convention permits "one past last codepoint" (end-of-line
+        // cursor), so accept column == codepoint_count by returning the
+        // visible-end byte. Larger columns are out of range.
+        (remaining == 0).then_some(visible_end)
+    }
+
     /// Byte range of the line containing `byte`, with the trailing
     /// `\n` trimmed. Returns `None` if `byte` is past the source end.
     ///
@@ -140,5 +187,33 @@ mod tests {
         let src = "hi\n";
         let idx = LineIndex::new(src);
         assert!(idx.locate(src, 99).is_err());
+    }
+
+    #[test]
+    fn byte_of_position_0based_basic() {
+        let src = "hello\nworld\n";
+        let idx = LineIndex::new(src);
+        assert_eq!(idx.byte_of_position_0based(src, 0, 0), Some(0));
+        assert_eq!(idx.byte_of_position_0based(src, 0, 5), Some(5));
+        assert_eq!(idx.byte_of_position_0based(src, 1, 0), Some(6));
+        assert_eq!(idx.byte_of_position_0based(src, 1, 5), Some(11));
+    }
+
+    #[test]
+    fn byte_of_position_0based_codepoints() {
+        let src = "αβγ\n";
+        let idx = LineIndex::new(src);
+        assert_eq!(idx.byte_of_position_0based(src, 0, 0), Some(0));
+        assert_eq!(idx.byte_of_position_0based(src, 0, 1), Some(2));
+        assert_eq!(idx.byte_of_position_0based(src, 0, 2), Some(4));
+        assert_eq!(idx.byte_of_position_0based(src, 0, 3), Some(6));
+    }
+
+    #[test]
+    fn byte_of_position_0based_out_of_range() {
+        let src = "hi\n";
+        let idx = LineIndex::new(src);
+        assert!(idx.byte_of_position_0based(src, 5, 0).is_none());
+        assert!(idx.byte_of_position_0based(src, 0, 99).is_none());
     }
 }

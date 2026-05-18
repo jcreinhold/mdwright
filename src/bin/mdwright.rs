@@ -40,8 +40,9 @@ use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use mdwright::{
-    Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LineIndex, LintOptions, RuleSet, Severity,
-    Snippet, contains_rejected_control_chars, discover_markdown, rule_doc_url, stdlib,
+    CheckpointTable, Config, Diagnostic, Document, FmtOptions, FormatError, FormatMode, LineIndex, LintOptions,
+    RuleSet, Severity, Snippet, contains_rejected_control_chars, discover_markdown, format_range_with_checkpoints,
+    rule_doc_url, stdlib,
 };
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
@@ -201,6 +202,50 @@ struct FmtArgs {
     /// rewrite; `verbatim` emits source bytes 1-to-1.
     #[arg(long, value_enum, default_value_t = ModeArg::Normalise)]
     mode: ModeArg,
+
+    /// Format only the smallest set of whole top-level blocks covering
+    /// `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of
+    /// end; 0-based LSP convention). Reads from stdin only; writes the
+    /// covering blocks to stdout. Mutually exclusive with `--check`
+    /// and `--diff`.
+    ///
+    /// Example: `--range 2:0-2:5` formats the block containing
+    /// columns 0..5 of line 2.
+    #[arg(long, value_name = "LINE:COL-LINE:COL", conflicts_with_all = ["check", "diff"])]
+    range: Option<RangeArg>,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct RangeArg {
+    start_line: usize,
+    start_col: usize,
+    end_line: usize,
+    end_col: usize,
+}
+
+impl std::str::FromStr for RangeArg {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (lhs, rhs) = s
+            .split_once('-')
+            .ok_or_else(|| format!("expected LINE:COL-LINE:COL, got {s:?}"))?;
+        let parse_pair = |p: &str| -> Result<(usize, usize), String> {
+            let (l, c) = p
+                .split_once(':')
+                .ok_or_else(|| format!("expected LINE:COL, got {p:?}"))?;
+            let line = l.parse::<usize>().map_err(|e| format!("bad line {l:?}: {e}"))?;
+            let col = c.parse::<usize>().map_err(|e| format!("bad column {c:?}: {e}"))?;
+            Ok((line, col))
+        };
+        let (sl, sc) = parse_pair(lhs)?;
+        let (el, ec) = parse_pair(rhs)?;
+        Ok(Self {
+            start_line: sl,
+            start_col: sc,
+            end_line: el,
+            end_col: ec,
+        })
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -391,6 +436,13 @@ fn run_fmt(
     let opts = cfg.fmt_options().clone().with_mode(args.mode.into());
     let check = args.check || force_check;
 
+    if let Some(range_arg) = args.range {
+        if !(args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-")) {
+            bail!("--range reads from stdin; pass `-` for paths or omit them");
+        }
+        return run_fmt_range_stdin(&opts, range_arg, args, policy);
+    }
+
     if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
         return run_fmt_stdin(&opts, args, check, policy);
     }
@@ -470,6 +522,50 @@ fn run_fmt(
     } else {
         Ok(ExitCode::SUCCESS)
     }
+}
+
+fn run_fmt_range_stdin(
+    opts: &FmtOptions,
+    range_arg: RangeArg,
+    args: &FmtArgs,
+    policy: InputPolicy,
+) -> Result<ExitCode> {
+    let name = args
+        .stdin_filename
+        .as_deref()
+        .map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
+    let mut buf = String::new();
+    read_stdin_capped(&mut buf, policy, &name)?;
+    let line_index = LineIndex::new(&buf);
+    let lo = line_index
+        .byte_of_position_0based(&buf, range_arg.start_line, range_arg.start_col)
+        .ok_or_else(|| {
+            anyhow!(
+                "range start {}:{} is past end of input ({} bytes)",
+                range_arg.start_line,
+                range_arg.start_col,
+                buf.len()
+            )
+        })?;
+    let hi = line_index
+        .byte_of_position_0based(&buf, range_arg.end_line, range_arg.end_col)
+        .ok_or_else(|| {
+            anyhow!(
+                "range end {}:{} is past end of input ({} bytes)",
+                range_arg.end_line,
+                range_arg.end_col,
+                buf.len()
+            )
+        })?;
+    if hi < lo {
+        bail!("range end ({hi}) precedes range start ({lo})");
+    }
+    let table = CheckpointTable::build(&buf);
+    let formatted = format_range_with_checkpoints(&buf, opts, &table, lo..hi);
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    out.write_all(formatted.as_bytes())?;
+    Ok(ExitCode::SUCCESS)
 }
 
 fn run_fmt_stdin(opts: &FmtOptions, args: &FmtArgs, check: bool, policy: InputPolicy) -> Result<ExitCode> {

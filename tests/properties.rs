@@ -18,7 +18,7 @@ use std::io::Write;
 
 use mdwright::{
     Document, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, OrderedListStyle, RuleSet, StrongStyle,
-    ThematicStyle, Wrap, semantically_equivalent,
+    ThematicStyle, Wrap, format_range, semantically_equivalent,
 };
 use proptest::prelude::*;
 
@@ -40,6 +40,25 @@ fn dump_counterexample(label: &str, src: &str) {
     if let Ok(path) = f.keep() {
         eprintln!("counterexample dumped to {}", path.1.display());
     }
+}
+
+/// Heuristic: does `src` contain a top-level link-def or footnote-def
+/// line? Both are document-scope constructs that the formatter may
+/// reorder, breaking the literal substring contract for ranges that
+/// straddle them. Used by `range_format_is_substring_of_whole` to
+/// skip cases where the contract is documented not to hold.
+fn has_reorderable_def(src: &str) -> bool {
+    for line in src.lines() {
+        let t = line.trim_start();
+        // Link definitions look like `[label]: dest` at the start of
+        // a non-indented line; footnote defs look like `[^label]: …`.
+        if let Some(rest) = t.strip_prefix('[')
+            && rest.contains("]:")
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// Synthesise a single `[label]: dest "title"` def plus a reference
@@ -97,6 +116,39 @@ proptest! {
             }
             prop_assert!(semantically_equivalent(&src, &formatted));
         }
+    }
+
+    /// Substring contract for `format_range`: for any well-formed
+    /// source without document-scope reorderable constructs, the
+    /// range-format output appears verbatim somewhere in the
+    /// whole-document output.
+    ///
+    /// The filter excludes sources that contain link definitions or
+    /// footnote definitions: those are document-scope and the
+    /// formatter may reorder them per `LinkDefStyle` /
+    /// `Placement` (e.g., link defs collected to document end).
+    /// A sliced sub-document keeps the def adjacent to its reference;
+    /// the whole-document output may put intervening blocks between
+    /// them. See the `format_range` doc comment for the caveat.
+    #[test]
+    fn range_format_is_substring_of_whole(
+        src in generators::arb_document(),
+        range_pair in (0usize..2_000usize, 0usize..2_000usize),
+    ) {
+        prop_assume!(!has_reorderable_def(&src));
+        let opts = FmtOptions::default();
+        let whole = Document::parse(&src).format(&opts);
+        let len = src.len();
+        let lo = range_pair.0.min(len);
+        let hi = range_pair.1.min(len).max(lo);
+        let part = format_range(&src, &opts, lo..hi);
+        if !whole.contains(&part) {
+            dump_counterexample("range-substring", &src);
+            eprintln!("range = {lo}..{hi}");
+            eprintln!("part  = {part:?}");
+            eprintln!("whole = {whole:?}");
+        }
+        prop_assert!(whole.contains(&part));
     }
 
     #[test]
