@@ -15,3 +15,5 @@ path = "src/main.rs"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 mdwright = { path = ".." }
+regex = "1"
+toml = { version = "0.8", default-features = false, features = ["parse"] }

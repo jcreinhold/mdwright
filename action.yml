@@ -1,0 +1,72 @@
+name: mdwright
+description: Run mdwright on Markdown files (installs the release binary on first invocation)
+author: Jacob Reinhold
+branding:
+  icon: check-square
+  color: blue
+
+inputs:
+  args:
+    description: Arguments passed to `mdwright` (e.g. `check --check docs/`).
+    required: false
+    default: check --check .
+  version:
+    description: |
+      mdwright version to install. Use `latest` to resolve from the
+      GitHub releases API, or pin to a concrete tag (`v0.4.0`).
+    required: false
+    default: latest
+
+runs:
+  using: composite
+  steps:
+    - name: Install mdwright
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+
+        version="$INPUT_VERSION"
+        if [ "$version" = "latest" ]; then
+          version="$(gh api repos/jcreinhold/mdwright/releases/latest --jq .tag_name)"
+        fi
+
+        # Map (kernel, arch) to the cargo-dist target triple that
+        # actually ships a binary. Linux x86_64 and macOS aarch64 are
+        # the supported targets for v0.4.0; other combinations are
+        # rejected loudly rather than silently falling back.
+        kernel="$(uname -s)"
+        arch="$(uname -m)"
+        case "$kernel/$arch" in
+          Linux/x86_64)        target="x86_64-unknown-linux-gnu" ;;
+          Darwin/arm64)        target="aarch64-apple-darwin" ;;
+          Darwin/aarch64)      target="aarch64-apple-darwin" ;;
+          *)
+            echo "mdwright action: no prebuilt binary for $kernel/$arch." >&2
+            echo "Supported: Linux x86_64, macOS Apple Silicon." >&2
+            echo "On other platforms, install via 'cargo install mdwright'." >&2
+            exit 1
+            ;;
+        esac
+
+        url="https://github.com/jcreinhold/mdwright/releases/download/${version}/mdwright-${target}.tar.xz"
+        tmp="$(mktemp -d)"
+        echo "::group::Downloading $url"
+        curl --proto '=https' --tlsv1.2 -fLsS -o "$tmp/mdwright.tar.xz" "$url"
+        tar -xJf "$tmp/mdwright.tar.xz" -C "$tmp"
+        echo "::endgroup::"
+
+        install -m 0755 "$tmp/mdwright-${target}/mdwright" "$HOME/.local/bin/mdwright" \
+          || { mkdir -p "$HOME/.local/bin" && install -m 0755 "$tmp/mdwright-${target}/mdwright" "$HOME/.local/bin/mdwright"; }
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        rm -rf "$tmp"
+
+    - name: Run mdwright
+      shell: bash
+      env:
+        INPUT_ARGS: ${{ inputs.args }}
+      run: |
+        # shellcheck disable=SC2086
+        mdwright $INPUT_ARGS

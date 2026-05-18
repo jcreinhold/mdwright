@@ -12,6 +12,26 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `.pre-commit-hooks.yaml` at the repo root, exposing six hook IDs
+  for the [`pre-commit`](https://pre-commit.com) framework:
+  `mdwright-check` / `mdwright-fmt` / `mdwright-fmt-check` (built
+  from source via `language: rust`) and `*-system` variants that
+  invoke a pre-installed binary on `$PATH`.
+- `action.yml` at the repo root: a composite GitHub Action that
+  downloads the matching release tarball
+  (`x86_64-unknown-linux-gnu` or `aarch64-apple-darwin`) and runs
+  `mdwright` with caller-provided `args`. Usage:
+  `uses: jcreinhold/mdwright@v0.4.0`.
+- `cargo xtask bump-docs-version`: rewrites `rev: vX.Y.Z` and
+  `@vX.Y.Z` pins in integration docs and example configs to match
+  `Cargo.toml`'s `[package].version`. Drift gated in CI by
+  `tests/integration_versions_in_sync.rs`.
+- `examples/downstream/`: minimal end-to-end fixture (good +
+  intentionally bad Markdown files plus a `.pre-commit-config.yaml`)
+  exercised by `tests/downstream_integration.rs`.
+
 ## [0.4.0] — 2026-05-17
 
 Preserve-by-default formatter, plus a built-in LSP server.

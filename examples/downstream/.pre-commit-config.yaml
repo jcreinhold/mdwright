@@ -1,0 +1,10 @@
+# Downstream consumer pattern — assumes `mdwright` is already on PATH
+# (installed via `cargo binstall mdwright` or a GitHub release tarball).
+# Swap the `-system` hooks for the bare `mdwright-check` / `mdwright-fmt`
+# variants if you'd rather pre-commit build mdwright from source.
+repos:
+  - repo: https://github.com/jcreinhold/mdwright
+    rev: v0.4.0
+    hooks:
+      - id: mdwright-check-system
+      - id: mdwright-fmt-check-system

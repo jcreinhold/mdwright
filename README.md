@@ -47,6 +47,32 @@ Tarballs for each release are attached to the
 source via `cargo install`. See [Installation](https://jcreinhold.github.io/mdwright/installation.html)
 for the full platform support matrix.
 
+## Wire into an existing project
+
+`pre-commit`:
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/jcreinhold/mdwright
+    rev: v0.4.0
+    hooks:
+      - id: mdwright-check-system
+      - id: mdwright-fmt-check-system
+```
+
+GitHub Actions:
+
+```yaml
+- uses: jcreinhold/mdwright@v0.4.0
+  with:
+    args: check --check .
+```
+
+Full recipes (including the `language: rust` variants that don't need `mdwright` on `$PATH`):
+see [Pre-commit](https://jcreinhold.github.io/mdwright/integration/pre-commit.html) and
+[GitHub Actions](https://jcreinhold.github.io/mdwright/integration/github-actions.html).
+
 ## Quick start
 
 ```bash

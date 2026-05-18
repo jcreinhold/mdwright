@@ -20,6 +20,7 @@ use mdwright::{LintRule, RuleSet};
 pub mod cli_docs;
 pub mod config_docs;
 pub mod since;
+pub mod version_refs;
 
 /// Workspace-relative path to the per-rule docs directory.
 pub const RULES_DIR: &str = "docs/src/rules";

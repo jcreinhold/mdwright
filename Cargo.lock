@@ -1861,6 +1861,8 @@ dependencies = [
  "anyhow",
  "clap",
  "mdwright",
+ "regex",
+ "toml",
 ]
 
 [[package]]

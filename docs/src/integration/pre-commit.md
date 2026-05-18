@@ -1,47 +1,62 @@
 # Pre-commit
 
-> **Status:** Native `pre-commit` hook ships in a later prompt. The recipe below is the manual equivalent — works today,
-> no plugin required.
+mdwright ships a `.pre-commit-hooks.yaml` at its repo root, so adding it to a project that uses the
+[`pre-commit`](https://pre-commit.com) framework is a single `repos:` entry.
 
-## Manual hook
+## Quickest path: prebuilt binary
 
-Save this as `.git/hooks/pre-commit` and `chmod +x` it:
+If contributors already have `mdwright` on their `$PATH` (e.g. via `cargo binstall mdwright` or a
+GitHub release tarball), the `-system` variants avoid any toolchain dance:
 
-```sh
-#!/usr/bin/env sh
-set -e
-
-# Only check staged Markdown files.
-files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.md$' || true)
-[ -z "$files" ] && exit 0
-
-# shellcheck disable=SC2086
-mdwright check $files
-mdwright fmt-check $files
+```yaml,no-check
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/jcreinhold/mdwright
+    rev: v0.4.0
+    hooks:
+      - id: mdwright-check-system
+      - id: mdwright-fmt-check-system
 ```
 
-`fmt-check` exits non-zero if any staged file would be reformatted; `check` exits non-zero on any non-advisory
-diagnostic.
+`mdwright-check-system` runs `mdwright check --check`; `mdwright-fmt-check-system` runs `mdwright
+fmt-check`. Both exit non-zero on issues, blocking the commit.
 
-## With `pre-commit` (the framework)
+## Letting pre-commit build mdwright
 
-A first-class `repos:` entry is on the roadmap. Until then, the `local` hook works:
+If you don't want to require an out-of-band install, the `language: rust` hooks let `pre-commit`
+build mdwright from source into its cache. First commit after a clean cache takes ~30 s; subsequent
+runs are fast.
 
 ```yaml,no-check
 repos:
-  - repo: local
+  - repo: https://github.com/jcreinhold/mdwright
+    rev: v0.4.0
     hooks:
       - id: mdwright-check
-        name: mdwright check
-        entry: mdwright check
-        language: system
-        types: [markdown]
       - id: mdwright-fmt-check
-        name: mdwright fmt-check
-        entry: mdwright fmt-check
-        language: system
-        types: [markdown]
 ```
+
+Each contributor needs a Rust toolchain on the machine running the hook.
+
+## Available hook IDs
+
+| ID                          | Equivalent CLI            | Language  |
+| --------------------------- | ------------------------- | --------- |
+| `mdwright-check`            | `mdwright check --check`  | `rust`    |
+| `mdwright-fmt`              | `mdwright fmt`            | `rust`    |
+| `mdwright-fmt-check`        | `mdwright fmt-check`      | `rust`    |
+| `mdwright-check-system`     | `mdwright check --check`  | `system`  |
+| `mdwright-fmt-system`       | `mdwright fmt`            | `system`  |
+| `mdwright-fmt-check-system` | `mdwright fmt-check`      | `system`  |
+
+The `mdwright-fmt` / `mdwright-fmt-system` hooks rewrite files in place; combine with `git add` in a
+post-formatting workflow, or prefer `mdwright-fmt-check` in CI gates that should never auto-commit.
+
+## Performance notes
+
+`pre-commit` invokes hooks once per *batch* of matching files, not once per file, so per-invocation
+startup cost is paid once per `git commit` (not once per changed file). The binary's cold-start is
+well under 50 ms on Linux release builds.
 
 ## See also
 

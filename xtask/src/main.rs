@@ -1,6 +1,7 @@
-//! `cargo xtask doc-rules`  — regenerate or verify `docs/src/rules/*.md`.
-//! `cargo xtask doc-cli`    — regenerate or verify `docs/src/reference/cli.md`.
-//! `cargo xtask doc-config` — regenerate or verify `docs/src/configuration.md`.
+//! `cargo xtask doc-rules`         — regenerate or verify `docs/src/rules/*.md`.
+//! `cargo xtask doc-cli`           — regenerate or verify `docs/src/reference/cli.md`.
+//! `cargo xtask doc-config`        — regenerate or verify `docs/src/configuration.md`.
+//! `cargo xtask bump-docs-version` — sync `vX.Y.Z` pins in integration docs to `Cargo.toml`.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -36,6 +37,19 @@ enum Command {
     /// the file would change.
     DocConfig {
         /// Verify only; do not write.
+        #[arg(long)]
+        check: bool,
+    },
+    /// Rewrite `rev: vX.Y.Z` and `@vX.Y.Z` pins in the integration
+    /// docs to match `Cargo.toml`'s `version`. With `--check`, exit
+    /// non-zero if any pin disagrees.
+    BumpDocsVersion {
+        /// Override the version to write. Defaults to `Cargo.toml`'s
+        /// `[package].version`.
+        #[arg(long)]
+        version: Option<String>,
+        /// Verify only; do not write. Ignores `--version` (always
+        /// compares to `Cargo.toml`).
         #[arg(long)]
         check: bool,
     },
@@ -106,6 +120,28 @@ fn run() -> Result<ExitCode> {
                 }
             } else {
                 xtask::config_docs::regenerate(&workspace)?;
+                Ok(ExitCode::SUCCESS)
+            }
+        }
+        Command::BumpDocsVersion { version, check } => {
+            if check {
+                let drift = xtask::version_refs::check(&workspace)?;
+                if drift.is_empty() {
+                    Ok(ExitCode::SUCCESS)
+                } else {
+                    eprintln!("xtask: bump-docs-version drift detected:");
+                    for d in &drift {
+                        eprintln!("  {}", d.path.display());
+                    }
+                    eprintln!("  fix with: cargo xtask bump-docs-version");
+                    Ok(ExitCode::from(1))
+                }
+            } else {
+                let v = match version {
+                    Some(v) => v,
+                    None => xtask::version_refs::current_version(&workspace)?,
+                };
+                xtask::version_refs::regenerate(&workspace, &v)?;
                 Ok(ExitCode::SUCCESS)
             }
         }
