@@ -1,0 +1,17 @@
+[package]
+name = "mdwright-extra-example"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.91"
+publish = false
+description = "Example: ship a custom mdwright binary with extra lint rules."
+
+[[bin]]
+name = "mdwright-extra-example"
+path = "src/main.rs"
+
+[dependencies]
+mdwright = { path = "../.." }
+
+[lints.rust]
+unsafe-code = "forbid"

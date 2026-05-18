@@ -53,6 +53,7 @@
 //! let _ = Document::parse("hello<br>world").lint(&rs);
 //! ```
 
+pub mod cli;
 mod cm;
 mod config;
 mod diagnostic;

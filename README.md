@@ -172,8 +172,35 @@ let (fixed, n) = Document::apply_safe_fixes(source, &diags);
 
 `Document` is parsed once and may be linted repeatedly with different rule sets.
 `apply_safe_fixes` ignores diagnostics whose fix is unsafe and resolves overlapping edits
-right-to-left. Writing your own rules: see
-[Extending → Lint rules](https://jcreinhold.github.io/mdwright/extending/lint-rules.html).
+right-to-left.
+
+## Extending
+
+mdwright's `LintRule` trait is public, and `mdwright::cli::run_with_rules` lets you
+ship a custom binary that adds your own rules on top of the stdlib without
+re-implementing arg parsing, config discovery, output formats, or the LSP server:
+
+```rust,no_run
+use mdwright::{cli, stdlib};
+# struct MyRule;
+# impl mdwright::LintRule for MyRule {
+#     fn name(&self) -> &str { "my-rule" }
+#     fn description(&self) -> &str { "" }
+#     fn check(&self, _: &mdwright::Document, _: &mut Vec<mdwright::Diagnostic>) {}
+# }
+
+fn main() -> std::process::ExitCode {
+    let mut rules = stdlib::all();
+    rules.add(Box::new(MyRule)).expect("unique name");
+    cli::run_with_rules(rules)
+}
+```
+
+A complete walkthrough lives at [`examples/extending/`](./examples/extending/).
+The how-to and the rationale for not loading plugins at runtime are at
+[Extending → Lint rules](https://jcreinhold.github.io/mdwright/extending/lint-rules.html)
+and
+[Extending → Plugin loading](https://jcreinhold.github.io/mdwright/extending/plugin-loading.html).
 
 ## Building
 
