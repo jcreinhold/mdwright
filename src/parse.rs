@@ -30,7 +30,9 @@ use crate::source::CanonicalSource;
 pub(crate) const FORMATTER_OPTIONS: Options = Options::ENABLE_STRIKETHROUGH
     .union(Options::ENABLE_FOOTNOTES)
     .union(Options::ENABLE_TABLES)
-    .union(Options::ENABLE_TASKLISTS);
+    .union(Options::ENABLE_TASKLISTS)
+    .union(Options::ENABLE_DEFINITION_LIST)
+    .union(Options::ENABLE_HEADING_ATTRIBUTES);
 
 /// Parser iterator over canonical bytes. Returns the pulldown
 /// `Parser` directly so callers retain pulldown's lifetime parameter

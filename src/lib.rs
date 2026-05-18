@@ -74,8 +74,9 @@ mod tree;
 mod util;
 
 pub use config::{
-    Config, ConfigError, EndOfLine, FmtOptions, FormatMode, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions,
-    MathRender, OrderedListStyle, Placement, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
+    Config, ConfigError, EndOfLine, ExtensionOptions, FmtOptions, FormatMode, HeadingAttrsStyle, ItalicStyle,
+    LinkDefStyle, ListMarkerStyle, MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, ThematicStyle,
+    TrailingNewline, Wrap,
 };
 pub use diagnostic::{DOCS_URL_DEFAULT, Diagnostic, Fix, Severity, Snippet, docs_url, rule_doc_url};
 pub use discover::discover_markdown;

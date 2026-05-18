@@ -147,6 +147,43 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         description: "Whether to emit document frontmatter byte-verbatim. `false` strips it.",
         cli_override: None,
     },
+    // ---- [fmt] heading attribute trailers ----------------------------
+    FieldDoc {
+        key: "fmt.heading-attrs",
+        ty: "\"preserve\" | \"canonicalise\"",
+        default: "\"preserve\"",
+        description: "ATX heading `{#id .class key=val}` trailer emission. `preserve` (default) emits the source trailer byte-verbatim. `canonicalise` emits id first, then classes (source order), then key=value pairs (source order). See [Markdown extensions](concepts/extensions.md#heading-attribute-lists).",
+        cli_override: None,
+    },
+    // ---- [fmt.extensions] --------------------------------------------
+    FieldDoc {
+        key: "fmt.extensions.definition-lists",
+        ty: "bool",
+        default: "true",
+        description: "Recognise `Term\\n: definition\\n` definition lists. Default on; turn off on non-mkdocs corpora to suppress recognition.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.abbreviation-lists",
+        ty: "bool",
+        default: "true",
+        description: "Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.heading-attribute-lists",
+        ty: "bool",
+        default: "true",
+        description: "Recognise `# Heading {#id .class}` trailers via pulldown's `ENABLE_HEADING_ATTRIBUTES`. When off, the trailer reads as plain text in the heading body.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.extensions.block-attribute-lists",
+        ty: "bool",
+        default: "true",
+        description: "Recognise `{ .class }` on a line by itself after a non-empty block as a scan-and-preserve overlay. Inline attribute lists (mid-paragraph) are out of scope.",
+        cli_override: None,
+    },
 ];
 
 const PREAMBLE: &str = r#"# Configuration

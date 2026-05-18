@@ -21,17 +21,20 @@ use crate::format::doc::{self, RenderOptions};
 use crate::format::pretty::PrettyCtx;
 use crate::format::wrap::wrap_doc;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
-use crate::ir::{AdmonitionRegion, Frontmatter};
+use crate::ir::{AbbreviationRegion, AdmonitionRegion, BlockAttrRegion, Frontmatter};
 use crate::tree::Tree;
 
 /// Front-end used by `Document::format`. Renders the tree IR into a
 /// Markdown string in a single pass.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn format_document<'a>(
     source: &'a str,
     opts: &'a FmtOptions,
     tree: &'a Tree,
     frontmatter: Option<&'a Frontmatter>,
     admonitions: &'a [AdmonitionRegion],
+    abbreviations: &'a [AbbreviationRegion],
+    block_attrs: &'a [BlockAttrRegion],
     refs: &'a ReferenceTable,
 ) -> String {
     let ctx = PrettyCtx {
@@ -40,6 +43,8 @@ pub(crate) fn format_document<'a>(
         tree,
         frontmatter,
         admonitions,
+        abbreviations,
+        block_attrs,
         refs,
     };
     let doc = if opts.mode() == FormatMode::Verbatim {

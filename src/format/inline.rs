@@ -84,6 +84,9 @@ fn pretty_inline_children_for_ids<'a>(ctx: &PrettyCtx<'a>, ids: &[NodeId]) -> Do
             | NodeKind::TableRow
             | NodeKind::TableCell
             | NodeKind::FootnoteDefinition { .. }
+            | NodeKind::DefinitionList
+            | NodeKind::DefinitionTerm
+            | NodeKind::DefinitionDescription
             | NodeKind::Unknown { .. } => {
                 debug_assert!(
                     matches!(&node.kind, NodeKind::Unknown { .. }),
@@ -268,6 +271,9 @@ fn walk_paragraph_inline<'a>(
             | NodeKind::TableRow
             | NodeKind::TableCell
             | NodeKind::FootnoteDefinition { .. }
+            | NodeKind::DefinitionList
+            | NodeKind::DefinitionTerm
+            | NodeKind::DefinitionDescription
             | NodeKind::Unknown { .. } => {
                 debug_assert!(
                     matches!(&node.kind, NodeKind::Unknown { .. }),

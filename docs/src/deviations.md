@@ -77,6 +77,20 @@ fix; some overlap with parked fuzz finds under `fuzz/known-issues/`. The `--mode
 path entirely and preserves the source byte-for-byte; users who need lossless preservation for a specific document
 should reach for it rather than expecting the default normalising mode to handle every edge case.
 
+## mdformat-mkdocs parity deviations
+
+mdwright matches mdformat-mkdocs byte-for-byte for the four Markdown extensions covered in
+[Markdown extensions](concepts/extensions.md). The parity test at `tests/extension_parity.rs` enforces this against
+five committed reference fixtures. Known divergences below; each row exists because the upstream pulldown-cmark
+parser doesn't surface enough information for mdwright to round-trip the source faithfully.
+
+| Construct                       | Source pattern that diverges      | Why                                                                                                                                                              |
+| ------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Heading attribute, quoted value | `# H {title="hello world"}`       | pulldown-cmark 0.13's heading-attribute parser splits the trailer on whitespace and ignores `"…"` quoting. Pulldown surfaces two attrs (`title="hello`, `world"`) instead of one. mdformat-mkdocs (python-markdown's `attr_list`) handles the quoted form correctly. Tracked upstream; will resolve when pulldown lands the fix. |
+
+The parity test refuses to silently accept new divergences: any byte-for-byte mismatch fails the test and forces a
+deliberate add to this table (with a rationale and an upstream pointer) or a fix in mdwright's emit path.
+
 ## How to read the live numbers
 
 ```sh

@@ -172,6 +172,74 @@ pub struct FmtOptions {
     thematic_break_style: ThematicStyle,
     mode: FormatMode,
     math: MathOptions,
+    heading_attrs: HeadingAttrsStyle,
+    extensions: ExtensionOptions,
+}
+
+/// Heading-attribute trailer emission policy.
+///
+/// `# Heading {#id .class key=val}` parses (with
+/// `Options::ENABLE_HEADING_ATTRIBUTES`) into a `Tag::Heading` carrying
+/// the parsed `id`, `classes`, and `attrs`. This knob decides how the
+/// formatter re-emits the trailer.
+///
+/// - [`Self::Preserve`] (default): emit the source trailer byte-verbatim
+///   between the rendered inline body and the line terminator. Matches
+///   the preserve-by-default ethos every other style knob defaults to.
+/// - [`Self::Canonicalise`]: emit `{#id .class₁ .class₂ k=val}` in a
+///   fixed order — id first, then classes in source order, then
+///   key=value pairs in source order. Matches mdformat-mkdocs canonical.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum HeadingAttrsStyle {
+    /// Emit the source trailer byte-verbatim.
+    #[default]
+    Preserve,
+    /// Emit the trailer in fixed canonical order: `#id`, then classes
+    /// (source order), then `key=value` pairs (source order).
+    Canonicalise,
+}
+
+/// Per-extension recognition toggles.
+///
+/// Each field gates recognition of one mdformat-mkdocs extension. When
+/// false, the corresponding scanner / typed-block construction is
+/// skipped and the source bytes flow through the legacy verbatim path
+/// instead. Defaults are **on**: these extensions recognise what the
+/// source already says (definition-list shape, abbreviation declarations,
+/// attribute trailers), not what the formatter prefers. The preserve-
+/// by-default ethos applies to style knobs, not feature recognition.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "one toggle per mdformat-mkdocs extension; the parallel naming with the TOML schema is intentional"
+)]
+pub struct ExtensionOptions {
+    /// Recognise `Term\n: defn\n` definition lists (pulldown
+    /// `Options::ENABLE_DEFINITION_LIST`).
+    pub definition_lists: bool,
+    /// Recognise `*[ABBR]: definition` abbreviation declarations
+    /// (scan-and-preserve overlay; mdwright does not expand
+    /// occurrences, only preserves the declarations).
+    pub abbreviation_lists: bool,
+    /// Recognise `{ #id .class key=val }` after an ATX heading
+    /// (pulldown `Options::ENABLE_HEADING_ATTRIBUTES`). When false,
+    /// the trailer is treated as plain text in the heading body.
+    pub heading_attribute_lists: bool,
+    /// Recognise `{ .class }` on a line by itself after a paragraph,
+    /// image, or fenced block (scan-and-preserve overlay). Inline
+    /// attribute lists (mid-paragraph) are explicitly out of scope.
+    pub block_attribute_lists: bool,
+}
+
+impl Default for ExtensionOptions {
+    fn default() -> Self {
+        Self {
+            definition_lists: true,
+            abbreviation_lists: true,
+            heading_attribute_lists: true,
+            block_attribute_lists: true,
+        }
+    }
 }
 
 /// Math pretty-printer configuration.
@@ -336,6 +404,32 @@ impl FmtOptions {
     #[must_use]
     pub fn with_math_render(mut self, render: MathRender) -> Self {
         self.math.render = render;
+        self
+    }
+
+    /// Heading-attribute trailer emission policy.
+    #[must_use]
+    pub fn heading_attrs(&self) -> HeadingAttrsStyle {
+        self.heading_attrs
+    }
+
+    /// Override the heading-attribute style.
+    #[must_use]
+    pub fn with_heading_attrs(mut self, style: HeadingAttrsStyle) -> Self {
+        self.heading_attrs = style;
+        self
+    }
+
+    /// Per-extension recognition toggles. See [`ExtensionOptions`].
+    #[must_use]
+    pub fn extensions(&self) -> ExtensionOptions {
+        self.extensions
+    }
+
+    /// Override the per-extension toggles.
+    #[must_use]
+    pub fn with_extensions(mut self, extensions: ExtensionOptions) -> Self {
+        self.extensions = extensions;
         self
     }
 
@@ -529,6 +623,10 @@ impl FmtOptions {
                 .map_or(default.thematic_break_style, ThematicStyle::from),
             mode: default.mode,
             math: schema.math.map_or(default.math, MathOptions::from),
+            heading_attrs: schema
+                .heading_attrs
+                .map_or(default.heading_attrs, HeadingAttrsStyle::from),
+            extensions: schema.extensions.map_or(default.extensions, ExtensionOptions::from),
         }
     }
 }
@@ -561,6 +659,8 @@ impl Default for FmtOptions {
             thematic_break_style: ThematicStyle::Preserve,
             mode: FormatMode::Normalise,
             math: MathOptions::default(),
+            heading_attrs: HeadingAttrsStyle::default(),
+            extensions: ExtensionOptions::default(),
         }
     }
 }
@@ -848,6 +948,56 @@ struct FmtSchema {
     frontmatter: Option<FrontmatterSchema>,
     #[serde(default)]
     math: Option<MathSchema>,
+    #[serde(default, rename = "heading-attrs")]
+    heading_attrs: Option<HeadingAttrsSchema>,
+    #[serde(default)]
+    extensions: Option<ExtensionsSchema>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum HeadingAttrsSchema {
+    Preserve,
+    Canonicalise,
+}
+
+impl From<HeadingAttrsSchema> for HeadingAttrsStyle {
+    fn from(s: HeadingAttrsSchema) -> Self {
+        match s {
+            HeadingAttrsSchema::Preserve => Self::Preserve,
+            HeadingAttrsSchema::Canonicalise => Self::Canonicalise,
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(
+    clippy::struct_field_names,
+    clippy::struct_excessive_bools,
+    reason = "shape mirrors `ExtensionOptions`; the `_lists` postfix matches the TOML key convention"
+)]
+struct ExtensionsSchema {
+    #[serde(default, rename = "definition-lists")]
+    definition_lists: Option<bool>,
+    #[serde(default, rename = "abbreviation-lists")]
+    abbreviation_lists: Option<bool>,
+    #[serde(default, rename = "heading-attribute-lists")]
+    heading_attribute_lists: Option<bool>,
+    #[serde(default, rename = "block-attribute-lists")]
+    block_attribute_lists: Option<bool>,
+}
+
+impl From<ExtensionsSchema> for ExtensionOptions {
+    fn from(s: ExtensionsSchema) -> Self {
+        let default = Self::default();
+        Self {
+            definition_lists: s.definition_lists.unwrap_or(default.definition_lists),
+            abbreviation_lists: s.abbreviation_lists.unwrap_or(default.abbreviation_lists),
+            heading_attribute_lists: s.heading_attribute_lists.unwrap_or(default.heading_attribute_lists),
+            block_attribute_lists: s.block_attribute_lists.unwrap_or(default.block_attribute_lists),
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]

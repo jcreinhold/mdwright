@@ -118,6 +118,11 @@ pub enum NodeKind {
         level: u32,
         /// `true` for setext (`Foo\n===`); `false` for ATX (`# Foo`).
         setext: bool,
+        /// `Some` when the source carried an ATX `{#id .class key=val}`
+        /// trailer (pulldown `Tag::Heading::id|classes|attrs` non-empty);
+        /// `None` otherwise. Boxed so the enum's largest-variant size
+        /// is unaffected by the rare attribute case.
+        attrs: Option<Box<crate::cm::block::heading::HeadingAttrs>>,
     },
     BlockQuote,
     List {
@@ -163,6 +168,18 @@ pub enum NodeKind {
     FootnoteDefinition {
         label: String,
     },
+    /// Container for a definition list (pulldown `Tag::DefinitionList`,
+    /// enabled by `Options::ENABLE_DEFINITION_LIST`). Direct children
+    /// are alternating [`DefinitionTerm`](NodeKind::DefinitionTerm) and
+    /// [`DefinitionDescription`](NodeKind::DefinitionDescription) nodes
+    /// in source order.
+    DefinitionList,
+    /// One term in a [`DefinitionList`](NodeKind::DefinitionList).
+    /// Children are inline.
+    DefinitionTerm,
+    /// One definition body in a [`DefinitionList`](NodeKind::DefinitionList).
+    /// Children are block-level (paragraphs, lists, code blocks, …).
+    DefinitionDescription,
     // Inline:
     /// A coalesced run of text + soft/hard breaks, with the
     /// `CommonMark` escape policy applied at construction.
@@ -887,12 +904,22 @@ impl<'a> TreeBuilder<'a> {
     fn kind_for_start(&self, tag: &Tag<'a>, range: &Range<usize>) -> NodeKind {
         match tag {
             Tag::Paragraph => NodeKind::Paragraph,
-            Tag::Heading { level, .. } => {
+            Tag::Heading {
+                level,
+                id,
+                classes,
+                attrs,
+            } => {
                 let lvl = *level as u32;
                 // ATX headings start with `#` after optional leading
                 // space; setext headings start with the heading text.
                 let setext = first_non_whitespace_byte(self.source, range.start) != Some(b'#');
-                NodeKind::Heading { level: lvl, setext }
+                let parsed = build_heading_attrs(self.source, range, id.as_deref(), classes, attrs);
+                NodeKind::Heading {
+                    level: lvl,
+                    setext,
+                    attrs: parsed.map(Box::new),
+                }
             }
             Tag::BlockQuote(_) => NodeKind::BlockQuote,
             Tag::CodeBlock(kind) => {
@@ -946,13 +973,9 @@ impl<'a> TreeBuilder<'a> {
             } => link_kind(*link_type, dest_url, title, id, /* is_image= */ true),
             Tag::Superscript => NodeKind::Unknown { tag: "Superscript" },
             Tag::Subscript => NodeKind::Unknown { tag: "Subscript" },
-            Tag::DefinitionList => NodeKind::Unknown { tag: "DefinitionList" },
-            Tag::DefinitionListTitle => NodeKind::Unknown {
-                tag: "DefinitionListTitle",
-            },
-            Tag::DefinitionListDefinition => NodeKind::Unknown {
-                tag: "DefinitionListDefinition",
-            },
+            Tag::DefinitionList => NodeKind::DefinitionList,
+            Tag::DefinitionListTitle => NodeKind::DefinitionTerm,
+            Tag::DefinitionListDefinition => NodeKind::DefinitionDescription,
             Tag::MetadataBlock(_) => NodeKind::Unknown { tag: "MetadataBlock" },
         }
     }
@@ -1109,6 +1132,40 @@ fn widen_to_line_start_through_ws(source: &str, range: Range<usize>) -> Range<us
     start..range.end
 }
 
+/// Build a [`HeadingAttrs`] from the parsed pulldown fields when the
+/// heading carried a `{ #id .class key=val }` trailer. Returns `None`
+/// when all three field slots are empty (the no-trailer case).
+///
+/// The `source_trailer` field is recovered from the heading's source
+/// bytes via [`crate::cm::block::heading::find_attr_trailer_range`];
+/// it powers [`crate::config::HeadingAttrsStyle::Preserve`] emission
+/// (verbatim trailer round-trip).
+fn build_heading_attrs(
+    source: &str,
+    range: &Range<usize>,
+    id: Option<&str>,
+    classes: &[CowStr<'_>],
+    attrs: &[(CowStr<'_>, Option<CowStr<'_>>)],
+) -> Option<crate::cm::block::heading::HeadingAttrs> {
+    if id.is_none() && classes.is_empty() && attrs.is_empty() {
+        return None;
+    }
+    let raw = source.get(range.clone()).unwrap_or("");
+    let trailer = crate::cm::block::heading::find_attr_trailer_range(raw)
+        .and_then(|r| raw.get(r))
+        .unwrap_or("")
+        .to_owned();
+    Some(crate::cm::block::heading::HeadingAttrs {
+        id: id.map(str::to_owned),
+        classes: classes.iter().map(|c| c.to_string()).collect(),
+        attrs: attrs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.as_ref().map(|v| v.to_string())))
+            .collect(),
+        source_trailer: trailer,
+    })
+}
+
 /// Project a [`NodeKind`] onto its [`TypedBlock`] view, if one exists.
 ///
 /// Returns `None` when the kind is inline, is a block kind Phase R has
@@ -1121,7 +1178,7 @@ fn widen_to_line_start_through_ws(source: &str, range: Range<usize>) -> Range<us
 fn build_typed_block(kind: &NodeKind, source: &str, raw_range: Range<usize>) -> Option<TypedBlock> {
     use crate::config::ThematicStyle;
     match kind {
-        NodeKind::Heading { level, setext } => {
+        NodeKind::Heading { level, setext, attrs } => {
             let lvl = u8::try_from(*level).ok()?;
             let level = HeadingLevel::try_new(lvl).ok()?;
             let style = if *setext {
@@ -1129,7 +1186,10 @@ fn build_typed_block(kind: &NodeKind, source: &str, raw_range: Range<usize>) -> 
             } else {
                 HeadingStyle::Atx
             };
-            Heading::try_new(level, style).ok().map(TypedBlock::Heading)
+            Heading::try_new(level, style)
+                .ok()
+                .map(|h| h.with_attrs(attrs.as_deref().cloned()))
+                .map(TypedBlock::Heading)
         }
         NodeKind::CodeBlock {
             fenced: true,
@@ -1157,6 +1217,9 @@ fn build_typed_block(kind: &NodeKind, source: &str, raw_range: Range<usize>) -> 
         NodeKind::Paragraph => Some(TypedBlock::Paragraph(Paragraph::new())),
         NodeKind::HtmlBlock { body } => Some(TypedBlock::HtmlBlock(HtmlBlock::new(body.clone()))),
         NodeKind::FootnoteDefinition { label } => Some(TypedBlock::FootnoteDef(FootnoteDef::new(label.clone()))),
+        NodeKind::DefinitionList => Some(TypedBlock::DefinitionList(
+            crate::cm::block::definition_list::DefinitionList::new(),
+        )),
         _ => None,
     }
 }
@@ -1634,6 +1697,9 @@ let x = 1;
                 | NodeKind::TableRow
                 | NodeKind::TableCell
                 | NodeKind::FootnoteDefinition { .. }
+                | NodeKind::DefinitionList
+                | NodeKind::DefinitionTerm
+                | NodeKind::DefinitionDescription
                 | NodeKind::Unknown { .. } => {}
             }
         }

@@ -41,8 +41,13 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
         emitted = emitted.saturating_add(1);
     }
 
+    let ext = ctx.opts.extensions();
     let mut adm_idx = 0usize;
     let mut emitted_adm: Option<usize> = None;
+    let mut abbr_idx = 0usize;
+    let mut emitted_abbr: Option<usize> = None;
+    let mut battr_idx = 0usize;
+    let mut emitted_battr: Option<usize> = None;
     for child in ctx.tree.children(parent) {
         if is_doc_root
             && footnote_end
@@ -53,9 +58,10 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
         {
             continue;
         }
-        // Admonition overlay.
         if let Some(node) = ctx.tree.node(child) {
             let cr = node.raw_range.clone();
+
+            // Admonition overlay (region carries owned `text`).
             while adm_idx < ctx.admonitions.len() && ctx.admonitions.get(adm_idx).map_or(0, |a| a.range.end) <= cr.start
             {
                 adm_idx = adm_idx.saturating_add(1);
@@ -73,6 +79,74 @@ pub(crate) fn pretty_block_sequence<'a>(ctx: &PrettyCtx<'a>, parent: NodeId) -> 
                     emitted_adm = Some(adm_idx);
                 }
                 continue;
+            }
+
+            // Abbreviation overlay. Pulldown bundles consecutive
+            // `*[X]: …` lines into a single Paragraph (no blank line
+            // separator); the scanner emits one region per declaration.
+            // When a tree node covers one or more regions, emit them all
+            // in one contiguous verbatim block.
+            if ext.abbreviation_lists {
+                while abbr_idx < ctx.abbreviations.len()
+                    && ctx.abbreviations.get(abbr_idx).map_or(0, |a| a.range.end) <= cr.start
+                {
+                    abbr_idx = abbr_idx.saturating_add(1);
+                }
+                if let Some(first_region) = ctx.abbreviations.get(abbr_idx)
+                    && cr.start >= first_region.range.start
+                    && cr.start < first_region.range.end
+                {
+                    if emitted_abbr != Some(abbr_idx) {
+                        // Find every region whose start lies inside this
+                        // tree node's range.
+                        let mut end_idx = abbr_idx.saturating_add(1);
+                        while end_idx < ctx.abbreviations.len()
+                            && ctx.abbreviations.get(end_idx).map_or(usize::MAX, |a| a.range.start) < cr.end
+                        {
+                            end_idx = end_idx.saturating_add(1);
+                        }
+                        let last = ctx.abbreviations.get(end_idx.saturating_sub(1)).unwrap_or(first_region);
+                        let bundle_start = first_region.range.start;
+                        let bundle_end = last.range.end;
+                        if emitted > 0 {
+                            parts.push(hard_line());
+                        }
+                        let text_slice = ctx.source.get(bundle_start..bundle_end).unwrap_or("");
+                        parts.push(unbreakable(verbatim_lines(text_slice)));
+                        emitted = emitted.saturating_add(1);
+                        emitted_abbr = Some(abbr_idx);
+                        abbr_idx = end_idx;
+                    }
+                    continue;
+                }
+            }
+
+            // Block-attribute overlay. Pulldown bundles a `{...}`
+            // trailer line into the preceding paragraph, so the
+            // scanner records the parent block's full range. Emit the
+            // body + trailer as one verbatim slice when the tree node
+            // matches the recorded range exactly.
+            if ext.block_attribute_lists {
+                while battr_idx < ctx.block_attrs.len()
+                    && ctx.block_attrs.get(battr_idx).map_or(0, |a| a.range.end) <= cr.start
+                {
+                    battr_idx = battr_idx.saturating_add(1);
+                }
+                if let Some(region) = ctx.block_attrs.get(battr_idx)
+                    && region.range.start == cr.start
+                    && region.range.end == cr.end
+                {
+                    if emitted_battr != Some(battr_idx) {
+                        if emitted > 0 {
+                            parts.push(hard_line());
+                        }
+                        let text_slice = ctx.source.get(region.range.clone()).unwrap_or("");
+                        parts.push(unbreakable(verbatim_lines(text_slice)));
+                        emitted = emitted.saturating_add(1);
+                        emitted_battr = Some(battr_idx);
+                    }
+                    continue;
+                }
             }
         }
         if emitted > 0 {

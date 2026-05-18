@@ -14,6 +14,7 @@
 //! [`TypedBlock::pretty`] — each typed value owns its serialisation.
 
 pub(crate) mod code;
+pub(crate) mod definition_list;
 pub(crate) mod footnote;
 pub(crate) mod heading;
 pub(crate) mod html;
@@ -25,6 +26,7 @@ pub(crate) mod table;
 pub(crate) mod thematic;
 
 use code::{FencedCodeBlock, IndentedCodeBlock};
+use definition_list::DefinitionList;
 use footnote::FootnoteDef;
 use heading::Heading;
 use html::HtmlBlock;
@@ -55,6 +57,7 @@ pub(crate) enum TypedBlock {
     ListBlock(ListBlock),
     Table(TableBlock),
     FootnoteDef(FootnoteDef),
+    DefinitionList(DefinitionList),
 }
 
 impl TypedBlock {
@@ -64,7 +67,7 @@ impl TypedBlock {
     pub(crate) fn pretty<'a>(&self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
         match self {
             Self::Paragraph(p) => (*p).pretty(ctx, id),
-            Self::Heading(h) => (*h).pretty(ctx, id),
+            Self::Heading(h) => h.pretty(ctx, id),
             Self::FencedCodeBlock(c) => c.pretty(ctx, id),
             Self::IndentedCodeBlock(c) => c.pretty(ctx, id),
             Self::HtmlBlock(h) => h.pretty(ctx, id),
@@ -73,6 +76,7 @@ impl TypedBlock {
             Self::ListBlock(l) => l.pretty(ctx, id),
             Self::Table(t) => t.pretty(ctx, id),
             Self::FootnoteDef(f) => f.pretty(ctx, id),
+            Self::DefinitionList(d) => (*d).pretty(ctx, id),
         }
     }
 }

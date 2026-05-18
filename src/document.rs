@@ -346,6 +346,8 @@ impl Document {
             self.tree(),
             self.ir.frontmatter.as_ref(),
             &self.ir.admonitions,
+            &self.ir.abbreviations,
+            &self.ir.block_attrs,
             &self.ir.refs,
         );
         tracing::Span::current().record("out_len", out.len());

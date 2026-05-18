@@ -18,7 +18,12 @@ use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 const MODEL_DOC: &str = "docs/architecture/pulldown-model.md";
 
 fn opts() -> Options {
-    Options::ENABLE_STRIKETHROUGH | Options::ENABLE_FOOTNOTES | Options::ENABLE_TABLES | Options::ENABLE_TASKLISTS
+    Options::ENABLE_STRIKETHROUGH
+        | Options::ENABLE_FOOTNOTES
+        | Options::ENABLE_TABLES
+        | Options::ENABLE_TASKLISTS
+        | Options::ENABLE_DEFINITION_LIST
+        | Options::ENABLE_HEADING_ATTRIBUTES
 }
 
 fn collect(s: &str) -> Vec<Event<'_>> {
@@ -222,5 +227,71 @@ fn strong_distinct_from_nested_emphasis() {
          Update {MODEL_DOC} §7 — any future canonicalisation pass \
          that rewrites emphasis delimiters depends on the Strong / \
          nested-Emphasis discriminant staying stable."
+    );
+}
+
+/// §8: with `ENABLE_DEFINITION_LIST`, `Term\n: defn\n` emits the
+/// `DefinitionList` / `DefinitionListTitle` / `DefinitionListDefinition`
+/// tag triple. The tree builder relies on this exact nesting shape.
+#[test]
+fn definition_list_emits_tag_triple() {
+    let events = collect("Term\n: defn\n");
+    let starts: Vec<&'static str> = events
+        .iter()
+        .filter_map(|e| match e {
+            Event::Start(Tag::DefinitionList) => Some("Start(DefinitionList)"),
+            Event::Start(Tag::DefinitionListTitle) => Some("Start(DefinitionListTitle)"),
+            Event::Start(Tag::DefinitionListDefinition) => Some("Start(DefinitionListDefinition)"),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        starts,
+        vec![
+            "Start(DefinitionList)",
+            "Start(DefinitionListTitle)",
+            "Start(DefinitionListDefinition)",
+        ],
+        "pulldown's definition-list event shape changed; \
+         update {MODEL_DOC} §8 before touching src/tree.rs::kind_for_start \
+         or src/cm/block/definition_list.rs"
+    );
+}
+
+/// §9: with `ENABLE_HEADING_ATTRIBUTES`, `# Heading {#my-id .c .d key=val}`
+/// populates `id`, `classes`, and `attrs` on `Tag::Heading`. The
+/// preserve-vs-canonicalise emission path keys off these fields.
+#[test]
+fn heading_attributes_populate_tag_fields() {
+    let events: Vec<Event<'_>> = Parser::new_ext("# Heading {#my-id .c .d key=val}\n", opts()).collect();
+    let (id, classes, attrs) = events
+        .iter()
+        .find_map(|e| match e {
+            Event::Start(Tag::Heading { id, classes, attrs, .. }) => Some((
+                id.as_ref().map(|c| c.to_string()),
+                classes.iter().map(|c| c.to_string()).collect::<Vec<_>>(),
+                attrs
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.as_ref().map(|v| v.to_string())))
+                    .collect::<Vec<_>>(),
+            )),
+            _ => None,
+        })
+        .expect("must emit a Heading tag");
+    assert_eq!(
+        id.as_deref(),
+        Some("my-id"),
+        "pulldown changed how `#id` is surfaced; update {MODEL_DOC} §9 \
+         before touching src/cm/block/heading.rs attrs emission"
+    );
+    assert_eq!(
+        classes,
+        vec!["c".to_owned(), "d".to_owned()],
+        "pulldown changed how `.class` tokens are surfaced; update {MODEL_DOC} §9"
+    );
+    assert_eq!(
+        attrs,
+        vec![("key".to_owned(), Some("val".to_owned()))],
+        "pulldown changed how `key=val` pairs are surfaced; update {MODEL_DOC} §9"
     );
 }

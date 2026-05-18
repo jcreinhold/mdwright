@@ -72,5 +72,10 @@ All other `[fmt]` knobs are config-file-only.
 | `fmt.refs.style` | "bare" \| "angle" \| "preserve" | `"preserve"` | `—` | Destination style for reference-link and inline-link URLs. `preserve` (default) keeps each destination's source form; `bare` strips wrapping `<…>` where the bare form would still parse; `angle` wraps every destination in `<…>`. |
 | `fmt.footnotes.placement` | "end" \| "preserve" | `"preserve"` | `—` | Where footnote definitions are emitted. Default is `preserve` because pulldown-cmark's HTML renderer ties footnote position to parse order; moving definitions would change the rendered HTML. |
 | `fmt.frontmatter.preserve` | bool | `true` | `—` | Whether to emit document frontmatter byte-verbatim. `false` strips it. |
+| `fmt.heading-attrs` | "preserve" \| "canonicalise" | `"preserve"` | `—` | ATX heading `{#id .class key=val}` trailer emission. `preserve` (default) emits the source trailer byte-verbatim. `canonicalise` emits id first, then classes (source order), then key=value pairs (source order). See [Markdown extensions](concepts/extensions.md#heading-attribute-lists). |
+| `fmt.extensions.definition-lists` | bool | `true` | `—` | Recognise `Term\n: definition\n` definition lists. Default on; turn off on non-mkdocs corpora to suppress recognition. |
+| `fmt.extensions.abbreviation-lists` | bool | `true` | `—` | Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does. |
+| `fmt.extensions.heading-attribute-lists` | bool | `true` | `—` | Recognise `# Heading {#id .class}` trailers via pulldown's `ENABLE_HEADING_ATTRIBUTES`. When off, the trailer reads as plain text in the heading body. |
+| `fmt.extensions.block-attribute-lists` | bool | `true` | `—` | Recognise `{ .class }` on a line by itself after a non-empty block as a scan-and-preserve overlay. Inline attribute lists (mid-paragraph) are out of scope. |
 
 <!-- END GENERATED -->

@@ -18,7 +18,7 @@
 
 use crate::cm::refs::ReferenceTable;
 use crate::config::FmtOptions;
-use crate::ir::{AdmonitionRegion, Frontmatter};
+use crate::ir::{AbbreviationRegion, AdmonitionRegion, BlockAttrRegion, Frontmatter};
 use crate::tree::Tree;
 
 #[derive(Clone, Copy)]
@@ -28,6 +28,13 @@ pub(crate) struct PrettyCtx<'a> {
     pub tree: &'a Tree,
     pub frontmatter: Option<&'a Frontmatter>,
     pub admonitions: &'a [AdmonitionRegion],
+    /// `*[ABBR]: definition` declaration regions, recognised by
+    /// `scan_abbreviations` in `crate::ir`. The overlay arm in
+    /// `format::block::pretty_block_sequence` consults these.
+    pub abbreviations: &'a [AbbreviationRegion],
+    /// `{ #id .class }` block-attribute trailer regions, recognised by
+    /// `scan_block_attrs` in `crate::ir`.
+    pub block_attrs: &'a [BlockAttrRegion],
     /// Resolved link reference definitions in insertion order.
     /// `LinkReferenceDefinition` is not a tree node — the table is
     /// the single source of truth.

@@ -1,0 +1,11 @@
+# Plain heading with no trailer
+
+## With id {#section-two}
+
+### Multiple classes {.warning .important}
+
+#### Mixed shape {#mix .alpha .beta key=val}
+
+##### Bare attr token {#bare data-flag}
+
+###### All six levels work {#level-6}

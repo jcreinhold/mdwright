@@ -1,0 +1,7 @@
+This paragraph carries a class trailer used by the renderer to style it.
+{ .note .important }
+
+Plain paragraph in between.
+
+Another paragraph that takes an id.
+{ #para-two }

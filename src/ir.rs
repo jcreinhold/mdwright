@@ -205,6 +205,8 @@ pub(crate) struct Ir {
     pub(crate) suppressions: Vec<Suppression>,
     pub(crate) frontmatter: Option<Frontmatter>,
     pub(crate) admonitions: Vec<AdmonitionRegion>,
+    pub(crate) abbreviations: Vec<AbbreviationRegion>,
+    pub(crate) block_attrs: Vec<BlockAttrRegion>,
     pub(crate) math_regions: Vec<MathRegion>,
     pub(crate) math_errors: Vec<MathError>,
     pub(crate) line_index: LineIndex,
@@ -220,6 +222,38 @@ pub(crate) struct Ir {
 pub(crate) struct AdmonitionRegion {
     pub(crate) range: Range<usize>,
     pub(crate) text: String,
+}
+
+/// One `*[TERM]: definition` abbreviation declaration, recognised by
+/// [`scan_abbreviations`] when the `abbreviation_lists` extension is
+/// enabled. Scan-and-preserve overlay: the formatter emits the
+/// region's bytes verbatim and skips the tree paragraph that pulldown
+/// built from the same line(s).
+///
+/// `term` and `definition` are subranges inside `range` covering the
+/// abbreviation key (between the `[` and `]`) and the body (after the
+/// `:` and whitespace), respectively — kept for future lint rules.
+#[derive(Clone, Debug)]
+pub(crate) struct AbbreviationRegion {
+    pub(crate) range: Range<usize>,
+    #[allow(dead_code)]
+    pub(crate) term: Range<usize>,
+    #[allow(dead_code)]
+    pub(crate) definition: Range<usize>,
+}
+
+/// One `{ #id .class key=val }` trailer attached to the previous
+/// block (paragraph, image, or fenced block), recognised by
+/// [`scan_block_attrs`] when the `block_attribute_lists` extension is
+/// enabled. Scan-and-preserve overlay: the formatter emits the trailer
+/// bytes verbatim alongside the preceding block.
+#[derive(Clone, Debug)]
+pub(crate) struct BlockAttrRegion {
+    pub(crate) range: Range<usize>,
+    #[allow(dead_code)]
+    pub(crate) target_range: Range<usize>,
+    #[allow(dead_code)]
+    pub(crate) attrs_range: Range<usize>,
 }
 
 use crate::cm::math::MathRegion;
@@ -296,7 +330,22 @@ impl Ir {
         let refs = build_reference_table(&bare_events, source);
         let suppressions = scan_suppressions(&builder.html_blocks);
         let admonitions = scan_admonitions(source, &builder.code_blocks);
+        let abbreviations = scan_abbreviations(
+            source,
+            &builder.code_blocks,
+            &builder.inline_codes,
+            &builder.html_blocks,
+            &builder.inline_html,
+        );
         let tree = tree_builder.finalize(&refs);
+        let block_attrs = scan_block_attrs(
+            source,
+            &tree,
+            &builder.code_blocks,
+            &builder.inline_codes,
+            &builder.html_blocks,
+            &builder.inline_html,
+        );
 
         Self {
             prose_chunks: builder.prose_chunks,
@@ -310,6 +359,8 @@ impl Ir {
             suppressions,
             frontmatter,
             admonitions,
+            abbreviations,
+            block_attrs,
             math_regions,
             math_errors,
             line_index,
@@ -931,6 +982,152 @@ fn scan_admonitions(source: &str, code_blocks: &[CodeBlock]) -> Vec<AdmonitionRe
     out
 }
 
+fn abbreviation_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| compile_static(r"^ {0,3}\*\[([^\]\n]+)\]:[ \t]+(.+?)[ \t]*$"))
+}
+
+/// Scan source for `*[TERM]: definition` abbreviation declarations.
+/// Single-line per declaration; no continuation lines (matches
+/// python-markdown / mdformat-mkdocs behaviour). Declarations inside
+/// code spans / blocks / HTML blocks / inline HTML are skipped.
+///
+/// The scan is unconditional at parse time; the overlay arm in
+/// `format::block::pretty_block_sequence` gates the actual verbatim
+/// emission on [`crate::config::ExtensionOptions::abbreviation_lists`]
+/// so the parsed regions can also feed future lint rules even when the
+/// formatter overlay is off.
+fn scan_abbreviations(
+    source: &str,
+    code_blocks: &[CodeBlock],
+    inline_codes: &[InlineCode],
+    html_blocks: &[HtmlBlock],
+    inline_html: &[InlineHtml],
+) -> Vec<AbbreviationRegion> {
+    // Fast path: the abbreviation header always begins with `*[`. A
+    // single substring scan rules out documents that contain none —
+    // the common case for non-mkdocs corpora — without paying the
+    // per-line regex cost.
+    if !source.contains("*[") {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let line_starts: Vec<usize> = std::iter::once(0)
+        .chain(
+            source
+                .bytes()
+                .enumerate()
+                .filter_map(|(i, b)| if b == b'\n' { i.checked_add(1) } else { None }),
+        )
+        .collect();
+    let line_end = |idx: usize| line_starts.get(idx.saturating_add(1)).copied().unwrap_or(source.len());
+    let excluded = |range: Range<usize>| -> bool {
+        let overlaps = |r: &Range<usize>| r.start < range.end && range.start < r.end;
+        code_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_codes.iter().any(|c| overlaps(&c.raw_range))
+            || html_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_html.iter().any(|c| overlaps(&c.raw_range))
+    };
+    let re = abbreviation_regex();
+    for idx in 0..line_starts.len() {
+        let start = line_starts.get(idx).copied().unwrap_or(source.len());
+        let end = line_end(idx);
+        if excluded(start..end) {
+            continue;
+        }
+        let line = source.get(start..end).unwrap_or("");
+        let stripped = line.trim_end_matches('\n');
+        let Some(caps) = re.captures(stripped) else {
+            continue;
+        };
+        let Some(term_m) = caps.get(1) else { continue };
+        let Some(def_m) = caps.get(2) else { continue };
+        out.push(AbbreviationRegion {
+            range: start..end,
+            term: start.saturating_add(term_m.start())..start.saturating_add(term_m.end()),
+            definition: start.saturating_add(def_m.start())..start.saturating_add(def_m.end()),
+        });
+    }
+    out
+}
+
+fn block_attr_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| compile_static(r"^[ \t]*(\{[^}\n]+\})[ \t]*$"))
+}
+
+/// Scan source for `{ #id .class key=val }` lines that immediately
+/// follow a block element (paragraph, image, fenced code block,
+/// blockquote, list, table). The trailer line itself is the
+/// `BlockAttrRegion`; the preceding block's `raw_range` is recorded
+/// as `target_range` so a future lint rule can verify the attachment.
+///
+/// Like [`scan_abbreviations`], the scan is unconditional; the overlay
+/// arm gates emission on
+/// [`crate::config::ExtensionOptions::block_attribute_lists`].
+fn scan_block_attrs(
+    source: &str,
+    tree: &Tree,
+    code_blocks: &[CodeBlock],
+    inline_codes: &[InlineCode],
+    html_blocks: &[HtmlBlock],
+    inline_html: &[InlineHtml],
+) -> Vec<BlockAttrRegion> {
+    // Fast path: the trailer always begins with `{` somewhere in the
+    // source. The byte-search is much cheaper than walking every
+    // top-level block's last line through the regex.
+    if !source.contains('{') {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    let excluded = |range: &Range<usize>| -> bool {
+        let overlaps = |r: &Range<usize>| r.start < range.end && range.start < r.end;
+        code_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_codes.iter().any(|c| overlaps(&c.raw_range))
+            || html_blocks.iter().any(|c| overlaps(&c.raw_range))
+            || inline_html.iter().any(|c| overlaps(&c.raw_range))
+    };
+    let re = block_attr_regex();
+    // For each top-level block, check whether its last line is a
+    // `{...}` trailer. Pulldown bundles such trailers into the
+    // preceding paragraph (it does not recognise the attribute-list
+    // extension), so the trailer lives at the tail of the parent
+    // block's raw_range. When found, the `range` field covers the
+    // whole parent block (body + trailer) so the overlay arm emits
+    // the unit verbatim; `target_range` and `attrs_range` split the
+    // two halves for any future lint that wants to verify them.
+    for cid in tree.children(tree.root()) {
+        let Some(node) = tree.node(cid) else { continue };
+        let raw_range = node.raw_range.clone();
+        // A standalone trailer line (block with only the trailer) is
+        // not an attribute attachment — leave it as plain text.
+        let raw = source.get(raw_range.clone()).unwrap_or("");
+        let trimmed = raw.trim_end_matches('\n');
+        // Locate the start of the last line.
+        let last_line_offset = trimmed.rfind('\n').map_or(0, |n| n.saturating_add(1));
+        if last_line_offset == 0 {
+            continue;
+        }
+        let last_line = trimmed.get(last_line_offset..).unwrap_or("");
+        let Some(caps) = re.captures(last_line) else {
+            continue;
+        };
+        let Some(braces) = caps.get(1) else { continue };
+        let attrs_start = raw_range.start.saturating_add(last_line_offset);
+        let attrs_end = raw_range.start.saturating_add(trimmed.len());
+        let attrs_range = attrs_start..attrs_end;
+        if excluded(&attrs_range) {
+            continue;
+        }
+        out.push(BlockAttrRegion {
+            range: raw_range.clone(),
+            target_range: raw_range.start..attrs_start,
+            attrs_range: attrs_start.saturating_add(braces.start())..attrs_start.saturating_add(braces.end()),
+        });
+    }
+    out
+}
+
 fn suppression_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     // Order matters: `allow-next-line` must precede `allow`, and
@@ -1103,6 +1300,85 @@ mod tests {
         let src = "```\n!!! note\n    body\n```\n";
         let ir = Ir::parse_str(src);
         assert!(ir.admonitions.is_empty());
+    }
+
+    #[test]
+    fn abbreviation_scan_basic() -> Result<()> {
+        let src = "Use HTML.\n\n*[HTML]: Hyper Text Markup Language\n";
+        let ir = Ir::parse_str(src);
+        assert_eq!(ir.abbreviations.len(), 1);
+        let r = ir.abbreviations.first().ok_or_else(|| anyhow!("region"))?;
+        let bytes = src.get(r.range.clone()).unwrap_or("");
+        assert_eq!(bytes, "*[HTML]: Hyper Text Markup Language\n");
+        Ok(())
+    }
+
+    #[test]
+    fn abbreviation_scan_multi_line() {
+        let src = "*[A]: alpha\n*[B]: bravo\n*[C]: charlie\n";
+        let ir = Ir::parse_str(src);
+        assert_eq!(ir.abbreviations.len(), 3);
+    }
+
+    #[test]
+    fn abbreviation_scan_inside_code_block_skipped() {
+        let src = "```\n*[HTML]: nope\n```\n";
+        let ir = Ir::parse_str(src);
+        assert!(ir.abbreviations.is_empty());
+    }
+
+    #[test]
+    fn abbreviation_scan_inside_inline_code_skipped() {
+        // A backtick run on the line means the entire line is inside
+        // an inline code span; the abbreviation shape is not real.
+        let src = "Some prose `*[X]: y` more.\n";
+        let ir = Ir::parse_str(src);
+        assert!(ir.abbreviations.is_empty());
+    }
+
+    #[test]
+    fn abbreviation_scan_rejects_empty_term() {
+        let src = "*[]: empty term\n";
+        let ir = Ir::parse_str(src);
+        assert!(ir.abbreviations.is_empty());
+    }
+
+    #[test]
+    fn block_attr_scan_basic() -> Result<()> {
+        let src = "Some prose.\n{ .note }\n";
+        let ir = Ir::parse_str(src);
+        assert_eq!(ir.block_attrs.len(), 1);
+        let r = ir.block_attrs.first().ok_or_else(|| anyhow!("region"))?;
+        // attrs_range covers just `{ .note }`.
+        let attrs_bytes = src.get(r.attrs_range.clone()).unwrap_or("");
+        assert_eq!(attrs_bytes, "{ .note }");
+        Ok(())
+    }
+
+    #[test]
+    fn block_attr_scan_requires_preceding_body() {
+        // A standalone `{...}` line (no preceding body in the same
+        // block) is not an attribute attachment.
+        let src = "{ .note }\n";
+        let ir = Ir::parse_str(src);
+        assert!(ir.block_attrs.is_empty());
+    }
+
+    #[test]
+    fn block_attr_scan_inside_code_block_skipped() {
+        let src = "```\nbody\n{ .note }\n```\n";
+        let ir = Ir::parse_str(src);
+        assert!(ir.block_attrs.is_empty());
+    }
+
+    #[test]
+    fn block_attr_scan_handles_blank_separator() {
+        // mdformat-mkdocs only attaches a trailer when there is NO
+        // blank line between the body and `{...}`. A blank line
+        // makes them two separate blocks, so no attachment.
+        let src = "Some prose.\n\n{ .note }\n";
+        let ir = Ir::parse_str(src);
+        assert!(ir.block_attrs.is_empty());
     }
 
     #[test]

@@ -153,3 +153,45 @@ collapsing these into each other when a body or neighbour byte change
 would let pulldown re-segment differently.
 
 Test: `strong_distinct_from_nested_emphasis`.
+
+## §8 Definition-list event shape
+
+With `Options::ENABLE_DEFINITION_LIST` set on the parser, the source
+
+```
+Term
+: defn
+```
+
+emits the nested triple `Start(DefinitionList)` → `Start(DefinitionListTitle)`
+→ … → `End(DefinitionListTitle)` → `Start(DefinitionListDefinition)` →
+… → `End(DefinitionListDefinition)` → `End(DefinitionList)`. Each
+definition's body is opened/closed independently, so a definition
+containing multiple paragraphs emits multiple `Start(Paragraph)` /
+`End(Paragraph)` pairs inside one `DefinitionListDefinition`.
+
+The tree builder's `kind_for_start` arm relies on this nesting shape
+to construct `NodeKind::DefinitionList` / `NodeKind::DefinitionTerm` /
+`NodeKind::DefinitionDescription` and on `close_container`'s child
+draining to thread terms and definitions into the typed `DefinitionList`
+block at `src/cm/block/definition_list.rs`.
+
+Test: `definition_list_emits_tag_triple`.
+
+## §9 Heading attribute fields
+
+With `Options::ENABLE_HEADING_ATTRIBUTES` set, the trailing
+`{ #id .class₁ .class₂ key=val }` on an ATX heading populates the
+`id: Option<CowStr>`, `classes: Vec<CowStr>`, and
+`attrs: Vec<(CowStr, Option<CowStr>)>` fields on `Tag::Heading`. With
+the flag unset, those fields are `None` / empty regardless of source
+content (the trailer remains in the heading text).
+
+`Heading::pretty` reads these fields out of `NodeKind::Heading` and
+emits the canonical trailer (`#id` first, then classes in source
+order, then `key=val` pairs in source order) when
+`FmtOptions::heading_attrs` is `Canonicalise`. Under `Preserve` (the
+default), the source bytes round-trip verbatim via the source-tail
+read after the inline body.
+
+Test: `heading_attributes_populate_tag_fields`.
