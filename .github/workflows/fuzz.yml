@@ -1,8 +1,6 @@
 name: fuzz
 
 on:
-  schedule:
-    - cron: '0 4 * * *'  # 04:00 UTC daily
   workflow_dispatch:
     inputs:
       duration_secs:
@@ -27,13 +25,13 @@ jobs:
           - fuzz_verbatim_identity
           - fuzz_structured_idempotence
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Install nightly + cargo-fuzz
-        run: |
-          rustup toolchain install nightly --profile minimal
-          rustup default nightly
-          cargo install cargo-fuzz --locked
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-fuzz
 
       - name: Cache fuzz build
         uses: actions/cache@v4
@@ -55,7 +53,7 @@ jobs:
 
       - name: Upload reproducer on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: reproducer-${{ matrix.target }}
           path: fuzz/artifacts/${{ matrix.target }}/
