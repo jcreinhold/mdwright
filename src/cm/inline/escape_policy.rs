@@ -218,9 +218,20 @@ fn needs_emphasis_escape(bytes: &[u8], i: usize, byte: u8, rules: impl DelimRule
     if !can_open_here && !can_close_here {
         return false;
     }
+    // Pulldown only forms emphasis when the body between matched
+    // delimiters contains at least one non-delimiter byte (CM §6.2).
+    // Without that guard the escape policy over-fires on adjacent
+    // `**` / `__` / `***` runs that are plain text in pulldown's
+    // eyes (see fixture 02 round-3 evidence: `**~` is three Text
+    // events, no Strong, so the asterisks need no escape).
+    let has_non_delim_body = |body: &[u8]| body.iter().any(|&b| b != byte);
     if can_open_here {
         for j in i.saturating_add(1)..bytes.len() {
             if bytes.get(j).copied() != Some(byte) {
+                continue;
+            }
+            let body = bytes.get(i.saturating_add(1)..j).unwrap_or(&[]);
+            if !has_non_delim_body(body) {
                 continue;
             }
             let (jl, jr) = neighbours_at(bytes, j);
@@ -232,6 +243,10 @@ fn needs_emphasis_escape(bytes: &[u8], i: usize, byte: u8, rules: impl DelimRule
     if can_close_here {
         for j in 0..i {
             if bytes.get(j).copied() != Some(byte) {
+                continue;
+            }
+            let body = bytes.get(j.saturating_add(1)..i).unwrap_or(&[]);
+            if !has_non_delim_body(body) {
                 continue;
             }
             let (jl, jr) = neighbours_at(bytes, j);
@@ -508,8 +523,22 @@ mod tests {
     }
 
     #[test]
-    fn only_escapable_chars_partnered() {
-        assert_eq!(escape_no_forced("**__``", default_scope()), r"\*\*\_\_\`\`");
+    fn adjacent_delim_runs_without_body_are_not_emphasis() {
+        // `**__` is plain text in pulldown (no emphasis pair can form
+        // without a non-delim body). The escape policy must not insert
+        // backslashes; doing so was the root cause of the round-3
+        // fixture 02 idempotence failure. Backticks remain
+        // unconditionally escaped per the §6.3 rule.
+        assert_eq!(escape_no_forced("**__``", default_scope()), r"**__\`\`");
+    }
+
+    #[test]
+    fn paired_emphasis_with_body_still_escapes() {
+        // Regression guard: the body-requirement fix in
+        // `needs_emphasis_escape` must not weaken pairing detection
+        // when a real body is present.
+        assert_eq!(escape_no_forced("*foo*", default_scope()), r"\*foo\*");
+        assert_eq!(escape_no_forced("__bar__", default_scope()), r"\_\_bar\_\_");
     }
 
     #[test]

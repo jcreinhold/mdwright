@@ -6,7 +6,7 @@
 //! "emit the source bytes verbatim" in `Verbatim` mode. Children live
 //! in the surrounding [`crate::tree::Tree`] arena.
 
-use crate::format::doc::{Doc, LinePrefix, concat, prefix_lines, text, unbreakable};
+use crate::format::doc::{Doc, LinePrefix, concat, hard_line, prefix_lines, text, unbreakable};
 use crate::format::pretty::PrettyCtx;
 use crate::tree::NodeId;
 
@@ -40,6 +40,19 @@ impl BlockQuote {
     #[tracing::instrument(level = "trace", skip_all)]
     #[allow(clippy::unused_self)]
     pub(crate) fn pretty<'a>(self, ctx: &PrettyCtx<'a>, id: NodeId) -> Doc<'a> {
+        // An empty blockquote (pulldown `Start(BlockQuote) End(BlockQuote)`
+        // with no children) is a real CM construct — source `>` on its
+        // own line. The standard `text("> ") + prefixed_inner` shape
+        // produces just `> ` with no trailing hard line, so the
+        // surrounding `pretty_block_sequence` separator collapses to
+        // one newline and pulldown re-parses the two adjacent
+        // blockquotes as a single continued one (round-3 fuzz finding,
+        // crash artifact `\n\n>\n\n>4333`). Emit `>` plus a hard line
+        // for the empty case so the sibling separator produces a real
+        // blank line.
+        if ctx.tree.children(id).next().is_none() {
+            return concat([unbreakable(text(">")), hard_line()]);
+        }
         let inner = crate::format::block::pretty_block_sequence(ctx, id);
         let prefixed = prefix_lines(
             LinePrefix {

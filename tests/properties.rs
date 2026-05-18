@@ -376,7 +376,35 @@ fn canon_opts() -> Vec<(&'static str, FmtOptions)> {
             "link_def_angle",
             FmtOptions::default().with_link_def_style(LinkDefStyle::Angle),
         ),
+        ("all_asterisk", opts_all_asterisk()),
+        ("all_underscore_or_dash", opts_all_underscore_or_dash()),
     ]
+}
+
+/// Every knob set simultaneously, asterisk-leaning. Exercises rewrite
+/// interactions (e.g. italic vs strong delimiter choice on the same
+/// run) that the per-knob modes don't reach on their own.
+fn opts_all_asterisk() -> FmtOptions {
+    FmtOptions::default()
+        .with_italic(ItalicStyle::Asterisk)
+        .with_strong(StrongStyle::Asterisk)
+        .with_list_marker(ListMarkerStyle::Asterisk)
+        .with_thematic_break(ThematicStyle::Asterisk)
+        .with_ordered_list(OrderedListStyle::Consistent)
+        .with_link_def_style(LinkDefStyle::Bare)
+}
+
+/// Every knob set simultaneously, opposite-leaning to
+/// [`opts_all_asterisk`]. Different rewrite targets across knobs
+/// ensure the matrix doesn't trivially collapse to one byte choice.
+fn opts_all_underscore_or_dash() -> FmtOptions {
+    FmtOptions::default()
+        .with_italic(ItalicStyle::Underscore)
+        .with_strong(StrongStyle::Underscore)
+        .with_list_marker(ListMarkerStyle::Dash)
+        .with_thematic_break(ThematicStyle::Dash)
+        .with_ordered_list(OrderedListStyle::Consistent)
+        .with_link_def_style(LinkDefStyle::Angle)
 }
 
 fn check_canon_semantic_equivalence(label: &str, src: &str) -> Result<(), TestCaseError> {
@@ -393,24 +421,18 @@ fn check_canon_semantic_equivalence(label: &str, src: &str) -> Result<(), TestCa
     Ok(())
 }
 
-/// Canonicalise must not drift semantically on a second pass. Byte
-/// idempotence is the stronger property but does not hold uniformly:
-/// the structural emit layer has pre-existing inputs where two passes
-/// are required to reach a fixed point (e.g. a thematic break of
-/// `***` followed by a mixed-loose list). That's a structural-emit
-/// concern, not a canonicalise concern — what canonicalise must
-/// guarantee is "no semantic divergence on iteration".
+/// Strict byte idempotence: `format(format(s)) == format(s)` under
+/// any canonicalisation mode. After the escape-policy + frontmatter
+/// fixes alongside prompt 54, this holds for every input the
+/// generators emit (no need to weaken to semantic equivalence).
 fn check_canon_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
     for (name, opts) in canon_opts() {
         let once = Document::parse(src).format(&opts);
         let twice = Document::parse(&once).format(&opts);
-        if !semantically_equivalent(&once, &twice) {
+        if once != twice {
             dump_counterexample(&format!("{label}_{name}"), src);
         }
-        prop_assert!(
-            semantically_equivalent(&once, &twice),
-            "canonicalise pass drifts semantically under {name}",
-        );
+        prop_assert_eq!(&once, &twice, "canonicalise non-idempotent under {}", name);
     }
     Ok(())
 }
@@ -523,6 +545,18 @@ proptest! {
             .filter(|r| r != "bare-url")
             .collect();
         prop_assert!(after.is_subset(&before));
+    }
+
+    #[test]
+    #[ignore = "slow; run with --ignored before release"]
+    fn canonicalise_document_semantic_equivalence_sweep(src in generators::arb_document()) {
+        check_canon_semantic_equivalence("canonicalise_document_se_sweep", &src)?;
+    }
+
+    #[test]
+    #[ignore = "slow; run with --ignored before release"]
+    fn canonicalise_document_idempotent_sweep(src in generators::arb_document()) {
+        check_canon_idempotent("canonicalise_document_idem_sweep", &src)?;
     }
 }
 

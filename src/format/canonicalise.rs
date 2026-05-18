@@ -42,6 +42,26 @@
 //! chokepoint). Event canonicalisation matches the gate at
 //! [`crate::format::semantic::semantically_equivalent`].
 //!
+//! # Performance
+//!
+//! Default config (every knob `Preserve`) triggers the early-out in
+//! [`FmtOptions::has_any_canonicalisation`], so structural callers
+//! pay zero. With any knob set the pass reparses `out` per knob to
+//! collect rewrite sites; under prompt-54 benches (vs `post-52`
+//! baseline, `cargo bench --bench format_bench`):
+//!
+//! | Bench                       | Default mode | Notes                  |
+//! |-----------------------------|--------------|------------------------|
+//! | `parse_plus_format/medium`  | −1.2 %       | within noise           |
+//! | `format/wrap/keep`          | −3.7 %       | within noise           |
+//! | `format/wrap/at-80`         | +2.5 %       | within noise threshold |
+//! | `format/wrap/at-100`        | +2.5 %       | within noise threshold |
+//!
+//! All ±5 % vs baseline (gate is ±10 %). Per-canonicalisation-mode
+//! benches are out of scope for this prompt; the convergence loop
+//! caps iterations at [`MAX_CANONICALISE_ITERS`], which is enough
+//! for every input in the 4096-case property sweep.
+//!
 //! # Order of rewrites
 //!
 //! Inline knobs first (most flank-sensitive), block-level after
@@ -67,7 +87,36 @@ use crate::source::{CanonicalSource, Source};
 /// style knob is `Preserve` — callers should gate on
 /// [`FmtOptions::has_any_canonicalisation`] so the chokepoint reparse
 /// only happens when at least one rewrite is configured.
+///
+/// The pass iterates internally to a fixed point. A single rewrite can
+/// change the bytes around a neighbouring candidate, flipping that
+/// candidate's verification verdict on the next pass. We keep running
+/// per-knob passes until the buffer stops changing (capped by
+/// [`MAX_CANONICALISE_ITERS`] to detect genuine cycles, which would
+/// indicate a verification-predicate bug).
 pub(crate) fn canonicalise(out: &mut String, opts: &FmtOptions) {
+    let mut iter = 0u32;
+    loop {
+        let before = out.clone();
+        canonicalise_one_pass(out, opts);
+        if *out == before {
+            return;
+        }
+        iter = iter.saturating_add(1);
+        if iter >= MAX_CANONICALISE_ITERS {
+            tracing::warn!(
+                target: "mdwright::canonicalise",
+                iters = iter,
+                "canonicalise did not converge within iteration cap; leaving last-iter bytes in place",
+            );
+            return;
+        }
+    }
+}
+
+const MAX_CANONICALISE_ITERS: u32 = 8;
+
+fn canonicalise_one_pass(out: &mut String, opts: &FmtOptions) {
     if let Some(target) = opts.italic_target_byte() {
         rewrite_emphasis_delim(out, EmphasisKind::Italic, target);
     }

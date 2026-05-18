@@ -793,17 +793,15 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter>) {
         }
         cursor = end_excl.saturating_add(1);
     }
-    (
-        source.len(),
-        Some(Frontmatter {
-            slice: TextSlice {
-                text: source.to_owned(),
-                byte_offset: 0,
-                raw_range: 0..source.len(),
-            },
-            delimiter,
-        }),
-    )
+    // No closing delimiter — the opener is a thematic break (`---`)
+    // or just plain text (`+++`), not a frontmatter fence. Returning
+    // the whole source as frontmatter would byte-preserve the document
+    // by short-circuiting the tree builder, which masks the structural
+    // emit's loose-list normalisation for any document that happens to
+    // start with `---\n`. Treat as no frontmatter and let pulldown
+    // reparse the opener.
+    let _ = delimiter;
+    (0, None)
 }
 
 /// True if `body` contains at least one line shaped like a YAML key
@@ -1050,6 +1048,25 @@ mod tests {
         assert_eq!(fm.delimiter, super::FrontmatterDelimiter::Yaml);
         let body_chunks: Vec<&str> = ir.prose_chunks.iter().map(|c| c.text.as_str()).collect();
         assert!(body_chunks.iter().any(|t| t == &"body text"));
+        Ok(())
+    }
+
+    #[test]
+    fn frontmatter_opener_without_close_is_thematic_break() -> Result<()> {
+        // `---\n` is a YAML opener, but with no closing `---` the
+        // document is not a frontmatter — it's a thematic break
+        // followed by Markdown. Confirming this via `prose_chunks`:
+        // body text after the opener must surface as prose, not be
+        // swallowed into a stub frontmatter.
+        let src = "---\n\n- a\n- a\n\n- a\n";
+        let ir = Ir::parse_str(src);
+        assert!(ir.frontmatter.is_none(), "no frontmatter without close");
+        let any_a = ir.prose_chunks.iter().any(|c| c.text == "a");
+        assert!(
+            any_a,
+            "body markdown should be parsed as prose, got {:?}",
+            ir.prose_chunks
+        );
         Ok(())
     }
 

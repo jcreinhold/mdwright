@@ -1,4 +1,11 @@
-# Round-3 fuzz findings — evidence for prompts 45–49
+# Round-3 fuzz findings — evidence for prompts 45–49 *[historical]*
+
+> **Status:** the two `.in` fixtures were promoted to `tests/regressions/` during prompt 54
+> (`fuzz_round3_nested_emphasis_slash.in` and `fuzz_round3_multi_construct_idempotence.in`).
+> Both byte-preserve under structural-preserve defaults after the escape-policy and
+> frontmatter-fence fixes that landed alongside the promotion. This README stays as the
+> historical narrative; the live regression coverage lives in `tests/regressions.rs`.
+
 
 After prompt 44 (initial fuzz-to-zero) and the round-2 follow-up (oracle-domain CR, boundary-newline-policy,
 emphasis-flank-oscillation), a round-3 verification at 5 min/target produced two more findings in the same
@@ -56,7 +63,24 @@ handles it (pass 2 reads the full draft, including the formatter's rendering of 
   `tests/regressions/fuzz_round3_*.in` after the sweep makes them pass. The promotion commit's diff is the proof
   that the sweep accomplished what it set out to do.
 
-## Status after prompt 47
+## Status after prompt 54 (promotion)
+
+Both inputs now byte-preserve under structural-preserve defaults and live as live regression
+fixtures. Two bugs were uncovered and fixed alongside the promotion:
+
+- **`02-…in`** failed byte idempotence because `escape_policy::needs_emphasis_escape` over-fired on
+  adjacent delimiter runs with no body between them (`**` as plain text was being escaped to
+  `\*\*`, which then formed a strikethrough pair with surrounding `~` text on re-parse). The fix:
+  require at least one non-delimiter byte between paired delimiters before considering them an
+  emphasis candidate. See `src/cm/inline/escape_policy.rs`.
+- **`01-…in`** byte-preserved trivially under structural-preserve, but the investigation surfaced
+  a separate bug: `ir::split_frontmatter` was treating any document opening with `---\n` as
+  YAML frontmatter when no closing `---` existed, swallowing the entire document into a verbatim
+  frontmatter slab and masking the structural emit's loose-list normalisation. The fix:
+  return `(0, None)` when no closing delimiter is found, so the opener falls back to a thematic
+  break per CM. See `src/ir.rs::split_frontmatter`.
+
+## Status after prompt 47 *[historical]*
 
 Both inputs **still fail** after the iterative-draft formatter landed. The two-pass mechanism solved the bug class
 it was scoped for — flank-derived emit decisions made against fresh draft bytes, no source-byte prediction — but
