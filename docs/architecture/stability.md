@@ -1,38 +1,29 @@
 # Stability charter
 
-> **Invariant.** Every output of `Document::format` is byte-equivalent to its input wherever the input was already
-> valid Markdown, and semantically equivalent (canonical pulldown event streams agree) for any input under any
-> `FmtOptions`. The runtime gate at `Document::format_validated` enforces the semantic half; the structural half is
-> a property of every `.pretty()` method individually.
+> **Invariant.** Formatting a parsed document either preserves Markdown meaning or refuses to commit the rewrite that
+> would change it. Default formatting is identity emit modulo document-boundary normalisation; opt-in style and wrap
+> changes are transactional byte rewrites verified against document-owned parser facts.
 
-> **Sweep status.** Prompts 51–55 (v0.4.0) replaced the iterative-draft + safety-ladder design from prompt 47 with
-> a two-stage pipeline: structural emit reads source bytes only (preserve-by-default, idempotent by construction)
-> and a separate post-pass at `src/format/canonicalise.rs` rewrites bytes per `FmtOptions` style knobs, verifying
-> each rewrite locally. The two-pass convergence loop, `FlankSource`, `DraftView`, the safety ladder, the
-> `ConvergenceError` / `FormatError::DidNotConverge` pair, and `Tree::corresponding_node_map` are gone (~800 lines
-> deleted across prompts 51–52). This document reflects post-sweep state. Prompts 46 (chokepoint) and 47
-> (iterative-draft, since superseded) stay below as history. Original prompts 48–49 are **superseded** by the
-> 51–55 sweep; the redesign achieved their goals (`normalize_trailing_newline` retained for the legitimate
-> boundary case, fixed-point gate replaced by per-construct preservation).
+> **Sweep status.** The current formatter is identity emit plus a private transactional rewrite engine in
+> `mdwright-format`. The old per-construct emit machinery, convergence loop, and safety ladder are gone. Phase 59 adds
+> the parser trust boundary: `mdwright-document` converts upstream parser panics into `ParseError`, and formatter
+> verification treats parse failure as candidate rejection.
 
 mdwright's correctness today rests on three architectural choices, each one a deep module rather than a layered
 agreement between consumers:
 
-1. **One pulldown chokepoint** at `src/parse.rs::events` / `events_with_offsets`. Every `pulldown_cmark::Parser`
-   construction in production code routes through this one site. Pulldown quirks live in
-   `docs/architecture/pulldown-model.md`, drift-tested by `tests/pulldown_model.rs`.
+1. **One pulldown chokepoint** inside `mdwright-document`. Every production parser iteration is collected eagerly
+   inside that crate's panic-containment boundary. Pulldown quirks live in
+   `docs/architecture/pulldown-model.md`, drift-tested by `crates/mdwright/tests/pulldown_model.rs`.
 
-2. **Structural emit is pure source-byte preservation.** Every `.pretty()` method reads source bytes through
-   `Tree::raw_text` or a parse-time-recorded field; none consult `FmtOptions` style knobs. Idempotent by
-   construction.
+2. **Structural emit is identity.** `format_document` starts from the parsed document's canonical source bytes.
+   Default formatting reaches only document-boundary normalisation.
 
-3. **Style canonicalisation is a separate verified post-pass.** Opt-in via `FmtOptions` style knobs; default is
-   `Preserve` everywhere. Each rewrite reparses a paragraph window through the chokepoint and skips silently
-   when the parse would diverge. The pass iterates internally to a fixed point.
+3. **Style canonicalisation and wrapping are verified transactions.** Opt-in rewrites are candidates with owners,
+   ranges, ordering, overlap handling, and parse/semantic verification. A failed verification skips that candidate.
 
-The bug class that motivated the redesign — emit decisions that perturbed their own context, requiring a
-convergence loop and per-site safety ladder to recover — is unrepresentable: there is no decision point that
-reads source bytes to predict pulldown's behaviour.
+The bug class that motivated the redesign — formatter mutations that perturb their own parse context — is represented
+only as rewrite candidates. Candidates cannot commit unless the document-level verification predicate accepts them.
 
 ## The bug class *[historical context]*
 
@@ -158,18 +149,18 @@ Source::new ── canonicalise ──► CanonicalSource(&str)
 ```
 
 Every arrow that crosses a type boundary is enforced by the type of its source: only `Source::canonical()`
-produces a `CanonicalSource`; only `format::format_document` calls `pulldown::Parser` via the chokepoint. The
-only surviving crate-internal newtype from the prompt-46 era is `CanonicalSource`. `FlankSource`, `DraftView`,
-`DraftOutput`, `ConvergedOutput` were all deleted with the safety ladder in prompt 52.
+produces a `CanonicalSource`; only `mdwright-document` invokes `pulldown-cmark`, and parser panics become
+`ParseError` at that boundary. The only surviving crate-internal newtype from the prompt-46 era is `CanonicalSource`.
+`FlankSource`, `DraftView`, `DraftOutput`, `ConvergedOutput` were all deleted with the safety ladder in prompt 52.
 
 ## Public API contract
 
-- `Document::parse(source: &str) -> Document` — unchanged. Still infallible.
-- `Document::format(&self, opts: &FmtOptions) -> String` — unchanged signature, infallible.
-- `Document::format_validated(&self, opts: &FmtOptions) -> Result<String, FormatError>` — `FormatError` carries
-  only the `SemanticDivergence { formatted, diff_summary, html_a, html_b }` variant. The pre-sweep
-  `DidNotConverge` variant is gone; the convergence loop it signalled does not exist.
-- `mdwright_format::semantically_equivalent(a: &str, b: &str) -> bool` — unchanged.
+- `Document::parse(source: &str) -> Result<Document, ParseError>` — fallible at the parser trust boundary.
+- `mdwright_format::format_document(&doc, opts) -> String` — infallible over an already parsed document.
+- `mdwright_format::format_validated(&doc, opts) -> Result<String, FormatError>` — `FormatError` carries parse
+  failures and semantic divergence.
+- `mdwright_format::semantically_equivalent(a: &str, b: &str) -> Result<bool, ParseError>` — fallible because it
+  reparses both inputs to build semantic signatures.
 - `FmtOptions` style knobs default to `Preserve`. Six new fluent setters (`with_italic`, `with_strong`,
   `with_list_marker`, `with_ordered_list`, `with_thematic_break`, `with_link_def_style`) for programmatic
   callers. New `[fmt] strong = "..."` TOML key. New `[fmt] thematic-break = "..."` TOML key.

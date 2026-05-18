@@ -195,7 +195,7 @@ mod tests {
         let mut rs = RuleSet::new();
         rs.add(Box::new(InfoStringTypo::new()))
             .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let baseline = rs.check(&Document::parse(src));
+        let baseline = rs.check(&Document::parse(src)?);
         assert!(
             baseline.iter().any(|d| d.rule == "info-string-typo"),
             "baseline should report info-string-typo; got {baseline:?}"
@@ -205,7 +205,7 @@ mod tests {
         let mut rs = RuleSet::new();
         rs.add(Box::new(InfoStringTypo::with_extra(vec!["promql".to_owned()])))
             .map_err(|e| anyhow::anyhow!("{e}"))?;
-        let extended = rs.check(&Document::parse(src));
+        let extended = rs.check(&Document::parse(src)?);
         assert!(
             !extended.iter().any(|d| d.rule == "info-string-typo"),
             "extra allowlist should silence info-string-typo; got {extended:?}"

@@ -19,6 +19,8 @@
 //! allocation, it pins the invariant that `CheckpointTable::build`
 //! makes O(1) allocations regardless of document size.
 
+#![allow(clippy::expect_used, reason = "bench fixtures should fail loudly")]
+
 use std::fs;
 use std::hint::black_box;
 use std::ops::Range;
@@ -63,9 +65,9 @@ fn sample_edit_ranges(source_len: usize, count: usize) -> Vec<Range<usize>> {
 
 fn bench_editing_session(c: &mut Criterion) {
     let source = load_large_fixture();
-    let doc = Document::parse(&source);
+    let doc = Document::parse(&source).expect("fixture parses");
     let opts = FmtOptions::default();
-    let table = CheckpointTable::build(doc.source());
+    let table = CheckpointTable::from_document(&doc);
     let edits = sample_edit_ranges(doc.source().len(), 1_000);
 
     let mut g = c.benchmark_group("incremental");
@@ -98,7 +100,7 @@ fn bench_table_build(c: &mut Criterion) {
     let mut g = c.benchmark_group("incremental");
     g.bench_function("checkpoint_table_build", |b| {
         b.iter(|| {
-            let t = CheckpointTable::build(black_box(&doc));
+            let t = CheckpointTable::build(black_box(&doc)).expect("large bench fixture parses");
             black_box(t);
         });
     });

@@ -14,7 +14,7 @@
 //! them under `MathRender::None`, so the verbatim path stays
 //! exercised too.
 
-#![allow(clippy::panic)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -44,7 +44,7 @@ fn read(path: &Path) -> String {
 fn dollar_rewrites_bracket_and_paren_delimiters() {
     let path = fixture("math_render_dollar.in");
     let src = read(&path);
-    let formatted = mdwright_format::format_document(&Document::parse(&src), &dollar_opts());
+    let formatted = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &dollar_opts());
 
     // Inline `\(A\)` → `$A$`; display `\[ … \]` → `$$ … $$`. The
     // original delimiters must be gone.
@@ -68,13 +68,14 @@ fn dollar_mode_is_idempotent_on_mode() {
     for name in ["math_render_dollar.in", "math_render_roundtrip.in"] {
         let path = fixture(name);
         let src = read(&path);
-        match mdwright_format::format_validated(&Document::parse(&src), &dollar_opts()) {
+        match mdwright_format::format_validated(&Document::parse(&src).expect("fixture parses"), &dollar_opts()) {
             Ok(_) => {}
             Err(FormatError::SemanticDivergence {
                 formatted,
                 diff_summary,
                 ..
             }) => panic!("{name} not idempotent on Dollar mode: {diff_summary}\n=== formatted ===\n{formatted}"),
+            Err(FormatError::Parse(err)) => panic!("{name} formatted output did not parse: {err}"),
         }
     }
 }
@@ -83,7 +84,7 @@ fn dollar_mode_is_idempotent_on_mode() {
 fn dollar_leaves_environments_unchanged() {
     let path = fixture("math_render_roundtrip.in");
     let src = read(&path);
-    let formatted = mdwright_format::format_document(&Document::parse(&src), &dollar_opts());
+    let formatted = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &dollar_opts());
 
     // `\begin{align*}` and `\end{align*}` must survive verbatim —
     // there is no dollar form of a LaTeX environment.

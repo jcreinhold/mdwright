@@ -14,6 +14,7 @@ use std::ops::Range;
 use pulldown_cmark::{Event, Tag, TagEnd};
 
 use crate::heading::find_attr_trailer_range;
+use crate::ir::BlockCheckpointFact;
 use crate::refs::NormalisedLabel;
 use crate::source::{ByteSpan, CanonicalSource, Source};
 use crate::{Document, HeadingAttrs, ParseOptions, parse};
@@ -112,13 +113,6 @@ pub struct ParagraphHardBreak {
     pub marker_lo: usize,
     pub nl: usize,
     pub marker: &'static str,
-}
-
-/// One top-level block checkpoint in original source coordinates.
-#[derive(Copy, Clone, Debug)]
-pub struct BlockCheckpointFact {
-    pub byte: u32,
-    pub parser_state: u64,
 }
 
 impl Document {
@@ -527,11 +521,11 @@ impl Document {
     }
 
     fn events_with_offsets(&self) -> Vec<(Event<'_>, Range<usize>)> {
-        parse::events_with_offsets(
+        parse::collect_events_with_offsets(
             CanonicalSource::from_source(self.source_handle()),
             parse::options(self.parse_options()),
         )
-        .collect()
+        .unwrap_or_default()
     }
 
     fn excluded_block_ranges(&self) -> Vec<Range<usize>> {
@@ -544,8 +538,15 @@ impl Document {
 }
 
 /// Top-level block checkpoints in original source coordinates.
-#[must_use]
-pub fn top_level_block_checkpoints(source: &str, opts: ParseOptions) -> Vec<BlockCheckpointFact> {
+///
+/// # Errors
+///
+/// Returns [`crate::ParseError`] if parser execution cannot safely
+/// recognise the canonicalised source.
+pub fn top_level_block_checkpoints(
+    source: &str,
+    opts: ParseOptions,
+) -> Result<Vec<BlockCheckpointFact>, crate::ParseError> {
     let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
     let src = Source::new(source);
     let canonical = src.canonical();
@@ -575,7 +576,7 @@ pub fn top_level_block_checkpoints(source: &str, opts: ParseOptions) -> Vec<Bloc
             });
         }
     };
-    for (event, range) in parse::events_with_offsets(body, parse::options(opts)) {
+    for (event, range) in parse::collect_events_with_offsets(body, parse::options(opts))? {
         event_count = event_count.saturating_add(1);
         walk_checkpoint_event(event, range.start, &mut depth, event_count, &mut points, &try_push);
     }
@@ -585,7 +586,7 @@ pub fn top_level_block_checkpoints(source: &str, opts: ParseOptions) -> Vec<Bloc
             parser_state: parser_state_hash(depth, event_count),
         });
     }
-    points
+    Ok(points)
 }
 
 fn delimiter_matches_start(ev: &Event<'_>, kind: InlineDelimiterKind) -> bool {
@@ -1100,7 +1101,7 @@ mod tests {
 
     #[test]
     fn footnote_definition_continuation_uses_four_space_indent() {
-        let doc = Document::parse("[^long-label]: alpha beta gamma\n");
+        let doc = Document::parse("[^long-label]: alpha beta gamma\n").expect("fixture parses");
         let paragraph = doc
             .wrappable_paragraphs()
             .into_iter()
@@ -1111,7 +1112,7 @@ mod tests {
 
     #[test]
     fn definition_list_continuation_uses_marker_width_indent() {
-        let doc = Document::parse("term\n:   alpha beta gamma\n");
+        let doc = Document::parse("term\n:   alpha beta gamma\n").expect("fixture parses");
         let paragraph = doc
             .wrappable_paragraphs()
             .into_iter()

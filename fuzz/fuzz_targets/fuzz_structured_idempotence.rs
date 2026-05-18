@@ -151,7 +151,11 @@ fuzz_target!(|data: &[u8]| {
     let Ok(src) = gen_document(&mut u) else {
         return;
     };
-    let once = mdwright_format::format_document(&Document::parse(&src), &opts);
-    let twice = mdwright_format::format_document(&Document::parse(&once), &opts);
+    let Ok(doc) = Document::parse(&src) else {
+        return;
+    };
+    let once = mdwright_format::format_document(&doc, &opts);
+    let twice =
+        mdwright_format::format_document(&Document::parse(&once).expect("formatter output parses"), &opts);
     assert_eq!(once, twice, "format is not idempotent (opt byte {option_byte:#04x})");
 });

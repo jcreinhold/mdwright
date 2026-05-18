@@ -25,13 +25,13 @@ use std::sync::OnceLock;
 use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use regex::Regex;
 
-use crate::ParseOptions;
 use crate::line_index::LineIndex;
 use crate::parse;
 use crate::refs::{ReferenceTable, build_reference_table};
-use crate::source::CanonicalSource;
+use crate::source::{CanonicalSource, Source};
 use crate::tree::{Tree, TreeBuilder};
 use crate::util::regex::compile_static;
+use crate::{ParseError, ParseOptions};
 use mdwright_math::{MathConfig, MathError, MathRegion, scan_math_regions};
 
 /// A borrowed slice of source bytes plus its absolute byte range.
@@ -176,6 +176,13 @@ pub struct Suppression {
     pub raw_range: Range<usize>,
 }
 
+/// One top-level block checkpoint in canonical source coordinates.
+#[derive(Copy, Clone, Debug)]
+pub struct BlockCheckpointFact {
+    pub byte: u32,
+    pub parser_state: u64,
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SuppressionKind {
     Allow { scope: AllowScope },
@@ -209,15 +216,17 @@ pub(crate) struct Ir {
     pub(crate) math_errors: Vec<MathError>,
     pub(crate) line_index: LineIndex,
     pub(crate) tree: Tree,
+    pub(crate) block_checkpoints: Vec<BlockCheckpointFact>,
 }
 
 impl Ir {
-    #[tracing::instrument(level = "info", name = "Ir::parse", skip(src), fields(len = src.as_str().len()))]
-    pub(crate) fn parse(src: CanonicalSource<'_>, opts: ParseOptions) -> Self {
-        let source = src.as_str();
+    #[tracing::instrument(level = "info", name = "Ir::parse", skip(src), fields(len = src.canonical().len()))]
+    pub(crate) fn parse(src: &Source, opts: ParseOptions) -> Result<Self, ParseError> {
+        let canonical_src = CanonicalSource::from_source(src);
+        let source = canonical_src.as_str();
         let line_index = LineIndex::new(source);
         let (fm_end, frontmatter) = split_frontmatter(source);
-        let body = src.trusted_subrange(fm_end..source.len());
+        let body = canonical_src.trusted_subrange(fm_end..source.len());
 
         let mut builder = Builder {
             source,
@@ -243,12 +252,14 @@ impl Ir {
         // collects), then math regions are computed, then the tree
         // is built — the tree builder needs math regions so it can
         // splice `NodeKind::Math` leaves at recognised positions.
-        let events: Vec<(Event<'_>, Range<usize>)> = parse::events_with_offsets(body, parse::options(opts))
+        let events: Vec<(Event<'_>, Range<usize>)> = parse::collect_events_with_offsets(body, parse::options(opts))?
+            .into_iter()
             .map(|(e, r)| {
                 let abs = r.start.saturating_add(fm_end)..r.end.saturating_add(fm_end);
                 (e, abs)
             })
             .collect();
+        let block_checkpoints = build_block_checkpoints(source, &events);
         for (event, abs) in &events {
             builder.handle(event.clone(), abs.clone());
         }
@@ -283,7 +294,7 @@ impl Ir {
         let suppressions = scan_suppressions(&builder.html_blocks);
         let tree = tree_builder.finalize(&refs);
 
-        Self {
+        Ok(Self {
             prose_chunks: builder.prose_chunks,
             inline_codes: builder.inline_codes,
             code_blocks: builder.code_blocks,
@@ -298,7 +309,8 @@ impl Ir {
             math_errors,
             line_index,
             tree,
-        }
+            block_checkpoints,
+        })
     }
 
     pub(crate) fn line_index(&self) -> &LineIndex {
@@ -313,10 +325,137 @@ impl Ir {
     /// [`Source`]: crate::source::Source
     /// [`CanonicalSource`]: crate::source::CanonicalSource
     #[cfg(test)]
+    #[allow(clippy::expect_used, reason = "test helper rejects invalid fixtures")]
     pub(crate) fn parse_str(src: &str) -> Self {
         let source = crate::source::Source::new(src);
-        Self::parse(CanonicalSource::from_source(&source), crate::ParseOptions::default())
+        Self::parse(&source, crate::ParseOptions::default()).expect("test Markdown parses")
     }
+}
+
+fn build_block_checkpoints(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<BlockCheckpointFact> {
+    let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
+    let cap = (source.len() / 64).saturating_add(2);
+    let mut points = Vec::with_capacity(cap);
+    points.push(BlockCheckpointFact {
+        byte: 0,
+        parser_state: 0,
+    });
+
+    let mut depth: u32 = 0;
+    let mut event_count: u32 = 0;
+    let try_push = |points: &mut Vec<BlockCheckpointFact>, range_start: usize, depth: u32, event_count: u32| {
+        let byte = u32::try_from(range_start).unwrap_or(u32::MAX);
+        if points.last().is_none_or(|last| last.byte < byte) {
+            points.push(BlockCheckpointFact {
+                byte,
+                parser_state: parser_state_hash(depth, event_count),
+            });
+        }
+    };
+    for (event, range) in events {
+        event_count = event_count.saturating_add(1);
+        walk_checkpoint_event(
+            event.clone(),
+            range.start,
+            &mut depth,
+            event_count,
+            &mut points,
+            &try_push,
+        );
+    }
+    if points.last().is_none_or(|last| last.byte < source_len) {
+        points.push(BlockCheckpointFact {
+            byte: source_len,
+            parser_state: parser_state_hash(depth, event_count),
+        });
+    }
+    points
+}
+
+fn walk_checkpoint_event(
+    event: Event<'_>,
+    range_start: usize,
+    depth: &mut u32,
+    event_count: u32,
+    points: &mut Vec<BlockCheckpointFact>,
+    try_push: &impl Fn(&mut Vec<BlockCheckpointFact>, usize, u32, u32),
+) {
+    match event {
+        Event::Start(tag) if *depth == 0 && is_top_level_block(&tag) => {
+            try_push(points, range_start, *depth, event_count);
+            if is_container(&tag) {
+                *depth = depth.saturating_add(1);
+            }
+        }
+        Event::Start(tag) if is_container(&tag) => {
+            *depth = depth.saturating_add(1);
+        }
+        Event::End(end) if is_container_end(end) => {
+            *depth = depth.saturating_sub(1);
+        }
+        Event::Rule if *depth == 0 => {
+            try_push(points, range_start, *depth, event_count);
+        }
+        Event::Start(_)
+        | Event::End(_)
+        | Event::Text(_)
+        | Event::Code(_)
+        | Event::InlineMath(_)
+        | Event::DisplayMath(_)
+        | Event::Html(_)
+        | Event::InlineHtml(_)
+        | Event::FootnoteReference(_)
+        | Event::SoftBreak
+        | Event::HardBreak
+        | Event::Rule
+        | Event::TaskListMarker(_) => {}
+    }
+}
+
+fn is_top_level_block(tag: &Tag<'_>) -> bool {
+    matches!(
+        tag,
+        Tag::Paragraph
+            | Tag::Heading { .. }
+            | Tag::BlockQuote(_)
+            | Tag::CodeBlock(_)
+            | Tag::HtmlBlock
+            | Tag::List(_)
+            | Tag::Table(_)
+            | Tag::FootnoteDefinition(_)
+    )
+}
+
+fn is_container(tag: &Tag<'_>) -> bool {
+    matches!(
+        tag,
+        Tag::BlockQuote(_)
+            | Tag::List(_)
+            | Tag::Item
+            | Tag::FootnoteDefinition(_)
+            | Tag::Table(_)
+            | Tag::TableHead
+            | Tag::TableRow
+            | Tag::TableCell
+    )
+}
+
+fn is_container_end(end: TagEnd) -> bool {
+    matches!(
+        end,
+        TagEnd::BlockQuote(_)
+            | TagEnd::List(_)
+            | TagEnd::Item
+            | TagEnd::FootnoteDefinition
+            | TagEnd::Table
+            | TagEnd::TableHead
+            | TagEnd::TableRow
+            | TagEnd::TableCell
+    )
+}
+
+fn parser_state_hash(depth: u32, event_count: u32) -> u64 {
+    (u64::from(depth) << 32) | u64::from(event_count)
 }
 
 /// Walks the pulldown-cmark event stream and accumulates IR fields.

@@ -102,7 +102,7 @@ use mdwright_lint::RuleSet;
 let mut rules = RuleSet::stdlib_defaults();
 rules.add(Box::new(NoTodoInProse)).expect("unique name");
 
-let doc = Document::parse("My TODO: write the docs.");
+let doc = Document::parse("My TODO: write the docs.")?;
 let diagnostics = rules.check(&doc);
 ```
 

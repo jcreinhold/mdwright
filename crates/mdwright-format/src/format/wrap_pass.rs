@@ -405,12 +405,13 @@ fn badness(line_w: u32, target: u32, is_last_line: bool, boxes_on_line: usize) -
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use crate::{FmtOptions, Wrap};
 
     fn wrap(input: &str, mode: Wrap) -> String {
         crate::format_document(
-            &mdwright_document::Document::parse(input),
+            &mdwright_document::Document::parse(input).expect("fixture parses"),
             &FmtOptions::default().with_wrap(mode),
         )
     }

@@ -324,6 +324,23 @@ fn config_schema_uses_parse_extensions() {
 }
 
 #[test]
+fn fuzz_artifact_directories_are_clean() {
+    let artifact_root = repo_file("fuzz/artifacts");
+    let mut files = Vec::new();
+    collect_files(&artifact_root, &mut files);
+    files.retain(|path| path.is_file());
+    assert!(
+        files.is_empty(),
+        "fuzz artifacts must be diagnosed, minimised into regressions, or deleted before commit:\n{}",
+        files
+            .iter()
+            .map(|path| format!("  {}", path.display()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+#[test]
 fn internal_workspace_dependencies_are_versioned_paths() {
     let manifest = fs::read_to_string(repo_file("Cargo.toml")).expect("read root Cargo.toml");
     let value: toml::Value = toml::from_str(&manifest).expect("parse root Cargo.toml");

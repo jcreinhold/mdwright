@@ -9,6 +9,8 @@
 //! single-digit seconds; lint on this crate should land in the tens
 //! of milliseconds. Numbers are machine-local; do not commit them.
 
+#![allow(clippy::expect_used, reason = "bench fixtures should fail loudly")]
+
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -96,8 +98,12 @@ fn bench_parse(c: &mut Criterion) {
     let medium = load_fixture("medium.md");
 
     let mut g = c.benchmark_group("parse");
-    g.bench_function("small", |b| b.iter(|| Document::parse(black_box(&small))));
-    g.bench_function("medium", |b| b.iter(|| Document::parse(black_box(&medium))));
+    g.bench_function("small", |b| {
+        b.iter(|| Document::parse(black_box(&small)).expect("small bench fixture parses"));
+    });
+    g.bench_function("medium", |b| {
+        b.iter(|| Document::parse(black_box(&medium)).expect("medium bench fixture parses"));
+    });
     g.finish();
 }
 
@@ -108,8 +114,8 @@ fn bench_lint(c: &mut Criterion) {
     let all = RuleSet::stdlib_all();
 
     // Lint-only: parse outside `b.iter` so we measure the rule loop.
-    let small_doc = Document::parse(&small);
-    let medium_doc = Document::parse(&medium);
+    let small_doc = Document::parse(&small).expect("fixture parses");
+    let medium_doc = Document::parse(&medium).expect("fixture parses");
 
     {
         let mut g = c.benchmark_group("lint");
@@ -133,13 +139,13 @@ fn bench_lint(c: &mut Criterion) {
         let mut g = c.benchmark_group("parse_plus_lint");
         g.bench_function("defaults/small", |b| {
             b.iter(|| {
-                let d = Document::parse(black_box(&small));
+                let d = Document::parse(black_box(&small)).expect("small bench fixture parses");
                 black_box(black_box(&defaults).check(&d))
             });
         });
         g.bench_function("defaults/medium", |b| {
             b.iter(|| {
-                let d = Document::parse(black_box(&medium));
+                let d = Document::parse(black_box(&medium)).expect("medium bench fixture parses");
                 black_box(black_box(&defaults).check(&d))
             });
         });
@@ -157,7 +163,7 @@ fn bench_corpus(c: &mut Criterion) {
     g.bench_function("none", |b| {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
-                let d = Document::parse(black_box(src));
+                let d = Document::parse(black_box(src)).expect("corpus bench fixture parses");
                 black_box(d);
             });
         });
@@ -165,7 +171,7 @@ fn bench_corpus(c: &mut Criterion) {
     g.bench_function("defaults", |b| {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
-                let d = Document::parse(black_box(src));
+                let d = Document::parse(black_box(src)).expect("corpus bench fixture parses");
                 black_box(black_box(&defaults).check(&d));
             });
         });
@@ -173,7 +179,7 @@ fn bench_corpus(c: &mut Criterion) {
     g.bench_function("all", |b| {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
-                let d = Document::parse(black_box(src));
+                let d = Document::parse(black_box(src)).expect("corpus bench fixture parses");
                 black_box(black_box(&all).check(&d));
             });
         });

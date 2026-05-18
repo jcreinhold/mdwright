@@ -9,6 +9,8 @@
 //! JSON serialisation) stay outside `b.iter()` — only the steady-state
 //! parse + format work is measured.
 
+#![allow(clippy::expect_used, reason = "bench fixtures should fail loudly")]
+
 use std::hint::black_box;
 
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -41,7 +43,7 @@ fn parse_format(c: &mut Criterion) {
     let mut group = c.benchmark_group("parse_format");
     group.bench_function(id, |b| {
         b.iter(|| {
-            let doc = Document::parse(black_box(buf.as_str()));
+            let doc = Document::parse(black_box(buf.as_str())).expect("synthetic bench fixture parses");
             black_box(mdwright_format::format_document(&doc, black_box(&opts)))
         });
     });

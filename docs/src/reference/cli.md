@@ -6,7 +6,7 @@ Auto-generated from clap's `--help` output by `cargo xtask doc-cli`. Edit the CL
 ## `mdwright`
 
 ```text
-Lints Markdown for stylistic and structural issues, with a public rule trait so projects can extend the standard library. A round-trip formatter follows in a later phase.
+Lints Markdown for stylistic and structural issues, with a public rule trait so projects can extend the standard library, plus a verified round-trip formatter.
 
 Usage: mdwright [OPTIONS] <COMMAND>
 

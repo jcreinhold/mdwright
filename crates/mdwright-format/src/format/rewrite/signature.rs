@@ -20,7 +20,13 @@ pub(crate) fn verify_batch(
         .iter()
         .all(|c| matches!(c.verification(), Verification::PreserveMarkdownAndMath))
     {
-        return markdown_and_math_signature(before, parse_options) == markdown_and_math_signature(after, parse_options);
+        return match (
+            markdown_and_math_signature(before, parse_options),
+            markdown_and_math_signature(after, parse_options),
+        ) {
+            (Ok(before_sig), Ok(after_sig)) => before_sig == after_sig,
+            _ => false,
+        };
     }
     candidates
         .first()
@@ -36,7 +42,13 @@ pub(crate) fn verify_one(
 ) -> bool {
     match candidate.verification() {
         Verification::PreserveMarkdownAndMath => {
-            markdown_and_math_signature(before, parse_options) == markdown_and_math_signature(after, parse_options)
+            match (
+                markdown_and_math_signature(before, parse_options),
+                markdown_and_math_signature(after, parse_options),
+            ) {
+                (Ok(before_sig), Ok(after_sig)) => before_sig == after_sig,
+                _ => false,
+            }
         }
         Verification::MathRewrite => verify_math_rewrite(before, after, candidate.range(), opts, parse_options),
         Verification::RemoveFrontmatter => verify_frontmatter_removal(before, after, candidate.range(), parse_options),
@@ -46,10 +58,10 @@ pub(crate) fn verify_one(
 fn markdown_and_math_signature(
     source: &str,
     parse_options: ParseOptions,
-) -> (mdwright_document::MarkdownSignature, Vec<MathSig>) {
-    let events = markdown_signature(source, parse_options);
-    let math = math_signature(source, parse_options);
-    (events, math)
+) -> Result<(mdwright_document::MarkdownSignature, Vec<MathSig>), mdwright_document::ParseError> {
+    let events = markdown_signature(source, parse_options)?;
+    let math = math_signature(source, parse_options)?;
+    Ok((events, math))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -65,9 +77,10 @@ enum MathKindSig {
     Environment(String),
 }
 
-fn math_signature(source: &str, parse_options: ParseOptions) -> Vec<MathSig> {
-    let doc = Document::parse_with_options(source, parse_options);
-    doc.math_regions()
+fn math_signature(source: &str, parse_options: ParseOptions) -> Result<Vec<MathSig>, mdwright_document::ParseError> {
+    let doc = Document::parse_with_options(source, parse_options)?;
+    Ok(doc
+        .math_regions()
         .iter()
         .map(|region| {
             let span = region.span();
@@ -81,7 +94,7 @@ fn math_signature(source: &str, parse_options: ParseOptions) -> Vec<MathSig> {
                 body: span.body().as_str(source).into_owned(),
             }
         })
-        .collect()
+        .collect())
 }
 
 fn verify_math_rewrite(
@@ -94,7 +107,9 @@ fn verify_math_rewrite(
     if !changed_only_at(before, after, range) {
         return false;
     }
-    let before_doc = Document::parse_with_options(before, parse_options);
+    let Ok(before_doc) = Document::parse_with_options(before, parse_options) else {
+        return false;
+    };
     let Some(before_region) = before_doc
         .math_regions()
         .iter()
@@ -108,7 +123,9 @@ fn verify_math_rewrite(
         return verify_dollar_math_replacement(before, after, range, before_region.span());
     }
 
-    let after_doc = Document::parse_with_options(after, parse_options);
+    let Ok(after_doc) = Document::parse_with_options(after, parse_options) else {
+        return false;
+    };
     let Some(after_region) = after_doc
         .math_regions()
         .iter()
@@ -159,12 +176,15 @@ fn verify_frontmatter_removal(before: &str, after: &str, range: &Range<usize>, p
     if range.start != 0 {
         return false;
     }
-    let doc = Document::parse_with_options(before, parse_options);
+    let Ok(doc) = Document::parse_with_options(before, parse_options) else {
+        return false;
+    };
     let Some(frontmatter) = doc.frontmatter() else {
         return false;
     };
     if range.start != frontmatter.slice.raw_range.start || range.end < frontmatter.slice.raw_range.end {
         return false;
     }
-    before.get(range.end..) == Some(after) && semantically_equivalent_with_options(after, after, parse_options)
+    before.get(range.end..) == Some(after)
+        && semantically_equivalent_with_options(after, after, parse_options).unwrap_or(false)
 }

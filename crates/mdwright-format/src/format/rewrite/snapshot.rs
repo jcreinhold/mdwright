@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::format::rewrite::candidate::{Candidate, Phase, Verification};
-use mdwright_document::{Document, ParseOptions, StructuralKind};
+use mdwright_document::{Document, ParseError, ParseOptions, StructuralKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) struct OwnerId(usize);
@@ -42,8 +42,8 @@ pub(crate) struct Snapshot<'a> {
 }
 
 impl<'a> Snapshot<'a> {
-    pub(crate) fn new(source: &'a str, parse_options: ParseOptions) -> Self {
-        let document = Document::parse_with_options(source, parse_options);
+    pub(crate) fn new(source: &'a str, parse_options: ParseOptions) -> Result<Self, ParseError> {
+        let document = Document::parse_with_options(source, parse_options)?;
         let mut snapshot = Self {
             source,
             document,
@@ -56,7 +56,7 @@ impl<'a> Snapshot<'a> {
         snapshot.collect_event_owners();
         snapshot.collect_document_owners();
         snapshot.collect_reference_destination_sites();
-        snapshot
+        Ok(snapshot)
     }
 
     pub(crate) fn source(&self) -> &'a str {
@@ -216,13 +216,13 @@ mod tests {
 
     #[test]
     fn reference_definition_sites_skip_html_block_contents() {
-        let snapshot = Snapshot::new("<?J\n\n[_]:#", ParseOptions::default());
+        let snapshot = Snapshot::new("<?J\n\n[_]:#", ParseOptions::default()).expect("snapshot parses");
         assert!(snapshot.reference_destination_sites().is_empty());
     }
 
     #[test]
     fn candidate_requires_owner_to_cover_range() {
-        let snapshot = Snapshot::new("# h\n\nx\n", ParseOptions::default());
+        let snapshot = Snapshot::new("# h\n\nx\n", ParseOptions::default()).expect("snapshot parses");
         let owner = snapshot.find_owner(OwnerKind::Heading, &(0..3)).expect("heading owner");
         assert!(
             snapshot

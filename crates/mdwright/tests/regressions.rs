@@ -10,6 +10,7 @@
 //! itself is the regression test — this driver just makes sure the
 //! same input does not regress idempotence.
 
+#![allow(clippy::expect_used, reason = "test fixtures should fail loudly")]
 #![allow(clippy::panic, clippy::format_collect)]
 
 use std::fs;
@@ -76,7 +77,7 @@ fn regression_inputs_preserve_html() {
             continue;
         }
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-        let doc = Document::parse(&src);
+        let doc = Document::parse(&src).expect("fixture parses");
         if let Err(FormatError::SemanticDivergence {
             formatted,
             diff_summary,
@@ -105,8 +106,8 @@ fn regression_inputs_are_idempotent() {
     let mut failures: Vec<(PathBuf, String, String)> = Vec::new();
     for path in input_files(&regressions_dir()) {
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-        let once = mdwright_format::format_document(&Document::parse(&src), &opts);
-        let twice = mdwright_format::format_document(&Document::parse(&once), &opts);
+        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
+        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
         if once != twice {
             failures.push((path, once, twice));
         }

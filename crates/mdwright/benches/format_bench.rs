@@ -14,6 +14,8 @@
 //!
 //! Numbers from these benches are machine-local; do not commit them.
 
+#![allow(clippy::expect_used, reason = "bench fixtures should fail loudly")]
+
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -98,8 +100,8 @@ fn bench_format(c: &mut Criterion) {
     let medium = load_fixture("medium.md");
     let opts = FmtOptions::default();
 
-    let small_doc = Document::parse(&small);
-    let medium_doc = Document::parse(&medium);
+    let small_doc = Document::parse(&small).expect("fixture parses");
+    let medium_doc = Document::parse(&medium).expect("fixture parses");
 
     {
         let mut g = c.benchmark_group("format");
@@ -115,13 +117,13 @@ fn bench_format(c: &mut Criterion) {
         let mut g = c.benchmark_group("parse_plus_format");
         g.bench_function("small", |b| {
             b.iter(|| {
-                let d = Document::parse(black_box(&small));
+                let d = Document::parse(black_box(&small)).expect("small bench fixture parses");
                 black_box(mdwright_format::format_document(&d, black_box(&opts)))
             });
         });
         g.bench_function("medium", |b| {
             b.iter(|| {
-                let d = Document::parse(black_box(&medium));
+                let d = Document::parse(black_box(&medium)).expect("medium bench fixture parses");
                 black_box(mdwright_format::format_document(&d, black_box(&opts)))
             });
         });
@@ -131,7 +133,7 @@ fn bench_format(c: &mut Criterion) {
 
 fn bench_format_wrap(c: &mut Criterion) {
     let medium = load_fixture("medium.md");
-    let medium_doc = Document::parse(&medium);
+    let medium_doc = Document::parse(&medium).expect("fixture parses");
 
     let mut g = c.benchmark_group("format/wrap");
     for (label, wrap) in [
@@ -159,7 +161,7 @@ fn bench_format_corpus(c: &mut Criterion) {
     g.bench_function("none-wrap", |b| {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
-                let d = Document::parse(black_box(src));
+                let d = Document::parse(black_box(src)).expect("corpus bench fixture parses");
                 black_box(mdwright_format::format_document(&d, black_box(&opts_default)));
             });
         });
@@ -168,7 +170,7 @@ fn bench_format_corpus(c: &mut Criterion) {
     g.bench_function("wrap-100", |b| {
         b.iter(|| {
             sources.par_iter().for_each(|src| {
-                let d = Document::parse(black_box(src));
+                let d = Document::parse(black_box(src)).expect("corpus bench fixture parses");
                 black_box(mdwright_format::format_document(&d, black_box(&opts_wrap100)));
             });
         });
@@ -194,8 +196,8 @@ fn bench_tracing_disabled(c: &mut Criterion) {
     let small = load_fixture("small.md");
     let medium = load_fixture("medium.md");
     let opts = FmtOptions::default();
-    let small_doc = Document::parse(&small);
-    let medium_doc = Document::parse(&medium);
+    let small_doc = Document::parse(&small).expect("fixture parses");
+    let medium_doc = Document::parse(&medium).expect("fixture parses");
 
     let mut g = c.benchmark_group("tracing_disabled");
     g.bench_function("format/small", |b| {
@@ -206,7 +208,7 @@ fn bench_tracing_disabled(c: &mut Criterion) {
     });
     g.bench_function("parse_plus_format/medium", |b| {
         b.iter(|| {
-            let d = Document::parse(black_box(&medium));
+            let d = Document::parse(black_box(&medium)).expect("medium bench fixture parses");
             black_box(mdwright_format::format_document(&d, black_box(&opts)))
         });
     });

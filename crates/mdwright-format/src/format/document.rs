@@ -8,9 +8,9 @@
 //! [`crate::format::canonicalise`]) or in a post-pass on the rendered
 //! bytes.
 
-use crate::FmtOptions;
 use crate::format::rewrite;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
+use crate::{FmtOptions, FormatReport};
 use mdwright_document::ParseOptions;
 
 /// Format `source` per `opts`. Returns the resulting string.
@@ -22,12 +22,33 @@ use mdwright_document::ParseOptions;
 /// verifies before commit so a failed rewrite silently skips and the
 /// source bytes survive.
 pub(crate) fn format_document(source: &str, opts: &FmtOptions, parse_options: ParseOptions) -> String {
+    format_document_with_report(source, opts, parse_options).0
+}
+
+pub(crate) fn format_document_with_report(
+    source: &str,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+) -> (String, FormatReport) {
     let mut out = source.to_string();
+    let mut report = FormatReport::default();
     let has_canonicalisation = opts.has_any_canonicalisation();
     let has_wrap = !matches!(opts.wrap(), crate::Wrap::Keep);
 
     if has_canonicalisation || has_wrap {
-        out = rewrite::apply_rewrites(&out, opts, parse_options);
+        match rewrite::apply_rewrites(&out, opts, parse_options) {
+            Ok((rewritten, rewrite_report)) => {
+                out = rewritten;
+                report = rewrite_report;
+            }
+            Err(err) => {
+                tracing::warn!(
+                    target: "mdwright::rewrite",
+                    error = %err,
+                    "rewrite snapshot parse failed; leaving source bytes unchanged",
+                );
+            }
+        }
     }
     // Defensive: `Source::canonical()` already normalises CR/CRLF to LF
     // before parse, so `source` here is LF-only in practice. The pass is a
@@ -36,10 +57,11 @@ pub(crate) fn format_document(source: &str, opts: &FmtOptions, parse_options: Pa
     normalize_line_endings_lf(&mut out);
     normalize_trailing_newline(&mut out, opts.trailing_newline(), source);
     apply_end_of_line(&mut out, opts.end_of_line(), source);
-    out
+    (out, report)
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use crate::{
         FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
@@ -65,8 +87,11 @@ mod tests {
     fn canonicalise_and_wrap_converge_when_wrap_exposes_delimiters() {
         let src = "!*-\r__+*\r\\\n}";
         let opts = all_underscore_and_dash_opts();
-        let once = crate::format_document(&mdwright_document::Document::parse(src), &opts);
-        let twice = crate::format_document(&mdwright_document::Document::parse(&once), &opts);
+        let once = crate::format_document(&mdwright_document::Document::parse(src).expect("source parses"), &opts);
+        let twice = crate::format_document(
+            &mdwright_document::Document::parse(&once).expect("output parses"),
+            &opts,
+        );
         assert_eq!(once, twice);
     }
 }

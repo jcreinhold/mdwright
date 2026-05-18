@@ -84,8 +84,8 @@ pub fn run_with_rules(rules: RuleSet) -> ExitCode {
     version,
     about = "Math-resilient Markdown linter and formatter",
     long_about = "Lints Markdown for stylistic and structural issues, with a public \
-                  rule trait so projects can extend the standard library. A \
-                  round-trip formatter follows in a later phase."
+                  rule trait so projects can extend the standard library, plus a \
+                  verified round-trip formatter."
 )]
 struct Cli {
     /// Explicit path to a config file. When omitted, mdwright walks
@@ -421,9 +421,9 @@ fn run_render(args: &RenderArgs, config_path: Option<&std::path::Path>, policy: 
         joined
     };
 
-    let doc = Document::parse_with_options(&source, cfg.parse_options());
+    let doc = Document::parse_with_options(&source, cfg.parse_options())?;
     let formatted = format_document(&doc, &opts);
-    let html = render_html(&formatted);
+    let html = render_html(&formatted)?;
     let stdout = io::stdout();
     let mut out = stdout.lock();
     out.write_all(html.as_bytes())?;
@@ -586,6 +586,7 @@ fn run_fmt(
 
     let changed = AtomicUsize::new(0);
     let divergent = AtomicUsize::new(0);
+    let parse_errors = AtomicUsize::new(0);
     let stdout_lock = Mutex::new(());
     let stderr_lock = Mutex::new(());
     let validate = !args.no_validate;
@@ -595,10 +596,28 @@ fn run_fmt(
         .map(|path| -> Result<()> {
             let source = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
             enforce_input_policy(&path.display().to_string(), &source, policy)?;
-            let doc = Document::parse_with_options(&source, parse_options);
+            let doc = match Document::parse_with_options(&source, parse_options) {
+                Ok(doc) => doc,
+                Err(err) => {
+                    parse_errors.fetch_add(1, Ordering::Relaxed);
+                    let guard = stderr_lock.lock().map_err(|_| anyhow!("stderr lock poisoned"))?;
+                    let mut stderr = io::stderr().lock();
+                    writeln!(stderr, "mdwright: cannot parse {}: {err}", path.display())?;
+                    drop(guard);
+                    return Ok(());
+                }
+            };
             let formatted = if validate {
                 match format_validated(&doc, &opts) {
                     Ok(s) => s,
+                    Err(FormatError::Parse(err)) => {
+                        parse_errors.fetch_add(1, Ordering::Relaxed);
+                        let guard = stderr_lock.lock().map_err(|_| anyhow!("stderr lock poisoned"))?;
+                        let mut stderr = io::stderr().lock();
+                        writeln!(stderr, "mdwright: cannot verify {}: {err}", path.display())?;
+                        drop(guard);
+                        return Ok(());
+                    }
                     Err(FormatError::SemanticDivergence { source: src, formatted, diff_summary }) => {
                         divergent.fetch_add(1, Ordering::Relaxed);
                         let guard = stderr_lock.lock().map_err(|_| anyhow!("stderr lock poisoned"))?;
@@ -641,7 +660,8 @@ fn run_fmt(
 
     let changed = changed.load(Ordering::Relaxed);
     let divergent = divergent.load(Ordering::Relaxed);
-    if divergent > 0 {
+    let parse_errors = parse_errors.load(Ordering::Relaxed);
+    if parse_errors > 0 || divergent > 0 {
         Ok(ExitCode::from(2))
     } else if check && changed > 0 {
         Ok(ExitCode::from(1))
@@ -687,8 +707,8 @@ fn run_fmt_range_stdin(
     if hi < lo {
         bail!("range end ({hi}) precedes range start ({lo})");
     }
-    let doc = Document::parse_with_options(&buf, parse_options);
-    let table = CheckpointTable::build_with_options(doc.source(), parse_options);
+    let doc = Document::parse_with_options(&buf, parse_options)?;
+    let table = CheckpointTable::from_document(&doc);
     let formatted = format_range_with_checkpoints(&doc, opts, &table, lo..hi);
     let stdout = io::stdout();
     let mut out = stdout.lock();
@@ -709,12 +729,13 @@ fn run_fmt_stdin(
         .map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
     let mut buf = String::new();
     read_stdin_capped(&mut buf, policy, &name)?;
-    let doc = Document::parse_with_options(&buf, parse_options);
+    let doc = Document::parse_with_options(&buf, parse_options)?;
     let formatted = if args.no_validate {
         format_document(&doc, opts)
     } else {
         match format_validated(&doc, opts) {
             Ok(s) => s,
+            Err(FormatError::Parse(err)) => return Err(err.into()),
             Err(FormatError::SemanticDivergence { diff_summary, .. }) => {
                 let mut err = io::stderr().lock();
                 writeln!(
@@ -829,14 +850,28 @@ fn run_lint(
     let totals = AtomicUsize::new(0);
     let non_advisory = AtomicUsize::new(0);
     let fixed = AtomicUsize::new(0);
+    let parse_errors = AtomicUsize::new(0);
     let stdout_lock = Mutex::new(());
+    let stderr_lock = Mutex::new(());
 
     let results: Vec<Result<()>> = files
         .par_iter()
         .map(|path| -> Result<()> {
             let source = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
             enforce_input_policy(&path.display().to_string(), &source, policy)?;
-            let doc = Document::parse_with_options(&source, parse_options);
+            let doc = match Document::parse_with_options(&source, parse_options) {
+                Ok(doc) => doc,
+                Err(err) => {
+                    parse_errors.fetch_add(1, Ordering::Relaxed);
+                    let guard = stderr_lock
+                        .lock()
+                        .map_err(|_| anyhow::anyhow!("stderr lock poisoned"))?;
+                    let mut stderr = io::stderr().lock();
+                    writeln!(stderr, "mdwright: cannot parse {}: {err}", path.display())?;
+                    drop(guard);
+                    return Ok(());
+                }
+            };
             let diags = rules.check_with(&doc, lint_opts);
             let count = diags.len();
             let non_adv = diags.iter().filter(|d| !d.advisory).count();
@@ -846,7 +881,7 @@ fn run_lint(
                 if n > 0 && new_src != source {
                     fs::write(path, &new_src).with_context(|| format!("write {}", path.display()))?;
                 }
-                let post_doc = Document::parse_with_options(&new_src, parse_options);
+                let post_doc = Document::parse_with_options(&new_src, parse_options)?;
                 let post_diags = rules.check_with(&post_doc, lint_opts);
                 (new_src, post_diags, n)
             } else {
@@ -891,6 +926,7 @@ fn run_lint(
     let total = totals.load(Ordering::Relaxed);
     let non_adv = non_advisory.load(Ordering::Relaxed);
     let applied = fixed.load(Ordering::Relaxed);
+    let parse_errors = parse_errors.load(Ordering::Relaxed);
 
     if matches!(args.format, OutputFormat::Pretty) {
         let stdout = io::stdout();
@@ -911,7 +947,9 @@ fn run_lint(
         }
     }
 
-    if args.check && non_adv > 0 {
+    if parse_errors > 0 {
+        Ok(ExitCode::from(2))
+    } else if args.check && non_adv > 0 {
         Ok(ExitCode::from(1))
     } else {
         Ok(ExitCode::SUCCESS)
@@ -991,7 +1029,7 @@ fn run_stdin(
     let mut buf = String::new();
     read_stdin_capped(&mut buf, policy, "<stdin>")?;
 
-    let doc = Document::parse_with_options(&buf, parse_options);
+    let doc = Document::parse_with_options(&buf, parse_options)?;
     let diags = rules.check_with(&doc, lint_opts);
     let non_adv = diags.iter().filter(|d| !d.advisory).count();
 

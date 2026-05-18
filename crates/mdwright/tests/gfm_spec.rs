@@ -1,4 +1,5 @@
 #![allow(
+    clippy::expect_used,
     clippy::panic,
     clippy::indexing_slicing,
     reason = "test harness; failure modes are aggregated assertions, not panics for users"
@@ -163,9 +164,9 @@ const KIND_SEMANTIC: &str = "semantic";
 fn run_case(case: &SpecCase) -> Vec<&'static str> {
     let mut kinds = Vec::new();
     let opts = FmtOptions::default();
-    let formatted = mdwright_format::format_document(&Document::parse(&case.source), &opts);
+    let formatted = mdwright_format::format_document(&Document::parse(&case.source).expect("fixture parses"), &opts);
 
-    let refmt = mdwright_format::format_document(&Document::parse(&formatted), &opts);
+    let refmt = mdwright_format::format_document(&Document::parse(&formatted).expect("fixture parses"), &opts);
     if refmt != formatted {
         kinds.push(KIND_IDEMPOTENCE);
         // If the formatter is not idempotent on this case, the
@@ -173,7 +174,7 @@ fn run_case(case: &SpecCase) -> Vec<&'static str> {
         return kinds;
     }
 
-    if !semantically_equivalent(&case.source, &formatted) {
+    if !semantically_equivalent(&case.source, &formatted).expect("GFM fixture parses") {
         kinds.push(KIND_SEMANTIC);
     }
     kinds

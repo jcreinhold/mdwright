@@ -88,9 +88,9 @@ when intentionally rebaselined.
 |---|---|---|
 | `fuzz_idempotence` | `format(format(s)) == format(s)` | Yes — drives wrap × mode × math × canonicalisation |
 | `fuzz_parse_format` | `semantically_equivalent(s, format(s))` | Yes — same allocation as `fuzz_idempotence` |
-| `fuzz_structured_idempotence` | Structural-only idempotence with `FormatMode::Verbatim` excluded | No |
-| `fuzz_verbatim_identity` | `FormatMode::Verbatim` emits source byte-for-byte | No |
-| `fuzz_lint` | Formatter does not invent new default-on diagnostics | No |
+| `fuzz_structured_idempotence` | Structured-document idempotence over generated Markdown | Yes |
+| `fuzz_verbatim_identity` | Default options are identity modulo document-boundary normalisations | No |
+| `fuzz_lint` | Standard lint rules do not panic and diagnostics are deterministic/in-bounds | No |
 
 **Option byte allocation** (`fuzz_idempotence` and `fuzz_parse_format`, identical):
 
@@ -98,12 +98,20 @@ when intentionally rebaselined.
 |-------|-------|
 | 0–1   | `wrap` (Keep, No, At(80), At(120)) |
 | 2     | `math.normalise` |
-| 3     | `mode` (Normalise, Verbatim) |
+| 3     | reserved for corpus continuity |
 | 4–7   | Canonicalisation mode (16 enumerated: preserve, one per style knob, two combined) |
 
-**Invariant:** no input causes a panic or property violation in 10 minutes (the
-reference budget the prompt-49 reverification used). Findings are committed to
-`tests/regressions/` as `.in` fixtures.
+**Invariant:** no input causes a panic or property violation in 10 minutes. Parser implementation panics are converted
+to `ParseError` at the `mdwright-document` boundary, so fuzz targets discard parse errors through normal `Result`
+handling rather than wrapping product calls in `catch_unwind`. Findings are committed to
+`crates/mdwright/tests/regressions/` as `.in` fixtures.
+
+## Production soak
+
+`cargo xtask production-soak --corpus-root /path/to/kan` runs parser, lint, format-validation, idempotence, and
+fmt-check checks over the Kan corpus from `crates/mdwright/benches/corpus.list` plus representative external Markdown
+fixtures. The command reports parse errors, validation failures, idempotence failures, fmt-check disagreements, rewrite
+candidate totals, maximum file size, and slowest files.
 
 **Does NOT cover:** behaviour beyond `MAX_INPUT = 65 536` bytes; the libFuzzer harness
 skips bigger inputs. The CLI enforces the same shape via `--max-input-bytes`.

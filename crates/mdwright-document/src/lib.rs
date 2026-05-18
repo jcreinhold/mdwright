@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod document;
+mod error;
 mod format_facts;
 mod heading;
 mod ir;
@@ -13,15 +14,16 @@ mod tree;
 mod util;
 
 pub use document::{Document, render_html};
+pub use error::ParseError;
 pub use format_facts::{
-    BlockCheckpointFact, HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite,
-    OrderedItemSite, OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan,
-    UnorderedListSite, WrappableParagraph, top_level_block_checkpoints,
+    HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite, OrderedItemSite,
+    OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan, UnorderedListSite,
+    WrappableParagraph, top_level_block_checkpoints,
 };
 pub use heading::{HeadingAttrs, find_attr_trailer_range};
 pub use ir::{
-    AllowScope, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode, InlineHtml, LinkDef,
-    ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,
+    AllowScope, BlockCheckpointFact, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode,
+    InlineHtml, LinkDef, ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,
 };
 pub use line_index::{LineIndex, LineIndexError};
 pub use mdwright_math::{MathError, MathRegion, MathSpan};

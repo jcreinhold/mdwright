@@ -19,7 +19,7 @@
 //! done
 //! ```
 
-#![allow(clippy::panic)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 use std::fmt::Write as _;
 use std::fs;
@@ -54,7 +54,7 @@ fn mdwright_output_matches_mdformat_mkdocs_byte_for_byte() {
             .join(format!("{name}.out"));
         let src = read(&in_path);
         let expected = read(&out_path);
-        let actual = mdwright_format::format_document(&Document::parse(&src), &opts);
+        let actual = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
         if actual != expected {
             failures.push(((*name).to_owned(), expected, actual));
         }

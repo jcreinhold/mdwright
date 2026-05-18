@@ -144,10 +144,11 @@ Integration tests and examples should import component crates directly unless th
 
 ## Parse Policy Flow
 
-Config resolves recognition toggles into `mdwright_document::ParseOptions`. A parsed `Document` stores the
-`ParseOptions` used to build it. Document-aware formatter entry points read that policy from the `Document`, and every
-rewrite snapshot, semantic signature, verification reparse, range-format checkpoint table, and fixed-point iteration
-uses the same policy.
+Config resolves recognition toggles into `mdwright_document::ParseOptions`. Parsing is fallible:
+`Document::parse_with_options` returns `Result<Document, ParseError>` and contains upstream parser panics inside the
+document crate. A parsed `Document` stores the `ParseOptions` used to build it. Document-aware formatter entry points
+read that policy from the `Document`, and every rewrite snapshot, semantic signature, verification reparse,
+range-format checkpoint table, and fixed-point iteration uses the same policy.
 
 `format_source(source, opts)` is the convenience path for default parse policy. Callers that need non-default
 recognition parse a `Document` with `Document::parse_with_options` and call `format_document`, `format_validated`, or
@@ -155,11 +156,11 @@ range formatting over that document.
 
 ## Parser Boundary
 
-`mdwright-document` owns the only production `pulldown-cmark` parser chokepoint. Other crates consume document facts
-with stable source ranges: structural spans, paragraphs, list marker sites, heading attribute trailers, inline and
-reference-link destination ranges, math regions, frontmatter, code/HTML exclusions, and top-level block checkpoints.
-Those facts are domain records, not pulldown event wrappers, so formatter and lint crates do not couple to pulldown's
-event vocabulary or offset iterator.
+`mdwright-document` owns the only production `pulldown-cmark` parser chokepoint and the only parser-panic containment
+policy. Other crates consume document facts with stable source ranges: structural spans, paragraphs, list marker sites,
+heading attribute trailers, inline and reference-link destination ranges, math regions, frontmatter, code/HTML
+exclusions, and top-level block checkpoints. Those facts are domain records, not pulldown event wrappers, so formatter
+and lint crates do not couple to pulldown's event vocabulary, offset iterator, panic payloads, or backtraces.
 
 `pulldown_model` tests may still import `pulldown-cmark` directly because they deliberately test upstream parser drift.
 

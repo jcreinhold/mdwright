@@ -18,7 +18,7 @@
 //! from `jupyter-book/mystmd@main` (MIT licensed) — see
 //! `tests/external/jupyter_book_minimal/SOURCES.md`.
 
-#![allow(clippy::panic)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 use std::ffi::OsStr;
 use std::fmt::Write as _;
@@ -47,8 +47,8 @@ fn jupyter_book_minimal_round_trips() {
             continue;
         }
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        let once = mdwright_format::format_document(&Document::parse(&src), &opts);
-        let twice = mdwright_format::format_document(&Document::parse(&once), &opts);
+        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
+        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
         if once != twice {
             failures.push((path, once, twice));
         }

@@ -32,7 +32,7 @@
 
 use std::ops::Range;
 
-use mdwright_document::{ParseOptions, top_level_block_checkpoints};
+use mdwright_document::{Document, ParseError, ParseOptions, top_level_block_checkpoints};
 
 /// One block boundary in the caller's source.
 #[derive(Copy, Clone, Debug)]
@@ -68,16 +68,37 @@ impl CheckpointTable {
     /// Walk `source` once, recording one checkpoint per top-level
     /// block. Cost: one pulldown event stream, one offset translation
     /// per checkpoint, one `Vec` allocation.
-    #[must_use]
-    pub fn build(source: &str) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`] if parser execution cannot safely
+    /// recognise the source.
+    pub fn build(source: &str) -> Result<Self, ParseError> {
         Self::build_with_options(source, ParseOptions::default())
     }
 
     /// Build a checkpoint table under explicit recognition policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`] if parser execution cannot safely
+    /// recognise the source under `parse_options`.
+    pub fn build_with_options(source: &str, parse_options: ParseOptions) -> Result<Self, ParseError> {
+        Ok(Self::from_facts(
+            source.len(),
+            top_level_block_checkpoints(source, parse_options)?,
+        ))
+    }
+
+    /// Build from an already parsed document.
     #[must_use]
-    pub fn build_with_options(source: &str, parse_options: ParseOptions) -> Self {
-        let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
-        let mut points: Vec<BlockCheckpoint> = top_level_block_checkpoints(source, parse_options)
+    pub fn from_document(doc: &Document) -> Self {
+        Self::from_facts(doc.source().len(), doc.block_checkpoints().to_vec())
+    }
+
+    fn from_facts(source_len: usize, facts: Vec<mdwright_document::BlockCheckpointFact>) -> Self {
+        let source_len = u32::try_from(source_len).unwrap_or(u32::MAX);
+        let mut points: Vec<BlockCheckpoint> = facts
             .into_iter()
             .map(|point| BlockCheckpoint {
                 byte: point.byte,
@@ -137,12 +158,13 @@ impl CheckpointTable {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::CheckpointTable;
 
     #[test]
     fn empty_source() {
-        let t = CheckpointTable::build("");
+        let t = CheckpointTable::build("").expect("checkpoint source parses");
         // Both bookends collapse to byte 0 (source_len == 0).
         assert_eq!(t.len(), 1);
         assert!(t.is_empty());
@@ -152,7 +174,7 @@ mod tests {
     #[test]
     fn three_paragraphs() {
         let src = "a\n\nb\n\nc\n";
-        let t = CheckpointTable::build(src);
+        let t = CheckpointTable::build(src).expect("checkpoint source parses");
         // 0, start-of-a, start-of-b, start-of-c, sentinel — but
         // start-of-a coincides with 0 so it's deduplicated.
         assert!(t.len() >= 4);
@@ -164,7 +186,7 @@ mod tests {
     #[test]
     fn range_inside_list_snaps_to_list_boundaries() {
         let src = "para\n\n1. one\n2. two\n3. three\n\ntail\n";
-        let t = CheckpointTable::build(src);
+        let t = CheckpointTable::build(src).expect("checkpoint source parses");
         // Pick a byte inside the list (offset of "two").
         let two_at = src.find("two").unwrap_or(0);
         let snapped = t.snap_to_block_boundaries(two_at as u32..two_at as u32 + 1);
@@ -178,7 +200,7 @@ mod tests {
     #[test]
     fn range_past_end_snaps_to_empty() {
         let src = "a\n";
-        let t = CheckpointTable::build(src);
+        let t = CheckpointTable::build(src).expect("checkpoint source parses");
         let snapped = t.snap_to_block_boundaries(99..100);
         assert_eq!(snapped, src.len() as u32..src.len() as u32);
     }
@@ -186,7 +208,7 @@ mod tests {
     #[test]
     fn frontmatter_is_one_prelude_region() {
         let src = "---\ntitle: x\n---\n# heading\n\npara\n";
-        let t = CheckpointTable::build(src);
+        let t = CheckpointTable::build(src).expect("checkpoint source parses");
         // A range starting inside frontmatter should snap forward to
         // the first body block ("# heading").
         let heading_at = src.find("# heading").unwrap_or(0);
@@ -198,7 +220,7 @@ mod tests {
     #[test]
     fn crlf_source_preserves_original_offsets() {
         let src = "a\r\n\r\nb\r\n";
-        let t = CheckpointTable::build(src);
+        let t = CheckpointTable::build(src).expect("checkpoint source parses");
         // The "b" paragraph's checkpoint should be at the byte
         // position of "b" in the ORIGINAL (CRLF) source.
         let b_at = src.find('b').unwrap_or(0) as u32;

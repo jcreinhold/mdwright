@@ -309,11 +309,11 @@ mod tests {
 
     fn build(src: &str) -> ReferenceTable {
         let source = Source::new(src);
-        let events: Vec<Event<'_>> = parse::events(
+        let events: Vec<Event<'_>> = parse::collect_events(
             CanonicalSource::from_source(&source),
             parse::options(crate::ParseOptions::default()),
         )
-        .collect();
+        .expect("test Markdown parses");
         build_reference_table(&events, src)
     }
 

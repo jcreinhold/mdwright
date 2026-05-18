@@ -14,9 +14,6 @@
 //! `fuzz_idempotence`): so each fuzz iteration exercises a different
 //! point in the wrap × mode × math × canonicalisation space.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Once;
-
 use libfuzzer_sys::fuzz_target;
 use mdwright_document::{Document, contains_rejected_control_chars};
 use mdwright_format::{FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle, Wrap, semantically_equivalent};
@@ -25,14 +22,6 @@ use mdwright_format::{FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, Ma
 /// reaching deeper structural coverage; the CLI enforces the same
 /// shape via `--max-input-bytes`.
 const MAX_INPUT: usize = 65_536;
-
-/// See fuzz_verbatim_identity.rs::install_silent_panic_hook.
-static SILENCE_HOOK: Once = Once::new();
-fn install_silent_panic_hook() {
-    SILENCE_HOOK.call_once(|| {
-        std::panic::set_hook(Box::new(|_| {}));
-    });
-}
 
 fn opts_from_byte(byte: u8) -> FmtOptions {
     let wrap = match byte & 0b11 {
@@ -85,7 +74,6 @@ fn apply_canon_mode(opts: FmtOptions, mode: u8) -> FmtOptions {
 }
 
 fuzz_target!(|data: &[u8]| {
-    install_silent_panic_hook();
     if data.len() > MAX_INPUT {
         return;
     }
@@ -102,15 +90,10 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     let opts = opts_from_byte(option_byte);
-    // Upstream pulldown-cmark panics on some inputs (see
-    // tests/known_issues.rs); the oracle is undefined when parse
-    // diverges, so swallow + skip rather than report a libFuzzer
-    // crash for an upstream bug.
-    let Ok(formatted) = catch_unwind(AssertUnwindSafe(|| mdwright_format::format_document(&Document::parse(s), &opts))) else {
+    let Ok(doc) = Document::parse(s) else {
         return;
     };
-    let Ok(equivalent) = catch_unwind(AssertUnwindSafe(|| semantically_equivalent(s, &formatted))) else {
-        return;
-    };
+    let formatted = mdwright_format::format_document(&doc, &opts);
+    let equivalent = semantically_equivalent(s, &formatted).expect("formatter output parses");
     assert!(equivalent, "format changes meaning (opt byte {option_byte:#04x})");
 });

@@ -14,11 +14,13 @@ pub use options::{
     OrderedListStyle, Placement, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
 };
 
-use mdwright_document::Document;
+use mdwright_document::{Document, ParseError};
 
 /// Errors returned by [`format_validated`].
 #[derive(Debug, Clone)]
 pub enum FormatError {
+    /// Source or formatted output could not be parsed safely.
+    Parse(ParseError),
     /// The formatter changed the document's meaning.
     SemanticDivergence {
         source: String,
@@ -30,6 +32,7 @@ pub enum FormatError {
 impl fmt::Display for FormatError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Parse(err) => write!(f, "{err}"),
             Self::SemanticDivergence { diff_summary, .. } => {
                 write!(f, "formatter changed the document's meaning: {diff_summary}")
             }
@@ -38,6 +41,25 @@ impl fmt::Display for FormatError {
 }
 
 impl std::error::Error for FormatError {}
+
+impl From<ParseError> for FormatError {
+    fn from(value: ParseError) -> Self {
+        Self::Parse(value)
+    }
+}
+
+/// Aggregate formatter rewrite counts.
+///
+/// The report is intentionally coarse: it exposes whether rewrite
+/// transactions are being attempted, committed, or rejected without
+/// exposing candidates, owners, snapshots, or parser internals.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FormatReport {
+    pub rewrite_candidates: usize,
+    pub rewrite_committed: usize,
+    pub rewrite_rejected_overlap: usize,
+    pub rewrite_rejected_verification: usize,
+}
 
 /// Format a parsed document.
 #[must_use]
@@ -48,10 +70,19 @@ pub fn format_document(doc: &Document, opts: &FmtOptions) -> String {
     out
 }
 
-/// Parse and format Markdown source with default parse options.
+/// Format a parsed document and return aggregate rewrite metrics.
 #[must_use]
-pub fn format_source(source: &str, opts: &FmtOptions) -> String {
-    format_document(&Document::parse(source), opts)
+pub fn format_document_with_report(doc: &Document, opts: &FmtOptions) -> (String, FormatReport) {
+    format::document::format_document_with_report(doc.source(), opts, doc.parse_options())
+}
+
+/// Parse and format Markdown source with default parse options.
+///
+/// # Errors
+///
+/// Returns [`FormatError::Parse`] if source parsing fails.
+pub fn format_source(source: &str, opts: &FmtOptions) -> Result<String, FormatError> {
+    Ok(format_document(&Document::parse(source)?, opts))
 }
 
 /// Format and verify that a second pass is semantically stable.
@@ -62,9 +93,9 @@ pub fn format_source(source: &str, opts: &FmtOptions) -> String {
 /// different canonical event stream.
 pub fn format_validated(doc: &Document, opts: &FmtOptions) -> Result<String, FormatError> {
     let formatted = format_document(doc, opts);
-    let formatted_doc = Document::parse_with_options(&formatted, doc.parse_options());
+    let formatted_doc = Document::parse_with_options(&formatted, doc.parse_options())?;
     let twice = format_document(&formatted_doc, opts);
-    match format::semantic::first_divergence_with_options(&formatted, &twice, doc.parse_options()) {
+    match format::semantic::first_divergence_with_options(&formatted, &twice, doc.parse_options())? {
         None => Ok(formatted),
         Some(diff_summary) => Err(FormatError::SemanticDivergence {
             source: formatted.clone(),
@@ -78,7 +109,7 @@ pub fn format_validated(doc: &Document, opts: &FmtOptions) -> Result<String, For
 /// `range` in `source`.
 #[must_use]
 pub fn format_range(doc: &Document, opts: &FmtOptions, range: Range<usize>) -> String {
-    let table = CheckpointTable::build_with_options(doc.source(), doc.parse_options());
+    let table = CheckpointTable::from_document(doc);
     format_range_with_checkpoints(doc, opts, &table, range)
 }
 
@@ -101,6 +132,7 @@ pub fn format_range_with_checkpoints(
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use mdwright_document::{ExtensionOptions, ParseOptions};
@@ -110,14 +142,14 @@ mod tests {
         let source = "# Heading {.class #id}\n";
         let opts = FmtOptions::default().with_heading_attrs(HeadingAttrsStyle::Canonicalise);
 
-        let enabled = Document::parse(source);
+        let enabled = Document::parse(source).expect("fixture parses");
         assert_eq!(format_document(&enabled, &opts), "# Heading {#id .class}\n");
 
         let parse_options = ParseOptions::default().with_extensions(ExtensionOptions {
             heading_attribute_lists: false,
             ..ExtensionOptions::default()
         });
-        let disabled = Document::parse_with_options(source, parse_options);
+        let disabled = Document::parse_with_options(source, parse_options).expect("fixture parses");
         assert_eq!(format_document(&disabled, &opts), source);
     }
 }

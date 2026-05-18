@@ -217,8 +217,93 @@ async fn formatting_returns_expected_textedit() {
             .unwrap_or_else(|_| std::path::Path::new(".")),
     )
     .unwrap_or_else(|_| mdwright_config::Config::defaults());
-    let expected = mdwright_format::format_document(&mdwright_document::Document::parse(source), cfg.fmt_options());
+    let expected = mdwright_format::format_document(
+        &mdwright_document::Document::parse(source).expect("fixture parses"),
+        cfg.fmt_options(),
+    );
     assert_eq!(new_text, expected, "LSP format must match CLI format byte-for-byte");
+}
+
+#[tokio::test]
+async fn parser_panic_input_publishes_parse_diagnostic_and_recovers() {
+    let (mut service, mut socket) = build_service_for_tests();
+    let _body = initialize(&mut service, true).await;
+
+    let uri = "file:///tmp/mdwright-test-parser-boundary.md";
+    let source = "- [n]:Z\r\n\t\t";
+    let _ack = service
+        .ready()
+        .await
+        .expect("service ready")
+        .call(notif(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "markdown",
+                    "version": 1,
+                    "text": source,
+                }
+            }),
+        ))
+        .await
+        .expect("call ok");
+
+    let published = wait_for_publish(&mut socket, uri).await;
+    let diags = published["diagnostics"].as_array().expect("diagnostics array");
+    assert_eq!(diags.len(), 1, "parse failure should suppress lint diagnostics");
+    assert!(
+        diags[0]["message"]
+            .as_str()
+            .is_some_and(|msg| msg.contains("Markdown parser failed")),
+        "unexpected parse diagnostic: {diags:?}",
+    );
+    assert_eq!(diags[0]["range"]["start"]["line"], 0);
+    assert_eq!(diags[0]["range"]["start"]["character"], 0);
+    assert_eq!(diags[0]["range"]["end"]["line"], 0);
+    assert_eq!(diags[0]["range"]["end"]["character"], 0);
+
+    let resp = service
+        .ready()
+        .await
+        .expect("service ready")
+        .call(req(
+            43,
+            "textDocument/formatting",
+            json!({
+                "textDocument": { "uri": uri },
+                "options": { "tabSize": 4, "insertSpaces": true },
+            }),
+        ))
+        .await
+        .expect("call ok")
+        .expect("formatting returns a response");
+    let (_, body) = resp.into_parts();
+    assert!(
+        body.expect("formatting request succeeds").is_null(),
+        "parse-failed document returns no edits"
+    );
+
+    let _ack = service
+        .ready()
+        .await
+        .expect("service ready")
+        .call(notif(
+            "textDocument/didChange",
+            json!({
+                "textDocument": { "uri": uri, "version": 2 },
+                "contentChanges": [{ "text": "See https://example.com now.\n" }],
+            }),
+        ))
+        .await
+        .expect("call ok");
+
+    let published = wait_for_publish(&mut socket, uri).await;
+    let diags = published["diagnostics"].as_array().expect("diagnostics array");
+    assert!(
+        diags.iter().any(|diag| diag["code"].as_str() == Some("bare-url")),
+        "expected normal lint diagnostics after parseable edit, got {diags:?}",
+    );
 }
 
 async fn wait_for_publish<S>(mut socket: S, uri: &str) -> Value

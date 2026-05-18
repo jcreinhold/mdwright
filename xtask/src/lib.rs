@@ -20,6 +20,7 @@ use mdwright_lint::{LintRule, RuleSet};
 pub mod cli_docs;
 pub mod config_docs;
 pub mod diagnose_fuzz;
+pub mod production_soak;
 pub mod since;
 pub mod version_refs;
 

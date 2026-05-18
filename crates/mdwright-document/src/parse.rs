@@ -14,9 +14,20 @@
 //! in `tests/pulldown_model.rs` fail when pulldown's behaviour changes
 //! underneath us, forcing a documentation update before code changes.
 
-use pulldown_cmark::{OffsetIter, Options, Parser};
+use std::cell::Cell;
+use std::ops::Range;
+use std::panic::{self, AssertUnwindSafe};
+use std::sync::Once;
 
-use crate::{ParseOptions, source::CanonicalSource};
+use pulldown_cmark::{Event, Options, Parser};
+
+use crate::{ParseError, ParseOptions, source::CanonicalSource};
+
+thread_local! {
+    static SUPPRESS_PARSER_PANIC_HOOK: Cell<bool> = const { Cell::new(false) };
+}
+
+static INSTALL_PARSER_HOOK: Once = Once::new();
 
 /// Build the pulldown option set for a document parse.
 ///
@@ -41,18 +52,49 @@ pub(crate) fn options(opts: ParseOptions) -> Options {
     pulldown
 }
 
-/// Parser iterator over canonical bytes. Returns the pulldown
-/// `Parser` directly so callers retain pulldown's lifetime parameter
-/// — wrapping the iterator buys nothing.
-#[must_use]
-pub(crate) fn events(src: CanonicalSource<'_>, opts: Options) -> Parser<'_> {
-    Parser::new_ext(src.as_str(), opts)
+/// Collect parser events inside the document crate's panic boundary.
+pub(crate) fn collect_events(src: CanonicalSource<'_>, opts: Options) -> Result<Vec<Event<'_>>, ParseError> {
+    run_parser(src, || Parser::new_ext(src.as_str(), opts).collect())
 }
 
-/// Same as [`events`] but produces the offset iterator. Callers that
-/// need absolute byte ranges (the IR builder, the safety ladder) use
-/// this; everyone else uses [`events`].
-#[must_use]
-pub(crate) fn events_with_offsets(src: CanonicalSource<'_>, opts: Options) -> OffsetIter<'_> {
-    Parser::new_ext(src.as_str(), opts).into_offset_iter()
+/// Collect parser events with absolute byte ranges inside the document
+/// crate's panic boundary.
+pub(crate) fn collect_events_with_offsets(
+    src: CanonicalSource<'_>,
+    opts: Options,
+) -> Result<Vec<(Event<'_>, Range<usize>)>, ParseError> {
+    run_parser(src, || Parser::new_ext(src.as_str(), opts).into_offset_iter().collect())
+}
+
+fn run_parser<T>(src: CanonicalSource<'_>, f: impl FnOnce() -> T) -> Result<T, ParseError> {
+    install_parser_panic_hook();
+    let _guard = ParserPanicHookGuard::new();
+    panic::catch_unwind(AssertUnwindSafe(f)).map_err(|_panic| ParseError::parser_panic(src.as_str().len()))
+}
+
+fn install_parser_panic_hook() {
+    INSTALL_PARSER_HOOK.call_once(|| {
+        let previous = panic::take_hook();
+        panic::set_hook(Box::new(move |info| {
+            if SUPPRESS_PARSER_PANIC_HOOK.with(Cell::get) {
+                return;
+            }
+            previous(info);
+        }));
+    });
+}
+
+struct ParserPanicHookGuard;
+
+impl ParserPanicHookGuard {
+    fn new() -> Self {
+        SUPPRESS_PARSER_PANIC_HOOK.with(|flag| flag.set(true));
+        Self
+    }
+}
+
+impl Drop for ParserPanicHookGuard {
+    fn drop(&mut self) {
+        SUPPRESS_PARSER_PANIC_HOOK.with(|flag| flag.set(false));
+    }
 }

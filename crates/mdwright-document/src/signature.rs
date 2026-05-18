@@ -7,7 +7,7 @@
 use pulldown_cmark::{CowStr, Event, Tag, TagEnd};
 
 use crate::source::{CanonicalSource, Source};
-use crate::{ParseOptions, parse};
+use crate::{ParseError, ParseOptions, parse};
 
 /// A canonical Markdown event stream used for semantic comparison.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,8 +127,12 @@ enum EndTag {
 }
 
 /// Build a semantic signature under explicit recognition policy.
-#[must_use]
-pub fn markdown_signature(source: &str, opts: ParseOptions) -> MarkdownSignature {
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if parser execution cannot safely recognise
+/// the canonicalised source.
+pub fn markdown_signature(source: &str, opts: ParseOptions) -> Result<MarkdownSignature, ParseError> {
     let source = Source::new(source);
     let src = CanonicalSource::from_source(&source);
     let mut events: Vec<CanonicalEvent> = Vec::new();
@@ -144,7 +148,7 @@ pub fn markdown_signature(source: &str, opts: ParseOptions) -> MarkdownSignature
         }
     };
 
-    for ev in parse::events(src, parse::options(opts)) {
+    for ev in parse::collect_events(src, parse::options(opts))? {
         match ev {
             Event::Start(tag) => {
                 if matches!(tag, Tag::CodeBlock(_)) {
@@ -212,7 +216,7 @@ pub fn markdown_signature(source: &str, opts: ParseOptions) -> MarkdownSignature
         }
     }
     flush(&mut pending, &mut events);
-    MarkdownSignature { events }
+    Ok(MarkdownSignature { events })
 }
 
 fn cow_to_string(c: CowStr<'_>) -> String {

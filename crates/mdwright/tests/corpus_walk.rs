@@ -6,7 +6,7 @@
 //! `benches/corpus.list` is the single source of truth; this test
 //! mirrors `benches/lint_bench.rs::load_corpus` (lines 50–71).
 
-#![allow(clippy::panic)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -65,8 +65,8 @@ fn idempotent_over_corpus() {
     for path in corpus_files(&root) {
         let src =
             fs::read_to_string(&path).unwrap_or_else(|e| panic!("corpus file {} unreadable: {e}", path.display()));
-        let once = mdwright_format::format_document(&Document::parse(&src), &opts);
-        let twice = mdwright_format::format_document(&Document::parse(&once), &opts);
+        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
+        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
         if once != twice {
             failures.push(path);
         }

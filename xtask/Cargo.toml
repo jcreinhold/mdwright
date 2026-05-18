@@ -17,5 +17,6 @@ clap = { version = "4", features = ["derive"] }
 mdwright-document = { path = "../crates/mdwright-document" }
 mdwright-format = { path = "../crates/mdwright-format" }
 mdwright-lint = { path = "../crates/mdwright-lint" }
+mdwright-config = { path = "../crates/mdwright-config" }
 regex = "1"
 toml = { version = "0.8", default-features = false, features = ["parse"] }

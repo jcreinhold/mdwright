@@ -168,13 +168,14 @@ The command package is `mdwright`. Rust integrations use the component crates di
 use mdwright_document::Document;
 use mdwright_lint::{RuleSet, apply_safe_fixes};
 
-let doc = Document::parse(source);
+let doc = Document::parse(source)?;
 let rules = RuleSet::stdlib_defaults();
 let diags = rules.check(&doc);
 let (fixed, n) = apply_safe_fixes(&doc, &diags);
 ```
 
-`Document` is parsed once and may be queried repeatedly. Linting is owned by `RuleSet`.
+`Document` is parsed once and may be queried repeatedly. Parsing is fallible because mdwright contains upstream parser
+panics at the document boundary. Linting is owned by `RuleSet`.
 `apply_safe_fixes` ignores diagnostics whose fix is unsafe and resolves overlapping edits
 right-to-left.
 

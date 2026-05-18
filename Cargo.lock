@@ -1941,6 +1941,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "clap",
+ "mdwright-config",
  "mdwright-document",
  "mdwright-format",
  "mdwright-lint",

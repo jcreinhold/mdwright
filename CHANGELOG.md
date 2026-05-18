@@ -21,6 +21,9 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   `[parse.extensions]` instead of the previous formatter-owned extension table.
 - Formatter entry points over `Document` now honour the document's parse policy throughout rewrite snapshots,
   verification reparses, semantic signatures, and range-format checkpointing.
+- `Document::parse`, `Document::parse_with_options`, `render_html`, `format_source`, and the formatter semantic
+  oracles are now fallible. `mdwright-document` contains upstream parser panics and reports them as `ParseError`; CLI
+  and LSP delivery surfaces report controlled parse errors instead of crashing.
 - Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. Component crates
   expose their own narrow APIs, and the `mdwright` package exposes only command-extension helpers such as
   `run_with_rules`.
@@ -38,6 +41,9 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 - `mdwright-config`, `mdwright`, and `mdwright-lsp` own configuration interpretation and delivery surfaces without
   leaking TOML, terminal, or editor dependencies into parser/format/lint users.
 - Internal workspace dependencies are versioned as well as path-based so every publishable crate can be packaged.
+- Added a release-oriented `cargo xtask production-soak --corpus-root <path>` gate that runs parse, lint, format
+  validation, idempotence, fmt-check comparison, and aggregate rewrite metrics over the Kan corpus and representative
+  external Markdown fixtures.
 
 ### Performance
 

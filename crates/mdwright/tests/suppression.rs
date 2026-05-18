@@ -5,17 +5,19 @@
 //! `LintOptions { respect_suppressions: false }` (the `--no-suppress`
 //! CLI flag's behaviour).
 
+#![allow(clippy::expect_used, reason = "test fixtures should fail loudly")]
+
 use anyhow::Result;
 use mdwright_document::Document;
 use mdwright_lint::{Diagnostic, LintOptions, RuleSet};
 
 fn diags(src: &str) -> Vec<Diagnostic> {
-    RuleSet::stdlib_all().check(&Document::parse(src))
+    RuleSet::stdlib_all().check(&Document::parse(src).expect("fixture parses"))
 }
 
 fn diags_unsuppressed(src: &str) -> Vec<Diagnostic> {
     RuleSet::stdlib_all().check_with(
-        &Document::parse(src),
+        &Document::parse(src).expect("fixture parses"),
         LintOptions {
             respect_suppressions: false,
         },

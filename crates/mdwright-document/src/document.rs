@@ -8,9 +8,11 @@
 
 use pulldown_cmark::html;
 
+use crate::ParseError;
 use crate::ParseOptions;
 use crate::ir::{
-    CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup, Suppression, TextSlice,
+    BlockCheckpointFact, CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup,
+    Suppression, TextSlice,
 };
 use crate::line_index::LineIndex;
 use crate::parse;
@@ -27,14 +29,18 @@ use mdwright_math::{MathError, MathRegion};
 /// pulldown sees them (CM §2.1 CR / CRLF → LF, CM §2.3 NUL → U+FFFD),
 /// matching what [`Document::parse`] does. Callers that need to render
 /// raw bytes verbatim should reach for `pulldown_cmark::html` directly.
-#[must_use]
-pub fn render_html(source: &str) -> String {
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if parser execution cannot safely recognise
+/// the canonicalised source.
+pub fn render_html(source: &str) -> Result<String, ParseError> {
     let src = Source::new(source);
     let canonical = CanonicalSource::from_source(&src);
-    let parser = parse::events(canonical, parse::options(ParseOptions::default()));
+    let events = parse::collect_events(canonical, parse::options(ParseOptions::default()))?;
     let mut out = String::with_capacity(canonical.as_str().len());
-    html::push_html(&mut out, parser);
-    out
+    html::push_html(&mut out, events.into_iter());
+    Ok(out)
 }
 
 /// A parsed Markdown document.
@@ -57,29 +63,36 @@ pub struct Document {
 }
 
 impl Document {
-    /// Parse `source` into the IR. Infallible — pulldown-cmark
-    /// recognises every byte sequence as Markdown.
+    /// Parse `source` into the IR.
     ///
     /// The library imposes **no** size cap; callers feeding untrusted
     /// input are responsible for bounding `source.len()` themselves.
     /// The `mdwright` CLI does this via `--max-input-bytes` (default
     /// 10 MB).
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`] if parser execution cannot safely
+    /// recognise the canonicalised source.
     #[tracing::instrument(level = "info", name = "Document::parse", skip(source), fields(len = source.len()))]
-    pub fn parse(source: &str) -> Self {
+    pub fn parse(source: &str) -> Result<Self, ParseError> {
         Self::parse_with_options(source, ParseOptions::default())
     }
 
     /// Parse `source` under explicit recognition options.
-    #[must_use]
-    pub fn parse_with_options(source: &str, opts: ParseOptions) -> Self {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ParseError`] if parser execution cannot safely
+    /// recognise the canonicalised source under `opts`.
+    pub fn parse_with_options(source: &str, opts: ParseOptions) -> Result<Self, ParseError> {
         let source = Source::new(source);
-        let ir = Ir::parse(CanonicalSource::from_source(&source), opts);
-        Self {
+        let ir = Ir::parse(&source, opts)?;
+        Ok(Self {
             source,
             ir,
             parse_options: opts,
-        }
+        })
     }
 
     /// Recognition policy used to build this document.
@@ -212,6 +225,12 @@ impl Document {
                 raw_range: t.raw_range.clone(),
             })
             .collect()
+    }
+
+    /// Top-level block checkpoints in canonical source coordinates.
+    #[must_use]
+    pub fn block_checkpoints(&self) -> &[BlockCheckpointFact] {
+        &self.ir.block_checkpoints
     }
 
     /// Frontmatter at the document head, if present. Carries both the

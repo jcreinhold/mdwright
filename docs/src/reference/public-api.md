@@ -11,6 +11,7 @@ the component crate that owns the capability they need.
 | Item | Kind | Reached via |
 | --- | --- | --- |
 | `Document` | struct | `mdwright_document::Document`; parse/query handle for Markdown source |
+| `ParseError` | struct | controlled failure when parser execution cannot safely recognise source |
 | `ParseOptions` | struct | explicit Markdown recognition policy |
 | `ExtensionOptions`, `MystOptions`, `PandocOptions` | structs | fields under `ParseOptions` |
 | `TextSlice`, `InlineCode`, `CodeBlock` | structs | returned by `Document` query methods |
@@ -20,7 +21,7 @@ the component crate that owns the capability they need.
 | `Suppression`, `SuppressionKind`, `AllowScope` | types | returned by `Document::suppressions` |
 | `LineIndex`, `LineIndexError` | types | byte/line/column lookup |
 | `MathRegion`, `MathSpan`, `MathError` | types | math facts exposed through `Document` |
-| `render_html` | fn | CLI `render` and formatter verification |
+| `render_html` | fn | fallible CLI `render` and formatter verification helper |
 | `contains_rejected_control_chars` | fn | CLI input policy and fuzz harnesses |
 
 `Document` is parse/query only. Linting, formatting, and safe-fix application are owned by their operation crates.
@@ -32,12 +33,12 @@ the component crate that owns the capability they need.
 | `FmtOptions` | struct | formatter policy |
 | `FormatError` | enum | `format_validated` error |
 | `format_document` | fn | format an already parsed `Document` |
-| `format_source` | fn | parse with default `ParseOptions`, then format |
-| `format_validated` | fn | format and verify second-pass stability |
+| `format_source` | fn | fallibly parse with default `ParseOptions`, then format |
+| `format_validated` | fn | format and verify second-pass stability; parser failures surface as `FormatError::Parse` |
 | `format_range` | fn | one-shot range formatting |
 | `format_range_with_checkpoints` | fn | range formatting with a cached `CheckpointTable` |
 | `CheckpointTable` | struct | block-boundary cache for editor formatting |
-| `semantically_equivalent`, `first_divergence` | fns | formatter semantic oracles |
+| `semantically_equivalent`, `first_divergence` | fns | fallible formatter semantic oracles |
 | `Wrap`, `ItalicStyle`, `StrongStyle` | enums | formatter style policy |
 | `ListMarkerStyle`, `OrderedListStyle`, `ThematicStyle` | enums | formatter style policy |
 | `LinkDefStyle`, `Placement`, `TrailingNewline`, `EndOfLine` | enums | formatter boundary/style policy |

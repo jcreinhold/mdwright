@@ -44,7 +44,7 @@ use tower_lsp::lsp_types::{
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 use mdwright_config::Config;
-use mdwright_document::{Document, LineIndex, ParseOptions};
+use mdwright_document::{Document, LineIndex, ParseError, ParseOptions};
 use mdwright_format::{CheckpointTable, FmtOptions, format_document, format_range_with_checkpoints};
 use mdwright_lint::{
     Diagnostic as MdwrightDiagnostic, RuleSet, Severity as MdwrightSeverity, apply_safe_fixes, rule_doc_url, stdlib,
@@ -90,28 +90,38 @@ struct OpenDoc {
     text: String,
     version: i32,
     line_index: Arc<LineIndex>,
-    table: Arc<CheckpointTable>,
+    table: Option<Arc<CheckpointTable>>,
     diagnostics: Vec<MdwrightDiagnostic>,
+    parse_error: Option<String>,
     lint_task: Option<JoinHandle<()>>,
 }
 
 impl OpenDoc {
     fn new(text: String, version: i32, parse_options: ParseOptions) -> Self {
         let line_index = Arc::new(LineIndex::new(&text));
-        let table = Arc::new(CheckpointTable::build_with_options(&text, parse_options));
+        let (table, parse_error) = match Document::parse_with_options(&text, parse_options) {
+            Ok(doc) => (Some(Arc::new(CheckpointTable::from_document(&doc))), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
         Self {
             text,
             version,
             line_index,
             table,
             diagnostics: Vec::new(),
+            parse_error,
             lint_task: None,
         }
     }
 
     fn replace(&mut self, text: String, version: i32, parse_options: ParseOptions) {
         self.line_index = Arc::new(LineIndex::new(&text));
-        self.table = Arc::new(CheckpointTable::build_with_options(&text, parse_options));
+        let (table, parse_error) = match Document::parse_with_options(&text, parse_options) {
+            Ok(doc) => (Some(Arc::new(CheckpointTable::from_document(&doc))), None),
+            Err(err) => (None, Some(err.to_string())),
+        };
+        self.table = table;
+        self.parse_error = parse_error;
         self.text = text;
         self.version = version;
         if let Some(prev) = self.lint_task.take() {
@@ -355,7 +365,10 @@ impl LanguageServer for MdwrightLs {
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
         drop(state);
-        let parsed = Document::parse_with_options(&source, parse_options);
+        let Ok(parsed) = Document::parse_with_options(&source, parse_options) else {
+            tracing::warn!("formatting skipped because document did not parse");
+            return Ok(None);
+        };
         let formatted = format_document(&parsed, &opts);
         if formatted == source {
             return Ok(Some(Vec::new()));
@@ -381,7 +394,10 @@ impl LanguageServer for MdwrightLs {
         let parse_options = state.config.parse_options();
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
-        let table = Arc::clone(&doc.table);
+        let Some(table) = doc.table.as_ref().map(Arc::clone) else {
+            tracing::warn!("range formatting skipped because document did not parse");
+            return Ok(None);
+        };
         drop(state);
         Ok(format_range_edits(
             &source,
@@ -407,7 +423,10 @@ impl LanguageServer for MdwrightLs {
         let parse_options = state.config.parse_options();
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
-        let table = Arc::clone(&doc.table);
+        let Some(table) = doc.table.as_ref().map(Arc::clone) else {
+            tracing::warn!("on-type formatting skipped because document did not parse");
+            return Ok(None);
+        };
         drop(state);
         let zero_width = Range {
             start: position,
@@ -479,7 +498,9 @@ impl LanguageServer for MdwrightLs {
         }
 
         if diags.iter().any(|d| d.fix.as_ref().is_some_and(|f| f.safe)) {
-            let parsed = Document::parse_with_options(&source, parse_options);
+            let Ok(parsed) = Document::parse_with_options(&source, parse_options) else {
+                return Ok(if actions.is_empty() { None } else { Some(actions) });
+            };
             let (new_text, applied) = apply_safe_fixes(&parsed, &diags);
             if applied > 0 && new_text != source {
                 let range = whole_doc_range(&line_index, &source);
@@ -607,8 +628,24 @@ async fn run_lint_pass(
     parse_options: ParseOptions,
 ) {
     let parsed = Document::parse_with_options(&text, parse_options);
-    let diags = rules.check(&parsed);
-    let lsp_diags: Vec<LspDiagnostic> = diags.iter().map(|d| mdwright_to_lsp(&line_index, &text, d)).collect();
+    let (diags, lsp_diags, table, parse_error) = match parsed {
+        Ok(parsed) => {
+            let diags = rules.check(&parsed);
+            let lsp_diags: Vec<LspDiagnostic> = diags.iter().map(|d| mdwright_to_lsp(&line_index, &text, d)).collect();
+            (
+                diags,
+                lsp_diags,
+                Some(Arc::new(CheckpointTable::from_document(&parsed))),
+                None,
+            )
+        }
+        Err(err) => (
+            Vec::new(),
+            vec![parse_error_lsp_diag(&err)],
+            None,
+            Some(err.to_string()),
+        ),
+    };
     {
         let mut state = state.lock().await;
         if let Some(doc) = state.docs.get_mut(&uri) {
@@ -616,11 +653,26 @@ async fn run_lint_pass(
                 return;
             }
             doc.diagnostics = diags;
+            doc.parse_error = parse_error;
+            doc.table = table;
         } else {
             return;
         }
     }
     client.publish_diagnostics(uri, lsp_diags, Some(version)).await;
+}
+
+fn parse_error_lsp_diag(err: &ParseError) -> LspDiagnostic {
+    LspDiagnostic {
+        range: Range {
+            start: Position::new(0, 0),
+            end: Position::new(0, 0),
+        },
+        severity: Some(DiagnosticSeverity::ERROR),
+        source: Some("mdwright".to_owned()),
+        message: err.to_string(),
+        ..LspDiagnostic::default()
+    }
 }
 
 fn client_supports_utf8(params: &InitializeParams) -> bool {
@@ -776,7 +828,9 @@ fn format_range_edits(
     let lo = byte_of_position(line_index, source, lsp_range.start)?;
     let hi = byte_of_position(line_index, source, lsp_range.end).unwrap_or(source.len());
     let (lo, hi) = if hi < lo { (hi, lo) } else { (lo, hi) };
-    let doc = Document::parse_with_options(source, parse_options);
+    let Ok(doc) = Document::parse_with_options(source, parse_options) else {
+        return None;
+    };
     let formatted = format_range_with_checkpoints(&doc, opts, table, lo..hi);
     // The formatter snaps outward to whole-block boundaries; we need
     // the snapped byte range to compute the LSP edit range. Recompute

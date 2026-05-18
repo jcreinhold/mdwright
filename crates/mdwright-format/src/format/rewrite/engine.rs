@@ -6,15 +6,20 @@ use crate::format::rewrite::candidate::{Candidate, Verification};
 use crate::format::rewrite::signature::{verify_batch, verify_one};
 use crate::format::rewrite::snapshot::Snapshot;
 use crate::format::wrap_pass;
-use crate::{FmtOptions, Wrap};
-use mdwright_document::ParseOptions;
+use crate::{FmtOptions, FormatReport, Wrap};
+use mdwright_document::{ParseError, ParseOptions};
 
 const MAX_REWRITE_ITERS: u32 = 8;
 
-pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions, parse_options: ParseOptions) -> String {
+pub(crate) fn apply_rewrites(
+    source: &str,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+) -> Result<(String, FormatReport), ParseError> {
     let mut out = source.to_owned();
+    let mut report = FormatReport::default();
     for iter in 0..MAX_REWRITE_ITERS {
-        let snapshot = Snapshot::new(&out, parse_options);
+        let snapshot = Snapshot::new(&out, parse_options)?;
         let mut candidates = Vec::new();
         if opts.has_any_canonicalisation() {
             canonicalise::collect_candidates(&snapshot, opts, &mut candidates);
@@ -24,8 +29,9 @@ pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions, parse_options: Par
         }
 
         candidates.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));
+        report.rewrite_candidates = report.rewrite_candidates.saturating_add(candidates.len());
         if candidates.is_empty() {
-            return out;
+            return Ok((out, report));
         }
 
         candidates.sort_by(|a, b| {
@@ -34,7 +40,8 @@ pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions, parse_options: Par
                 .then_with(|| a.range().start.cmp(&b.range().start))
                 .then_with(|| a.range().end.cmp(&b.range().end))
         });
-        let selected = select_non_overlapping(candidates);
+        let (selected, rejected_overlap) = select_non_overlapping(candidates);
+        report.rewrite_rejected_overlap = report.rewrite_rejected_overlap.saturating_add(rejected_overlap);
         let before = out.clone();
 
         if selected
@@ -43,16 +50,21 @@ pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions, parse_options: Par
         {
             let candidate = apply_batch(&before, &selected);
             if verify_batch(&before, &candidate, &selected, opts, parse_options) {
+                report.rewrite_committed = report.rewrite_committed.saturating_add(selected.len());
                 out = candidate;
             } else {
-                out = apply_isolated(&before, selected, opts, parse_options);
+                let (isolated, isolated_report) = apply_isolated(&before, selected, opts, parse_options);
+                merge_report(&mut report, &isolated_report);
+                out = isolated;
             }
         } else {
-            out = apply_isolated(&before, selected, opts, parse_options);
+            let (isolated, isolated_report) = apply_isolated(&before, selected, opts, parse_options);
+            merge_report(&mut report, &isolated_report);
+            out = isolated;
         }
 
         if out == before {
-            return out;
+            return Ok((out, report));
         }
         if iter.saturating_add(1) == MAX_REWRITE_ITERS {
             tracing::warn!(
@@ -62,16 +74,29 @@ pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions, parse_options: Par
             );
         }
     }
-    out
+    Ok((out, report))
 }
 
-fn select_non_overlapping(candidates: Vec<Candidate>) -> Vec<Candidate> {
+fn merge_report(report: &mut FormatReport, other: &FormatReport) {
+    report.rewrite_candidates = report.rewrite_candidates.saturating_add(other.rewrite_candidates);
+    report.rewrite_committed = report.rewrite_committed.saturating_add(other.rewrite_committed);
+    report.rewrite_rejected_overlap = report
+        .rewrite_rejected_overlap
+        .saturating_add(other.rewrite_rejected_overlap);
+    report.rewrite_rejected_verification = report
+        .rewrite_rejected_verification
+        .saturating_add(other.rewrite_rejected_verification);
+}
+
+fn select_non_overlapping(candidates: Vec<Candidate>) -> (Vec<Candidate>, usize) {
     let mut selected: Vec<Candidate> = Vec::new();
+    let mut rejected = 0usize;
     for candidate in candidates {
         if selected
             .iter()
             .any(|prior| ranges_overlap(prior.range(), candidate.range()))
         {
+            rejected = rejected.saturating_add(1);
             tracing::debug!(
                 target: "mdwright::rewrite",
                 label = candidate.label(),
@@ -84,7 +109,7 @@ fn select_non_overlapping(candidates: Vec<Candidate>) -> Vec<Candidate> {
         }
         selected.push(candidate);
     }
-    selected
+    (selected, rejected)
 }
 
 fn ranges_overlap(a: &Range<usize>, b: &Range<usize>) -> bool {
@@ -106,7 +131,8 @@ fn apply_isolated(
     mut candidates: Vec<Candidate>,
     opts: &FmtOptions,
     parse_options: ParseOptions,
-) -> String {
+) -> (String, FormatReport) {
+    let mut report = FormatReport::default();
     candidates.sort_by_key(|candidate| Reverse(candidate.range().start));
     let mut out = before.to_owned();
     for candidate in candidates {
@@ -119,8 +145,10 @@ fn apply_isolated(
         let mut scratch = out.clone();
         scratch.replace_range(candidate.range().clone(), candidate.replacement());
         if verify_one(&out, &scratch, &candidate, opts, parse_options) {
+            report.rewrite_committed = report.rewrite_committed.saturating_add(1);
             out = scratch;
         } else {
+            report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(1);
             tracing::warn!(
                 target: "mdwright::rewrite",
                 label = candidate.label(),
@@ -131,7 +159,7 @@ fn apply_isolated(
             );
         }
     }
-    out
+    (out, report)
 }
 
 #[cfg(test)]
@@ -146,7 +174,7 @@ mod tests {
 
     #[test]
     fn overlapping_candidates_keep_earlier_phase() {
-        let snapshot = Snapshot::new("*x*", ParseOptions::default());
+        let snapshot = Snapshot::new("*x*", ParseOptions::default()).expect("snapshot parses");
         let a = snapshot
             .candidate(
                 Phase::Italic,
@@ -167,14 +195,15 @@ mod tests {
                 "b",
             )
             .expect("candidate");
-        let selected = select_non_overlapping(vec![a, b]);
+        let (selected, rejected_overlap) = select_non_overlapping(vec![a, b]);
         assert_eq!(selected.len(), 1);
+        assert_eq!(rejected_overlap, 1);
         assert_eq!(selected[0].label(), "a");
     }
 
     #[test]
     fn invalid_byte_boundary_candidate_is_rejected() {
-        let snapshot = Snapshot::new("é", ParseOptions::default());
+        let snapshot = Snapshot::new("é", ParseOptions::default()).expect("snapshot parses");
         assert!(
             snapshot
                 .candidate(
@@ -191,7 +220,7 @@ mod tests {
 
     #[test]
     fn isolated_failed_candidate_leaves_source_unchanged() {
-        let snapshot = Snapshot::new("- a\n+ b\n", ParseOptions::default());
+        let snapshot = Snapshot::new("- a\n+ b\n", ParseOptions::default()).expect("snapshot parses");
         let candidate = snapshot
             .candidate(
                 Phase::UnorderedList,
@@ -202,12 +231,13 @@ mod tests {
                 "merge",
             )
             .expect("candidate");
-        let out = apply_isolated(
+        let (out, report) = apply_isolated(
             snapshot.source(),
             vec![candidate],
             &FmtOptions::default(),
             ParseOptions::default(),
         );
         assert_eq!(out, snapshot.source());
+        assert_eq!(report.rewrite_rejected_verification, 1);
     }
 }

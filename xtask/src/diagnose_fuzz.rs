@@ -53,10 +53,8 @@ pub struct Diagnosis {
 ///
 /// # Errors
 ///
-/// Surfaces I/O failures reading the artifact, or any panic propagated
-/// from parsing or validating formatting (typically a pulldown-cmark
-/// upstream bug — the fuzz target swallows these via `catch_unwind`;
-/// here they propagate so the diagnostic doesn't silently mis-report).
+/// Surfaces I/O failures reading the artifact or parse/format errors
+/// returned by the same product APIs the fuzz targets exercise.
 pub fn diagnose(artifact_path: &Path) -> Result<Diagnosis> {
     let bytes = std::fs::read(artifact_path).with_context(|| format!("read {}", artifact_path.display()))?;
     let Some((&option_byte, rest)) = bytes.split_first() else {
@@ -105,8 +103,9 @@ pub fn diagnose(artifact_path: &Path) -> Result<Diagnosis> {
     // equivalence. This is stricter than `format_validated` (which
     // checks idempotence-on-mode, not source-vs-formatted) — the
     // diagnostic targets the same property the fuzz target asserts.
-    let formatted = mdwright_format::format_document(&Document::parse(s), &opts);
-    let divergence = first_divergence(s, &formatted);
+    let doc = Document::parse(s)?;
+    let formatted = mdwright_format::format_document(&doc, &opts);
+    let divergence = first_divergence(s, &formatted)?;
     let note = if divergence.is_none() {
         Some("source ≅ formatted — artifact does not reproduce".to_owned())
     } else {

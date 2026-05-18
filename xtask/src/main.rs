@@ -3,6 +3,7 @@
 //! `cargo xtask doc-config`        — regenerate or verify `docs/src/configuration.md`.
 //! `cargo xtask bump-docs-version` — sync `vX.Y.Z` pins in integration docs to `Cargo.toml`.
 //! `cargo xtask diagnose-fuzz`     — explain a libFuzzer crash artifact.
+//! `cargo xtask production-soak`   — run release-oriented corpus checks.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -62,6 +63,12 @@ enum Command {
         /// One or more paths to fuzz artifact files.
         #[arg(required = true)]
         artifacts: Vec<PathBuf>,
+    },
+    /// Run parser/lint/format/idempotence checks over the release corpus.
+    ProductionSoak {
+        /// Kan checkout root containing paths from `crates/mdwright/benches/corpus.list`.
+        #[arg(long)]
+        corpus_root: PathBuf,
     },
 }
 
@@ -142,6 +149,13 @@ fn run() -> Result<ExitCode> {
                 xtask::diagnose_fuzz::render(path, &diagnosis);
             }
             Ok(ExitCode::SUCCESS)
+        }
+        Command::ProductionSoak { corpus_root } => {
+            if xtask::production_soak::run(&workspace, &corpus_root)? {
+                Ok(ExitCode::SUCCESS)
+            } else {
+                Ok(ExitCode::from(1))
+            }
         }
         Command::BumpDocsVersion { version, check } => {
             if check {

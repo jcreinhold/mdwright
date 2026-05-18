@@ -1,1 +1,64 @@
-CLAUDE.md
+# mdwright
+
+A math-resilient Markdown linter and round-trip formatter for Kan documentation.
+
+## Read the Nearest Guide
+
+Before working in a directory, read any `AGENTS.md` that applies. Nested guides override this root guide where they are
+more specific. Today only this root file exists; add a nested guide where local rules start to drift from the root.
+
+## Current State
+
+mdwright is a virtual Cargo workspace. The command package lives at `crates/mdwright` and owns the `mdwright` binary.
+Library users depend directly on component crates:
+
+- `mdwright-document`: source canonicalisation, pulldown invocation, parser panic containment, document facts, ranges,
+  references, frontmatter, lists, code/HTML exclusions, and parse options.
+- `mdwright-math`: pure TeX/math span recognition, render conversion, and body normalisation.
+- `mdwright-format`: identity structural emit plus transactional, verified byte rewrites for opt-in canonicalisation and
+  wrapping.
+- `mdwright-lint`: diagnostics, suppression handling, safe fixes, rule execution, and standard rules.
+- `mdwright-config`: TOML schema, config discovery, and raw config to parse/format/lint policy.
+- `mdwright-lsp`: editor delivery over LSP.
+
+See `docs/architecture/crate-boundaries.md` and `docs/architecture/parser-boundary.md` for the current boundaries.
+
+## Rust Commands
+
+There is no Makefile. Drive the workspace through `cargo` directly:
+
+- `cargo check --workspace --all-targets` — type-check everything.
+- `cargo nextest run --workspace --no-fail-fast` — run tests. For one suite use
+  `cargo nextest run -p mdwright --test gfm_spec`. Do not use `cargo test` unless a documented coverage command
+  specifically requires it.
+- `cargo clippy --workspace --all-targets -- -D warnings` — lint at the level the workspace `[lints]` block expects.
+- `cargo fmt` — format.
+- `cargo bench -p mdwright --bench format_bench --bench lint_bench` — Criterion benches.
+- `cargo xtask production-soak --corpus-root /Users/jcreinhold/Code/kan` — release-oriented corpus soak.
+
+Spec-coverage sweep: `cargo test --release -p mdwright --test gfm_spec gfm_spec_coverage -- --nocapture`.
+
+## Discipline
+
+- No backward compatibility by default. mdwright is pre-1.0 and has one primary consumer; delete false abstractions
+  rather than preserving stale paths.
+- No workarounds, hacks, `TODO`s, or placeholders. Build the intended functionality, not a simplified subset that
+  compiles.
+- `unsafe` is `forbid`den crate-wide. Keep it that way.
+- Fix bugs at their owning boundary. Parser panics are contained in `mdwright-document`; formatter rewrite mistakes are
+  rejected by `mdwright-format` verification; lint bugs belong in `mdwright-lint`.
+- Do not add a crate boundary, public facade, trait, or option unless it hides a real volatile decision behind a small
+  interface.
+
+## Test Discipline
+
+- Add fixtures before code for formatter behavior (`crates/mdwright/tests/golden_*` and regressions under
+  `crates/mdwright/tests/regressions/`).
+- Property tests live in `crates/mdwright/tests/properties.rs` with generators in `crates/mdwright/tests/common/`;
+  regression seeds in `crates/mdwright/tests/properties.proptest-regressions` must not be deleted.
+- Treat `crates/mdwright/tests/gfm-spec/spec.txt` as vendored upstream. Do not edit it; record deviations through the
+  snapshot / allowlist mechanism documented in `docs/deviations.md`.
+- For fuzz-found bugs, land the minimised repro under `crates/mdwright/tests/regressions/` in the same change as the
+  fix.
+- `fuzz/artifacts/**` must be empty before commit. Diagnose, minimise, promote to a regression, or delete stale
+  non-reproducing artifacts.

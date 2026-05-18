@@ -12,7 +12,7 @@
 //! 2. **Idempotence-on-mode** — `format(format(src, opts), opts) ==
 //!    format(src, opts)` under the chosen style.
 
-#![allow(clippy::panic)]
+#![allow(clippy::expect_used, clippy::panic)]
 
 use mdwright_document::Document;
 use mdwright_format::{FmtOptions, FormatError, HeadingAttrsStyle};
@@ -24,7 +24,7 @@ fn canonical_opts() -> FmtOptions {
 #[test]
 fn canonicalise_emits_id_then_classes_then_attrs() {
     let src = "# Heading {key=val .alpha #my-id .beta}\n";
-    let formatted = mdwright_format::format_document(&Document::parse(src), &canonical_opts());
+    let formatted = mdwright_format::format_document(&Document::parse(src).expect("fixture parses"), &canonical_opts());
     assert!(
         formatted.contains("{#my-id .alpha .beta key=val}"),
         "expected canonical order; got: {formatted}"
@@ -44,13 +44,14 @@ fn canonicalise_is_idempotent_on_mode() {
         "## Heading two {key=val .alpha #my-id .beta}\n",
         "### Heading three {data-x=1 .alpha}\n",
     ] {
-        match mdwright_format::format_validated(&Document::parse(src), &canonical_opts()) {
+        match mdwright_format::format_validated(&Document::parse(src).expect("fixture parses"), &canonical_opts()) {
             Ok(_) => {}
             Err(FormatError::SemanticDivergence {
                 formatted,
                 diff_summary,
                 ..
             }) => panic!("not idempotent on Canonicalise: {diff_summary}\n=== formatted ===\n{formatted}"),
+            Err(FormatError::Parse(err)) => panic!("formatted output did not parse: {err}"),
         }
     }
 }
@@ -61,7 +62,7 @@ fn preserve_round_trips_unusual_spacing() {
     // them. (Canonicalise normalises to single spaces.)
     let src = "# Heading {#id   .class}\n";
     let opts = FmtOptions::default();
-    let formatted = mdwright_format::format_document(&Document::parse(src), &opts);
+    let formatted = mdwright_format::format_document(&Document::parse(src).expect("fixture parses"), &opts);
     assert!(
         formatted.contains("{#id   .class}"),
         "expected source spacing preserved; got: {formatted}"

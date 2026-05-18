@@ -5,6 +5,7 @@
 //! directory, format every input under default options, compare.
 
 #![allow(
+    clippy::expect_used,
     clippy::panic,
     reason = "test fixture loader; missing-file panics are the desired failure mode"
 )]
@@ -47,7 +48,7 @@ fn golden_inline() {
         } else {
             FmtOptions::default()
         };
-        let doc = Document::parse(&input);
+        let doc = Document::parse(&input).expect("fixture parses");
         let got = mdwright_format::format_document(&doc, &opts);
         count = count.saturating_add(1);
         if got != expected {

@@ -38,7 +38,7 @@ fn corpus_files_parse_to_non_empty_trees() {
             continue;
         }
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
-        let doc = Document::parse(&src);
+        let doc = Document::parse(&src).expect("fixture parses");
         let tree = doc.tree();
         let count = tree.descendants(tree.root()).count();
         assert!(count > 0, "tree for {} had no descendants", path.display());

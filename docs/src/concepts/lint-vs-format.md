@@ -24,10 +24,9 @@ code fence, a duplicate heading id. Diagnostics carry locations and optional fix
 [`LintRule`](../extending/lint-rules.md) trait and operate on a flat IR (events with byte spans), so adding a rule is
 small and self-contained.
 
-The **formatter** asks: "what is the canonical rendering of this Markdown?" Canonicalisation is structural — wrap at 100
-columns, dash-marker lists, ATX headings, sorted reference-link definitions. The formatter walks a typed tree IR where
-each construct owns its own `pretty()` method, so adding a formatting option means changing one method, not threading
-state through a visitor.
+The **formatter** asks: "which verified byte rewrites should apply to this Markdown?" Structural emit is identity:
+default formatting preserves source bytes modulo document-boundary normalisation. Opt-in canonicalisation and wrapping
+are proposed as rewrite candidates and committed only after document-level verification.
 
 Mixing the two would let lint rules read intermediate format state (fragile) or let the formatter short-circuit on lint
 diagnostics (an even worse contract). The split is a deliberate boundary.

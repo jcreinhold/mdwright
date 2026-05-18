@@ -12,9 +12,13 @@ mod snapshot;
 pub(crate) use candidate::{Candidate, Phase, Verification};
 pub(crate) use snapshot::{OwnerId, OwnerKind, Snapshot};
 
-use crate::FmtOptions;
-use mdwright_document::ParseOptions;
+use crate::{FmtOptions, FormatReport};
+use mdwright_document::{ParseError, ParseOptions};
 
-pub(crate) fn apply_rewrites(source: &str, opts: &FmtOptions, parse_options: ParseOptions) -> String {
+pub(crate) fn apply_rewrites(
+    source: &str,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+) -> Result<(String, FormatReport), ParseError> {
     engine::apply_rewrites(source, opts, parse_options)
 }

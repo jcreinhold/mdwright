@@ -30,7 +30,7 @@ makes them pass.
 
 | Commit | Cause-class | Layer | Pattern |
 |---|---|---|---|
-| `7410d6d` | `upstream-pulldown-panic` | fuzz harness `catch_unwind` + `known_issues.rs` | external (pulldown) — not a sweep target |
+| `7410d6d` / Phase 59 | `upstream-pulldown-panic` | `mdwright-document::ParseError` containment + `known_issues.rs` | external (pulldown) contained at document boundary |
 | `5c21892` | `emphasis-pairing-context` | `src/format/emit_safety.rs` (widen flank to enclosing block) | #2 source-derived flank |
 | `e9e8fba` | `oracle-domain` | `src/format/semantic.rs` (CR collapse in verbatim events) | #1 chokepoint missing |
 | `efb9d6a` | `list-marker-derivation` | `src/ir.rs` (scan for legal marker class) | local recogniser fix — not a sweep target |

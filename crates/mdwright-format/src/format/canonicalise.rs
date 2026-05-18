@@ -543,12 +543,13 @@ fn compute_math_replacement(source: &str, region: &MathRegion, opts: &FmtOptions
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use crate::{FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, StrongStyle, ThematicStyle};
 
     fn format_with(src: &str, opts: &FmtOptions) -> String {
-        crate::format_document(&mdwright_document::Document::parse(src), opts)
+        crate::format_document(&mdwright_document::Document::parse(src).expect("fixture parses"), opts)
     }
 
     #[test]

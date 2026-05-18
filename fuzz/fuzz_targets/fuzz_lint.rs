@@ -5,25 +5,13 @@
 //!      well-formed (`start <= end`),
 //!   3. lint is deterministic across two runs on the same input.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Once;
-
 use libfuzzer_sys::fuzz_target;
 use mdwright_document::{Document, contains_rejected_control_chars};
 use mdwright_lint::RuleSet;
 
 const MAX_INPUT: usize = 65_536;
 
-/// See fuzz_verbatim_identity.rs::install_silent_panic_hook.
-static SILENCE_HOOK: Once = Once::new();
-fn install_silent_panic_hook() {
-    SILENCE_HOOK.call_once(|| {
-        std::panic::set_hook(Box::new(|_| {}));
-    });
-}
-
 fuzz_target!(|data: &[u8]| {
-    install_silent_panic_hook();
     if data.len() > MAX_INPUT {
         return;
     }
@@ -37,14 +25,11 @@ fuzz_target!(|data: &[u8]| {
         return;
     }
     let rules = RuleSet::stdlib_all();
-    // Upstream pulldown-cmark panics on some inputs (see
-    // tests/known_issues.rs); swallow + skip.
-    let Ok(diags1) = catch_unwind(AssertUnwindSafe(|| (&rules).check(&Document::parse(s)))) else {
+    let Ok(doc) = Document::parse(s) else {
         return;
     };
-    let Ok(diags2) = catch_unwind(AssertUnwindSafe(|| (&rules).check(&Document::parse(s)))) else {
-        return;
-    };
+    let diags1 = (&rules).check(&doc);
+    let diags2 = (&rules).check(&doc);
 
     assert_eq!(
         diags1.len(),
