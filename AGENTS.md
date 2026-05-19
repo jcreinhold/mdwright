@@ -37,8 +37,8 @@ There is no Makefile. Drive the workspace through `cargo` directly:
 - `cargo xtask production-soak --corpus-root <PATH>`: release-oriented corpus soak (`<PATH>` is a directory of Markdown
   files; set via `MDWRIGHT_CORPUS_ROOT` or pass `--corpus-root`).
 - `cargo xtask mdformat-parity --corpus-root <PATH> --corpus-name <NAME> --mdwright-config <PATH> --mdformat-config xtask/fixtures/mdformat-parity/mdformat.toml`:
-  compare mdwright output against mdformat with a checked classification table for intentional divergences. The
-  mdformat config is a parity fixture, not the repository formatter.
+  compare mdwright output against mdformat with a checked classification table for intentional divergences. The mdformat
+  config is a parity fixture, not the repository formatter.
 - `cargo xtask parser-audit --case-set all --ensure-tools --include-comrak`: compare mdwright's parser backend against
   cmark-gfm expected/rendered HTML, with optional comrak diagnostics.
 
