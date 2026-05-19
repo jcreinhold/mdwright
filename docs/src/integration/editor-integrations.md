@@ -21,7 +21,7 @@ mdwright advertises UTF-8 position encoding. Clients that negotiate UTF-8 (VS Co
 the full surface: diagnostics, hover, formatting, range formatting, on-type formatting, and code actions. Clients that
 only support UTF-16 get diagnostics + hover; formatting and code-action providers are withdrawn rather than risk
 corrupting non-ASCII sources, and a warning is logged via `window/logMessage`. Check your editor's LSP log if formatting
-unexpectedly does nothing—it usually means the client never granted UTF-8.
+unexpectedly does nothing, it usually means the client never granted UTF-8.
 
 ## VS Code
 
@@ -59,7 +59,7 @@ language-servers = ["mdwright"]
 auto-format = true
 ```
 
-`:lsp-restart` after editing. Helix's `space-a` opens the code-action menu—pick `Fix \`bare-url\`: …` for a single
+`:lsp-restart` after editing. Helix's `space-a` opens the code-action menu; pick `Fix \`bare-url\`: …` for a single
 diagnostic or `Apply all mdwright safe fixes` to run every safe quick-fix at once.
 
 ## Zed
@@ -131,5 +131,5 @@ location. Save the file (or invoke whole-document formatting) periodically to re
 
 ## See also
 
-- [Pre-commit](pre-commit.md)—backstop for missed editor saves.
-- [Lint vs. format](../concepts/lint-vs-format.md)—editor flow drives both pipelines.
+- [Pre-commit](pre-commit.md): backstop for missed editor saves.
+- [Lint vs. format](../concepts/lint-vs-format.md): editor flow drives both pipelines.

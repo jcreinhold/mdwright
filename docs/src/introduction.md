@@ -5,7 +5,7 @@ capability that pushed the design, but the tool is useful on any Markdown.
 
 Three commitments shape the tool.
 
-**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after—every change in the rendered
+**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after; every change in the rendered
 DOM is treated as a bug. Whitespace inside a paragraph may shift (`a  b` becomes `a b`), but the word
 boundaries and the rendered tree do not. Where the formatter cannot prove equivalence it refuses to rewrite; the
 [deviation table](deviations.md) lists every exception with a reproducer.
@@ -21,11 +21,11 @@ choices that buy this are in [Architecture](extending/architecture.md).
 
 ## Who this site is for
 
-- **Users** writing Markdown with math, code, or strict formatting requirements—start with
+- **Users** writing Markdown with math, code, or strict formatting requirements: start with
   [Getting started](getting-started.md).
-- **CI operators** wiring mdwright into pre-commit, GitHub Actions, or other automation—
+- **CI operators** wiring mdwright into pre-commit, GitHub Actions, or other automation:
   [Integration](integration/pre-commit.md).
-- **Rule authors** extending mdwright with project-specific lints—[Extending → Lint rules](extending/lint-rules.md).
+- **Rule authors** extending mdwright with project-specific lints: [Extending → Lint rules](extending/lint-rules.md).
 
 The narrative pages (concepts, extending) explain the *why*; the reference pages ([rules](rules/index.md),
 [CLI](reference/cli.md), [public API](reference/public-api.md), [diagnostic schema](reference/diagnostic-schema.md)) are
@@ -33,6 +33,6 @@ the source-of-truth *what*.
 
 ## Stability
 
-mdwright is pre-1.0. The release surface—public Rust API, CLI, configuration schema, diagnostic JSON, and lint-rule
-trait—is documented descriptively at [Public API](reference/public-api.md); minor versions may include breaking
+mdwright is pre-1.0. The release surface, including public Rust API, CLI, configuration schema, diagnostic JSON, and lint-rule
+trait, is documented descriptively at [Public API](reference/public-api.md); minor versions may include breaking
 changes until 1.0, patch releases never do. See [Semver policy](reference/semver.md#pre-10-caveats).

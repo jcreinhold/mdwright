@@ -15,7 +15,7 @@ never depends on lint state.
 
 `check` is the audit; `fix` is the audit that may mutate; `fmt` is the unconditional rewrite;
 `fmt-check` is the rewrite-or-fail-CI variant. By default `check` and `fix` exit 0 even with
-diagnostics present—pass `--check` to make them fail CI.
+diagnostics present; pass `--check` to make them fail CI.
 
 ## Why the pipelines are separate
 
@@ -25,7 +25,7 @@ implement the [`LintRule`](../extending/lint-rules.md) trait and operate on a fl
 byte spans).
 
 The formatter answers a whole-document question: *which verified byte rewrites should apply?*
-Structural emit is identity—default formatting preserves source bytes modulo document-boundary
+Structural emit is identity: default formatting preserves source bytes modulo document-boundary
 normalisation. Canonicalisation and wrapping are proposed as rewrite candidates and committed only
 after document-level verification.
 
@@ -45,7 +45,7 @@ For pre-commit hooks, see [Integration → Pre-commit](../integration/pre-commit
 ## What `--check` means
 
 `--check` on `mdwright check` (or `mdwright fix`) makes the command exit 1 when any non-advisory
-diagnostic fires. Without it, `check` prints diagnostics and exits 0—useful for tooling that
+diagnostic fires. Without it, `check` prints diagnostics and exits 0, which is useful for tooling that
 wants to consume the output without aborting.
 
 `mdwright fmt-check` has no `--check` flag; it always exits non-zero when any file would be
@@ -53,7 +53,7 @@ reformatted, matching `rustfmt --check`'s contract.
 
 ## See also
 
-- [Suppression comments](suppression-comments.md)—silencing a diagnostic without disabling the
+- [Suppression comments](suppression-comments.md): silencing a diagnostic without disabling the
   rule entirely.
-- [Configuration](../configuration.md)—separate `[lint]` and `[fmt]` tables.
-- [Rules catalogue](../rules/index.md)—every shipping lint rule.
+- [Configuration](../configuration.md): separate `[lint]` and `[fmt]` tables.
+- [Rules catalogue](../rules/index.md): every shipping lint rule.

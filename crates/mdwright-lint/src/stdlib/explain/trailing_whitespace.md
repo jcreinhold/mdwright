@@ -35,4 +35,4 @@ Another line.
 
 ## References
 
-- [CommonMark §6.7—Hard line breaks](https://spec.commonmark.org/0.31.2/#hard-line-breaks).
+- [CommonMark §6.7: Hard line breaks](https://spec.commonmark.org/0.31.2/#hard-line-breaks).

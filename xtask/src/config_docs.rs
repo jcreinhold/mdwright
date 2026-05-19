@@ -349,7 +349,7 @@ pub fn regenerate(workspace: &Path) -> Result<()> {
 }
 
 /// Compare the rendered page to its on-disk counterpart. Returns a
-/// vector of [`Drift`] entries — empty means no drift.
+/// vector of [`Drift`] entries; empty means no drift.
 ///
 /// # Errors
 ///

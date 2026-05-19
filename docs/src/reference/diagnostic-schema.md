@@ -64,7 +64,7 @@ above is for human reading only.
 | `column`     | integer (≥ 1) | 1-indexed codepoint column.                                                                                                                  |
 | `span_start` | integer (≥ 0) | Byte offset of the first byte of the offending region.                                                                                       |
 | `span_end`   | integer (≥ 0) | Byte offset one past the last byte.                                                                                                          |
-| `snippet`    | string        | The source line, with trailing newline stripped. Multi-line spans are clipped to the first line—the caret region still starts at `column`. |
+| `snippet`    | string        | The source line, with trailing newline stripped. Multi-line spans are clipped to the first line; the caret region still starts at `column`. |
 
 ### `fix`
 

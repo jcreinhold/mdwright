@@ -12,7 +12,7 @@ Trailing `.` or `:` on a heading.
 
 ## What it does
 
-Flags ATX or setext headings that end with `.`, `!`, or `?`—terminal sentence punctuation.
+Flags ATX or setext headings that end with `.`, `!`, or `?`: terminal sentence punctuation.
 
 ## Why
 
@@ -45,4 +45,4 @@ declarative title or suppress on that block.
 
 ## References
 
-- [Microsoft Writing Style Guide—Capitalization, headings, and titles](https://learn.microsoft.com/en-us/style-guide/capitalization).
+- [Microsoft Writing Style Guide: Capitalization, headings, and titles](https://learn.microsoft.com/en-us/style-guide/capitalization).

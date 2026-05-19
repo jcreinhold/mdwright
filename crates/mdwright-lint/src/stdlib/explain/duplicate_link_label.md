@@ -7,7 +7,7 @@ another definition in the same document.
 
 CommonMark says the first definition wins; later duplicates are silently discarded. The author
 usually intended for one of them to be a different label, so a duplicate is almost always a
-copy-paste mistake. Worse, the discarded definition often documents the intended target—so
+copy-paste mistake. Worse, the discarded definition often documents the intended target, so
 the link still resolves, but to the wrong URL.
 
 ## Example (bad)
@@ -36,4 +36,4 @@ See the [docs][readme] and the [tutorial][tutorial].
 
 ## References
 
-- [CommonMark §4.7—Link reference definitions](https://spec.commonmark.org/0.31.2/#link-reference-definitions).
+- [CommonMark §4.7: Link reference definitions](https://spec.commonmark.org/0.31.2/#link-reference-definitions).

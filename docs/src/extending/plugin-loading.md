@@ -4,7 +4,7 @@ mdwright does not load lint rules at runtime. The supported
 extension path is the one [Writing a lint rule](lint-rules.md)
 describes: depend on `mdwright-document` and `mdwright-lint`, implement `LintRule`,
 call `mdwright::run_with_rules`, and ship your own binary.
-This page explains why—what dynamic loading would buy, what it
+This page explains why: what dynamic loading would buy, what it
 would cost, and what would have to change for the decision to flip.
 
 ## The decision
@@ -20,7 +20,7 @@ in spirit. ruff thrives without a plugin runtime; the trait surface
 plus a documented "ship your own binary" path covers every adopter
 who hits the limits of the stdlib.
 
-## Architecture A—supported
+## Architecture A: Supported
 
 A user writes a rule in their own crate, depends on `mdwright-document`, `mdwright-lint`, and `mdwright` from
 crates.io, and ships a small binary:
@@ -52,7 +52,7 @@ fn main() -> std::process::ExitCode {
 This is what mdwright ships, in the `mdwright` crate and the
 `examples/extending/` workspace member.
 
-## Architecture B—dynamic loading via `libloading` (rejected)
+## Architecture B: Dynamic Loading via `libloading` (Rejected)
 
 `.mdwright.toml`:
 
@@ -69,7 +69,7 @@ mdwright would load each `cdylib` at startup and look up a
 | **Capability**          | Anything Rust can express.                   |
 | **Complexity**          | A `libloading` integration, a `Registry` shim, a plugin ABI versioning story. |
 | **Cost to user**        | They build a `cdylib` and put it in a path. First-run UX is opaque when the path is wrong. |
-| **Cost to maintainer**  | Substantial. The ABI surface is every type a plugin touches—`Diagnostic`, `Document`, every accessor—and Rust has no stable ABI. Every Rust release risks breaking every plugin. |
+| **Cost to maintainer**  | Substantial. The ABI surface is every type a plugin touches, including `Diagnostic`, `Document`, and every accessor. Rust has no stable ABI. Every Rust release risks breaking every plugin. |
 | **Semver implications** | `repr(Rust)` types cross the boundary; layout is unspecified. Every release becomes an ABI compatibility check. |
 
 **Verdict:** rejected. The maintenance burden is high, the gain over
@@ -78,7 +78,7 @@ and Rust's lack of a stable ABI makes the contract perpetually
 fragile. Linking a single `cdylib` into the official binary buys
 *nothing* a custom binary doesn't already give you.
 
-## Architecture C—WASM via `wasmtime` (deferred)
+## Architecture C: WASM via `wasmtime` (Deferred)
 
 `.mdwright.toml`:
 
@@ -95,7 +95,7 @@ sandbox, serialising documents and diagnostics across the boundary.
 | **Capability**          | Restricted to whatever API mdwright exposes through the host bindings. |
 | **Complexity**          | Define and document a sandbox API; write host bindings; serialise `Document` and `Diagnostic` (no zero-copy across the boundary); manage WASM startup cost per file. |
 | **Cost to user**        | Plugin authors learn `wasm-bindgen`-style discipline; the trait is harder to use than the native one. |
-| **Cost to maintainer**  | Maintain the WASM API forever, plus a reference implementation, plus a performance story (parsing each file twice—once natively, once through the boundary—is not free). |
+| **Cost to maintainer**  | Maintain the WASM API forever, plus a reference implementation, plus a performance story (parsing each file twice, once natively and once through the boundary, is not free). |
 | **Semver implications** | The WASM API is its own semver surface, parallel to the native `LintRule` trait. |
 
 **Verdict:** deferred to Phase 5+. The cost is real and the demand

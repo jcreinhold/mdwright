@@ -37,7 +37,7 @@ error[bare-url]: bare URL should be wrapped in angle brackets or rendered as a l
    |
  3 | See https://example.com for the spec.
    |     ^^^^^^^^^^^^^^^^^^^
-   = help: CommonMark autolinks need angle brackets—`<https://example.com>`—to render as a link.
+   = help: CommonMark autolinks need angle brackets (`<https://example.com>`) to render as a link.
    = fix (safe): <https://example.com>
    = note: see `mdwright explain bare-url`
 
@@ -52,7 +52,7 @@ Read the long-form explanation of the first rule:
 mdwright explain bare-url
 ```
 
-The bottom line is the documentation URL—open it for the same content rendered with examples.
+The bottom line is the documentation URL. Open it for the same content rendered with examples.
 
 ## Fix the easy one
 
@@ -86,7 +86,7 @@ mdwright fmt README.md
 ```
 
 `fmt` rewrites the file in place. Run `git diff` (in a real project) to see what changed. The defaults preserve source
-style—emphasis delimiters, list markers, thematic breaks, line wrap—so the diff is usually small. Display math,
+style, including emphasis delimiters, list markers, thematic breaks, and line wrap, so the diff is usually small. Display math,
 inline math, and fenced code blocks pass through verbatim. Opt in to canonicalisation per knob in `.mdwright.toml`; see
 [Formatter policy](format/policy.md) and [Style knobs](format/style.md).
 
@@ -104,7 +104,7 @@ Now `mdwright check` does not flag bare URLs. See [Configuration](configuration.
 
 ## Where to go next
 
-- [Lint vs. format](concepts/lint-vs-format.md)—when each subcommand fires.
-- [Math regions](concepts/math-regions.md)—what mdwright protects and why.
-- [Integration → Pre-commit](integration/pre-commit.md)—wire mdwright into your VCS hooks.
-- [Rules catalogue](rules/index.md)—every rule with rationale and examples.
+- [Lint vs. format](concepts/lint-vs-format.md): when each subcommand fires.
+- [Math regions](concepts/math-regions.md): what mdwright protects and why.
+- [Integration → Pre-commit](integration/pre-commit.md): wire mdwright into your VCS hooks.
+- [Rules catalogue](rules/index.md): every rule with rationale and examples.

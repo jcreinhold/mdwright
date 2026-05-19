@@ -71,6 +71,6 @@ See [Configuration](../configuration.md#lint).
 
 ## See also
 
-- [Lint vs. format](lint-vs-format.md)—suppression only affects linting; the formatter has no per-document opt-out.
-- [Rules catalogue](../rules/index.md)—every rule's kebab-case name (the literal that goes in the suppression
+- [Lint vs. format](lint-vs-format.md): suppression only affects linting; the formatter has no per-document opt-out.
+- [Rules catalogue](../rules/index.md): every rule's kebab-case name (the literal that goes in the suppression
   comment).

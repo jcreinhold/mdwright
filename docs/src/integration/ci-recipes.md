@@ -85,5 +85,5 @@ The JSON v2 schema is stable; consume it programmatically (see [Diagnostic schem
 
 ## See also
 
-- [GitHub Actions](github-actions.md)—the most-tested path.
-- [Pre-commit](pre-commit.md)—local-machine equivalent.
+- [GitHub Actions](github-actions.md): the most-tested path.
+- [Pre-commit](pre-commit.md): local-machine equivalent.

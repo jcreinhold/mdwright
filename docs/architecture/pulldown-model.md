@@ -2,7 +2,7 @@
 
 Reference for the per-construct behaviours of `pulldown-cmark` 0.13 that
 mdwright depends on. Every emit-site decision in `src/format/` either
-matches a rule on this page or contradicts pulldown—the latter is a
+matches a rule on this page or contradicts pulldown. A contradiction is a
 bug.
 
 This file is paired with `tests/pulldown_model.rs`. Each rule below
@@ -31,7 +31,7 @@ Consequence: no `CowStr` produced by `Event::Text`, `Event::Code`,
 `Event::Html`, `Event::InlineHtml`, `Event::InlineMath`, or
 `Event::DisplayMath` can ever contain a CR byte in production. The
 semantic-equivalence walker (`src/format/semantic.rs::canonical_events`)
-relies on this—there is no per-event CR scrub.
+relies on this; there is no per-event CR scrub.
 
 Test: `line_endings_softbreak_between_lines`.
 
@@ -58,7 +58,7 @@ pairing container*. The set of pairing containers pulldown observes:
 paragraph, heading, table cell, link body, image body, footnote
 definition.
 
-Strikethrough (`~~…~~`) is **not** a pairing container—emphasis
+Strikethrough (`~~…~~`) is **not** a pairing container: emphasis
 delimiters can open inside one strikethrough run and close inside
 another, or across a strikethrough boundary entirely. The safety
 ladder's per-construct reparse takes this into account by including
@@ -99,12 +99,12 @@ end conditions. Two of the important asymmetries:
   marker): the block ends at the *line containing* the matching end
   marker (or EOF). The block's events are a sequence of
   `Event::Html(line)` per source line, each payload including its
-  trailing newline—except possibly the last, which can omit the
+  trailing newline, except possibly the last, which can omit the
   newline if the source did.
 - **Type 6** (recognised tag names like `<table>`): the block ends at
   the first blank line after the start (or EOF). Recognition is by
   tag *name*, not by close-tag matching: `<table>` opens a type-6
-  block; the close `</table>` does not by itself end it—a blank
+  block; the close `</table>` does not by itself end it. A blank
   line does.
 
 The block's payload bytes round-trip verbatim (modulo §1
@@ -116,7 +116,7 @@ Test: `html_block_type2_emits_per_line_events`.
 ## §6 Emphasis-event range semantics
 
 `Event::Start(Tag::Emphasis)` and `Event::End(TagEnd::Emphasis)` ranges
-in the offset iterator cover the **entire run**—from the byte
+in the offset iterator cover the **entire run**, from the byte
 position of the first character of the opening delimiter, to the byte
 position *after* the last character of the closing delimiter.
 
@@ -129,7 +129,7 @@ position *after* the last character of the closing delimiter.
 Same convention for `Strong`. The safety ladder
 (`src/format/emit_safety.rs::parses_with_outer_run_at`) tests
 `range.start == target_open` and `range.end == target_close` to
-identify the candidate run—a pulldown change to either convention
+identify the candidate run. A pulldown change to either convention
 would silently break the test, which is exactly the kind of drift the
 model test catches.
 
@@ -224,7 +224,7 @@ The inline overlay (`apply_inline_overlay`) is the **first inline-level overlay*
 into both `walk_paragraph_inline` (paragraph context, with `ParagraphSafetyState`) and
 `pretty_inline_children_for_ids` (emphasis / link bodies, heading inlines, list-item virtual paragraphs) before
 the per-node `match`. A child whose `raw_range.start` lies inside a previously-emitted overlay region is silently
-swallowed—this is the multi-child-swallow logic that handles `` {term}`payload` ``, where the role spans both
+swallowed. This is the multi-child-swallow logic that handles `` {term}`payload` ``, where the role spans both
 the `{term}` literal-text node and the following code-span node.
 
 There is no drift-test for these constructs because pulldown emits nothing to drift on; the scanner's per-fixture

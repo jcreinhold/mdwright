@@ -38,7 +38,7 @@ pub trait LintRule: Send + Sync {
 ## Worked example: `no-todo-in-prose`
 
 A rule that flags `TODO` (case-sensitive) inside paragraph text but
-not inside code blocks, inline code, math regions, or HTML blocks—
+not inside code blocks, inline code, math regions, or HTML blocks:
 `Document::prose_chunks()` handles every skip for you.
 
 ```rust
@@ -113,7 +113,7 @@ name fail fast.
 ## Shipping a custom binary
 
 The CLI crate entry point [`mdwright::run_with_rules`][run] takes
-your assembled `RuleSet` and runs the whole CLI on top of it—clap
+your assembled `RuleSet` and runs the whole CLI on top of it; clap
 parsing, config discovery, every output format, the LSP server, the
 suppression machinery. Your `main` is ten lines:
 
@@ -148,7 +148,7 @@ Your binary is just a crate. Push to crates.io with
 `cargo publish` (we recommend a name like `<org>-mdwright` so users
 distinguish it from the official binary), or distribute the compiled
 artifact directly. Downstream users install your binary and run it
-in place of `mdwright`—the command-line interface is identical.
+in place of `mdwright`; the command-line interface is identical.
 
 ## Caveats
 
@@ -163,13 +163,13 @@ in place of `mdwright`—the command-line interface is identical.
 
 ## See also
 
-- [Plugin loading](plugin-loading.md)—why custom binaries are the
+- [Plugin loading](plugin-loading.md): why custom binaries are the
     supported path; what we rejected and why.
-- [Architecture](architecture.md)—the IR boundary `LintRule::check`
+- [Architecture](architecture.md): the IR boundary `LintRule::check`
     sees.
-- [Suppression comments](../concepts/suppression-comments.md)—how
+- [Suppression comments](../concepts/suppression-comments.md): how
     rules opt out per-document.
-- [Diagnostic schema](../reference/diagnostic-schema.md)—the shape
+- [Diagnostic schema](../reference/diagnostic-schema.md): the shape
     your diagnostics take after the dispatcher stamps them.
 
 [diag]: https://docs.rs/mdwright/latest/mdwright/struct.Diagnostic.html
