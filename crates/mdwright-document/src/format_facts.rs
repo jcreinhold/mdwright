@@ -817,6 +817,9 @@ impl PartialParagraph {
     fn finish(self, bytes: &[u8]) -> Option<WrappableParagraph> {
         let (line_lo, first_prefix) = extract_first_prefix(bytes, self.content_lo)?;
         let line_hi = extract_line_hi(bytes, self.content_hi);
+        if is_mkdocs_admonition_paragraph(bytes, line_lo, line_hi) {
+            return None;
+        }
         let cont_prefix = derive_continuation_prefix(&first_prefix)?;
         let mut atomics = self.atomics;
         atomics.sort_by_key(|r| r.start);
@@ -832,6 +835,36 @@ impl PartialParagraph {
             atomics,
             hard_breaks,
         })
+    }
+}
+
+fn is_mkdocs_admonition_paragraph(bytes: &[u8], line_lo: usize, line_hi: usize) -> bool {
+    let Some(line) = bytes.get(line_lo..line_hi) else {
+        return false;
+    };
+    let first_line_end = line.iter().position(|&b| b == b'\n').unwrap_or(line.len());
+    let Some(first_line) = line.get(..first_line_end) else {
+        return false;
+    };
+    let indent = first_line.iter().take_while(|&&b| b == b' ').count();
+    if indent > 3 {
+        return false;
+    }
+    let marker = first_line.get(indent..).unwrap_or(&[]);
+    is_admonition_marker(marker, b"!!!") || is_admonition_marker(marker, b"???")
+}
+
+fn is_admonition_marker(line: &[u8], opener: &[u8]) -> bool {
+    let Some(after_opener) = line.get(opener.len()..) else {
+        return false;
+    };
+    if !line.starts_with(opener) {
+        return false;
+    }
+    match after_opener.first().copied() {
+        Some(b' ' | b'\t') => true,
+        Some(b'+' | b'-') => matches!(after_opener.get(1).copied(), Some(b' ' | b'\t')),
+        _ => false,
     }
 }
 

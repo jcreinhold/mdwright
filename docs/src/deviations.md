@@ -21,12 +21,12 @@ branch.
 | Bucket               | Examples |
 | -------------------- | -------- |
 | Spec examples total  | 672      |
-| Matching             | 615      |
+| Matching             | 637      |
 | Editorial deviations | 35       |
-| Tracked regressions  | 22       |
+| Tracked regressions  | 0        |
 
-A *case* may fail more than one comparison kind (`html`, `ast`, `idempotence`); the snapshot file is keyed by
-`(case, kind)` and currently lists 35 entries across 22 distinct cases.
+A *case* may fail more than one comparison kind (`semantic`, `idempotence`); the snapshot file is keyed by
+`(case, kind)` and currently lists no tracked regressions.
 
 ## Editorial deviations
 
@@ -55,25 +55,10 @@ CM §6.2); 499, 500, 503, 520, 528, 536 (Links, CM §6.3); 640 (Raw HTML, CM §6
 The bucket name is load-bearing: if a future per-case investigation disproves the chunking explanation for one of the
 cases above, remove its entry from `allowlist.toml` and let it re-enter the snapshot as a tracked regression.
 
-## Tracked regressions, by section
+## Tracked regressions
 
-Counts below are `(case, kind)` failures from `tests/gfm-spec/snapshot.txt`.
-
-| Section                      | Spec ref     | Failures |
-| ---------------------------- | ------------ | -------- |
-| Emphasis and strong emphasis | CM 0.30 §6.2 | 16       |
-| HTML blocks                  | CM 0.30 §4.6 | 8        |
-| Link reference definitions   | CM 0.30 §4.7 | 4        |
-| Lists                        | CM 0.30 §5.3 | 4        |
-| Thematic breaks              | CM 0.30 §4.1 | 1        |
-| List items                   | CM 0.30 §5.2 | 1        |
-| Task list items (extension)  | GFM §5.3     | 1        |
-
-By comparison kind: 13 HTML mismatches, 13 AST mismatches, 9 idempotence failures.
-
-All entries here are real divergences in mdwright's output, not pulldown chunking artefacts — those moved to the
-editorial allowlist (see *Pulldown text-chunking deviations* above). Each case will need its own root-cause analysis to
-fix; some overlap with parked fuzz finds under `fuzz/known-issues/`.
+There are currently no tracked GFM-spec formatter regressions. Any future non-allowlisted failure appears in
+`tests/gfm-spec/snapshot.txt` and fails the snapshot test until it is fixed or deliberately classified.
 
 ## mdformat-mkdocs parity deviations
 
@@ -112,9 +97,11 @@ prints, at the top of its output:
 
 ```
 gfm spec coverage:
-  matching:               <n>
-  editorial deviations:   <n>
-  tracked regressions:    <n>
+  total cases:        <n>
+  fully matching:     <n>
+  intentional dev:    <n>
+  tracked regression: <n>
+  unexpected:         <n>
 ```
 
 These are the source of truth; the table above is a snapshot for the release notes.

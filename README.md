@@ -15,6 +15,10 @@ is the standard choice.
 
 It is also several hundred times faster than `mdformat --check` on a multi-thousand-file corpus.
 
+mdwright is not a drop-in mdformat clone. The release gate includes `cargo xtask mdformat-parity`, which compares both
+formatters on isolated corpus copies and records every byte-output difference as fixed, configured, intentional, or
+upstream-owned in `docs/architecture/mdformat-parity.md`.
+
 ## Documentation
 
 Full manual: **<https://jcreinhold.github.io/mdwright/>**

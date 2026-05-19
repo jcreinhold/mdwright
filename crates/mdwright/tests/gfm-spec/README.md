@@ -34,6 +34,10 @@ prose corpora.
 
 ## Runner
 
+`gfm_spec.rs` is a formatter round-trip harness. It parses the source side, formats it, reparses the result, and checks
+idempotence plus mdwright semantic equivalence. It does **not** compare against the expected HTML embedded in
+`spec.txt`; that cmark-gfm conformance role belongs to `cargo xtask parser-audit`.
+
 Phase R replaced the ratchet with a snapshot. Two tests in `tests/gfm_spec.rs`:
 
 - `gfm_spec_snapshot` runs every case through `parse → format → parse → format`, collects the residual `(case, kind)`

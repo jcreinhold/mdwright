@@ -80,6 +80,22 @@ when intentionally rebaselined.
 **Does NOT cover:** behaviour outside the GFM-spec cases. Project-specific extensions
 (admonitions, frontmatter, math regions) live in their own golden suites.
 
+## Parser backend audit
+
+**Location:** `cargo xtask parser-audit`, classifications in
+`docs/architecture/parser-backend-audit.md`.
+
+The audit compares mdwright's `pulldown-cmark` backend against the vendored
+cmark-gfm expected HTML and a pinned `cmark-gfm` binary. Optional comrak output is
+reported as diagnostic evidence, not as a release gate.
+
+**Invariant:** parser-backend differences are explicit. Unclassified pulldown HTML
+mismatches, uncontained parser panics, rows marked `fixed`, and rows marked
+`needs-mdwright-mitigation` fail the command.
+
+**Does NOT cover:** formatter idempotence or rewrite safety; those remain covered by
+the GFM snapshot, property tests, fuzz, and production soak.
+
 ## Fuzz oracles
 
 **Location:** `fuzz/fuzz_targets/`. Five targets:
@@ -115,6 +131,19 @@ candidate totals, maximum file size, and slowest files.
 
 **Does NOT cover:** behaviour beyond `MAX_INPUT = 65 536` bytes; the libFuzzer harness
 skips bigger inputs. The CLI enforces the same shape via `--max-input-bytes`.
+
+## mdformat parity
+
+`cargo xtask mdformat-parity --corpus-root <path> --corpus-name <name> --mdwright-config <path>
+--mdformat-config <path>` copies a corpus into isolated temp roots, runs mdwright and mdformat, and writes JSON /
+Markdown reports under `target/mdwright/parity/`.
+The command compares changed file sets, line-diff stats, idempotence, mdBook buildability when applicable, and semantic
+equivalence of each formatter output to the original.
+
+The parity gate is intentionally not byte-equality with mdformat. Differences are allowed only when
+`docs/architecture/mdformat-parity.md` classifies them as configured, intentional, or upstream-owned. The command fails
+on unclassified differences, mdwright semantic drift, parser errors, idempotence failures, mdBook failures, rows marked
+`fixed` that still appear, and rows marked `open-bug`.
 
 ## How to choose what to add when
 

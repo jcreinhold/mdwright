@@ -4,12 +4,14 @@
 //! `cargo xtask bump-docs-version` — sync `vX.Y.Z` pins in integration docs to `Cargo.toml`.
 //! `cargo xtask diagnose-fuzz`     — explain a libFuzzer crash artifact.
 //! `cargo xtask production-soak`   — run release-oriented corpus checks.
+//! `cargo xtask mdformat-parity`   — compare mdwright and mdformat output over a corpus.
+//! `cargo xtask parser-audit`      — compare pulldown-cmark with cmark-gfm.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser, Debug)]
 #[command(name = "xtask", about = "mdwright maintenance tasks")]
@@ -70,6 +72,61 @@ enum Command {
         #[arg(long)]
         corpus_root: PathBuf,
     },
+    /// Compare mdwright and mdformat output over a corpus.
+    MdformatParity {
+        /// Corpus directory or single Markdown file to copy into isolated formatter roots.
+        #[arg(long)]
+        corpus_root: PathBuf,
+        /// Stable name used to match rows in `docs/architecture/mdformat-parity.md`.
+        #[arg(long)]
+        corpus_name: Option<String>,
+        /// mdwright config to copy to the mdwright formatter root as `.mdwright.toml`.
+        #[arg(long)]
+        mdwright_config: PathBuf,
+        /// mdformat config to copy to the mdformat formatter root as `.mdformat.toml`.
+        #[arg(long)]
+        mdformat_config: PathBuf,
+        /// Directory for JSON and Markdown reports.
+        #[arg(long, default_value = "target/mdwright/parity")]
+        output: PathBuf,
+        /// Keep the temporary formatter roots and print their path.
+        #[arg(long)]
+        keep_temp: bool,
+        /// Append unclassified observed differences to the classification table as open bugs.
+        #[arg(long)]
+        bless_classification: bool,
+        /// Require generated docs differences to be classified instead of ignored.
+        #[arg(long)]
+        include_generated: bool,
+    },
+    /// Compare mdwright's pulldown-cmark backend against cmark-gfm.
+    ParserAudit {
+        /// Cases to audit.
+        #[arg(long, value_enum, default_value_t = ParserAuditCaseSet::All)]
+        case_set: ParserAuditCaseSet,
+        /// Directory for JSON and Markdown reports.
+        #[arg(long, default_value = "target/mdwright/parser-audit")]
+        output: PathBuf,
+        /// Build a pinned cmark-gfm binary under `target/mdwright/tools`.
+        #[arg(long)]
+        ensure_tools: bool,
+        /// Include comrak rendered-HTML and source-position diagnostics.
+        #[arg(long)]
+        include_comrak: bool,
+        /// Use an explicit cmark-gfm binary instead of the pinned local tool.
+        #[arg(long)]
+        cmark_gfm_bin: Option<PathBuf>,
+        /// Optional release corpus root to include with `--case-set corpus` or `all`.
+        #[arg(long)]
+        corpus_root: Option<PathBuf>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ParserAuditCaseSet {
+    GfmSpec,
+    Corpus,
+    All,
 }
 
 fn main() -> ExitCode {
@@ -152,6 +209,58 @@ fn run() -> Result<ExitCode> {
         }
         Command::ProductionSoak { corpus_root } => {
             if xtask::production_soak::run(&workspace, &corpus_root)? {
+                Ok(ExitCode::SUCCESS)
+            } else {
+                Ok(ExitCode::from(1))
+            }
+        }
+        Command::MdformatParity {
+            corpus_root,
+            corpus_name,
+            mdwright_config,
+            mdformat_config,
+            output,
+            keep_temp,
+            bless_classification,
+            include_generated,
+        } => {
+            let opts = xtask::mdformat_parity::ParityOptions {
+                corpus_root,
+                corpus_name,
+                mdwright_config,
+                mdformat_config,
+                output,
+                keep_temp,
+                bless_classification,
+                include_generated,
+            };
+            if xtask::mdformat_parity::run(&workspace, opts)? {
+                Ok(ExitCode::SUCCESS)
+            } else {
+                Ok(ExitCode::from(1))
+            }
+        }
+        Command::ParserAudit {
+            case_set,
+            output,
+            ensure_tools,
+            include_comrak,
+            cmark_gfm_bin,
+            corpus_root,
+        } => {
+            let opts = xtask::parser_audit::ParserAuditOptions {
+                case_set: match case_set {
+                    ParserAuditCaseSet::GfmSpec => xtask::parser_audit::CaseSet::GfmSpec,
+                    ParserAuditCaseSet::Corpus => xtask::parser_audit::CaseSet::Corpus,
+                    ParserAuditCaseSet::All => xtask::parser_audit::CaseSet::All,
+                },
+                output,
+                ensure_tools,
+                include_comrak,
+                cmark_gfm_bin,
+                corpus_root,
+            };
+            if xtask::parser_audit::run(&workspace, opts)? {
                 Ok(ExitCode::SUCCESS)
             } else {
                 Ok(ExitCode::from(1))

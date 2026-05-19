@@ -35,13 +35,7 @@ use std::path::{Path, PathBuf};
 use mdwright_document::Document;
 use mdwright_format::{FmtOptions, semantically_equivalent};
 use serde::Deserialize;
-
-#[derive(Debug)]
-struct SpecCase {
-    number: u32,
-    section: String,
-    source: String,
-}
+use xtask::gfm_spec::{SpecCase, parse_spec};
 
 fn spec_path() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/gfm-spec/spec.txt")
@@ -88,70 +82,6 @@ fn load_allowlist() -> Vec<AllowEntry> {
     }
     let parsed: AllowFile = toml::from_str(&text).unwrap_or_else(|e| panic!("parse allowlist.toml: {e}"));
     parsed.cases
-}
-
-/// Spec-example block syntax: a 32-backtick fence opens with the
-/// `example` tag (optionally followed by a class like `table` or
-/// `autolink`), a `.` separator marks the source/HTML boundary, and a
-/// bare 32-backtick fence closes the block. Tabs in source are
-/// escaped as `→` (U+2192) and must be decoded back. Section headers
-/// (`# … {#anchor}` or `## …`) preceding a block become its `section`
-/// label; this is purely informational. Example numbers count
-/// upward across the whole file.
-fn parse_spec(text: &str) -> Vec<SpecCase> {
-    const FENCE: &str = "````````````````````````````````";
-    let mut out = Vec::new();
-    let mut section = String::new();
-    let mut number: u32 = 0;
-    let mut lines = text.lines();
-    while let Some(line) = lines.next() {
-        let trimmed = line.trim_end();
-        if let Some(rest) = trimmed.strip_prefix("# ") {
-            section = strip_anchor(rest);
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("## ") {
-            section = strip_anchor(rest);
-            continue;
-        }
-        let Some(header_rest) = trimmed.strip_prefix(FENCE) else {
-            continue;
-        };
-        let header_rest = header_rest.trim_start();
-        if header_rest.strip_prefix("example").is_none() {
-            continue;
-        }
-        number = number.saturating_add(1);
-
-        let mut source = String::new();
-        let mut in_source = true;
-        for inner in lines.by_ref() {
-            let inner_trim = inner.trim_end();
-            if inner_trim == FENCE {
-                break;
-            }
-            if in_source {
-                if inner_trim == "." {
-                    in_source = false;
-                    continue;
-                }
-                source.push_str(&inner.replace('→', "\t"));
-                source.push('\n');
-            }
-            // HTML side is intentionally discarded — the runner uses
-            // our own parser on both sides.
-        }
-        out.push(SpecCase {
-            number,
-            section: section.clone(),
-            source,
-        });
-    }
-    out
-}
-
-fn strip_anchor(s: &str) -> String {
-    s.split(" {#").next().unwrap_or(s).trim().to_owned()
 }
 
 /// Kind labels are part of the snapshot file's stable surface; the

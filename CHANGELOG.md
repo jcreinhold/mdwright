@@ -44,6 +44,10 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 - Added a release-oriented `cargo xtask production-soak --corpus-root <path>` gate that runs parse, lint, format
   validation, idempotence, fmt-check comparison, and aggregate rewrite metrics over a primary documentation corpus and
   representative external Markdown fixtures.
+- Added `cargo xtask mdformat-parity` to compare mdwright against mdformat on isolated corpus copies and require every
+  output difference to be classified as fixed, configured, intentional, upstream-owned, or an open release-blocking bug.
+- The wrap pass now treats MkDocs-style `!!!` / `???` admonition paragraphs as opaque blocks, preventing prose wrapping
+  from collapsing the admonition marker and indented body into ordinary paragraph text.
 
 ### Performance
 
