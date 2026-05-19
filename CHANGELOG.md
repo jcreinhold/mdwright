@@ -26,6 +26,10 @@ All notable changes to mdwright are listed here. The format follows
 - Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. Component
   crates expose their own narrow APIs, and the `mdwright` package exposes only command-extension helpers such as
   `run_with_rules`.
+- Narrowed the pre-1.0 public surface before release. `mdwright-lsp::build_service_for_tests`, document source-map
+  internals (`Source`, `CanonicalSource`, `OffsetMap`, `ByteSpan`, `OriginalSpan`), parser tree internals (`Tree`,
+  `Node`, `NodeId`, `NodeKind`), `NormalisedLabel`, `find_attr_trailer_range`, and public top-level checkpoint helpers
+  are no longer exported. Use `Document` fact accessors and `mdwright_format::CheckpointTable` instead.
 
 ### Architecture
 

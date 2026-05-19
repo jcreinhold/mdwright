@@ -58,7 +58,8 @@ pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candi
         let Some(replacement) = rewrap_paragraph(out, p, mode) else {
             continue;
         };
-        let Some(existing) = out.get(p.line_lo..p.line_hi) else {
+        let line_range = p.line_range();
+        let Some(existing) = out.get(line_range.clone()) else {
             continue;
         };
         if replacement == existing {
@@ -67,7 +68,7 @@ pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candi
         if let Some(candidate) = snapshot.candidate(
             Phase::Wrap,
             OwnerKind::Paragraph,
-            p.line_lo..p.line_hi,
+            line_range,
             replacement,
             Verification::PreserveMarkdownAndMath,
             "paragraph-wrap",
@@ -82,23 +83,26 @@ pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candi
 /// paragraph, oversize token cap, time budget exceeded).
 fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
     let bytes = out.as_bytes();
-    let content = bytes.get(p.content_lo..p.content_hi)?;
-    let source_had_trailing_nl = p.line_hi > 0 && bytes.get(p.line_hi.saturating_sub(1)).copied() == Some(b'\n');
+    let content_range = p.content_range();
+    let line_range = p.line_range();
+    let content = bytes.get(content_range)?;
+    let source_had_trailing_nl =
+        line_range.end > 0 && bytes.get(line_range.end.saturating_sub(1)).copied() == Some(b'\n');
     let segments = split_at_hard_breaks(p, bytes);
-    let first_prefix_width = display_width(&p.first_prefix);
-    let cont_prefix_width = display_width(&p.cont_prefix);
+    let first_prefix_width = display_width(p.first_prefix());
+    let cont_prefix_width = display_width(p.cont_prefix());
     let target = match mode {
         Wrap::Keep => return None,
         Wrap::No => u32::MAX,
         Wrap::At(n) => n.max(1),
     };
 
-    let mut emitted = String::with_capacity(content.len().saturating_add(p.first_prefix.len()));
-    emitted.push_str(&p.first_prefix);
+    let mut emitted = String::with_capacity(content.len().saturating_add(p.first_prefix().len()));
+    emitted.push_str(p.first_prefix());
 
     let start = Instant::now();
     for (seg_idx, seg) in segments.iter().enumerate() {
-        let tokens = tokenize_segment(bytes, seg, &p.atomics, &p.cont_prefix)?;
+        let tokens = tokenize_segment(bytes, seg, p.atomics(), p.cont_prefix())?;
         let first_target = if seg_idx == 0 {
             target.saturating_sub(first_prefix_width).max(1)
         } else {
@@ -110,7 +114,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
         // inside the wrap budget too. Shrink the per-segment last-
         // line target by the marker's display width.
         let last_line_extra = if seg_idx.saturating_add(1) < segments.len() {
-            p.hard_breaks.get(seg_idx).map_or(0, |h| display_width(h.marker))
+            p.hard_breaks().get(seg_idx).map_or(0, |h| display_width(h.marker()))
         } else {
             0
         };
@@ -132,7 +136,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
             // soft-broken lines within the same segment.
             if line_idx > 0 {
                 emitted.push('\n');
-                emitted.push_str(&p.cont_prefix);
+                emitted.push_str(p.cont_prefix());
             }
             for (k, tok) in line.iter().enumerate() {
                 if k > 0 {
@@ -146,10 +150,10 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
         // content (e.g. source `\\\nx` has an empty leading segment
         // before the hard break).
         if seg_idx.saturating_add(1) < segments.len() {
-            let hb = p.hard_breaks.get(seg_idx)?;
-            emitted.push_str(hb.marker);
+            let hb = p.hard_breaks().get(seg_idx)?;
+            emitted.push_str(hb.marker());
             emitted.push('\n');
-            emitted.push_str(&p.cont_prefix);
+            emitted.push_str(p.cont_prefix());
         }
     }
     if source_had_trailing_nl {
@@ -166,12 +170,14 @@ struct Token<'a> {
 }
 
 fn split_at_hard_breaks(p: &Paragraph, bytes: &[u8]) -> Vec<Range<usize>> {
-    let mut cuts: Vec<usize> = Vec::with_capacity(p.hard_breaks.len().saturating_add(1));
-    let mut start = p.content_lo;
-    for hb in &p.hard_breaks {
-        if hb.marker_lo >= start && hb.nl < p.content_hi {
+    let content_range = p.content_range();
+    let hard_breaks = p.hard_breaks();
+    let mut cuts: Vec<usize> = Vec::with_capacity(hard_breaks.len().saturating_add(1));
+    let mut start = content_range.start;
+    for hb in hard_breaks {
+        if hb.marker_start() >= start && hb.newline() < content_range.end {
             cuts.push(start);
-            start = hb.nl.saturating_add(1);
+            start = hb.newline().saturating_add(1);
         }
     }
     cuts.push(start);
@@ -180,9 +186,11 @@ fn split_at_hard_breaks(p: &Paragraph, bytes: &[u8]) -> Vec<Range<usize>> {
     for (i, &lo) in cuts.iter().enumerate() {
         let hi = if i.saturating_add(1) < cuts.len() {
             // End of segment is the marker_lo of the next hard break.
-            p.hard_breaks.get(i).map_or(p.content_hi, |h| h.marker_lo)
+            hard_breaks
+                .get(i)
+                .map_or(content_range.end, mdwright_document::ParagraphHardBreak::marker_start)
         } else {
-            p.content_hi
+            content_range.end
         };
         if hi > lo {
             segments.push(lo..hi);
@@ -195,7 +203,7 @@ fn split_at_hard_breaks(p: &Paragraph, bytes: &[u8]) -> Vec<Range<usize>> {
     }
     // Suppress the trivial case where bytes is empty.
     if segments.is_empty() {
-        segments.push(p.content_lo..p.content_hi);
+        segments.push(content_range);
     }
     let _ = bytes; // not currently used; kept for symmetry with future cases.
     segments

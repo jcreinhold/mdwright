@@ -61,13 +61,10 @@ pub async fn serve() {
     Server::new(stdin, stdout, socket).serve(service).await;
 }
 
-/// Public hook for `LspService::new`. Exposed so `tests/lsp.rs` can
-/// construct a server in-process and drive it through `tower::Service`.
-/// Not part of the documented surface; the only intended caller is
-/// the in-tree LSP test suite.
-#[doc(hidden)]
+/// In-process service constructor for the crate's LSP tests.
+#[cfg(test)]
 #[must_use]
-pub fn build_service_for_tests() -> (LspService<impl LanguageServer + 'static>, tower_lsp::ClientSocket) {
+pub(crate) fn build_service_for_tests() -> (LspService<impl LanguageServer + 'static>, tower_lsp::ClientSocket) {
     LspService::new(MdwrightLs::new)
 }
 

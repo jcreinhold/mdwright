@@ -147,10 +147,12 @@ fn collect_emphasis_delim(snapshot: &Snapshot<'_>, kind: EmphasisKind, target: u
     let delim_len = kind.delim_len();
 
     for span in spans {
-        let open_lo = span.open_lo;
-        let open_hi = span.open_hi;
-        let close_lo = span.close_lo;
-        let close_hi = span.close_hi;
+        let open_range = span.open_range();
+        let close_range = span.close_range();
+        let open_lo = open_range.start;
+        let open_hi = open_range.end;
+        let close_lo = close_range.start;
+        let close_hi = close_range.end;
         let bytes = out.as_bytes();
         let Some(open) = bytes.get(open_lo..open_hi) else {
             continue;
@@ -195,21 +197,22 @@ fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates
     let out = snapshot.source();
     let lists = snapshot.document().unordered_list_sites();
     for list in lists {
-        if list.bullets.is_empty() {
+        if list.bullets().is_empty() {
             continue;
         }
         let bytes = out.as_bytes();
-        let already_target = list.bullets.iter().all(|p| bytes.get(*p).copied() == Some(target));
+        let already_target = list.bullets().iter().all(|p| bytes.get(*p).copied() == Some(target));
         if already_target {
             continue;
         }
-        let lo = list.raw_range.start;
-        let hi = list.raw_range.end;
+        let raw_range = list.raw_range();
+        let lo = raw_range.start;
+        let hi = raw_range.end;
         let Some(slice) = bytes.get(lo..hi) else {
             continue;
         };
         let mut rewrite = slice.to_vec();
-        for &p in &list.bullets {
+        for &p in list.bullets() {
             if p < lo {
                 continue;
             }
@@ -238,15 +241,17 @@ fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, target: OrderedListSty
     let lists = snapshot.document().ordered_list_sites();
 
     for list in lists {
-        let Some(first) = list.items.first() else {
+        let Some(first) = list.items().first() else {
             continue;
         };
         let bytes_view = out.as_bytes();
-        let Some(start_num) = scan_ordered_marker_number(bytes_view, first.marker_lo, first.marker_hi) else {
+        let first_marker = first.marker_range();
+        let Some(start_num) = scan_ordered_marker_number(bytes_view, first_marker.start, first_marker.end) else {
             continue;
         };
-        let lo = list.raw_range.start;
-        let hi = list.raw_range.end;
+        let raw_range = list.raw_range();
+        let lo = raw_range.start;
+        let hi = raw_range.end;
         let Some(slice) = bytes_view.get(lo..hi) else {
             continue;
         };
@@ -254,23 +259,24 @@ fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, target: OrderedListSty
         let mut needs_change = false;
         // Renumber items in reverse so local offsets within `rewrite`
         // stay valid as marker widths grow or shrink.
-        for (k, item) in list.items.iter().enumerate().rev() {
+        for (k, item) in list.items().iter().enumerate().rev() {
             let want = match target {
                 OrderedListStyle::One => 1,
                 OrderedListStyle::Consistent => start_num.saturating_add(k as u64),
                 OrderedListStyle::Preserve => continue,
             };
-            if item.marker_lo < lo || item.marker_hi > hi {
+            let marker = item.marker_range();
+            if marker.start < lo || marker.end > hi {
                 continue;
             }
-            let cur = scan_ordered_marker_number(bytes_view, item.marker_lo, item.marker_hi);
+            let cur = scan_ordered_marker_number(bytes_view, marker.start, marker.end);
             if cur == Some(want) {
                 continue;
             }
             needs_change = true;
             let want_bytes = want.to_string().into_bytes();
-            let local_lo = item.marker_lo.saturating_sub(lo);
-            let local_hi = item.marker_hi.saturating_sub(lo);
+            let local_lo = marker.start.saturating_sub(lo);
+            let local_hi = marker.end.saturating_sub(lo);
             if local_hi <= rewrite.len() && local_lo <= local_hi {
                 rewrite.splice(local_lo..local_hi, want_bytes);
             }
@@ -353,7 +359,8 @@ fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
         let Some(replacement) = padded_table(out, table) else {
             continue;
         };
-        let Some(existing) = out.get(table.raw_range.clone()) else {
+        let raw_range = table.raw_range();
+        let Some(existing) = out.get(raw_range.clone()) else {
             continue;
         };
         if existing == replacement {
@@ -362,7 +369,7 @@ fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
         if let Some(candidate) = snapshot.candidate(
             Phase::Table,
             OwnerKind::Table,
-            table.raw_range.clone(),
+            raw_range,
             replacement,
             Verification::PreserveMarkdownAndMath,
             "table-pad",
@@ -373,25 +380,25 @@ fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
 }
 
 fn padded_table(source: &str, table: &TableSite) -> Option<String> {
-    if table.rows.len() < 2 {
+    if table.rows().len() < 2 {
         return None;
     }
     let column_count = table
-        .rows
+        .rows()
         .iter()
-        .map(|row| row.cells.len())
+        .map(|row| row.cells().len())
         .max()
         .unwrap_or(0)
-        .min(table.alignments.len().max(1));
+        .min(table.alignments().len().max(1));
     if column_count == 0 {
         return None;
     }
 
-    let mut rows: Vec<Vec<String>> = Vec::with_capacity(table.rows.len());
-    for row in &table.rows {
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(table.rows().len());
+    for row in table.rows() {
         let mut cells = Vec::with_capacity(column_count);
-        for cell in row.cells.iter().take(column_count) {
-            let raw = source.get(cell.raw_range.clone())?;
+        for cell in row.cells().iter().take(column_count) {
+            let raw = source.get(cell.raw_range())?;
             cells.push(raw.trim().to_owned());
         }
         while cells.len() < column_count {
@@ -412,15 +419,13 @@ fn padded_table(source: &str, table: &TableSite) -> Option<String> {
         }
     }
 
-    let had_trailing_newline = source
-        .get(table.raw_range.clone())
-        .is_some_and(|slice| slice.ends_with('\n'));
+    let had_trailing_newline = source.get(table.raw_range()).is_some_and(|slice| slice.ends_with('\n'));
     let mut out = String::new();
     for (row_idx, row) in rows.iter().enumerate() {
         if row_idx == 1 {
-            push_table_delimiter(&mut out, &widths, &table.alignments);
+            push_table_delimiter(&mut out, &widths, table.alignments());
         } else {
-            push_table_row(&mut out, row, &widths, &table.alignments);
+            push_table_row(&mut out, row, &widths, table.alignments());
         }
         if row_idx.saturating_add(1) < rows.len() || had_trailing_newline {
             out.push('\n');
@@ -495,9 +500,10 @@ fn collect_heading_attrs(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
     let out = snapshot.source();
     let sites = snapshot.document().heading_attr_sites();
     for site in sites {
-        let attrs = &site.attrs;
-        let trailer_lo = site.trailer.start;
-        let trailer_hi = site.trailer.end;
+        let attrs = site.attrs();
+        let trailer = site.trailer();
+        let trailer_lo = trailer.start;
+        let trailer_hi = trailer.end;
         let bytes = out.as_bytes();
         let Some(existing) = bytes.get(trailer_lo..trailer_hi) else {
             continue;
@@ -591,7 +597,7 @@ fn collect_link_destination_sites(snapshot: &Snapshot<'_>) -> Vec<LinkDestinatio
     let mut sites: Vec<LinkDestinationSite> = Vec::new();
     for site in snapshot.document().inline_link_destination_sites() {
         sites.push(LinkDestinationSite {
-            range: site.range.clone(),
+            range: site.range(),
             owner: None,
         });
     }

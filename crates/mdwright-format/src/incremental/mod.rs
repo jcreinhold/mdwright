@@ -32,7 +32,7 @@
 
 use std::ops::Range;
 
-use mdwright_document::{Document, ParseError, ParseOptions, top_level_block_checkpoints};
+use mdwright_document::{Document, ParseError, ParseOptions};
 
 /// One block boundary in the caller's source.
 #[derive(Copy, Clone, Debug)]
@@ -84,16 +84,26 @@ impl CheckpointTable {
     /// Returns [`ParseError`] if parser execution cannot safely
     /// recognise the source under `parse_options`.
     pub fn build_with_options(source: &str, parse_options: ParseOptions) -> Result<Self, ParseError> {
-        Ok(Self::from_facts(
-            source.len(),
-            top_level_block_checkpoints(source, parse_options)?,
-        ))
+        let doc = Document::parse_with_options(source, parse_options)?;
+        Ok(Self::from_document(&doc))
     }
 
     /// Build from an already parsed document.
     #[must_use]
     pub fn from_document(doc: &Document) -> Self {
-        Self::from_facts(doc.source().len(), doc.block_checkpoints().to_vec())
+        let facts = doc
+            .block_checkpoints()
+            .iter()
+            .map(|point| {
+                let byte = usize::try_from(point.byte).unwrap_or(usize::MAX);
+                let original = doc.canonical_to_original_range(byte..byte).start;
+                mdwright_document::BlockCheckpointFact {
+                    byte: u32::try_from(original).unwrap_or(u32::MAX),
+                    parser_state: point.parser_state,
+                }
+            })
+            .collect();
+        Self::from_facts(doc.original_source().len(), facts)
     }
 
     fn from_facts(source_len: usize, facts: Vec<mdwright_document::BlockCheckpointFact>) -> Self {

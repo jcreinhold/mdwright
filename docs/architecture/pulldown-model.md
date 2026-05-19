@@ -1,16 +1,16 @@
 # Pulldown-cmark model
 
 Reference for the per-construct behaviours of `pulldown-cmark` 0.13 that mdwright depends on. Every emit-site decision
-in `src/format/` either matches a rule on this page or contradicts pulldown. A contradiction is a bug.
+in `crates/mdwright-format` either matches a rule on this page or contradicts pulldown. A contradiction is a bug.
 
-This file is paired with `tests/pulldown_model.rs`. Each rule below has one test in that file that feeds the documented
-example to pulldown and asserts the documented event-stream shape. When pulldown changes upstream (a release bump,
-a bug fix on their side), the test fails and **this document must be updated before any mdwright code is changed in
-response**.
+This file is paired with `crates/mdwright/tests/pulldown_model.rs`. Each rule below has one test in that file that
+feeds the documented example to pulldown and asserts the documented event-stream shape. When pulldown changes upstream
+(a release bump, a bug fix on their side), the test fails and **this document must be updated before any mdwright code
+is changed in response**.
 
-Every production parse in `src/` flows through `src/parse.rs::events` or `events_with_offsets`, both of which take a
-`CanonicalSource<'_>` (`crate::source`). That type's only public constructor routes through `Source::canonicalise`, so
-pulldown's input is *always* CR-free and NUL-free in production. Rules below assume that pre-condition.
+Every production parse flows through private helpers in `crates/mdwright-document/src/parse.rs`, which take a private
+`CanonicalSource<'_>`. Construction routes through the document crate's source canonicalisation, so pulldown's input is
+*always* CR-free and NUL-free in production. Rules below assume that pre-condition.
 
 ## §1 Line endings
 
@@ -21,7 +21,7 @@ the current block.
 
 Consequence: no `CowStr` produced by `Event::Text`, `Event::Code`, `Event::Html`, `Event::InlineHtml`,
 `Event::InlineMath`, or `Event::DisplayMath` can ever contain a CR byte in production. The semantic-equivalence walker
-(`src/format/semantic.rs::canonical_events`) relies on this; there is no per-event CR scrub.
+in `crates/mdwright-format` relies on this; there is no per-event CR scrub.
 
 Test: `line_endings_softbreak_between_lines`.
 

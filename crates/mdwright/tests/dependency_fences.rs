@@ -301,13 +301,48 @@ fn document_format_facts_do_not_reparse_for_accessors() {
         .expect("read document format facts");
     let parser_calls = source.matches("parse::collect_events_with_offsets").count();
     assert_eq!(
-        parser_calls, 1,
-        "document formatter facts must be cached from Ir::parse; only top_level_block_checkpoints may parse source"
+        parser_calls, 0,
+        "document formatter facts must be cached from Ir::parse and must not reparse source"
     );
     assert!(
         !source.contains("unwrap_or_default"),
         "document fact accessors must not hide parser failures by returning empty facts"
     );
+}
+
+#[test]
+fn lsp_test_service_helper_is_not_public() {
+    let lib = fs::read_to_string(repo_file("crates/mdwright-lsp/src/lib.rs")).expect("read lsp lib");
+    assert!(
+        !lib.contains("build_service_for_tests"),
+        "mdwright-lsp must not export test-only service constructors"
+    );
+    let lsp = fs::read_to_string(repo_file("crates/mdwright-lsp/src/lsp.rs")).expect("read lsp implementation");
+    assert!(
+        !lsp.contains("pub fn build_service_for_tests"),
+        "test-only service constructor must stay crate-private"
+    );
+}
+
+#[test]
+fn document_does_not_reexport_deleted_helpers() {
+    let lib = fs::read_to_string(repo_file("crates/mdwright-document/src/lib.rs")).expect("read document lib");
+    for forbidden in [
+        "find_attr_trailer_range",
+        "NormalisedLabel",
+        "CanonicalSource",
+        "OffsetMap",
+        "Source",
+        "ByteSpan",
+        "NodeKind",
+        "Tree",
+        "top_level_block_checkpoints",
+    ] {
+        assert!(
+            !lib.contains(forbidden),
+            "mdwright-document must not re-export deleted helper `{forbidden}`"
+        );
+    }
 }
 
 #[test]

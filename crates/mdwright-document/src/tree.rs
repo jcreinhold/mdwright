@@ -27,18 +27,24 @@
 //! flat IR records lint-facing slices, then the tree builder consumes
 //! the same events after math regions are known.
 
+#![allow(
+    dead_code,
+    reason = "the tree is a private parse-time representation with targeted unit coverage"
+)]
+
 use std::ops::Range;
 
 use pulldown_cmark::{Alignment, CodeBlockKind, CowStr, Event, LinkType, Tag};
 
+use crate::HeadingAttrs;
+use crate::heading::find_attr_trailer_range;
 use crate::refs::ReferenceTable;
-use crate::{HeadingAttrs, find_attr_trailer_range};
 use mdwright_math::{MathRegion, MathSpan};
 
 /// Index into [`Tree`]'s arena. Stable for the life of the tree;
 /// can only be obtained from `Tree` methods.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct NodeId(u32);
+pub(crate) struct NodeId(u32);
 
 impl NodeId {
     #[must_use]
@@ -50,9 +56,9 @@ impl NodeId {
 /// One node in the document tree. A pure data carrier; behaviour
 /// lives in dedicated modules.
 #[derive(Clone, Debug)]
-pub struct Node {
-    pub kind: NodeKind,
-    pub raw_range: Range<usize>,
+pub(crate) struct Node {
+    pub(crate) kind: NodeKind,
+    pub(crate) raw_range: Range<usize>,
     /// Range into the owning [`Tree`]'s child-id table. Iterate via
     /// [`Tree::children`]; the field is exposed crate-internally so
     /// the builder can fill it after seeing the matching End event.
@@ -72,7 +78,7 @@ pub struct Node {
 /// the formatter falls back to verbatim source emission via
 /// [`Tree::raw_text`] for those.
 #[derive(Clone, Debug)]
-pub enum NodeKind {
+pub(crate) enum NodeKind {
     /// The document root. Always at `NodeId(0)`.
     Document,
     Paragraph,
@@ -187,7 +193,7 @@ pub enum NodeKind {
     },
 }
 
-/// Column alignment for a [`Table`](NodeKind::Table).
+/// Column alignment for a recognised GFM table.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TableAlign {
     None,
@@ -196,8 +202,8 @@ pub enum TableAlign {
     Right,
 }
 
-impl From<Alignment> for TableAlign {
-    fn from(a: Alignment) -> Self {
+impl TableAlign {
+    fn from_alignment(a: Alignment) -> Self {
         match a {
             Alignment::None => Self::None,
             Alignment::Left => Self::Left,
@@ -209,7 +215,7 @@ impl From<Alignment> for TableAlign {
 
 /// An owned arena of [`Node`] values rooted at a Document node.
 #[derive(Debug)]
-pub struct Tree {
+pub(crate) struct Tree {
     arena: Vec<Node>,
     child_ids: Vec<NodeId>,
     parents: Vec<Option<NodeId>>,
@@ -219,14 +225,14 @@ impl Tree {
     /// The Document root. Always present.
     #[must_use]
     #[allow(clippy::unused_self)]
-    pub fn root(&self) -> NodeId {
+    pub(crate) fn root(&self) -> NodeId {
         NodeId(0)
     }
 
     /// Look up a node by id. Returns `None` for ids that did not come
     /// from this tree.
     #[must_use]
-    pub fn node(&self, id: NodeId) -> Option<&Node> {
+    pub(crate) fn node(&self, id: NodeId) -> Option<&Node> {
         self.arena.get(id.idx())
     }
 
@@ -235,26 +241,26 @@ impl Tree {
     ///
     /// Caller passes the canonical source the tree was parsed from.
     #[must_use]
-    pub fn raw_text<'a>(&self, source: &'a str, id: NodeId) -> &'a str {
+    pub(crate) fn raw_text<'a>(&self, source: &'a str, id: NodeId) -> &'a str {
         self.node(id)
             .and_then(|n| source.get(n.raw_range.clone()))
             .unwrap_or("")
     }
 
     /// Direct children of `id` in source order.
-    pub fn children(&self, id: NodeId) -> Children<'_> {
+    pub(crate) fn children(&self, id: NodeId) -> Children<'_> {
         let range = self.node(id).map_or(0..0, |n| n.children.clone());
         Children { tree: self, range }
     }
 
     /// Parent of `id`, or `None` for the root and for unknown ids.
     #[must_use]
-    pub fn parent(&self, id: NodeId) -> Option<NodeId> {
+    pub(crate) fn parent(&self, id: NodeId) -> Option<NodeId> {
         self.parents.get(id.idx()).copied().flatten()
     }
 
     /// Every descendant of `id` in pre-order (excluding `id` itself).
-    pub fn descendants(&self, id: NodeId) -> Descendants<'_> {
+    pub(crate) fn descendants(&self, id: NodeId) -> Descendants<'_> {
         let start = id.idx().saturating_add(1);
         let end = self.node(id).map_or(start, |n| n.subtree_end as usize);
         Descendants {
@@ -266,20 +272,98 @@ impl Tree {
 
     /// Number of nodes in the tree. Includes the Document root.
     #[must_use]
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.arena.len()
     }
 
     /// `true` iff the tree has only the Document root.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.arena.len() <= 1
+    }
+
+    pub(crate) fn list_tightness_by_start(&self) -> Vec<(usize, bool)> {
+        self.descendants(self.root())
+            .filter_map(|id| {
+                let node = self.node(id)?;
+                match &node.kind {
+                    NodeKind::List { tight, .. } => Some((node.raw_range.start, *tight)),
+                    NodeKind::Document
+                    | NodeKind::Paragraph
+                    | NodeKind::Heading { .. }
+                    | NodeKind::BlockQuote
+                    | NodeKind::Item { .. }
+                    | NodeKind::CodeBlock { .. }
+                    | NodeKind::HtmlBlock { .. }
+                    | NodeKind::ThematicBreak
+                    | NodeKind::Table { .. }
+                    | NodeKind::TableHead
+                    | NodeKind::TableRow
+                    | NodeKind::TableCell
+                    | NodeKind::FootnoteDefinition { .. }
+                    | NodeKind::DefinitionList
+                    | NodeKind::DefinitionTerm
+                    | NodeKind::DefinitionDescription
+                    | NodeKind::Run
+                    | NodeKind::CodeRun
+                    | NodeKind::Emphasis
+                    | NodeKind::Strong
+                    | NodeKind::Strikethrough
+                    | NodeKind::Link { .. }
+                    | NodeKind::Image { .. }
+                    | NodeKind::Autolink
+                    | NodeKind::HtmlSpan
+                    | NodeKind::FootnoteReference
+                    | NodeKind::TaskListMarker(_)
+                    | NodeKind::Math(_)
+                    | NodeKind::Unknown { .. } => None,
+                }
+            })
+            .collect()
+    }
+
+    pub(crate) fn link_like_ranges(&self) -> Vec<Range<usize>> {
+        self.descendants(self.root())
+            .filter_map(|id| {
+                let node = self.node(id)?;
+                match &node.kind {
+                    NodeKind::Link { .. } | NodeKind::Image { .. } | NodeKind::Autolink => Some(node.raw_range.clone()),
+                    NodeKind::Document
+                    | NodeKind::Paragraph
+                    | NodeKind::Heading { .. }
+                    | NodeKind::BlockQuote
+                    | NodeKind::List { .. }
+                    | NodeKind::Item { .. }
+                    | NodeKind::CodeBlock { .. }
+                    | NodeKind::HtmlBlock { .. }
+                    | NodeKind::ThematicBreak
+                    | NodeKind::Table { .. }
+                    | NodeKind::TableHead
+                    | NodeKind::TableRow
+                    | NodeKind::TableCell
+                    | NodeKind::FootnoteDefinition { .. }
+                    | NodeKind::DefinitionList
+                    | NodeKind::DefinitionTerm
+                    | NodeKind::DefinitionDescription
+                    | NodeKind::Run
+                    | NodeKind::CodeRun
+                    | NodeKind::Emphasis
+                    | NodeKind::Strong
+                    | NodeKind::Strikethrough
+                    | NodeKind::HtmlSpan
+                    | NodeKind::FootnoteReference
+                    | NodeKind::TaskListMarker(_)
+                    | NodeKind::Math(_)
+                    | NodeKind::Unknown { .. } => None,
+                }
+            })
+            .collect()
     }
 }
 
 /// Iterator over a node's direct children. Returned by
 /// [`Tree::children`].
-pub struct Children<'t> {
+pub(crate) struct Children<'t> {
     tree: &'t Tree,
     range: Range<u32>,
 }
@@ -295,7 +379,7 @@ impl Iterator for Children<'_> {
 
 /// Iterator over a node's descendants in pre-order. Returned by
 /// [`Tree::descendants`].
-pub struct Descendants<'t> {
+pub(crate) struct Descendants<'t> {
     tree: &'t Tree,
     next: u32,
     end: u32,
@@ -820,7 +904,7 @@ impl<'a> TreeBuilder<'a> {
                 label: label.to_string(),
             },
             Tag::Table(aligns) => NodeKind::Table {
-                alignments: aligns.iter().copied().map(TableAlign::from).collect(),
+                alignments: aligns.iter().copied().map(TableAlign::from_alignment).collect(),
             },
             Tag::TableHead => NodeKind::TableHead,
             Tag::TableRow => NodeKind::TableRow,

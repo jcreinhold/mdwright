@@ -25,6 +25,11 @@
 //! through `Source::to_original`. The type system is the discipline
 //! that prevents the same drift the refactor was designed to eliminate.
 
+#![allow(
+    dead_code,
+    reason = "source-coordinate primitives are exercised by targeted tests and kept private to the document boundary"
+)]
+
 use std::ops::Range;
 
 use crate::line_index::LineIndex;
@@ -35,14 +40,14 @@ const REPLACEMENT_UTF8: &str = "\u{FFFD}";
 /// A byte span in [`Source::canonical`]. Every IR type stores spans
 /// of this kind. Use [`Source::text`] to materialise the bytes.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct ByteSpan {
+pub(crate) struct ByteSpan {
     pub start: u32,
     pub end: u32,
 }
 
 impl ByteSpan {
     #[must_use]
-    pub fn new(start: u32, end: u32) -> Self {
+    pub(crate) fn new(start: u32, end: u32) -> Self {
         debug_assert!(start <= end, "ByteSpan start > end");
         Self { start, end }
     }
@@ -53,7 +58,7 @@ impl ByteSpan {
     /// canonical-byte offsets and Markdown documents past 4 GiB are
     /// out of scope for the library.
     #[must_use]
-    pub fn from_range(r: Range<usize>) -> Self {
+    pub(crate) fn from_range(r: Range<usize>) -> Self {
         debug_assert!(u32::try_from(r.end).is_ok(), "ByteSpan offset overflows u32");
         Self {
             start: r.start as u32,
@@ -62,17 +67,17 @@ impl ByteSpan {
     }
 
     #[must_use]
-    pub fn range(self) -> Range<usize> {
+    pub(crate) fn range(self) -> Range<usize> {
         self.start as usize..self.end as usize
     }
 
     #[must_use]
-    pub fn len(self) -> u32 {
+    pub(crate) fn len(self) -> u32 {
         self.end.saturating_sub(self.start)
     }
 
     #[must_use]
-    pub fn is_empty(self) -> bool {
+    pub(crate) fn is_empty(self) -> bool {
         self.start == self.end
     }
 }
@@ -82,30 +87,30 @@ impl ByteSpan {
 /// Used by diagnostics and safe fixes so user-facing output references
 /// the bytes the caller passed.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct OriginalSpan {
+pub(crate) struct OriginalSpan {
     pub start: u32,
     pub end: u32,
 }
 
 impl OriginalSpan {
     #[must_use]
-    pub fn new(start: u32, end: u32) -> Self {
+    pub(crate) fn new(start: u32, end: u32) -> Self {
         debug_assert!(start <= end, "OriginalSpan start > end");
         Self { start, end }
     }
 
     #[must_use]
-    pub fn range(self) -> Range<usize> {
+    pub(crate) fn range(self) -> Range<usize> {
         self.start as usize..self.end as usize
     }
 
     #[must_use]
-    pub fn len(self) -> u32 {
+    pub(crate) fn len(self) -> u32 {
         self.end.saturating_sub(self.start)
     }
 
     #[must_use]
-    pub fn is_empty(self) -> bool {
+    pub(crate) fn is_empty(self) -> bool {
         self.start == self.end
     }
 }
@@ -118,7 +123,7 @@ impl OriginalSpan {
 /// represented by an empty `events` vector — `to_original` returns
 /// the input span unchanged in O(1).
 #[derive(Clone, Debug, Default)]
-pub struct OffsetMap {
+pub(crate) struct OffsetMap {
     /// Sorted by `canonical.start`. Empty ⇒ identity map.
     events: Vec<Rewrite>,
 }
@@ -138,12 +143,12 @@ struct Rewrite {
 
 impl OffsetMap {
     #[must_use]
-    pub fn identity() -> Self {
+    pub(crate) fn identity() -> Self {
         Self { events: Vec::new() }
     }
 
     #[must_use]
-    pub fn is_identity(&self) -> bool {
+    pub(crate) fn is_identity(&self) -> bool {
         self.events.is_empty()
     }
 
@@ -212,7 +217,7 @@ impl OffsetMap {
 /// pulldown parses against, plus the offset map to translate between
 /// them and a line index over the original bytes.
 #[derive(Debug)]
-pub struct Source {
+pub(crate) struct Source {
     original: String,
     canonical: String,
     map: OffsetMap,
@@ -225,7 +230,7 @@ impl Source {
     /// circuits to `canonical == original` (with an identity offset
     /// map) when not.
     #[must_use]
-    pub fn new(raw: &str) -> Self {
+    pub(crate) fn new(raw: &str) -> Self {
         let (canonical, map) = canonicalise(raw);
         let original = raw.to_owned();
         let line_index = LineIndex::new(&original);
@@ -239,14 +244,14 @@ impl Source {
 
     /// The caller's bytes, byte-for-byte.
     #[must_use]
-    pub fn original(&self) -> &str {
+    pub(crate) fn original(&self) -> &str {
         &self.original
     }
 
     /// The canonical bytes pulldown sees. Equal to [`Self::original`]
     /// when no canonicalisation was needed.
     #[must_use]
-    pub fn canonical(&self) -> &str {
+    pub(crate) fn canonical(&self) -> &str {
         &self.canonical
     }
 
@@ -258,7 +263,7 @@ impl Source {
     /// the canonical buffer. Spans produced from pulldown event
     /// ranges satisfy both conditions.
     #[must_use]
-    pub fn text(&self, span: ByteSpan) -> &str {
+    pub(crate) fn text(&self, span: ByteSpan) -> &str {
         &self.canonical[span.range()]
     }
 
@@ -269,7 +274,7 @@ impl Source {
     /// Panics if `span` is not on a UTF-8 boundary or extends past
     /// the original buffer.
     #[must_use]
-    pub fn original_text(&self, span: OriginalSpan) -> &str {
+    pub(crate) fn original_text(&self, span: OriginalSpan) -> &str {
         &self.original[span.range()]
     }
 
@@ -284,7 +289,7 @@ impl Source {
     /// - A canonical span starting or ending inside a U+FFFD's three
     ///   bytes should map to the single-byte original `\0`.
     #[must_use]
-    pub fn to_original(&self, span: ByteSpan) -> OriginalSpan {
+    pub(crate) fn to_original(&self, span: ByteSpan) -> OriginalSpan {
         if self.map.is_identity() {
             return OriginalSpan {
                 start: span.start,
@@ -300,14 +305,14 @@ impl Source {
     /// Line index over the original bytes. User-facing diagnostics
     /// use this so `line:col` matches the file on disk.
     #[must_use]
-    pub fn line_index(&self) -> &LineIndex {
+    pub(crate) fn line_index(&self) -> &LineIndex {
         &self.line_index
     }
 
     /// The offset map. Exposed for tests and instrumentation; most
     /// callers should use [`Self::to_original`] instead.
     #[must_use]
-    pub fn offset_map(&self) -> &OffsetMap {
+    pub(crate) fn offset_map(&self) -> &OffsetMap {
         &self.map
     }
 }
@@ -315,7 +320,7 @@ impl Source {
 /// Type-level proof that a `&str` has gone through [`Source`]
 /// canonicalisation (CM §2.1 CR/CRLF→LF + CM §2.3 NUL→U+FFFD).
 ///
-/// The only public constructor is [`CanonicalSource::from_source`], so
+/// The only constructor from arbitrary source is [`CanonicalSource::from_source`], so
 /// every byte fed to `pulldown_cmark::Parser` via the parser
 /// chokepoint is guaranteed to be CR-free and NUL-free. Sub-views over
 /// already-canonical buffers are produced by
@@ -326,7 +331,7 @@ impl Source {
 /// `Copy` so callers can pass it by value into the chokepoint without
 /// disturbing borrow scopes.
 #[derive(Copy, Clone, Debug)]
-pub struct CanonicalSource<'a> {
+pub(crate) struct CanonicalSource<'a> {
     bytes: &'a str,
 }
 
@@ -334,7 +339,7 @@ impl<'a> CanonicalSource<'a> {
     /// The only way to build a `CanonicalSource` from arbitrary bytes:
     /// route them through [`Source`] first.
     #[must_use]
-    pub fn from_source(s: &'a Source) -> Self {
+    pub(crate) fn from_source(s: &'a Source) -> Self {
         Self { bytes: s.canonical() }
     }
 
@@ -348,7 +353,7 @@ impl<'a> CanonicalSource<'a> {
     /// Panics if `range` is not on a UTF-8 boundary or extends past
     /// the buffer.
     #[must_use]
-    pub fn trusted_subrange(self, range: Range<usize>) -> Self {
+    pub(crate) fn trusted_subrange(self, range: Range<usize>) -> Self {
         Self {
             bytes: &self.bytes[range],
         }
@@ -357,7 +362,7 @@ impl<'a> CanonicalSource<'a> {
     /// The canonical bytes. Use only at the parser chokepoint; rule
     /// and emit code should keep working with `&str` or `Source`.
     #[must_use]
-    pub fn as_str(self) -> &'a str {
+    pub(crate) fn as_str(self) -> &'a str {
         self.bytes
     }
 }

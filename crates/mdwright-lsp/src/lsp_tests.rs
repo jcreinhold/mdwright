@@ -16,8 +16,8 @@
 
 use std::time::Duration;
 
+use crate::lsp::build_service_for_tests;
 use futures::StreamExt;
-use mdwright_lsp::build_service_for_tests;
 use serde_json::{Value, json};
 use tower::{Service, ServiceExt};
 use tower_lsp::jsonrpc::Request;

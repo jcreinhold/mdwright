@@ -10,6 +10,7 @@ pub(crate) struct OwnerId(usize);
 pub(crate) enum OwnerKind {
     Document,
     Paragraph,
+    BlockQuote,
     List,
     ListItem,
     DefinitionList,
@@ -185,7 +186,7 @@ impl<'a> Snapshot<'a> {
     fn collect_event_owners(&mut self) {
         let spans: Vec<_> = self.document().structural_spans().to_vec();
         for span in spans {
-            self.push_owner(owner_kind_from_structural(span.kind), span.raw_range.clone());
+            self.push_owner(owner_kind_from_structural(span.kind()), span.raw_range());
         }
     }
 
@@ -212,10 +213,10 @@ impl<'a> Snapshot<'a> {
     fn collect_reference_destination_sites(&mut self) {
         let sites: Vec<_> = self.document().reference_definition_sites().to_vec();
         for site in sites {
-            let owner = self.push_owner(OwnerKind::ReferenceDefinition, site.raw_range.clone());
+            let owner = self.push_owner(OwnerKind::ReferenceDefinition, site.raw_range());
             self.reference_destination_sites.push(ReferenceDestinationSite {
                 owner,
-                range: site.destination.clone(),
+                range: site.destination(),
             });
         }
     }
@@ -225,6 +226,7 @@ fn owner_kind_from_structural(kind: StructuralKind) -> OwnerKind {
     match kind {
         StructuralKind::Paragraph => OwnerKind::Paragraph,
         StructuralKind::Heading => OwnerKind::Heading,
+        StructuralKind::BlockQuote => OwnerKind::BlockQuote,
         StructuralKind::List => OwnerKind::List,
         StructuralKind::ListItem => OwnerKind::ListItem,
         StructuralKind::DefinitionList => OwnerKind::DefinitionList,

@@ -7,6 +7,7 @@
 //! this crate so users importing them directly get a stable path.
 
 use pulldown_cmark::html;
+use std::ops::Range;
 
 use crate::ParseError;
 use crate::ParseOptions;
@@ -19,8 +20,8 @@ use crate::ir::{
 use crate::line_index::LineIndex;
 use crate::parse;
 use crate::render::{RenderOptions, RenderProfile, render_cmark_gfm_html};
+use crate::source::ByteSpan;
 use crate::source::{CanonicalSource, Source};
-use crate::tree::{NodeKind, Tree};
 use mdwright_math::{MathError, MathRegion};
 
 /// Render Markdown to HTML using the same parser options the IR uses.
@@ -28,7 +29,7 @@ use mdwright_math::{MathError, MathRegion};
 /// Kept as a public utility for callers that need the same `CommonMark`
 /// rendering policy as document recognition.
 ///
-/// Inputs are routed through [`Source`] canonicalisation before
+/// Inputs are routed through document-owned source canonicalisation before
 /// pulldown sees them (CM §2.1 CR / CRLF → LF, CM §2.3 NUL → U+FFFD),
 /// matching what [`Document::parse`] does. Callers that need to render
 /// raw bytes verbatim should reach for `pulldown_cmark::html` directly.
@@ -82,8 +83,8 @@ pub fn render_html_with_render_options(
 /// and query with the accessors. Linting and formatting are operations
 /// owned by their respective crates.
 ///
-/// `Document` owns a [`Source`] that holds both the caller-supplied
-/// original bytes and the canonical view pulldown parses against
+/// `Document` owns both the caller-supplied original bytes and the
+/// canonical view pulldown parses against
 /// (CM §2.1 line endings + CM §2.3 NUL → U+FFFD). The IR's byte
 /// ranges and semantic inventories see the canonical bytes; diagnostic
 /// renderers and safe-fix application map those spans back to the
@@ -143,11 +144,19 @@ impl Document {
         self.source.canonical()
     }
 
-    /// The [`Source`] handle. Exposes both the original and canonical
-    /// buffers plus the offset map between them.
+    /// The caller's original source bytes, before `CommonMark`
+    /// line-ending and NUL canonicalisation.
     #[must_use]
-    pub fn source_handle(&self) -> &Source {
-        &self.source
+    pub fn original_source(&self) -> &str {
+        self.source.original()
+    }
+
+    /// Translate a canonical byte range into the caller's original
+    /// source coordinates.
+    #[must_use]
+    pub fn canonical_to_original_range(&self, range: Range<usize>) -> Range<usize> {
+        let span = ByteSpan::from_range(range);
+        self.source.to_original(span).range()
     }
 
     /// Byte-offset → (line, column) translator.
@@ -236,18 +245,16 @@ impl Document {
     /// order.
     #[must_use]
     pub fn list_tightness_view(&self) -> Vec<(&ListGroup, bool)> {
-        let mut tight_by_start: std::collections::HashMap<usize, bool> = std::collections::HashMap::new();
-        let tree = self.tree();
-        for id in tree.descendants(tree.root()) {
-            let Some(node) = tree.node(id) else { continue };
-            if let NodeKind::List { tight, .. } = &node.kind {
-                tight_by_start.insert(node.raw_range.start, *tight);
-            }
-        }
         self.ir
             .list_groups
             .iter()
-            .filter_map(|g| tight_by_start.get(&g.raw_range.start).map(|tight| (g, *tight)))
+            .filter_map(|g| {
+                self.ir
+                    .list_tightness
+                    .iter()
+                    .find(|(start, _)| *start == g.raw_range.start)
+                    .map(|(_, tight)| (g, *tight))
+            })
             .collect()
     }
 
@@ -276,21 +283,19 @@ impl Document {
         &self.ir.block_checkpoints
     }
 
+    /// Source ranges for links, images, and autolinks that should be
+    /// treated as link-like regions by prose rules.
+    #[must_use]
+    pub fn link_like_ranges(&self) -> &[Range<usize>] {
+        &self.ir.link_like_ranges
+    }
+
     /// Frontmatter at the document head, if present. Carries both the
     /// raw slice and a tag for which delimiter (YAML `---` or TOML
     /// `+++`) the source used.
     #[must_use]
     pub fn frontmatter(&self) -> Option<&Frontmatter> {
         self.ir.frontmatter.as_ref()
-    }
-
-    /// The structural tree IR.
-    ///
-    /// The tree and flat inventories are built in a single pulldown
-    /// event walk inside [`Document::parse`].
-    #[must_use]
-    pub fn tree(&self) -> &Tree {
-        &self.ir.tree
     }
 
     /// Inline suppression directives parsed from `<!-- mdwright: … -->`

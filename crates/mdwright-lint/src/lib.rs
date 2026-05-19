@@ -9,7 +9,7 @@ mod suppression;
 
 use std::ops::Range;
 
-use mdwright_document::{ByteSpan, Document};
+use mdwright_document::Document;
 
 pub use diagnostic::{DOCS_URL_DEFAULT, Diagnostic, Fix, Severity, Snippet, docs_url, rule_doc_url};
 pub use rule::LintRule;
@@ -37,13 +37,12 @@ pub fn apply_safe_fixes(doc: &Document, diags: &[Diagnostic]) -> (String, usize)
         .iter()
         .filter_map(|d| {
             let fix = d.fix.as_ref().filter(|f| f.safe)?;
-            let canon = ByteSpan::new(u32::try_from(d.span.start).ok()?, u32::try_from(d.span.end).ok()?);
-            let orig = doc.source_handle().to_original(canon);
-            Some((orig.range(), fix.replacement.as_str()))
+            let orig = doc.canonical_to_original_range(d.span.start..d.span.end);
+            Some((orig, fix.replacement.as_str()))
         })
         .collect();
     edits.sort_by_key(|e| std::cmp::Reverse(e.0.start));
-    let mut out = doc.source_handle().original().to_owned();
+    let mut out = doc.original_source().to_owned();
     let mut applied = 0usize;
     let mut last_start = usize::MAX;
     for (range, replacement) in edits {

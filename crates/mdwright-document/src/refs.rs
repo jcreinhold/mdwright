@@ -47,7 +47,7 @@ const MAX_LABEL_CHARS: usize = 999;
 /// in the codebase routes through this type, so we cannot accidentally
 /// match on differently-normalised inputs.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct NormalisedLabel(String);
+pub(crate) struct NormalisedLabel(String);
 
 impl NormalisedLabel {
     /// Apply CM §4.7 normalisation. Returns `None` for labels that the
@@ -64,7 +64,7 @@ impl NormalisedLabel {
     ///    Unicode-aware case folding — sufficient for the labels CM
     ///    normalises in practice).
     /// 5. Reject if the result is empty.
-    pub fn from_raw(raw: &str) -> Option<Self> {
+    pub(crate) fn from_raw(raw: &str) -> Option<Self> {
         if raw.chars().count() > MAX_LABEL_CHARS {
             return None;
         }

@@ -1,5 +1,5 @@
-//! The single chokepoint for every `pulldown_cmark::Parser` construction
-//! in production `src/` code.
+//! The single chokepoint for every production
+//! `pulldown_cmark::Parser` construction.
 //!
 //! [`collect_events_with_offsets`] takes a [`CanonicalSource`] (the
 //! type-level proof that input bytes went through
@@ -11,7 +11,7 @@
 //!
 //! Cross-reference: pulldown's per-construct behaviour we depend on is
 //! documented in `docs/architecture/pulldown-model.md`. The drift tests
-//! in `tests/pulldown_model.rs` fail when pulldown's behaviour changes
+//! in `crates/mdwright/tests/pulldown_model.rs` fail when pulldown's behaviour changes
 //! underneath us, forcing a documentation update before code changes.
 
 use std::cell::Cell;

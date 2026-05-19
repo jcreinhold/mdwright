@@ -4,5 +4,5 @@ mod lsp;
 
 pub use lsp::serve;
 
-#[doc(hidden)]
-pub use lsp::build_service_for_tests;
+#[cfg(test)]
+mod lsp_tests;

@@ -47,10 +47,9 @@ disappear.
 
 ### Prompt 46 — Canonical-source chokepoint + pulldown-quirks model *[landed]*
 
-Every `pulldown_cmark::Parser` invocation in `src/` goes through `src/parse.rs::events` (or `events_with_offsets`),
-both of which take a `CanonicalSource<'_>` (`src/source.rs`). The newtype's only public constructor
-(`CanonicalSource::from_source`) routes through `Source::canonicalise`, so the type system enforces the chokepoint
-discipline. Verified: `rg 'Parser::new_ext|Parser::new\(' src/` returns exactly two hits, both in `src/parse.rs`.
+Every production `pulldown_cmark::Parser` invocation goes through private helpers in
+`crates/mdwright-document/src/parse.rs`, both of which take the private `CanonicalSource<'_>` newtype. Construction
+routes through source canonicalisation, so the type system enforces the chokepoint discipline.
 
 `docs/architecture/pulldown-model.md` documents the per-construct invariants the formatter relies on. Drift-tested by
 `tests/pulldown_model.rs`: one test per rule, each failing with a message that names the doc section to update *before*
@@ -144,9 +143,9 @@ Source::new ── canonicalise ──► CanonicalSource(&str)
                                       out
 ```
 
-Every arrow that crosses a type boundary is enforced by the type of its source: only `Source::canonical()` produces
-a `CanonicalSource`; only `mdwright-document` invokes `pulldown-cmark`, and parser panics become `ParseError` at
-that boundary. The only surviving crate-internal newtype from the prompt-46 era is `CanonicalSource`. `FlankSource`,
+Every arrow that crosses a type boundary is enforced by the type of its source: only document-owned canonicalisation
+produces a `CanonicalSource`; only `mdwright-document` invokes `pulldown-cmark`, and parser panics become `ParseError`
+at that boundary. The only surviving crate-internal newtype from the prompt-46 era is `CanonicalSource`. `FlankSource`,
 `DraftView`, `DraftOutput`, `ConvergedOutput` were all deleted with the safety ladder in prompt 52.
 
 ## Public API contract

@@ -15,7 +15,7 @@ use regex::Regex;
 use crate::diagnostic::{Diagnostic, Fix};
 use crate::regex_util::compile_static;
 use crate::rule::LintRule;
-use mdwright_document::{AutolinkOrigin, Document, NodeKind};
+use mdwright_document::{AutolinkOrigin, Document};
 
 pub struct BareUrl;
 
@@ -89,17 +89,7 @@ fn push_diagnostic(doc: &Document, raw_range: Range<usize>, url: &str, out: &mut
 }
 
 fn link_like_ranges(doc: &Document) -> Vec<Range<usize>> {
-    let tree = doc.tree();
-    let mut ranges = Vec::new();
-    for id in tree.descendants(tree.root()) {
-        let Some(node) = tree.node(id) else { continue };
-        if matches!(
-            node.kind,
-            NodeKind::Link { .. } | NodeKind::Image { .. } | NodeKind::Autolink
-        ) {
-            ranges.push(node.raw_range.clone());
-        }
-    }
+    let mut ranges = doc.link_like_ranges().to_vec();
     ranges.extend(doc.autolinks().iter().map(mdwright_document::AutolinkFact::raw_range));
     ranges
 }

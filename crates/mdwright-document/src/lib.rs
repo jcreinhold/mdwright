@@ -20,21 +20,19 @@ pub use error::ParseError;
 pub use format_facts::{
     HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite, OrderedItemSite,
     OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan, TableCellSite,
-    TableRowSite, TableSite, UnorderedListSite, WrappableParagraph, top_level_block_checkpoints,
+    TableRowSite, TableSite, UnorderedListSite, WrappableParagraph,
 };
 pub use gfm::{AutolinkFact, AutolinkOrigin};
-pub use heading::{HeadingAttrs, find_attr_trailer_range};
+pub use heading::HeadingAttrs;
 pub use ir::{
     AllowScope, BlockCheckpointFact, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode,
     InlineHtml, LinkDef, ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,
 };
 pub use line_index::{LineIndex, LineIndexError};
 pub use mdwright_math::{MathError, MathRegion, MathSpan};
-pub use refs::NormalisedLabel;
 pub use render::{RenderOptions, RenderProfile};
 pub use signature::{MarkdownSignature, markdown_signature};
-pub use source::{ByteSpan, CanonicalSource, OffsetMap, OriginalSpan, Source};
-pub use tree::{Node, NodeId, NodeKind, TableAlign, Tree};
+pub use tree::TableAlign;
 
 /// Markdown recognition policy.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]

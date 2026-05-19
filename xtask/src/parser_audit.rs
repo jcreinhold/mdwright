@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
 use mdwright_document::{
-    Document, ExtensionOptions, GfmAutolinkPolicy, GfmOptions, NodeKind, ParseError, ParseOptions, RenderOptions,
-    RenderProfile, render_html_with_render_options,
+    Document, ExtensionOptions, GfmAutolinkPolicy, GfmOptions, ParseError, ParseOptions, RenderOptions, RenderProfile,
+    render_html_with_render_options,
 };
 use regex::Regex;
 use serde::Serialize;
@@ -788,26 +788,33 @@ fn sourcepos_risks(doc: &Document, envelopes: &[SourceposEnvelope]) -> Vec<Sourc
 
 fn mdwright_sourcepos_facts(doc: &Document) -> Vec<SourceposEnvelope> {
     let mut facts = Vec::new();
-    let tree = doc.tree();
-    for id in tree.descendants(tree.root()) {
-        let Some(node) = tree.node(id) else { continue };
-        let kind = match node.kind {
-            NodeKind::Paragraph => Some("paragraph"),
-            NodeKind::Heading { .. } => Some("heading"),
-            NodeKind::List { .. } => Some("list"),
-            NodeKind::Item { .. } => Some("list-item"),
-            NodeKind::BlockQuote => Some("blockquote"),
-            NodeKind::CodeBlock { .. } => Some("code-block"),
-            NodeKind::Table { .. } => Some("table"),
-            _ => None,
+
+    for span in doc.structural_spans() {
+        let kind = match span.kind() {
+            mdwright_document::StructuralKind::Paragraph => Some("paragraph"),
+            mdwright_document::StructuralKind::Heading => Some("heading"),
+            mdwright_document::StructuralKind::BlockQuote => Some("blockquote"),
+            mdwright_document::StructuralKind::List => Some("list"),
+            mdwright_document::StructuralKind::ListItem => Some("list-item"),
+            mdwright_document::StructuralKind::Table => Some("table"),
+            mdwright_document::StructuralKind::DefinitionList
+            | mdwright_document::StructuralKind::DefinitionDescription
+            | mdwright_document::StructuralKind::FootnoteDefinition
+            | mdwright_document::StructuralKind::ThematicBreak => None,
         };
         if let Some(kind) = kind {
             facts.push(SourceposEnvelope {
                 kind,
-                range: node.raw_range.clone(),
+                range: span.raw_range(),
             });
         }
     }
+
+    facts.extend(doc.code_blocks().iter().map(|block| SourceposEnvelope {
+        kind: "code-block",
+        range: block.raw_range.clone(),
+    }));
+
     facts
 }
 

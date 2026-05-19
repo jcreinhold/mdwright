@@ -1,8 +1,8 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 //! Smoke test: every Markdown file in the first available real-doc
-//! corpus parses to a non-empty tree without panicking. When the
-//! external corpus is available it is preferred; otherwise the test
-//! falls back to checked-in fixture documentation.
+//! corpus parses to non-empty document facts without panicking. When
+//! the external corpus is available it is preferred; otherwise the
+//! test falls back to checked-in fixture documentation.
 
 use std::fs;
 use std::path::PathBuf;
@@ -24,7 +24,7 @@ fn corpus_dirs() -> Vec<PathBuf> {
 }
 
 #[test]
-fn corpus_files_parse_to_non_empty_trees() {
+fn corpus_files_parse_to_non_empty_document_facts() {
     let dir = corpus_dirs()
         .into_iter()
         .find(|dir| dir.is_dir())
@@ -39,13 +39,20 @@ fn corpus_files_parse_to_non_empty_trees() {
         }
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
         let doc = Document::parse(&src).expect("fixture parses");
-        let tree = doc.tree();
-        let count = tree.descendants(tree.root()).count();
-        assert!(count > 0, "tree for {} had no descendants", path.display());
-        // Also exercise raw_text on a sampling of nodes.
-        for id in tree.descendants(tree.root()).take(16) {
-            let _ = tree.raw_text(doc.source(), id);
-        }
+        assert!(
+            !doc.block_checkpoints().is_empty(),
+            "document for {} had no checkpoints",
+            path.display()
+        );
+        assert!(
+            !doc.prose_chunks().is_empty()
+                || !doc.code_blocks().is_empty()
+                || !doc.headings().is_empty()
+                || !doc.html_blocks().is_empty()
+                || doc.frontmatter().is_some(),
+            "document for {} had no public facts",
+            path.display()
+        );
         files = files.saturating_add(1);
     }
     assert!(files > 0, "no .md files discovered in {}", dir.display());

@@ -9,17 +9,18 @@
 //! The supported pattern is:
 //!
 //! ```no_run
-//! use mdwright::{LintRule, RuleSet, cli, stdlib};
+//! use mdwright_document::Document;
+//! use mdwright_lint::{Diagnostic, LintRule, stdlib};
 //! # struct MyRule;
 //! # impl LintRule for MyRule {
 //! #     fn name(&self) -> &str { "my-rule" }
 //! #     fn description(&self) -> &str { "demo" }
-//! #     fn check(&self, _: &mdwright::Document, _: &mut Vec<mdwright::Diagnostic>) {}
+//! #     fn check(&self, _: &Document, _: &mut Vec<Diagnostic>) {}
 //! # }
 //! fn main() -> std::process::ExitCode {
 //!     let mut rules = stdlib::all();
 //!     rules.add(Box::new(MyRule)).expect("unique name");
-//!     cli::run_with_rules(rules)
+//!     mdwright::run_with_rules(rules)
 //! }
 //! ```
 //!

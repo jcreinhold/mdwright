@@ -921,12 +921,14 @@ dependencies = [
 name = "mdwright-lsp"
 version = "0.1.0"
 dependencies = [
+ "futures",
  "mdwright-config",
  "mdwright-document",
  "mdwright-format",
  "mdwright-lint",
  "rustc-hash",
  "serde_json",
+ "tempfile",
  "tokio",
  "tower",
  "tower-lsp",

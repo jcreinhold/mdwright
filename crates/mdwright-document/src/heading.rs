@@ -8,9 +8,7 @@
 
 use std::ops::Range;
 
-/// Heading attribute trailer (pulldown `Tag::Heading::{id, classes, attrs}`).
-/// Carried on [`crate::tree::NodeKind::Heading`] when an
-/// `{ #id .class key=val }` trailer was recognised on an ATX heading.
+/// Heading attribute trailer recognised on an ATX heading.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HeadingAttrs {
     /// `{#id ...}`. Only the first id in source order is kept (pulldown
@@ -63,7 +61,7 @@ impl HeadingAttrs {
 
 /// Locate the `{...}` attribute trailer at the end of `raw`. Returns
 /// the byte range of the trailer (braces included) relative to `raw`.
-pub fn find_attr_trailer_range(raw: &str) -> Option<Range<usize>> {
+pub(crate) fn find_attr_trailer_range(raw: &str) -> Option<Range<usize>> {
     let bytes = raw.as_bytes();
     let mut end = bytes.len();
     while end > 0 && matches!(bytes.get(end.saturating_sub(1)), Some(b' ' | b'\t' | b'\n' | b'\r')) {

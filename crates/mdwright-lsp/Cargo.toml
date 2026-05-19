@@ -23,6 +23,8 @@ tower-lsp = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
+futures = { version = "0.3", default-features = false, features = ["std"] }
+tempfile = "3"
 tower = "0.4"
 
 [lints]

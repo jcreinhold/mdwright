@@ -15,17 +15,17 @@ use pulldown_cmark::{Event, Tag, TagEnd};
 
 use crate::gfm::AutolinkFact;
 use crate::heading::find_attr_trailer_range;
-use crate::ir::{BlockCheckpointFact, CodeBlock, HtmlBlock};
+use crate::ir::{CodeBlock, HtmlBlock};
 use crate::refs::NormalisedLabel;
-use crate::source::{ByteSpan, CanonicalSource, Source};
 use crate::tree::{NodeKind, TableAlign, Tree};
-use crate::{Document, HeadingAttrs, ParseOptions, parse};
+use crate::{Document, HeadingAttrs};
 
 /// Structural owner kinds with source ranges.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StructuralKind {
     Paragraph,
     Heading,
+    BlockQuote,
     List,
     ListItem,
     DefinitionList,
@@ -38,8 +38,20 @@ pub enum StructuralKind {
 /// A recognised block/container range.
 #[derive(Clone, Debug)]
 pub struct StructuralSpan {
-    pub kind: StructuralKind,
-    pub raw_range: Range<usize>,
+    kind: StructuralKind,
+    raw_range: Range<usize>,
+}
+
+impl StructuralSpan {
+    #[must_use]
+    pub fn kind(&self) -> StructuralKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn raw_range(&self) -> Range<usize> {
+        self.raw_range.clone()
+    }
 }
 
 /// Inline delimiter kind.
@@ -52,91 +64,255 @@ pub enum InlineDelimiterKind {
 /// Delimiter byte ranges for one inline span.
 #[derive(Clone, Debug)]
 pub struct InlineDelimiterSpan {
-    pub open_lo: usize,
-    pub open_hi: usize,
-    pub close_lo: usize,
-    pub close_hi: usize,
+    open_lo: usize,
+    open_hi: usize,
+    close_lo: usize,
+    close_hi: usize,
+}
+
+impl InlineDelimiterSpan {
+    #[must_use]
+    pub fn open_range(&self) -> Range<usize> {
+        self.open_lo..self.open_hi
+    }
+
+    #[must_use]
+    pub fn close_range(&self) -> Range<usize> {
+        self.close_lo..self.close_hi
+    }
+
+    #[must_use]
+    pub fn full_range(&self) -> Range<usize> {
+        self.open_lo..self.close_hi
+    }
 }
 
 /// One unordered list and the byte offsets of its item markers.
 #[derive(Clone, Debug)]
 pub struct UnorderedListSite {
-    pub raw_range: Range<usize>,
-    pub bullets: Vec<usize>,
+    raw_range: Range<usize>,
+    bullets: Vec<usize>,
+}
+
+impl UnorderedListSite {
+    #[must_use]
+    pub fn raw_range(&self) -> Range<usize> {
+        self.raw_range.clone()
+    }
+
+    #[must_use]
+    pub fn bullets(&self) -> &[usize] {
+        &self.bullets
+    }
 }
 
 /// One ordered list and the digit ranges of its item markers.
 #[derive(Clone, Debug)]
 pub struct OrderedListSite {
-    pub raw_range: Range<usize>,
-    pub items: Vec<OrderedItemSite>,
+    raw_range: Range<usize>,
+    items: Vec<OrderedItemSite>,
+}
+
+impl OrderedListSite {
+    #[must_use]
+    pub fn raw_range(&self) -> Range<usize> {
+        self.raw_range.clone()
+    }
+
+    #[must_use]
+    pub fn items(&self) -> &[OrderedItemSite] {
+        &self.items
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct OrderedItemSite {
-    pub marker_lo: usize,
-    pub marker_hi: usize,
+    marker_lo: usize,
+    marker_hi: usize,
+}
+
+impl OrderedItemSite {
+    #[must_use]
+    pub fn marker_range(&self) -> Range<usize> {
+        self.marker_lo..self.marker_hi
+    }
 }
 
 /// An ATX heading attribute trailer.
 #[derive(Clone, Debug)]
 pub struct HeadingAttrSite {
-    pub attrs: HeadingAttrs,
-    pub trailer: Range<usize>,
+    attrs: HeadingAttrs,
+    trailer: Range<usize>,
+}
+
+impl HeadingAttrSite {
+    #[must_use]
+    pub fn attrs(&self) -> &HeadingAttrs {
+        &self.attrs
+    }
+
+    #[must_use]
+    pub fn trailer(&self) -> Range<usize> {
+        self.trailer.clone()
+    }
 }
 
 /// An inline link destination byte range.
 #[derive(Clone, Debug)]
 pub struct InlineLinkDestinationSite {
-    pub range: Range<usize>,
+    range: Range<usize>,
+}
+
+impl InlineLinkDestinationSite {
+    #[must_use]
+    pub fn range(&self) -> Range<usize> {
+        self.range.clone()
+    }
 }
 
 /// A link-reference definition destination byte range.
 #[derive(Clone, Debug)]
 pub struct ReferenceDefinitionSite {
-    pub raw_range: Range<usize>,
-    pub destination: Range<usize>,
+    raw_range: Range<usize>,
+    destination: Range<usize>,
+}
+
+impl ReferenceDefinitionSite {
+    #[must_use]
+    pub fn raw_range(&self) -> Range<usize> {
+        self.raw_range.clone()
+    }
+
+    #[must_use]
+    pub fn destination(&self) -> Range<usize> {
+        self.destination.clone()
+    }
 }
 
 /// One GFM table source range and its source rows.
 #[derive(Clone, Debug)]
 pub struct TableSite {
-    pub raw_range: Range<usize>,
-    pub alignments: Vec<TableAlign>,
-    pub rows: Vec<TableRowSite>,
+    raw_range: Range<usize>,
+    alignments: Vec<TableAlign>,
+    rows: Vec<TableRowSite>,
+}
+
+impl TableSite {
+    #[must_use]
+    pub fn raw_range(&self) -> Range<usize> {
+        self.raw_range.clone()
+    }
+
+    #[must_use]
+    pub fn alignments(&self) -> &[TableAlign] {
+        &self.alignments
+    }
+
+    #[must_use]
+    pub fn rows(&self) -> &[TableRowSite] {
+        &self.rows
+    }
 }
 
 /// One raw table line.
 #[derive(Clone, Debug)]
 pub struct TableRowSite {
-    pub raw_range: Range<usize>,
-    pub cells: Vec<TableCellSite>,
+    raw_range: Range<usize>,
+    cells: Vec<TableCellSite>,
+}
+
+impl TableRowSite {
+    #[must_use]
+    pub fn raw_range(&self) -> Range<usize> {
+        self.raw_range.clone()
+    }
+
+    #[must_use]
+    pub fn cells(&self) -> &[TableCellSite] {
+        &self.cells
+    }
 }
 
 /// One table cell's source range inside a raw table line.
 #[derive(Clone, Debug)]
 pub struct TableCellSite {
-    pub raw_range: Range<usize>,
+    raw_range: Range<usize>,
+}
+
+impl TableCellSite {
+    #[must_use]
+    pub fn raw_range(&self) -> Range<usize> {
+        self.raw_range.clone()
+    }
 }
 
 /// A paragraph range with the inline facts needed by the wrap pass.
 #[derive(Clone, Debug)]
 pub struct WrappableParagraph {
-    pub line_lo: usize,
-    pub line_hi: usize,
-    pub content_lo: usize,
-    pub content_hi: usize,
-    pub first_prefix: String,
-    pub cont_prefix: String,
-    pub atomics: Vec<Range<usize>>,
-    pub hard_breaks: Vec<ParagraphHardBreak>,
+    line_lo: usize,
+    line_hi: usize,
+    content_lo: usize,
+    content_hi: usize,
+    first_prefix: String,
+    cont_prefix: String,
+    atomics: Vec<Range<usize>>,
+    hard_breaks: Vec<ParagraphHardBreak>,
+}
+
+impl WrappableParagraph {
+    #[must_use]
+    pub fn line_range(&self) -> Range<usize> {
+        self.line_lo..self.line_hi
+    }
+
+    #[must_use]
+    pub fn content_range(&self) -> Range<usize> {
+        self.content_lo..self.content_hi
+    }
+
+    #[must_use]
+    pub fn first_prefix(&self) -> &str {
+        &self.first_prefix
+    }
+
+    #[must_use]
+    pub fn cont_prefix(&self) -> &str {
+        &self.cont_prefix
+    }
+
+    #[must_use]
+    pub fn atomics(&self) -> &[Range<usize>] {
+        &self.atomics
+    }
+
+    #[must_use]
+    pub fn hard_breaks(&self) -> &[ParagraphHardBreak] {
+        &self.hard_breaks
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct ParagraphHardBreak {
-    pub marker_lo: usize,
-    pub nl: usize,
-    pub marker: &'static str,
+    marker_lo: usize,
+    nl: usize,
+    marker: &'static str,
+}
+
+impl ParagraphHardBreak {
+    #[must_use]
+    pub fn marker_start(&self) -> usize {
+        self.marker_lo
+    }
+
+    #[must_use]
+    pub fn newline(&self) -> usize {
+        self.nl
+    }
+
+    #[must_use]
+    pub fn marker(&self) -> &'static str {
+        self.marker
+    }
 }
 
 /// Cached source-coordinate facts consumed by formatter rewrite passes.
@@ -255,6 +431,10 @@ fn structural_spans(events: &[(Event<'_>, Range<usize>)]) -> Vec<StructuralSpan>
             }),
             Event::Start(Tag::Heading { .. }) => out.push(StructuralSpan {
                 kind: StructuralKind::Heading,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::BlockQuote(_)) => out.push(StructuralSpan {
+                kind: StructuralKind::BlockQuote,
                 raw_range: range.clone(),
             }),
             Event::Start(Tag::List(_)) => out.push(StructuralSpan {
@@ -672,58 +852,6 @@ fn excluded_block_ranges(code_blocks: &[CodeBlock], html_blocks: &[HtmlBlock]) -
         .map(|b| b.raw_range.clone())
         .chain(html_blocks.iter().map(|b| b.raw_range.clone()))
         .collect()
-}
-
-/// Top-level block checkpoints in original source coordinates.
-///
-/// # Errors
-///
-/// Returns [`crate::ParseError`] if parser execution cannot safely
-/// recognise the canonicalised source.
-pub fn top_level_block_checkpoints(
-    source: &str,
-    opts: ParseOptions,
-) -> Result<Vec<BlockCheckpointFact>, crate::ParseError> {
-    let source_len = u32::try_from(source.len()).unwrap_or(u32::MAX);
-    let src = Source::new(source);
-    let canonical = src.canonical();
-    let map_is_identity = src.offset_map().is_identity();
-    let fm_end = frontmatter_end(canonical);
-    let body = CanonicalSource::from_source(&src).trusted_subrange(fm_end..canonical.len());
-    let cap = (source.len() / 64).saturating_add(2);
-    let mut points = Vec::with_capacity(cap);
-    points.push(BlockCheckpointFact {
-        byte: 0,
-        parser_state: 0,
-    });
-
-    let mut depth: u32 = 0;
-    let mut event_count: u32 = 0;
-    let try_push = |points: &mut Vec<BlockCheckpointFact>, range_start: usize, depth: u32, event_count: u32| {
-        let abs_canonical = u32::try_from(range_start.saturating_add(fm_end)).unwrap_or(u32::MAX);
-        let abs_original = if map_is_identity {
-            abs_canonical
-        } else {
-            src.to_original(ByteSpan::new(abs_canonical, abs_canonical)).start
-        };
-        if points.last().is_none_or(|last| last.byte < abs_original) {
-            points.push(BlockCheckpointFact {
-                byte: abs_original,
-                parser_state: parser_state_hash(depth, event_count),
-            });
-        }
-    };
-    for (event, range) in parse::collect_events_with_offsets(body, parse::options(opts))? {
-        event_count = event_count.saturating_add(1);
-        walk_checkpoint_event(event, range.start, &mut depth, event_count, &mut points, &try_push);
-    }
-    if points.last().is_none_or(|last| last.byte < source_len) {
-        points.push(BlockCheckpointFact {
-            byte: source_len,
-            parser_state: parser_state_hash(depth, event_count),
-        });
-    }
-    Ok(points)
 }
 
 fn delimiter_matches_start(ev: &Event<'_>, kind: InlineDelimiterKind) -> bool {
@@ -1217,129 +1345,6 @@ fn derive_continuation_prefix(first: &str) -> Option<String> {
         }
     }
     Some(out)
-}
-
-fn frontmatter_end(source: &str) -> usize {
-    let Some(first_line_end) = source.find('\n') else {
-        return 0;
-    };
-    let first_line = source.get(..first_line_end).unwrap_or("");
-    let trimmed = first_line.trim_end();
-    let close_pat: &[&str] = match trimmed {
-        "---" => &["---", "..."],
-        "+++" => &["+++"],
-        _ => return 0,
-    };
-    let body_start = first_line_end.saturating_add(1);
-    let Some(rest) = source.get(body_start..) else {
-        return 0;
-    };
-    let mut cursor = 0usize;
-    let mut saw_key = false;
-    while cursor < rest.len() {
-        let nl = rest
-            .get(cursor..)
-            .and_then(|s| s.find('\n'))
-            .unwrap_or_else(|| rest.len().saturating_sub(cursor));
-        let end_excl = cursor.saturating_add(nl);
-        let line = rest.get(cursor..end_excl).unwrap_or("");
-        let line_trim = line.trim_end();
-        if close_pat.contains(&line_trim) {
-            if !saw_key {
-                return 0;
-            }
-            return body_start.saturating_add(end_excl).saturating_add(1).min(source.len());
-        }
-        if line_has_key(line_trim, trimmed == "+++") {
-            saw_key = true;
-        }
-        cursor = end_excl.saturating_add(1);
-    }
-    0
-}
-
-fn line_has_key(line: &str, toml: bool) -> bool {
-    let trimmed = line.trim_start();
-    let sep = if toml { '=' } else { ':' };
-    let Some(idx) = trimmed.find(sep) else {
-        return false;
-    };
-    let key = trimmed.get(..idx).unwrap_or("").trim();
-    !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-}
-
-fn walk_checkpoint_event(
-    event: Event<'_>,
-    range_start: usize,
-    depth: &mut u32,
-    event_count: u32,
-    points: &mut Vec<BlockCheckpointFact>,
-    try_push: &impl Fn(&mut Vec<BlockCheckpointFact>, usize, u32, u32),
-) {
-    match event {
-        Event::Start(tag) if *depth == 0 && is_top_level_block(&tag) => {
-            try_push(points, range_start, *depth, event_count);
-            if is_container(&tag) {
-                *depth = depth.saturating_add(1);
-            }
-        }
-        Event::Start(tag) if is_container(&tag) => {
-            *depth = depth.saturating_add(1);
-        }
-        Event::End(end) if is_container_end(end) => {
-            *depth = depth.saturating_sub(1);
-        }
-        Event::Rule if *depth == 0 => {
-            try_push(points, range_start, *depth, event_count);
-        }
-        _ => {}
-    }
-}
-
-fn is_top_level_block(tag: &Tag<'_>) -> bool {
-    matches!(
-        tag,
-        Tag::Paragraph
-            | Tag::Heading { .. }
-            | Tag::BlockQuote(_)
-            | Tag::CodeBlock(_)
-            | Tag::HtmlBlock
-            | Tag::List(_)
-            | Tag::Table(_)
-            | Tag::FootnoteDefinition(_)
-    )
-}
-
-fn is_container(tag: &Tag<'_>) -> bool {
-    matches!(
-        tag,
-        Tag::BlockQuote(_)
-            | Tag::List(_)
-            | Tag::Item
-            | Tag::FootnoteDefinition(_)
-            | Tag::Table(_)
-            | Tag::TableHead
-            | Tag::TableRow
-            | Tag::TableCell
-    )
-}
-
-fn is_container_end(end: TagEnd) -> bool {
-    matches!(
-        end,
-        TagEnd::BlockQuote(_)
-            | TagEnd::List(_)
-            | TagEnd::Item
-            | TagEnd::FootnoteDefinition
-            | TagEnd::Table
-            | TagEnd::TableHead
-            | TagEnd::TableRow
-            | TagEnd::TableCell
-    )
-}
-
-fn parser_state_hash(depth: u32, event_count: u32) -> u64 {
-    (u64::from(depth) << 32) | u64::from(event_count)
 }
 
 #[cfg(test)]

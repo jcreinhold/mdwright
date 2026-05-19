@@ -8,16 +8,17 @@ surface** that the version number commits to.
 A change to any of the following is a breaking change and requires a major-version bump (or a minor bump while we are
 pre-1.0; see [Pre-1.0 caveats](#pre-10-caveats) below):
 
-- Every `pub` item exported from `mdwright` (`src/lib.rs` and the modules it re-exports). The bar is "could a downstream
-  crate observe the change at compile time."
+- Every `pub` item exported from the publishable component crates: `mdwright-document`, `mdwright-format`,
+  `mdwright-lint`, `mdwright-config`, `mdwright-lsp`, and `mdwright-math`.
+- The command-package helpers exported from `mdwright`: `run_with_rules` and `discover_markdown`.
 - CLI subcommands, their flags, and their exit codes. The exit-code mapping appears in [`reference/cli.md`](cli.md).
 - The configuration schema for `mdwright.toml`, `.mdwright.toml`, and `pyproject.toml [tool.mdwright]`. The schema is
-  generated into [`configuration.md`](../configuration.md) by `build.rs` from a single source of truth.
+  generated into [`configuration.md`](../configuration.md) from the `mdwright-config` schema source.
 - The `--format=json` (v2) diagnostic schema at
   [`reference/diagnostic-schema.md`](diagnostic-schema.md) and the JSON Schema at
   [`docs/diagnostic-schema.json`](https://github.com/jcreinhold/mdwright/blob/main/docs/diagnostic-schema.json). New
   optional fields are non-breaking; renaming or removing a field is breaking.
-- The `LintRule` trait signature in `src/lint.rs`. Adding a method with a default body is non-breaking; adding a method
+- The `mdwright_lint::LintRule` trait signature. Adding a method with a default body is non-breaking; adding a method
   without a default, or changing an existing signature, is breaking.
 
 ## Not covered

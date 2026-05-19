@@ -31,7 +31,7 @@ use crate::line_index::LineIndex;
 use crate::parse;
 use crate::refs::{ReferenceTable, build_reference_table};
 use crate::source::{CanonicalSource, Source};
-use crate::tree::{Tree, TreeBuilder};
+use crate::tree::TreeBuilder;
 use crate::util::regex::compile_static;
 use crate::{ParseError, ParseOptions};
 use mdwright_math::{MathConfig, MathError, MathRegion, scan_math_regions};
@@ -218,7 +218,10 @@ pub(crate) struct Ir {
     pub(crate) math_regions: Vec<MathRegion>,
     pub(crate) math_errors: Vec<MathError>,
     pub(crate) line_index: LineIndex,
-    pub(crate) tree: Tree,
+    #[cfg(test)]
+    pub(crate) tree: crate::tree::Tree,
+    pub(crate) list_tightness: Vec<(usize, bool)>,
+    pub(crate) link_like_ranges: Vec<Range<usize>>,
     pub(crate) block_checkpoints: Vec<BlockCheckpointFact>,
     pub(crate) format_facts: FormatFacts,
 }
@@ -298,6 +301,8 @@ impl Ir {
         let refs = build_reference_table(&bare_events, source);
         let suppressions = scan_suppressions(&builder.html_blocks);
         let tree = tree_builder.finalize(&refs);
+        let list_tightness = tree.list_tightness_by_start();
+        let link_like_ranges = tree.link_like_ranges();
         let format_facts = FormatFacts::from_parts(
             source,
             &events,
@@ -322,7 +327,10 @@ impl Ir {
             math_regions,
             math_errors,
             line_index,
+            #[cfg(test)]
             tree,
+            list_tightness,
+            link_like_ranges,
             block_checkpoints,
             format_facts,
         })
