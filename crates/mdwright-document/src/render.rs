@@ -496,6 +496,7 @@ fn escape_href(out: &mut String, s: &str) {
     for ch in s.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
+            '\'' => out.push_str("&#x27;"),
             '"' | '<' | '>' | '\\' | '[' | ']' | '`' => {
                 let mut buf = [0u8; 4];
                 for byte in ch.encode_utf8(&mut buf).as_bytes() {

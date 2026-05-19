@@ -73,7 +73,7 @@ fn cmark_profile_escapes_quotes_in_text_and_code() -> TestResult {
 #[test]
 fn cmark_profile_percent_encodes_link_destinations() -> TestResult {
     let html = render_html_with_render_options(
-        "[link](</my uri> \"title\")\n\n[unicode](/φου)\n\n[quoted](\"title\")\n",
+        "[link](</my uri> \"title\")\n\n[unicode](/φου)\n\n[quoted](\"title\")\n\n[apostrophe](m')\n",
         ParseOptions::default(),
         cmark_profile(),
     )?;
@@ -81,7 +81,8 @@ fn cmark_profile_percent_encodes_link_destinations() -> TestResult {
         html,
         "<p><a href=\"/my%20uri\" title=\"title\">link</a></p>\n\
          <p><a href=\"/%CF%86%CE%BF%CF%85\">unicode</a></p>\n\
-         <p><a href=\"%22title%22\">quoted</a></p>\n"
+         <p><a href=\"%22title%22\">quoted</a></p>\n\
+         <p><a href=\"m&#x27;\">apostrophe</a></p>\n"
     );
     Ok(())
 }
