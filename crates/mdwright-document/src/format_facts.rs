@@ -13,10 +13,12 @@ use std::ops::Range;
 
 use pulldown_cmark::{Event, Tag, TagEnd};
 
+use crate::gfm::AutolinkFact;
 use crate::heading::find_attr_trailer_range;
-use crate::ir::BlockCheckpointFact;
+use crate::ir::{BlockCheckpointFact, CodeBlock, HtmlBlock};
 use crate::refs::NormalisedLabel;
 use crate::source::{ByteSpan, CanonicalSource, Source};
+use crate::tree::{NodeKind, TableAlign, Tree};
 use crate::{Document, HeadingAttrs, ParseOptions, parse};
 
 /// Structural owner kinds with source ranges.
@@ -30,6 +32,7 @@ pub enum StructuralKind {
     DefinitionDescription,
     FootnoteDefinition,
     ThematicBreak,
+    Table,
 }
 
 /// A recognised block/container range.
@@ -95,6 +98,27 @@ pub struct ReferenceDefinitionSite {
     pub destination: Range<usize>,
 }
 
+/// One GFM table source range and its source rows.
+#[derive(Clone, Debug)]
+pub struct TableSite {
+    pub raw_range: Range<usize>,
+    pub alignments: Vec<TableAlign>,
+    pub rows: Vec<TableRowSite>,
+}
+
+/// One raw table line.
+#[derive(Clone, Debug)]
+pub struct TableRowSite {
+    pub raw_range: Range<usize>,
+    pub cells: Vec<TableCellSite>,
+}
+
+/// One table cell's source range inside a raw table line.
+#[derive(Clone, Debug)]
+pub struct TableCellSite {
+    pub raw_range: Range<usize>,
+}
+
 /// A paragraph range with the inline facts needed by the wrap pass.
 #[derive(Clone, Debug)]
 pub struct WrappableParagraph {
@@ -115,426 +139,539 @@ pub struct ParagraphHardBreak {
     pub marker: &'static str,
 }
 
+/// Cached source-coordinate facts consumed by formatter rewrite passes.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct FormatFacts {
+    structural_spans: Vec<StructuralSpan>,
+    emphasis_delimiters: Vec<InlineDelimiterSpan>,
+    strong_delimiters: Vec<InlineDelimiterSpan>,
+    unordered_list_sites: Vec<UnorderedListSite>,
+    ordered_list_sites: Vec<OrderedListSite>,
+    thematic_break_ranges: Vec<Range<usize>>,
+    heading_attr_sites: Vec<HeadingAttrSite>,
+    inline_link_destination_sites: Vec<InlineLinkDestinationSite>,
+    reference_definition_sites: Vec<ReferenceDefinitionSite>,
+    table_sites: Vec<TableSite>,
+    wrappable_paragraphs: Vec<WrappableParagraph>,
+}
+
+impl FormatFacts {
+    pub(crate) fn from_parts(
+        source: &str,
+        events: &[(Event<'_>, Range<usize>)],
+        autolinks: &[AutolinkFact],
+        code_blocks: &[CodeBlock],
+        html_blocks: &[HtmlBlock],
+        tree: &Tree,
+    ) -> Self {
+        Self {
+            structural_spans: structural_spans(events),
+            emphasis_delimiters: inline_delimiter_spans(source, events, InlineDelimiterKind::Emphasis),
+            strong_delimiters: inline_delimiter_spans(source, events, InlineDelimiterKind::Strong),
+            unordered_list_sites: unordered_list_sites(source, events),
+            ordered_list_sites: ordered_list_sites(source, events),
+            thematic_break_ranges: thematic_break_ranges(source, events),
+            heading_attr_sites: heading_attr_sites(source, events),
+            inline_link_destination_sites: inline_link_destination_sites(source, events),
+            reference_definition_sites: reference_definition_sites(source, code_blocks, html_blocks),
+            table_sites: table_sites(source, tree),
+            wrappable_paragraphs: wrappable_paragraphs(source, events, autolinks),
+        }
+    }
+}
+
 impl Document {
     /// Recognised block/container ranges used as rewrite owners.
     #[must_use]
-    pub fn structural_spans(&self) -> Vec<StructuralSpan> {
-        let mut out = Vec::new();
-        for (event, range) in self.events_with_offsets() {
-            match event {
-                Event::Start(Tag::Paragraph) => out.push(StructuralSpan {
-                    kind: StructuralKind::Paragraph,
-                    raw_range: range,
-                }),
-                Event::Start(Tag::Heading { .. }) => out.push(StructuralSpan {
-                    kind: StructuralKind::Heading,
-                    raw_range: range,
-                }),
-                Event::Start(Tag::List(_)) => out.push(StructuralSpan {
-                    kind: StructuralKind::List,
-                    raw_range: range,
-                }),
-                Event::Start(Tag::Item) => out.push(StructuralSpan {
-                    kind: StructuralKind::ListItem,
-                    raw_range: range,
-                }),
-                Event::Start(Tag::FootnoteDefinition(_)) => out.push(StructuralSpan {
-                    kind: StructuralKind::FootnoteDefinition,
-                    raw_range: range,
-                }),
-                Event::Start(Tag::DefinitionList) => out.push(StructuralSpan {
-                    kind: StructuralKind::DefinitionList,
-                    raw_range: range,
-                }),
-                Event::Start(Tag::DefinitionListDefinition) => out.push(StructuralSpan {
-                    kind: StructuralKind::DefinitionDescription,
-                    raw_range: range,
-                }),
-                Event::Rule => out.push(StructuralSpan {
-                    kind: StructuralKind::ThematicBreak,
-                    raw_range: range,
-                }),
-                _ => {}
-            }
-        }
-        out
+    pub fn structural_spans(&self) -> &[StructuralSpan] {
+        &self.format_facts().structural_spans
     }
 
     /// Inline emphasis/strong delimiter ranges.
     #[must_use]
-    pub fn inline_delimiter_spans(&self, kind: InlineDelimiterKind) -> Vec<InlineDelimiterSpan> {
-        let mut starts: Vec<usize> = Vec::new();
-        let mut spans: Vec<InlineDelimiterSpan> = Vec::new();
-        let delim_len = match kind {
-            InlineDelimiterKind::Emphasis => 1,
-            InlineDelimiterKind::Strong => 2,
-        };
-        let bytes = self.source().as_bytes();
-        for (ev, range) in self.events_with_offsets() {
-            if delimiter_matches_start(&ev, kind) {
-                starts.push(range.start);
-            } else if delimiter_matches_end(&ev, kind) {
-                let Some(open_lo) = starts.pop() else { continue };
-                let close_hi = range.end;
-                if close_hi < delim_len {
-                    continue;
-                }
-                let close_lo = close_hi.saturating_sub(delim_len);
-                let open_hi = open_lo.saturating_add(delim_len);
-                if open_hi > close_lo {
-                    continue;
-                }
-                let Some(open) = bytes.get(open_lo..open_hi) else {
-                    continue;
-                };
-                let Some(close) = bytes.get(close_lo..close_hi) else {
-                    continue;
-                };
-                if !is_emphasis_delim_run(open) || !is_emphasis_delim_run(close) {
-                    continue;
-                }
-                spans.push(InlineDelimiterSpan {
-                    open_lo,
-                    open_hi,
-                    close_lo,
-                    close_hi,
-                });
-            }
+    pub fn inline_delimiter_spans(&self, kind: InlineDelimiterKind) -> &[InlineDelimiterSpan] {
+        match kind {
+            InlineDelimiterKind::Emphasis => &self.format_facts().emphasis_delimiters,
+            InlineDelimiterKind::Strong => &self.format_facts().strong_delimiters,
         }
-        spans
     }
 
     /// Unordered list marker sites.
     #[must_use]
-    pub fn unordered_list_sites(&self) -> Vec<UnorderedListSite> {
-        let bytes = self.source().as_bytes();
-        let mut stack: Vec<(bool, UnorderedListSite)> = Vec::new();
-        let mut completed = Vec::new();
-        for (ev, range) in self.events_with_offsets() {
-            match ev {
-                Event::Start(Tag::List(start)) => {
-                    stack.push((
-                        start.is_none(),
-                        UnorderedListSite {
-                            raw_range: range,
-                            bullets: Vec::new(),
-                        },
-                    ));
-                }
-                Event::End(TagEnd::List(_)) => {
-                    if let Some((unordered, sites)) = stack.pop()
-                        && unordered
-                    {
-                        completed.push(sites);
-                    }
-                }
-                Event::Start(Tag::Item) => {
-                    let Some((unordered, sites)) = stack.last_mut() else {
-                        continue;
-                    };
-                    if *unordered && let Some(p) = find_unordered_bullet(bytes, range.start, range.end) {
-                        sites.bullets.push(p);
-                    }
-                }
-                _ => {}
-            }
-        }
-        completed
+    pub fn unordered_list_sites(&self) -> &[UnorderedListSite] {
+        &self.format_facts().unordered_list_sites
     }
 
     /// Ordered list marker digit sites.
     #[must_use]
-    pub fn ordered_list_sites(&self) -> Vec<OrderedListSite> {
-        let bytes = self.source().as_bytes();
-        let mut stack: Vec<(bool, OrderedListSite)> = Vec::new();
-        let mut completed = Vec::new();
-        for (ev, range) in self.events_with_offsets() {
-            match ev {
-                Event::Start(Tag::List(start)) => {
-                    stack.push((
-                        start.is_some(),
-                        OrderedListSite {
-                            raw_range: range,
-                            items: Vec::new(),
-                        },
-                    ));
-                }
-                Event::End(TagEnd::List(_)) => {
-                    if let Some((ordered, sites)) = stack.pop()
-                        && ordered
-                    {
-                        completed.push(sites);
-                    }
-                }
-                Event::Start(Tag::Item) => {
-                    let Some((ordered, sites)) = stack.last_mut() else {
-                        continue;
-                    };
-                    if *ordered
-                        && let Some((marker_lo, marker_hi)) = find_ordered_marker_digits(bytes, range.start, range.end)
-                    {
-                        sites.items.push(OrderedItemSite { marker_lo, marker_hi });
-                    }
-                }
-                _ => {}
-            }
-        }
-        completed
+    pub fn ordered_list_sites(&self) -> &[OrderedListSite] {
+        &self.format_facts().ordered_list_sites
     }
 
     /// Thematic break source line ranges.
     #[must_use]
-    pub fn thematic_break_ranges(&self) -> Vec<Range<usize>> {
-        let mut sites = Vec::new();
-        let bytes = self.source().as_bytes();
-        for (ev, range) in self.events_with_offsets() {
-            if matches!(ev, Event::Rule) {
-                let mut hi = range.end.min(bytes.len());
-                while hi > range.start && matches!(bytes.get(hi.saturating_sub(1)).copied(), Some(b'\n' | b'\r')) {
-                    hi = hi.saturating_sub(1);
-                }
-                sites.push(range.start..hi);
-            }
-        }
-        sites
+    pub fn thematic_break_ranges(&self) -> &[Range<usize>] {
+        &self.format_facts().thematic_break_ranges
     }
 
     /// Heading attribute trailer sites.
     #[must_use]
-    pub fn heading_attr_sites(&self) -> Vec<HeadingAttrSite> {
-        let mut sites = Vec::new();
-        for (ev, range) in self.events_with_offsets() {
-            if let Event::Start(Tag::Heading { id, classes, attrs, .. }) = ev
-                && (id.is_some() || !classes.is_empty() || !attrs.is_empty())
-            {
-                let heading_attrs = HeadingAttrs {
-                    id: id.map(|s| s.to_string()),
-                    classes: classes.iter().map(|c| c.to_string()).collect(),
-                    attrs: attrs
-                        .iter()
-                        .map(|(k, v)| (k.to_string(), v.as_ref().map(std::string::ToString::to_string)))
-                        .collect(),
-                    source_trailer: String::new(),
-                };
-                let Some(slice) = self.source().get(range.clone()) else {
-                    continue;
-                };
-                if let Some(trailer) = find_attr_trailer_range(slice) {
-                    sites.push(HeadingAttrSite {
-                        attrs: heading_attrs,
-                        trailer: range.start.saturating_add(trailer.start)..range.start.saturating_add(trailer.end),
-                    });
-                }
-            }
-        }
-        sites
+    pub fn heading_attr_sites(&self) -> &[HeadingAttrSite] {
+        &self.format_facts().heading_attr_sites
     }
 
     /// Inline link destination ranges.
     #[must_use]
-    pub fn inline_link_destination_sites(&self) -> Vec<InlineLinkDestinationSite> {
-        let bytes = self.source().as_bytes();
-        let mut sites = Vec::new();
-        let mut link_stack = Vec::new();
-        for (ev, range) in self.events_with_offsets() {
-            match ev {
-                Event::Start(Tag::Link { .. }) => link_stack.push(range.start),
-                Event::End(TagEnd::Link) => {
-                    let Some(open) = link_stack.pop() else { continue };
-                    if let Some((lo, hi)) = find_inline_dest_range(bytes, open, range.end) {
-                        sites.push(InlineLinkDestinationSite { range: lo..hi });
-                    }
-                }
-                _ => {}
-            }
-        }
-        sites
+    pub fn inline_link_destination_sites(&self) -> &[InlineLinkDestinationSite] {
+        &self.format_facts().inline_link_destination_sites
     }
 
     /// Reference-definition destination ranges.
     #[must_use]
-    pub fn reference_definition_sites(&self) -> Vec<ReferenceDefinitionSite> {
-        let excluded = self.excluded_block_ranges();
-        let mut seen = std::collections::HashSet::new();
-        let bytes = self.source().as_bytes();
-        let mut sites = Vec::new();
-        let mut line_start = 0usize;
-        while line_start <= bytes.len() {
-            let line_end = bytes
-                .get(line_start..)
-                .and_then(|tail| tail.iter().position(|&b| b == b'\n'))
-                .map_or(bytes.len(), |p| line_start.saturating_add(p));
-            if !range_start_is_excluded(line_start, &excluded)
-                && let Some(site) = parse_ref_def_line(bytes, line_start, line_end)
-                && let Some(norm) = NormalisedLabel::from_raw(&site.label)
-                && seen.insert(norm)
-            {
-                sites.push(ReferenceDefinitionSite {
-                    raw_range: line_start..line_end,
-                    destination: site.dest,
-                });
-            }
-            if line_end == bytes.len() {
-                break;
-            }
-            line_start = line_end.saturating_add(1);
-        }
-        sites
+    pub fn reference_definition_sites(&self) -> &[ReferenceDefinitionSite] {
+        &self.format_facts().reference_definition_sites
+    }
+
+    /// GFM table source rows and cell ranges.
+    #[must_use]
+    pub fn table_sites(&self) -> &[TableSite] {
+        &self.format_facts().table_sites
     }
 
     /// Paragraph ranges and inline atomics for the wrap pass.
     #[must_use]
-    pub fn wrappable_paragraphs(&self) -> Vec<WrappableParagraph> {
-        let mut paragraphs = Vec::new();
-        let bytes = self.source().as_bytes();
-        let mut current: Option<PartialParagraph> = None;
-        let mut paragraph_depth: u32 = 0;
-        let mut prose_container_depth: u32 = 0;
+    pub fn wrappable_paragraphs(&self) -> &[WrappableParagraph] {
+        &self.format_facts().wrappable_paragraphs
+    }
+}
 
-        for (ev, range) in self.events_with_offsets() {
-            match ev {
-                Event::Start(Tag::Paragraph) => {
-                    if paragraph_depth == 0 {
-                        current = Some(PartialParagraph::new(range.clone()));
-                    }
-                    paragraph_depth = paragraph_depth.saturating_add(1);
+fn structural_spans(events: &[(Event<'_>, Range<usize>)]) -> Vec<StructuralSpan> {
+    let mut out = Vec::new();
+    for (event, range) in events {
+        match event {
+            Event::Start(Tag::Paragraph) => out.push(StructuralSpan {
+                kind: StructuralKind::Paragraph,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::Heading { .. }) => out.push(StructuralSpan {
+                kind: StructuralKind::Heading,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::List(_)) => out.push(StructuralSpan {
+                kind: StructuralKind::List,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::Item) => out.push(StructuralSpan {
+                kind: StructuralKind::ListItem,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::FootnoteDefinition(_)) => out.push(StructuralSpan {
+                kind: StructuralKind::FootnoteDefinition,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::Table(_)) => out.push(StructuralSpan {
+                kind: StructuralKind::Table,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::DefinitionList) => out.push(StructuralSpan {
+                kind: StructuralKind::DefinitionList,
+                raw_range: range.clone(),
+            }),
+            Event::Start(Tag::DefinitionListDefinition) => out.push(StructuralSpan {
+                kind: StructuralKind::DefinitionDescription,
+                raw_range: range.clone(),
+            }),
+            Event::Rule => out.push(StructuralSpan {
+                kind: StructuralKind::ThematicBreak,
+                raw_range: range.clone(),
+            }),
+            _ => {}
+        }
+    }
+    out
+}
+
+fn inline_delimiter_spans(
+    source: &str,
+    events: &[(Event<'_>, Range<usize>)],
+    kind: InlineDelimiterKind,
+) -> Vec<InlineDelimiterSpan> {
+    let mut starts: Vec<usize> = Vec::new();
+    let mut spans: Vec<InlineDelimiterSpan> = Vec::new();
+    let delim_len = match kind {
+        InlineDelimiterKind::Emphasis => 1,
+        InlineDelimiterKind::Strong => 2,
+    };
+    let bytes = source.as_bytes();
+    for (ev, range) in events {
+        if delimiter_matches_start(ev, kind) {
+            starts.push(range.start);
+        } else if delimiter_matches_end(ev, kind) {
+            let Some(open_lo) = starts.pop() else { continue };
+            let close_hi = range.end;
+            if close_hi < delim_len {
+                continue;
+            }
+            let close_lo = close_hi.saturating_sub(delim_len);
+            let open_hi = open_lo.saturating_add(delim_len);
+            if open_hi > close_lo {
+                continue;
+            }
+            let Some(open) = bytes.get(open_lo..open_hi) else {
+                continue;
+            };
+            let Some(close) = bytes.get(close_lo..close_hi) else {
+                continue;
+            };
+            if !is_emphasis_delim_run(open) || !is_emphasis_delim_run(close) {
+                continue;
+            }
+            spans.push(InlineDelimiterSpan {
+                open_lo,
+                open_hi,
+                close_lo,
+                close_hi,
+            });
+        }
+    }
+    spans
+}
+
+fn unordered_list_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<UnorderedListSite> {
+    let bytes = source.as_bytes();
+    let mut stack: Vec<(bool, UnorderedListSite)> = Vec::new();
+    let mut completed = Vec::new();
+    for (ev, range) in events {
+        match ev {
+            Event::Start(Tag::List(start)) => {
+                stack.push((
+                    start.is_none(),
+                    UnorderedListSite {
+                        raw_range: range.clone(),
+                        bullets: Vec::new(),
+                    },
+                ));
+            }
+            Event::End(TagEnd::List(_)) => {
+                if let Some((unordered, sites)) = stack.pop()
+                    && unordered
+                {
+                    completed.push(sites);
                 }
-                Event::End(TagEnd::Paragraph) => {
-                    paragraph_depth = paragraph_depth.saturating_sub(1);
-                    if paragraph_depth == 0
-                        && let Some(p) = current.take()
-                        && let Some(finished) = p.finish(bytes, self.autolinks())
-                    {
-                        paragraphs.push(finished);
-                    }
+            }
+            Event::Start(Tag::Item) => {
+                let Some((unordered, sites)) = stack.last_mut() else {
+                    continue;
+                };
+                if *unordered && let Some(p) = find_unordered_bullet(bytes, range.start, range.end) {
+                    sites.bullets.push(p);
                 }
-                Event::Start(Tag::Item | Tag::DefinitionListDefinition | Tag::FootnoteDefinition(_)) => {
-                    prose_container_depth = prose_container_depth.saturating_add(1);
+            }
+            _ => {}
+        }
+    }
+    completed
+}
+
+fn ordered_list_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<OrderedListSite> {
+    let bytes = source.as_bytes();
+    let mut stack: Vec<(bool, OrderedListSite)> = Vec::new();
+    let mut completed = Vec::new();
+    for (ev, range) in events {
+        match ev {
+            Event::Start(Tag::List(start)) => {
+                stack.push((
+                    start.is_some(),
+                    OrderedListSite {
+                        raw_range: range.clone(),
+                        items: Vec::new(),
+                    },
+                ));
+            }
+            Event::End(TagEnd::List(_)) => {
+                if let Some((ordered, sites)) = stack.pop()
+                    && ordered
+                {
+                    completed.push(sites);
                 }
-                Event::End(TagEnd::Item | TagEnd::DefinitionListDefinition | TagEnd::FootnoteDefinition) => {
-                    prose_container_depth = prose_container_depth.saturating_sub(1);
-                    if let Some(p) = current.take()
-                        && let Some(finished) = p.finish(bytes, self.autolinks())
-                    {
-                        paragraphs.push(finished);
-                    }
+            }
+            Event::Start(Tag::Item) => {
+                let Some((ordered, sites)) = stack.last_mut() else {
+                    continue;
+                };
+                if *ordered
+                    && let Some((marker_lo, marker_hi)) = find_ordered_marker_digits(bytes, range.start, range.end)
+                {
+                    sites.items.push(OrderedItemSite { marker_lo, marker_hi });
                 }
-                Event::Start(
-                    Tag::CodeBlock(_)
-                    | Tag::HtmlBlock
-                    | Tag::Heading { .. }
-                    | Tag::BlockQuote(_)
-                    | Tag::List(_)
-                    | Tag::Table(_)
-                    | Tag::DefinitionList
-                    | Tag::DefinitionListTitle
-                    | Tag::MetadataBlock(_),
-                ) => {
-                    if let Some(p) = current.take()
-                        && let Some(finished) = p.finish(bytes, self.autolinks())
-                    {
-                        paragraphs.push(finished);
-                    }
-                }
-                Event::Text(_) => {
-                    if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
-                        current = Some(PartialParagraph::new(range.clone()));
-                    }
-                    if let Some(p) = current.as_mut()
-                        && range.end > p.content_hi
-                    {
-                        p.content_hi = range.end;
-                    }
-                }
-                Event::Code(_) | Event::InlineHtml(_) | Event::InlineMath(_) | Event::DisplayMath(_) => {
-                    if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
-                        current = Some(PartialParagraph::new(range.clone()));
-                    }
-                    if let Some(p) = current.as_mut() {
-                        p.atomics.push(range.clone());
-                        if range.end > p.content_hi {
-                            p.content_hi = range.end;
-                        }
-                    }
-                }
-                Event::SoftBreak => {
-                    if let Some(p) = current.as_mut()
-                        && range.end > p.content_hi
-                    {
-                        p.content_hi = range.end;
-                    }
-                }
-                Event::Start(Tag::Link { .. } | Tag::Image { .. }) => {
-                    if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
-                        current = Some(PartialParagraph::new(range.clone()));
-                    }
-                    if let Some(p) = current.as_mut() {
-                        p.link_stack.push(range.start);
-                        if range.end > p.content_hi {
-                            p.content_hi = range.end;
-                        }
-                    }
-                }
-                Event::End(TagEnd::Link | TagEnd::Image) => {
-                    if let Some(p) = current.as_mut() {
-                        if let Some(start) = p.link_stack.pop() {
-                            p.atomics.push(start..range.end);
-                        }
-                        if range.end > p.content_hi {
-                            p.content_hi = range.end;
-                        }
-                    }
-                }
-                Event::Start(Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Superscript | Tag::Subscript) => {
-                    if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
-                        current = Some(PartialParagraph::new(range.clone()));
-                    }
-                    if let Some(p) = current.as_mut()
-                        && range.end > p.content_hi
-                    {
-                        p.content_hi = range.end;
-                    }
-                }
-                Event::End(
-                    TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough | TagEnd::Superscript | TagEnd::Subscript,
-                ) => {
-                    if let Some(p) = current.as_mut()
-                        && range.end > p.content_hi
-                    {
-                        p.content_hi = range.end;
-                    }
-                }
-                Event::HardBreak => {
-                    if let Some(p) = current.as_mut() {
-                        if let Some(hb) = classify_hard_break(bytes, range.start, range.end) {
-                            p.hard_breaks.push(hb);
-                        }
-                        if range.end > p.content_hi {
-                            p.content_hi = range.end;
-                        }
-                    }
-                }
-                _ => {}
+            }
+            _ => {}
+        }
+    }
+    completed
+}
+
+fn thematic_break_ranges(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<Range<usize>> {
+    let mut sites = Vec::new();
+    let bytes = source.as_bytes();
+    for (ev, range) in events {
+        if matches!(ev, Event::Rule) {
+            let mut hi = range.end.min(bytes.len());
+            while hi > range.start && matches!(bytes.get(hi.saturating_sub(1)).copied(), Some(b'\n' | b'\r')) {
+                hi = hi.saturating_sub(1);
+            }
+            sites.push(range.start..hi);
+        }
+    }
+    sites
+}
+
+fn heading_attr_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<HeadingAttrSite> {
+    let mut sites = Vec::new();
+    for (ev, range) in events {
+        if let Event::Start(Tag::Heading { id, classes, attrs, .. }) = ev
+            && (id.is_some() || !classes.is_empty() || !attrs.is_empty())
+        {
+            let heading_attrs = HeadingAttrs {
+                id: id.as_ref().map(std::string::ToString::to_string),
+                classes: classes.iter().map(std::string::ToString::to_string).collect(),
+                attrs: attrs
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.as_ref().map(std::string::ToString::to_string)))
+                    .collect(),
+                source_trailer: String::new(),
+            };
+            let Some(slice) = source.get(range.clone()) else {
+                continue;
+            };
+            if let Some(trailer) = find_attr_trailer_range(slice) {
+                sites.push(HeadingAttrSite {
+                    attrs: heading_attrs,
+                    trailer: range.start.saturating_add(trailer.start)..range.start.saturating_add(trailer.end),
+                });
             }
         }
-        paragraphs
     }
+    sites
+}
 
-    fn events_with_offsets(&self) -> Vec<(Event<'_>, Range<usize>)> {
-        parse::collect_events_with_offsets(
-            CanonicalSource::from_source(self.source_handle()),
-            parse::options(self.parse_options()),
-        )
-        .unwrap_or_default()
+fn inline_link_destination_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<InlineLinkDestinationSite> {
+    let bytes = source.as_bytes();
+    let mut sites = Vec::new();
+    let mut link_stack = Vec::new();
+    for (ev, range) in events {
+        match ev {
+            Event::Start(Tag::Link { .. }) => link_stack.push(range.start),
+            Event::End(TagEnd::Link) => {
+                let Some(open) = link_stack.pop() else { continue };
+                if let Some((lo, hi)) = find_inline_dest_range(bytes, open, range.end) {
+                    sites.push(InlineLinkDestinationSite { range: lo..hi });
+                }
+            }
+            _ => {}
+        }
     }
+    sites
+}
 
-    fn excluded_block_ranges(&self) -> Vec<Range<usize>> {
-        self.code_blocks()
-            .iter()
-            .map(|b| b.raw_range.clone())
-            .chain(self.html_blocks().iter().map(|b| b.raw_range.clone()))
-            .collect()
+fn reference_definition_sites(
+    source: &str,
+    code_blocks: &[CodeBlock],
+    html_blocks: &[HtmlBlock],
+) -> Vec<ReferenceDefinitionSite> {
+    let excluded = excluded_block_ranges(code_blocks, html_blocks);
+    let mut seen = std::collections::HashSet::new();
+    let bytes = source.as_bytes();
+    let mut sites = Vec::new();
+    let mut line_start = 0usize;
+    while line_start <= bytes.len() {
+        let line_end = bytes
+            .get(line_start..)
+            .and_then(|tail| tail.iter().position(|&b| b == b'\n'))
+            .map_or(bytes.len(), |p| line_start.saturating_add(p));
+        if !range_start_is_excluded(line_start, &excluded)
+            && let Some(site) = parse_ref_def_line(bytes, line_start, line_end)
+            && let Some(norm) = NormalisedLabel::from_raw(&site.label)
+            && seen.insert(norm)
+        {
+            sites.push(ReferenceDefinitionSite {
+                raw_range: line_start..line_end,
+                destination: site.dest,
+            });
+        }
+        if line_end == bytes.len() {
+            break;
+        }
+        line_start = line_end.saturating_add(1);
     }
+    sites
+}
+
+fn table_sites(source: &str, tree: &Tree) -> Vec<TableSite> {
+    let mut sites = Vec::new();
+    for id in tree.descendants(tree.root()) {
+        let Some(node) = tree.node(id) else { continue };
+        let NodeKind::Table { alignments } = &node.kind else {
+            continue;
+        };
+        let rows = table_rows(source, node.raw_range.clone());
+        if rows.len() >= 2 {
+            sites.push(TableSite {
+                raw_range: node.raw_range.clone(),
+                alignments: alignments.clone(),
+                rows,
+            });
+        }
+    }
+    sites
+}
+
+fn wrappable_paragraphs(
+    source: &str,
+    events: &[(Event<'_>, Range<usize>)],
+    autolinks: &[AutolinkFact],
+) -> Vec<WrappableParagraph> {
+    let mut paragraphs = Vec::new();
+    let bytes = source.as_bytes();
+    let mut current: Option<PartialParagraph> = None;
+    let mut paragraph_depth: u32 = 0;
+    let mut prose_container_depth: u32 = 0;
+
+    for (ev, range) in events {
+        match ev {
+            Event::Start(Tag::Paragraph) => {
+                if paragraph_depth == 0 {
+                    current = Some(PartialParagraph::new(range.clone()));
+                }
+                paragraph_depth = paragraph_depth.saturating_add(1);
+            }
+            Event::End(TagEnd::Paragraph) => {
+                paragraph_depth = paragraph_depth.saturating_sub(1);
+                if paragraph_depth == 0
+                    && let Some(p) = current.take()
+                    && let Some(finished) = p.finish(bytes, autolinks)
+                {
+                    paragraphs.push(finished);
+                }
+            }
+            Event::Start(Tag::Item | Tag::DefinitionListDefinition | Tag::FootnoteDefinition(_)) => {
+                prose_container_depth = prose_container_depth.saturating_add(1);
+            }
+            Event::End(TagEnd::Item | TagEnd::DefinitionListDefinition | TagEnd::FootnoteDefinition) => {
+                prose_container_depth = prose_container_depth.saturating_sub(1);
+                if let Some(p) = current.take()
+                    && let Some(finished) = p.finish(bytes, autolinks)
+                {
+                    paragraphs.push(finished);
+                }
+            }
+            Event::Start(
+                Tag::CodeBlock(_)
+                | Tag::HtmlBlock
+                | Tag::Heading { .. }
+                | Tag::BlockQuote(_)
+                | Tag::List(_)
+                | Tag::Table(_)
+                | Tag::DefinitionList
+                | Tag::DefinitionListTitle
+                | Tag::MetadataBlock(_),
+            ) => {
+                if let Some(p) = current.take()
+                    && let Some(finished) = p.finish(bytes, autolinks)
+                {
+                    paragraphs.push(finished);
+                }
+            }
+            Event::Text(_) => {
+                if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
+                    current = Some(PartialParagraph::new(range.clone()));
+                }
+                if let Some(p) = current.as_mut()
+                    && range.end > p.content_hi
+                {
+                    p.content_hi = range.end;
+                }
+            }
+            Event::Code(_) | Event::InlineHtml(_) | Event::InlineMath(_) | Event::DisplayMath(_) => {
+                if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
+                    current = Some(PartialParagraph::new(range.clone()));
+                }
+                if let Some(p) = current.as_mut() {
+                    p.atomics.push(range.clone());
+                    if range.end > p.content_hi {
+                        p.content_hi = range.end;
+                    }
+                }
+            }
+            Event::SoftBreak => {
+                if let Some(p) = current.as_mut()
+                    && range.end > p.content_hi
+                {
+                    p.content_hi = range.end;
+                }
+            }
+            Event::Start(Tag::Link { .. } | Tag::Image { .. }) => {
+                if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
+                    current = Some(PartialParagraph::new(range.clone()));
+                }
+                if let Some(p) = current.as_mut() {
+                    p.link_stack.push(range.start);
+                    if range.end > p.content_hi {
+                        p.content_hi = range.end;
+                    }
+                }
+            }
+            Event::End(TagEnd::Link | TagEnd::Image) => {
+                if let Some(p) = current.as_mut() {
+                    if let Some(start) = p.link_stack.pop() {
+                        p.atomics.push(start..range.end);
+                    }
+                    if range.end > p.content_hi {
+                        p.content_hi = range.end;
+                    }
+                }
+            }
+            Event::Start(Tag::Emphasis | Tag::Strong | Tag::Strikethrough | Tag::Superscript | Tag::Subscript) => {
+                if current.is_none() && paragraph_depth == 0 && prose_container_depth > 0 {
+                    current = Some(PartialParagraph::new(range.clone()));
+                }
+                if let Some(p) = current.as_mut()
+                    && range.end > p.content_hi
+                {
+                    p.content_hi = range.end;
+                }
+            }
+            Event::End(
+                TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough | TagEnd::Superscript | TagEnd::Subscript,
+            ) => {
+                if let Some(p) = current.as_mut()
+                    && range.end > p.content_hi
+                {
+                    p.content_hi = range.end;
+                }
+            }
+            Event::HardBreak => {
+                if let Some(p) = current.as_mut() {
+                    if let Some(hb) = classify_hard_break(bytes, range.start, range.end) {
+                        p.hard_breaks.push(hb);
+                    }
+                    if range.end > p.content_hi {
+                        p.content_hi = range.end;
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    paragraphs
+}
+
+fn excluded_block_ranges(code_blocks: &[CodeBlock], html_blocks: &[HtmlBlock]) -> Vec<Range<usize>> {
+    code_blocks
+        .iter()
+        .map(|b| b.raw_range.clone())
+        .chain(html_blocks.iter().map(|b| b.raw_range.clone()))
+        .collect()
 }
 
 /// Top-level block checkpoints in original source coordinates.
@@ -621,6 +758,81 @@ fn find_unordered_bullet(bytes: &[u8], start: usize, end: usize) -> Option<usize
         i = i.saturating_add(1);
     }
     None
+}
+
+fn table_rows(source: &str, range: Range<usize>) -> Vec<TableRowSite> {
+    let mut rows = Vec::new();
+    let bytes = source.as_bytes();
+    let mut line_start = range.start.min(bytes.len());
+    let range_end = range.end.min(bytes.len());
+    while line_start < range_end {
+        let line_end = bytes
+            .get(line_start..range_end)
+            .and_then(|tail| tail.iter().position(|&b| b == b'\n'))
+            .map_or(range_end, |p| line_start.saturating_add(p));
+        let raw_end = if line_end > line_start && bytes.get(line_end.saturating_sub(1)) == Some(&b'\r') {
+            line_end.saturating_sub(1)
+        } else {
+            line_end
+        };
+        if let Some(row) = table_row(source, line_start..raw_end) {
+            rows.push(row);
+        }
+        if line_end == range_end {
+            break;
+        }
+        line_start = line_end.saturating_add(1);
+    }
+    rows
+}
+
+fn table_row(source: &str, range: Range<usize>) -> Option<TableRowSite> {
+    let bytes = source.as_bytes();
+    let line = bytes.get(range.clone())?;
+    let mut lo = range.start;
+    let mut hi = range.end;
+    while lo < hi && bytes.get(lo).is_some_and(u8::is_ascii_whitespace) {
+        lo = lo.saturating_add(1);
+    }
+    while hi > lo && bytes.get(hi.saturating_sub(1)).is_some_and(u8::is_ascii_whitespace) {
+        hi = hi.saturating_sub(1);
+    }
+    if lo < hi && bytes.get(lo) == Some(&b'|') {
+        lo = lo.saturating_add(1);
+    }
+    if hi > lo && bytes.get(hi.saturating_sub(1)) == Some(&b'|') {
+        hi = hi.saturating_sub(1);
+    }
+    let mut cells = Vec::new();
+    let mut cell_start = lo;
+    let mut i = lo;
+    let mut escaped = false;
+    while i < hi {
+        let Some(b) = bytes.get(i).copied() else {
+            break;
+        };
+        if b == b'|' && !escaped {
+            cells.push(TableCellSite {
+                raw_range: cell_start..i,
+            });
+            cell_start = i.saturating_add(1);
+        }
+        escaped = b == b'\\' && !escaped;
+        if b != b'\\' {
+            escaped = false;
+        }
+        i = i.saturating_add(1);
+    }
+    cells.push(TableCellSite {
+        raw_range: cell_start..hi,
+    });
+    if cells.is_empty() || !line.contains(&b'|') {
+        return None;
+    }
+    Some(TableRowSite {
+        raw_range: range,
+        cells,
+    })
 }
 
 fn find_ordered_marker_digits(bytes: &[u8], start: usize, end: usize) -> Option<(usize, usize)> {
@@ -1143,7 +1355,7 @@ mod tests {
         let doc = Document::parse("[^long-label]: alpha beta gamma\n").expect("fixture parses");
         let paragraph = doc
             .wrappable_paragraphs()
-            .into_iter()
+            .iter()
             .next()
             .expect("footnote definition paragraph");
         assert_eq!(paragraph.cont_prefix, "    ");
@@ -1154,7 +1366,7 @@ mod tests {
         let doc = Document::parse("term\n:   alpha beta gamma\n").expect("fixture parses");
         let paragraph = doc
             .wrappable_paragraphs()
-            .into_iter()
+            .iter()
             .next()
             .expect("definition list paragraph");
         assert_eq!(paragraph.cont_prefix, "    ");

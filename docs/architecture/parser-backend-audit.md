@@ -1,8 +1,8 @@
 # Parser Backend Audit
 
-`cargo xtask parser-audit` compares mdwright's production `pulldown-cmark` backend with `cmark-gfm`, using the vendored
-GFM spec expected HTML as the primary oracle. The audit renders mdwright through the opt-in `cmark-gfm` render profile
-so renderer spelling drift is separated from parser-tree drift. It does not replace `mdwright-document` as the
+`cargo xtask parser-audit` compares mdwright's production `pulldown-cmark` backend with `cmark-gfm`, using the
+vendored GFM spec expected HTML as the primary oracle. The audit renders mdwright through the opt-in `cmark-gfm` render
+profile so renderer spelling drift is separated from parser-tree drift. It does not replace `mdwright-document` as the
 production parser boundary.
 
 `cmark-gfm` is the primary oracle because `crates/mdwright/tests/gfm-spec/spec.txt` is vendored from cmark-gfm and the
@@ -29,12 +29,12 @@ Reports are written to:
 - `target/mdwright/parser-audit/parser-audit.md`
 
 Examples marked `disabled` in the vendored GFM spec are still reported, but cmark-gfm binary drift from the expected
-HTML for those cases is not a command failure because the upstream spec does not treat the rendered checkbox spelling
-as a strict conformance assertion.
+HTML for those cases is not a command failure because the upstream spec does not treat the rendered checkbox spelling as
+a strict conformance assertion.
 
 The audit also checks source-position envelopes for constructs mdwright uses as formatter/linter facts. It maps
-cmark-gfm `data-sourcepos` line/column ranges back to source bytes and compares them against mdwright document facts by
-construct kind. This is a risk gate, not exact AST equality: a difference is reported only when mdwright has no
+cmark-gfm `data-sourcepos` line/column ranges back to source bytes and compares them against mdwright document facts
+by construct kind. This is a risk gate, not exact AST equality: a difference is reported only when mdwright has no
 overlapping fact for a rewrite/lint-owned construct.
 
 ## Status Values

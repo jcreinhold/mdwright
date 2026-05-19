@@ -3,15 +3,15 @@
 [![ci](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml/badge.svg)](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml)
 [![docs](https://github.com/jcreinhold/mdwright/actions/workflows/docs.yml/badge.svg)](https://jcreinhold.github.io/mdwright/)
 
-A Markdown linter and round-trip formatter. `mdwright fmt` is HTML-equivalent to its input: it refuses any rewrite
-that would change the rendered DOM. The lint catalogue covers the control-sequence patterns that generic
-Markdown formatters routinely mangle. Built so it stays safe on Markdown that contains LaTeX (`\( … \)`, `\[ … \]`,
-`\begin{…} … \end{…}`); useful on any Markdown.
+A Markdown linter and round-trip formatter. `mdwright fmt` is HTML-equivalent to its input: it refuses any rewrite that
+would change the rendered DOM. The lint catalogue covers the control-sequence patterns that generic Markdown formatters
+routinely mangle. Built so it stays safe on Markdown that contains LaTeX (`\( … \)`, `\[ … \]`, `\begin{…} … \end{…}`);
+useful on any Markdown.
 
-**Preserve by default.** Source style choices, including emphasis delimiters (`_foo_` vs `*foo*`), list markers (`-` / `*` /
-`+`), thematic breaks, and link-destination angle brackets, pass through untouched. Canonicalisation is opt-in one knob at
-a time in `.mdwright.toml`. For aggressive canonicalisation as the default, [mdformat](https://mdformat.readthedocs.io/)
-is the standard choice.
+**Preserve by default.** Source style choices, including emphasis delimiters (`_foo_` vs `*foo*`), list markers (`-` /
+`*` / `+`), thematic breaks, and link-destination angle brackets, pass through untouched. Canonicalisation is opt-in one
+knob at a time in `.mdwright.toml`, or via `fmt.profile = "mdformat"` for mdformat-compatible spelling where verified
+rewrites preserve the parsed document.
 
 It is also several hundred times faster than `mdformat --check` on a multi-thousand-file corpus.
 

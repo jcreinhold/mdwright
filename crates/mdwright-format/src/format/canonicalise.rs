@@ -41,8 +41,8 @@
 //! 6. link destination style — angle/bare toggle, per definition.
 
 use crate::format::rewrite::{Candidate, OwnerKind, Phase, Snapshot, Verification};
-use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender};
-use mdwright_document::InlineDelimiterKind;
+use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender, OrderedListStyle, ThematicStyle};
+use mdwright_document::{InlineDelimiterKind, TableAlign, TableSite};
 use mdwright_math::MathRegion;
 use mdwright_math::MathSpan;
 use mdwright_math::normalise::{align_env_body, body_braces_balanced};
@@ -58,11 +58,14 @@ pub(crate) fn collect_candidates(snapshot: &Snapshot<'_>, opts: &FmtOptions, can
     if let Some(target) = opts.list_marker_target_byte() {
         collect_unordered_list_marker(snapshot, target, candidates);
     }
-    if opts.should_renumber_ordered_lists() {
-        collect_ordered_list_renumber(snapshot, candidates);
+    if let Some(target) = opts.ordered_list_target() {
+        collect_ordered_list_renumber(snapshot, target, candidates);
     }
-    if let Some(target) = opts.thematic_target_byte() {
+    if let Some(target) = opts.thematic_target() {
         collect_thematic(snapshot, target, candidates);
+    }
+    if opts.should_pad_tables() {
+        collect_table_padding(snapshot, candidates);
     }
     if let Some(target) = opts.link_def_target() {
         collect_link_def_style(snapshot, target, candidates);
@@ -230,7 +233,7 @@ fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates
 
 // ----- Ordered list renumber ------------------------------------
 
-fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
+fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, target: OrderedListStyle, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
     let lists = snapshot.document().ordered_list_sites();
 
@@ -252,7 +255,11 @@ fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, candidates: &mut Vec<C
         // Renumber items in reverse so local offsets within `rewrite`
         // stay valid as marker widths grow or shrink.
         for (k, item) in list.items.iter().enumerate().rev() {
-            let want = start_num.saturating_add(k as u64);
+            let want = match target {
+                OrderedListStyle::One => 1,
+                OrderedListStyle::Consistent => start_num.saturating_add(k as u64),
+                OrderedListStyle::Preserve => continue,
+            };
             if item.marker_lo < lo || item.marker_hi > hi {
                 continue;
             }
@@ -292,7 +299,7 @@ fn scan_ordered_marker_number(bytes: &[u8], lo: usize, hi: usize) -> Option<u64>
 
 // ----- Thematic break -------------------------------------------
 
-fn collect_thematic(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Candidate>) {
+fn collect_thematic(snapshot: &Snapshot<'_>, target: ThematicStyle, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
     for range in snapshot.document().thematic_break_ranges() {
         let lo = range.start;
@@ -302,17 +309,28 @@ fn collect_thematic(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Ca
         if line.is_empty() {
             continue;
         }
-        let any_off_target = line
-            .iter()
-            .any(|&b| (b == b'-' || b == b'*' || b == b'_') && b != target);
-        if !any_off_target {
-            continue;
-        }
-        let mut rewrite = line.to_vec();
-        for byte in &mut rewrite {
-            if *byte == b'-' || *byte == b'*' || *byte == b'_' {
-                *byte = target;
+        let rewrite = if matches!(target, ThematicStyle::Underscore70) {
+            vec![b'_'; 70]
+        } else {
+            let Some(target_byte) = target.as_byte() else {
+                continue;
+            };
+            let any_off_target = line
+                .iter()
+                .any(|&b| (b == b'-' || b == b'*' || b == b'_') && b != target_byte);
+            if !any_off_target {
+                continue;
             }
+            let mut rewrite = line.to_vec();
+            for byte in &mut rewrite {
+                if *byte == b'-' || *byte == b'*' || *byte == b'_' {
+                    *byte = target_byte;
+                }
+            }
+            rewrite
+        };
+        if line == rewrite.as_slice() {
+            continue;
         }
         push_utf8_candidate(
             snapshot,
@@ -327,6 +345,145 @@ fn collect_thematic(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Ca
     }
 }
 
+// ----- GFM table padding ----------------------------------------
+
+fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
+    let out = snapshot.source();
+    for table in snapshot.document().table_sites() {
+        let Some(replacement) = padded_table(out, table) else {
+            continue;
+        };
+        let Some(existing) = out.get(table.raw_range.clone()) else {
+            continue;
+        };
+        if existing == replacement {
+            continue;
+        }
+        if let Some(candidate) = snapshot.candidate(
+            Phase::Table,
+            OwnerKind::Table,
+            table.raw_range.clone(),
+            replacement,
+            Verification::PreserveMarkdownAndMath,
+            "table-pad",
+        ) {
+            candidates.push(candidate);
+        }
+    }
+}
+
+fn padded_table(source: &str, table: &TableSite) -> Option<String> {
+    if table.rows.len() < 2 {
+        return None;
+    }
+    let column_count = table
+        .rows
+        .iter()
+        .map(|row| row.cells.len())
+        .max()
+        .unwrap_or(0)
+        .min(table.alignments.len().max(1));
+    if column_count == 0 {
+        return None;
+    }
+
+    let mut rows: Vec<Vec<String>> = Vec::with_capacity(table.rows.len());
+    for row in &table.rows {
+        let mut cells = Vec::with_capacity(column_count);
+        for cell in row.cells.iter().take(column_count) {
+            let raw = source.get(cell.raw_range.clone())?;
+            cells.push(raw.trim().to_owned());
+        }
+        while cells.len() < column_count {
+            cells.push(String::new());
+        }
+        rows.push(cells);
+    }
+
+    let mut widths = vec![3usize; column_count];
+    for (row_idx, row) in rows.iter().enumerate() {
+        if row_idx == 1 {
+            continue;
+        }
+        for (col, cell) in row.iter().enumerate() {
+            if let Some(width) = widths.get_mut(col) {
+                *width = (*width).max(display_width(cell));
+            }
+        }
+    }
+
+    let had_trailing_newline = source
+        .get(table.raw_range.clone())
+        .is_some_and(|slice| slice.ends_with('\n'));
+    let mut out = String::new();
+    for (row_idx, row) in rows.iter().enumerate() {
+        if row_idx == 1 {
+            push_table_delimiter(&mut out, &widths, &table.alignments);
+        } else {
+            push_table_row(&mut out, row, &widths, &table.alignments);
+        }
+        if row_idx.saturating_add(1) < rows.len() || had_trailing_newline {
+            out.push('\n');
+        }
+    }
+    Some(out)
+}
+
+fn push_table_row(out: &mut String, row: &[String], widths: &[usize], alignments: &[TableAlign]) {
+    out.push('|');
+    for (col, width) in widths.iter().copied().enumerate() {
+        let cell = row.get(col).map_or("", String::as_str);
+        let pad = width.saturating_sub(display_width(cell));
+        let align = alignments.get(col).copied().unwrap_or(TableAlign::None);
+        let (left, right) = match align {
+            TableAlign::Right => (pad, 0),
+            TableAlign::Center => (pad / 2, pad.saturating_sub(pad / 2)),
+            TableAlign::None | TableAlign::Left => (0, pad),
+        };
+        out.push(' ');
+        push_chars(out, ' ', left);
+        out.push_str(cell);
+        push_chars(out, ' ', right);
+        out.push(' ');
+        out.push('|');
+    }
+}
+
+fn push_table_delimiter(out: &mut String, widths: &[usize], alignments: &[TableAlign]) {
+    out.push('|');
+    for (col, width) in widths.iter().copied().enumerate() {
+        out.push(' ');
+        match alignments.get(col).copied().unwrap_or(TableAlign::None) {
+            TableAlign::Left => {
+                out.push(':');
+                push_chars(out, '-', width.saturating_sub(1));
+            }
+            TableAlign::Right => {
+                push_chars(out, '-', width.saturating_sub(1));
+                out.push(':');
+            }
+            TableAlign::Center => {
+                out.push(':');
+                push_chars(out, '-', width.saturating_sub(2).max(1));
+                out.push(':');
+            }
+            TableAlign::None => push_chars(out, '-', width),
+        }
+        out.push(' ');
+        out.push('|');
+    }
+}
+
+fn display_width(s: &str) -> usize {
+    unicode_width::UnicodeWidthStr::width(s)
+}
+
+fn push_chars(out: &mut String, ch: char, n: usize) {
+    for _ in 0..n {
+        out.push(ch);
+    }
+}
+
 // ----- Heading attribute trailer canonicalisation ---------------
 
 /// Rewrite every ATX heading's `{...}` attribute trailer to canonical
@@ -338,7 +495,7 @@ fn collect_heading_attrs(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
     let out = snapshot.source();
     let sites = snapshot.document().heading_attr_sites();
     for site in sites {
-        let attrs = site.attrs;
+        let attrs = &site.attrs;
         let trailer_lo = site.trailer.start;
         let trailer_hi = site.trailer.end;
         let bytes = out.as_bytes();
@@ -434,7 +591,7 @@ fn collect_link_destination_sites(snapshot: &Snapshot<'_>) -> Vec<LinkDestinatio
     let mut sites: Vec<LinkDestinationSite> = Vec::new();
     for site in snapshot.document().inline_link_destination_sites() {
         sites.push(LinkDestinationSite {
-            range: site.range,
+            range: site.range.clone(),
             owner: None,
         });
     }

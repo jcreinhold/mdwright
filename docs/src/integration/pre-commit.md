@@ -5,8 +5,8 @@ mdwright ships a `.pre-commit-hooks.yaml` at its repo root, so adding it to a pr
 
 ## Quickest path: prebuilt binary
 
-If contributors already have `mdwright` on their `$PATH` (e.g. via `cargo binstall mdwright` or a
-GitHub release tarball), the `-system` variants avoid any toolchain dance:
+If contributors already have `mdwright` on their `$PATH` (e.g. via `cargo binstall mdwright` or a GitHub release
+tarball), the `-system` variants avoid any toolchain dance:
 
 ```yaml,no-check
 # .pre-commit-config.yaml
@@ -19,13 +19,13 @@ repos:
 ```
 
 `mdwright-check-system` runs `mdwright check --check`; `mdwright-fmt-check-system` runs `mdwright
-fmt-check`. Both exit non-zero on issues, blocking the commit.
+fmt-check`. Both exit
+non-zero on issues, blocking the commit.
 
 ## Letting pre-commit build mdwright
 
-If you don't want to require an out-of-band install, the source-build hooks invoke
-`cargo run -p mdwright` from the checked-out repository. First commit after a clean cache takes
-~30 s; subsequent runs reuse Cargo's cache.
+If you don't want to require an out-of-band install, the source-build hooks invoke `cargo run -p mdwright` from the
+checked-out repository. First commit after a clean cache takes ~30 s; subsequent runs reuse Cargo's cache.
 
 ```yaml,no-check
 repos:
@@ -49,14 +49,13 @@ Each contributor needs a Rust toolchain on the machine running the hook.
 | `mdwright-fmt-system`       | `mdwright fmt`            | `system`  |
 | `mdwright-fmt-check-system` | `mdwright fmt-check`      | `system`  |
 
-The `mdwright-fmt` / `mdwright-fmt-system` hooks rewrite files in place; combine with `git add` in a
-post-formatting workflow, or prefer `mdwright-fmt-check` in CI gates that should never auto-commit.
+The `mdwright-fmt` / `mdwright-fmt-system` hooks rewrite files in place; combine with `git add` in a post-formatting
+workflow, or prefer `mdwright-fmt-check` in CI gates that should never auto-commit.
 
 ## Performance notes
 
-`pre-commit` invokes hooks once per *batch* of matching files, not once per file, so per-invocation
-startup cost is paid once per `git commit` (not once per changed file). The binary's cold-start is
-well under 50 ms on Linux release builds.
+`pre-commit` invokes hooks once per *batch* of matching files, not once per file, so per-invocation startup cost is paid
+once per `git commit` (not once per changed file). The binary's cold-start is well under 50 ms on Linux release builds.
 
 ## See also
 

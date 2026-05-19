@@ -11,7 +11,7 @@ pub use format::semantic::{first_divergence, semantically_equivalent};
 pub use incremental::CheckpointTable;
 pub use options::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
-    OrderedListStyle, Placement, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
+    OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
 };
 
 use mdwright_document::{Document, ParseError};
@@ -65,7 +65,7 @@ pub struct FormatReport {
 #[must_use]
 #[tracing::instrument(level = "info", name = "format_document", skip_all, fields(out_len = tracing::field::Empty))]
 pub fn format_document(doc: &Document, opts: &FmtOptions) -> String {
-    let out = format::document::format_document(doc.source(), opts, doc.parse_options());
+    let out = format::document::format_document(doc, opts);
     tracing::Span::current().record("out_len", out.len());
     out
 }
@@ -73,7 +73,7 @@ pub fn format_document(doc: &Document, opts: &FmtOptions) -> String {
 /// Format a parsed document and return aggregate rewrite metrics.
 #[must_use]
 pub fn format_document_with_report(doc: &Document, opts: &FmtOptions) -> (String, FormatReport) {
-    format::document::format_document_with_report(doc.source(), opts, doc.parse_options())
+    format::document::format_document_with_report(doc, opts)
 }
 
 /// Parse and format Markdown source with default parse options.
@@ -128,7 +128,17 @@ pub fn format_range_with_checkpoints(
     let hi = snapped.end as usize;
     let source = doc.source();
     let slice = source.get(lo..hi).unwrap_or("");
-    format::document::format_document(slice, opts, doc.parse_options())
+    match Document::parse_with_options(slice, doc.parse_options()) {
+        Ok(slice_doc) => format::document::format_document(&slice_doc, opts),
+        Err(err) => {
+            tracing::warn!(
+                target: "mdwright::format",
+                error = %err,
+                "range-format slice parse failed; leaving slice bytes unchanged",
+            );
+            format::document::format_unparsed_source(slice, opts)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -151,5 +161,13 @@ mod tests {
         });
         let disabled = Document::parse_with_options(source, parse_options).expect("fixture parses");
         assert_eq!(format_document(&disabled, &opts), source);
+    }
+
+    #[test]
+    fn mdformat_profile_reports_no_candidates_when_no_sites_match() {
+        let doc = Document::parse("plain paragraph\n").expect("fixture parses");
+        let (formatted, report) = format_document_with_report(&doc, &FmtOptions::mdformat());
+        assert_eq!(formatted, doc.source());
+        assert_eq!(report, FormatReport::default());
     }
 }

@@ -37,7 +37,8 @@ impl LintRule for AdjacentCodeNoSpace {
                 .and_then(|i| bytes.get(i).copied())
                 .is_some_and(|b| b.is_ascii_alphabetic());
 
-            let after_letter = bytes.get(end).copied().is_some_and(|b| b.is_ascii_alphabetic());
+            let after_letter = bytes.get(end).copied().is_some_and(|b| b.is_ascii_alphabetic())
+                && !is_plain_english_suffix(bytes, end);
 
             if !before_letter && !after_letter {
                 continue;
@@ -51,5 +52,43 @@ impl LintRule for AdjacentCodeNoSpace {
                 out.push(d);
             }
         }
+    }
+}
+
+fn is_plain_english_suffix(bytes: &[u8], end: usize) -> bool {
+    match bytes.get(end..) {
+        Some([b's', next, ..]) if !next.is_ascii_alphabetic() => true,
+        Some([b'\'', b's', next, ..]) if !next.is_ascii_alphabetic() => true,
+        Some([b's'] | [b'\'', b's']) => true,
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::Result;
+    use mdwright_document::Document;
+
+    use super::AdjacentCodeNoSpace;
+    use crate::rule_set::RuleSet;
+
+    fn diagnostics(src: &str) -> Result<usize> {
+        let mut rules = RuleSet::new();
+        rules
+            .add(Box::new(AdjacentCodeNoSpace))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        Ok(rules.check(&Document::parse(src)?).len())
+    }
+
+    #[test]
+    fn allows_common_inline_code_suffixes() -> Result<()> {
+        assert_eq!(diagnostics("Use `TODO`s and `Vec`'s capacity.\n")?, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn still_flags_word_glued_after_code_span() -> Result<()> {
+        assert_eq!(diagnostics("Use `foo`bar here.\n")?, 1);
+        Ok(())
     }
 }

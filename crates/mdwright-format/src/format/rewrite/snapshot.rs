@@ -16,6 +16,7 @@ pub(crate) enum OwnerKind {
     DefinitionDescription,
     FootnoteDefinition,
     ReferenceDefinition,
+    Table,
     Heading,
     MathRegion,
     Frontmatter,
@@ -36,17 +37,39 @@ pub(crate) struct ReferenceDestinationSite {
 
 pub(crate) struct Snapshot<'a> {
     source: &'a str,
-    document: Document,
+    document: SnapshotDocument<'a>,
     owners: Vec<Owner>,
     reference_destination_sites: Vec<ReferenceDestinationSite>,
 }
 
+enum SnapshotDocument<'a> {
+    Borrowed(&'a Document),
+    Owned(Box<Document>),
+}
+
 impl<'a> Snapshot<'a> {
-    pub(crate) fn new(source: &'a str, parse_options: ParseOptions) -> Result<Self, ParseError> {
+    pub(crate) fn from_document(document: &'a Document) -> Self {
+        let source = document.source();
+        let mut snapshot = Self {
+            source,
+            document: SnapshotDocument::Borrowed(document),
+            owners: vec![Owner {
+                kind: OwnerKind::Document,
+                range: 0..source.len(),
+            }],
+            reference_destination_sites: Vec::new(),
+        };
+        snapshot.collect_event_owners();
+        snapshot.collect_document_owners();
+        snapshot.collect_reference_destination_sites();
+        snapshot
+    }
+
+    pub(crate) fn parse_owned(source: &'a str, parse_options: ParseOptions) -> Result<Self, ParseError> {
         let document = Document::parse_with_options(source, parse_options)?;
         let mut snapshot = Self {
             source,
-            document,
+            document: SnapshotDocument::Owned(Box::new(document)),
             owners: vec![Owner {
                 kind: OwnerKind::Document,
                 range: 0..source.len(),
@@ -64,7 +87,10 @@ impl<'a> Snapshot<'a> {
     }
 
     pub(crate) fn document(&self) -> &Document {
-        &self.document
+        match &self.document {
+            SnapshotDocument::Borrowed(document) => document,
+            SnapshotDocument::Owned(document) => document,
+        }
     }
 
     pub(crate) fn reference_destination_sites(&self) -> &[ReferenceDestinationSite] {
@@ -157,15 +183,15 @@ impl<'a> Snapshot<'a> {
     }
 
     fn collect_event_owners(&mut self) {
-        let spans = self.document.structural_spans();
+        let spans: Vec<_> = self.document().structural_spans().to_vec();
         for span in spans {
-            self.push_owner(owner_kind_from_structural(span.kind), span.raw_range);
+            self.push_owner(owner_kind_from_structural(span.kind), span.raw_range.clone());
         }
     }
 
     fn collect_document_owners(&mut self) {
         let math_ranges: Vec<Range<usize>> = self
-            .document
+            .document()
             .math_regions()
             .iter()
             .map(|region| region.range.clone())
@@ -173,7 +199,7 @@ impl<'a> Snapshot<'a> {
         for range in math_ranges {
             self.push_owner(OwnerKind::MathRegion, range);
         }
-        if let Some(frontmatter) = self.document.frontmatter() {
+        if let Some(frontmatter) = self.document().frontmatter() {
             let bytes = self.source.as_bytes();
             let mut end = frontmatter.slice.raw_range.end;
             while bytes.get(end).copied() == Some(b'\n') {
@@ -184,11 +210,12 @@ impl<'a> Snapshot<'a> {
     }
 
     fn collect_reference_destination_sites(&mut self) {
-        for site in self.document.reference_definition_sites() {
-            let owner = self.push_owner(OwnerKind::ReferenceDefinition, site.raw_range);
+        let sites: Vec<_> = self.document().reference_definition_sites().to_vec();
+        for site in sites {
+            let owner = self.push_owner(OwnerKind::ReferenceDefinition, site.raw_range.clone());
             self.reference_destination_sites.push(ReferenceDestinationSite {
                 owner,
-                range: site.destination,
+                range: site.destination.clone(),
             });
         }
     }
@@ -204,6 +231,7 @@ fn owner_kind_from_structural(kind: StructuralKind) -> OwnerKind {
         StructuralKind::DefinitionDescription => OwnerKind::DefinitionDescription,
         StructuralKind::FootnoteDefinition => OwnerKind::FootnoteDefinition,
         StructuralKind::ThematicBreak => OwnerKind::ThematicBreak,
+        StructuralKind::Table => OwnerKind::Table,
     }
 }
 
@@ -216,13 +244,13 @@ mod tests {
 
     #[test]
     fn reference_definition_sites_skip_html_block_contents() {
-        let snapshot = Snapshot::new("<?J\n\n[_]:#", ParseOptions::default()).expect("snapshot parses");
+        let snapshot = Snapshot::parse_owned("<?J\n\n[_]:#", ParseOptions::default()).expect("snapshot parses");
         assert!(snapshot.reference_destination_sites().is_empty());
     }
 
     #[test]
     fn candidate_requires_owner_to_cover_range() {
-        let snapshot = Snapshot::new("# h\n\nx\n", ParseOptions::default()).expect("snapshot parses");
+        let snapshot = Snapshot::parse_owned("# h\n\nx\n", ParseOptions::default()).expect("snapshot parses");
         let owner = snapshot.find_owner(OwnerKind::Heading, &(0..3)).expect("heading owner");
         assert!(
             snapshot

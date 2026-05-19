@@ -5,9 +5,9 @@ capability that pushed the design, but the tool is useful on any Markdown.
 
 Three commitments shape the tool.
 
-**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after; every change in the rendered
-DOM is treated as a bug. Whitespace inside a paragraph may shift (`a  b` becomes `a b`), but the word
-boundaries and the rendered tree do not. Where the formatter cannot prove equivalence it refuses to rewrite; the
+**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after; every change in the rendered DOM
+is treated as a bug. Whitespace inside a paragraph may shift (`a  b` becomes `a b`), but the word boundaries
+and the rendered tree do not. Where the formatter cannot prove equivalence it refuses to rewrite; the
 [deviation table](deviations.md) lists every exception with a reproducer.
 
 **Math-resilient.** `\( … \)`, `\[ … \]`, and `\begin{NAME} … \end{NAME}` pass through verbatim. The
@@ -33,6 +33,6 @@ the source-of-truth *what*.
 
 ## Stability
 
-mdwright is pre-1.0. The release surface, including public Rust API, CLI, configuration schema, diagnostic JSON, and lint-rule
-trait, is documented descriptively at [Public API](reference/public-api.md); minor versions may include breaking
-changes until 1.0, patch releases never do. See [Semver policy](reference/semver.md#pre-10-caveats).
+mdwright is pre-1.0. The release surface, including public Rust API, CLI, configuration schema, diagnostic JSON, and
+lint-rule trait, is documented descriptively at [Public API](reference/public-api.md); minor versions may include
+breaking changes until 1.0, patch releases never do. See [Semver policy](reference/semver.md#pre-10-caveats).

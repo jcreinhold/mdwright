@@ -10,6 +10,7 @@ use pulldown_cmark::html;
 
 use crate::ParseError;
 use crate::ParseOptions;
+use crate::format_facts::FormatFacts;
 use crate::gfm::apply_gfm_render_policy;
 use crate::ir::{
     BlockCheckpointFact, CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup,
@@ -153,6 +154,10 @@ impl Document {
     #[must_use]
     pub fn line_index(&self) -> &LineIndex {
         self.ir.line_index()
+    }
+
+    pub(crate) fn format_facts(&self) -> &FormatFacts {
+        &self.ir.format_facts
     }
 
     /// Contiguous runs of prose text, with backslash escapes

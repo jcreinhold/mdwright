@@ -58,18 +58,20 @@ All `[fmt]` knobs are config-file-only.
 
 | Key | Type | Default | CLI override | Description |
 | --- | --- | --- | --- | --- |
+| `fmt.profile` | "preserve" \| "mdformat" | `"preserve"` | `none` | Formatter style profile. `preserve` keeps mdwright's identity-oriented defaults; `mdformat` applies mdformat-compatible defaults where verified rewrites can preserve semantics. Explicit `[fmt]` keys override profile defaults. |
 | `fmt.wrap` | "keep" \| "no" \| int | `"keep"` | `none` | Wrap mode for prose paragraphs. `keep` leaves existing breaks alone; `no` forbids new breaks; an integer wraps at that column. |
 | `fmt.italic` | "asterisk" \| "underscore" \| "preserve" | `"preserve"` | `none` | Italic delimiter canonicalisation. `preserve` (default) leaves source bytes; `asterisk` / `underscore` opt into the post-pass rewrite. See [Style knobs](format/style.md). |
 | `fmt.strong` | "asterisk" \| "underscore" \| "preserve" | `"preserve"` | `none` | Strong-emphasis delimiter canonicalisation. Independent of `fmt.italic`: `*italic*` with `__strong__` is expressible. |
 | `fmt.list-marker` | "dash" \| "asterisk" \| "plus" \| "preserve" | `"preserve"` | `none` | Unordered-list bullet canonicalisation. Every bullet in one list rewrites together or none do. |
-| `fmt.ordered-list` | "consistent" \| "preserve" | `"preserve"` | `none` | Ordered-list number canonicalisation. `consistent` renumbers each list to a clean ascending run starting from the source's first item's number; `preserve` keeps source numbering verbatim. |
-| `fmt.thematic-break` | "dash" \| "asterisk" \| "underscore" \| "preserve" | `"preserve"` | `none` | Thematic-break canonicalisation. Rewrites the repeated character (`---` ↔ `***` ↔ `___`); the repeat count and internal spacing stay source. |
+| `fmt.ordered-list` | "one" \| "consistent" \| "preserve" | `"preserve"` | `none` | Ordered-list number canonicalisation. `one` rewrites markers to `1.` only when verification preserves the list start; `consistent` renumbers each list from the source's first item; `preserve` keeps source numbering verbatim. |
+| `fmt.thematic-break` | "dash" \| "asterisk" \| "underscore" \| "underscore-70" \| "preserve" | `"preserve"` | `none` | Thematic-break canonicalisation. Fixed character modes preserve the source repeat count and spacing; `underscore-70` rewrites the whole break line to mdformat's 70 underscores. |
 | `fmt.trailing-newline` | "preserve" \| "strip" \| "ensure" \| bool | `"preserve"` | `none` | Trailing-newline policy at the document boundary. `true` is accepted as a synonym for `ensure` and `false` for `strip` (legacy schema). |
 | `fmt.end-of-line` | "lf" \| "crlf" \| "keep" | `"lf"` | `none` | Line-ending normalisation. `keep` adopts the first newline seen in the source. |
 | `fmt.exclude` | array of string | `[]` | `none` | Formatter-specific exclude globs, independent of `[lint] exclude`. |
 | `fmt.refs.placement` | "end" \| "preserve" | `"end"` | `none` | Where reference-link definitions are emitted: gathered and sorted at the end of the document, or kept in source order. |
 | `fmt.refs.style` | "bare" \| "angle" \| "preserve" | `"preserve"` | `none` | Destination style for reference-link and inline-link URLs. `preserve` (default) keeps each destination's source form; `bare` strips wrapping `<…>` where the bare form would still parse; `angle` wraps every destination in `<…>`. |
 | `fmt.footnotes.placement` | "end" \| "preserve" | `"preserve"` | `none` | Where footnote definitions are emitted. Default is `preserve` because pulldown-cmark's HTML renderer ties footnote position to parse order; moving definitions would change the rendered HTML. |
+| `fmt.tables.style` | "preserve" \| "pad" | `"preserve"` | `none` | GFM table spacing policy. `preserve` keeps source cell spacing; `pad` aligns cells and delimiter rows to mdformat-compatible widths when verification preserves semantics. |
 | `fmt.frontmatter.preserve` | bool | `true` | `none` | Whether to emit document frontmatter byte-verbatim. `false` strips it. |
 | `fmt.heading-attrs` | "preserve" \| "canonicalise" | `"preserve"` | `none` | ATX heading `{#id .class key=val}` trailer emission. `preserve` (default) emits the source trailer byte-verbatim. `canonicalise` emits id first, then classes (source order), then key=value pairs (source order). See [Markdown extensions](concepts/extensions.md#heading-attribute-lists). |
 

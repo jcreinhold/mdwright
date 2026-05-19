@@ -1,7 +1,7 @@
 # Bad document
 
-This file deliberately trips several mdwright lints so the integration test can assert that the binary
-surfaces the expected rule names.
+This file deliberately trips several mdwright lints so the integration test can assert that the binary surfaces the
+expected rule names.
 
 Bare URL that should be wrapped: https://example.com/.
 

@@ -9,11 +9,17 @@ wrap = 120
 # of truth; the formatter must not rewrite them or the two gates
 # disagree.
 exclude = [
+  ".claude/**",
+  "CLAUDE.md",
+  "crates/mdwright/benches/fixtures/**",
+  "crates/mdwright/tests/external/**",
+  "crates/mdwright/tests/fixtures/**",
+  "crates/mdwright/tests/gfm-spec/**",
+  "crates/mdwright-lint/src/stdlib/explain/**",
   "docs/src/configuration.md",
   "docs/src/reference/cli.md",
   "docs/src/reference/diagnostic-schema.md",
   "docs/src/rules/**",
-  "tests/gfm-spec/**",
 ]
 
 [render]
@@ -23,6 +29,13 @@ profile = "pulldown"
 exclude = [
   # Per-rule pages necessarily contain rule-violating examples in
   # their "Example (bad)" sections — linting them is incoherent.
+  ".claude/**",
+  "CLAUDE.md",
+  "crates/mdwright/benches/fixtures/**",
+  "crates/mdwright/tests/external/**",
+  "crates/mdwright/tests/fixtures/**",
+  "crates/mdwright/tests/gfm-spec/**",
+  "crates/mdwright-lint/src/stdlib/explain/**",
   "docs/src/rules/**",
-  "tests/gfm-spec/**",
+  "examples/downstream/docs/bad.md",
 ]

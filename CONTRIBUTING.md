@@ -49,15 +49,16 @@ Every change must show green on:
 - `clippy` (`cargo clippy --all-targets --locked -- -D warnings` on Linux/stable).
 - `fmt` (`cargo fmt --check` on Linux/stable).
 
-`main` is configured (via GitHub branch protection) to require these checks before merge. If you have permission to
-adjust branch protection, keep the required-check list in sync with the workflow's job names; if you don't, the
+`main` is configured (via GitHub branch protection) to require these checks before merge. If you have permission
+to adjust branch protection, keep the required-check list in sync with the workflow's job names; if you don't, the
 maintainers will.
 
 ## House rules worth knowing
 
-- No backward compatibility shims — mdwright is pre-1.0 with a single primary consumer; delete old paths rather than deprecate them.
-- `unsafe` is `forbid`den crate-wide. Keep it that way.
+- No backward compatibility shims — mdwright is pre-1.0 with a single primary consumer; delete old paths rather than
+  deprecate them.
+- `unsafe` is forbidden crate-wide. Keep it that way.
 - Add fixtures before code for block-level formatter work (`tests/golden_block/` and friends).
 - For fuzz-found bugs, land the minimised repro under `tests/regressions/` in the same change as the fix.
 
-See `CLAUDE.md` (root and any nested guides) for the full discipline notes.
+See `AGENTS.md` (root and any nested guides) for the full discipline notes.

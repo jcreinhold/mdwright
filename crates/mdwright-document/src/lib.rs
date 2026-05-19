@@ -19,8 +19,8 @@ pub use document::{Document, render_html, render_html_with_options, render_html_
 pub use error::ParseError;
 pub use format_facts::{
     HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite, OrderedItemSite,
-    OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan, UnorderedListSite,
-    WrappableParagraph, top_level_block_checkpoints,
+    OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan, TableCellSite,
+    TableRowSite, TableSite, UnorderedListSite, WrappableParagraph, top_level_block_checkpoints,
 };
 pub use gfm::{AutolinkFact, AutolinkOrigin};
 pub use heading::{HeadingAttrs, find_attr_trailer_range};

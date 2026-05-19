@@ -30,7 +30,7 @@ use mdwright_document::{
 };
 use mdwright_format::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
-    OrderedListStyle, Placement, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
+    OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
 };
 use serde::Deserialize;
 
@@ -256,6 +256,8 @@ struct InfoStringsSchema {
 #[serde(deny_unknown_fields)]
 struct FmtSchema {
     #[serde(default)]
+    profile: Option<FmtProfileSchema>,
+    #[serde(default)]
     wrap: Option<WrapSchema>,
     #[serde(default)]
     italic: Option<ItalicSchema>,
@@ -278,6 +280,8 @@ struct FmtSchema {
     #[serde(default)]
     footnotes: Option<FootnotesSchema>,
     #[serde(default)]
+    tables: Option<TablesSchema>,
+    #[serde(default)]
     frontmatter: Option<FrontmatterSchema>,
     #[serde(default)]
     math: Option<MathSchema>,
@@ -288,9 +292,14 @@ struct FmtSchema {
 fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
     let refs = schema.refs.unwrap_or_default();
     let footnotes = schema.footnotes.unwrap_or_default();
+    let tables = schema.tables.unwrap_or_default();
     let frontmatter = schema.frontmatter.unwrap_or_default();
-    let default = FmtOptions::default();
-    let mut opts = FmtOptions::default()
+    let default = match schema.profile.unwrap_or(FmtProfileSchema::Preserve) {
+        FmtProfileSchema::Preserve => FmtOptions::default(),
+        FmtProfileSchema::Mdformat => FmtOptions::mdformat(),
+    };
+    let mut opts = default
+        .clone()
         .with_exclude_globs(schema.exclude)
         .with_link_def_placement(
             refs.placement
@@ -303,6 +312,7 @@ fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
                 .map_or_else(|| default.footnote_placement(), Placement::from),
         );
     opts = opts.with_preserve_frontmatter(frontmatter.preserve.unwrap_or_else(|| default.preserve_frontmatter()));
+    opts = opts.with_table(tables.style.map_or_else(|| default.table(), TableStyle::from));
     if let Some(wrap) = schema.wrap {
         opts = opts.with_wrap(Wrap::from(wrap));
     }
@@ -577,6 +587,13 @@ struct FootnotesSchema {
     placement: Option<PlacementSchema>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TablesSchema {
+    #[serde(default)]
+    style: Option<TableStyleSchema>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum PlacementSchema {
@@ -623,6 +640,13 @@ enum StrongSchema {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum FmtProfileSchema {
+    Preserve,
+    Mdformat,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum ListMarkerSchema {
     Dash,
@@ -634,17 +658,27 @@ enum ListMarkerSchema {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum OrderedListSchema {
+    One,
     Consistent,
     Preserve,
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "kebab-case")]
 enum ThematicSchema {
     Dash,
     Asterisk,
     Underscore,
+    #[serde(rename = "underscore-70")]
+    Underscore70,
     Preserve,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum TableStyleSchema {
+    Preserve,
+    Pad,
 }
 
 #[derive(Debug, Deserialize)]
@@ -721,7 +755,17 @@ impl From<ThematicSchema> for ThematicStyle {
             ThematicSchema::Dash => Self::Dash,
             ThematicSchema::Asterisk => Self::Asterisk,
             ThematicSchema::Underscore => Self::Underscore,
+            ThematicSchema::Underscore70 => Self::Underscore70,
             ThematicSchema::Preserve => Self::Preserve,
+        }
+    }
+}
+
+impl From<TableStyleSchema> for TableStyle {
+    fn from(s: TableStyleSchema) -> Self {
+        match s {
+            TableStyleSchema::Preserve => Self::Preserve,
+            TableStyleSchema::Pad => Self::Pad,
         }
     }
 }
@@ -740,6 +784,7 @@ impl From<ListMarkerSchema> for ListMarkerStyle {
 impl From<OrderedListSchema> for OrderedListStyle {
     fn from(s: OrderedListSchema) -> Self {
         match s {
+            OrderedListSchema::One => Self::One,
             OrderedListSchema::Consistent => Self::Consistent,
             OrderedListSchema::Preserve => Self::Preserve,
         }
@@ -843,7 +888,7 @@ mod tests {
 
     use super::{
         Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListMarkerStyle, OrderedListStyle,
-        RenderProfile, Schema, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
+        RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -873,6 +918,9 @@ thematic-break = "asterisk"
 trailing-newline = true
 end-of-line = "lf"
 exclude = ["docs/generated/**"]
+
+[fmt.tables]
+style = "pad"
 "#;
         let cfg = config_from_str(src)?;
         assert_eq!(cfg.rules_spec(), "default,+escaped-emphasis");
@@ -885,6 +933,7 @@ exclude = ["docs/generated/**"]
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::Consistent);
         assert_eq!(fmt.thematic_break_style(), ThematicStyle::Asterisk);
+        assert_eq!(fmt.table(), TableStyle::Pad);
         assert_eq!(fmt.trailing_newline(), TrailingNewline::Ensure);
         assert_eq!(fmt.end_of_line(), EndOfLine::Lf);
         assert_eq!(fmt.exclude_globs(), &["docs/generated/**".to_owned()]);
@@ -979,6 +1028,65 @@ inline-attribute-spans = false
     }
 
     #[test]
+    fn fmt_profile_mdformat_sets_compatible_defaults() -> Result<()> {
+        let cfg = config_from_str("[fmt]\nprofile = \"mdformat\"\n")?;
+        let fmt = cfg.fmt_options();
+        assert_eq!(fmt.wrap(), Wrap::Keep);
+        assert_eq!(fmt.italic(), ItalicStyle::Preserve);
+        assert_eq!(fmt.strong(), StrongStyle::Preserve);
+        assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
+        assert_eq!(fmt.ordered_list(), OrderedListStyle::One);
+        assert_eq!(fmt.thematic_break_style(), ThematicStyle::Underscore70);
+        assert_eq!(fmt.table(), TableStyle::Pad);
+        assert!(fmt.preserve_frontmatter());
+        Ok(())
+    }
+
+    #[test]
+    fn explicit_fmt_keys_override_mdformat_profile() -> Result<()> {
+        let cfg = config_from_str(
+            r#"
+[fmt]
+profile = "mdformat"
+wrap = 120
+list-marker = "plus"
+ordered-list = "consistent"
+thematic-break = "dash"
+
+[fmt.tables]
+style = "preserve"
+"#,
+        )?;
+        let fmt = cfg.fmt_options();
+        assert_eq!(fmt.wrap(), Wrap::At(120));
+        assert_eq!(fmt.list_marker(), ListMarkerStyle::Plus);
+        assert_eq!(fmt.ordered_list(), OrderedListStyle::Consistent);
+        assert_eq!(fmt.thematic_break_style(), ThematicStyle::Dash);
+        assert_eq!(fmt.table(), TableStyle::Preserve);
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unknown_fmt_profile_and_table_style() -> Result<()> {
+        let profile = config_from_str("[fmt]\nprofile = \"aggressive\"\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected profile error"))?;
+        assert!(
+            profile.to_string().contains("profile"),
+            "error should name profile: {profile}"
+        );
+
+        let table = config_from_str("[fmt.tables]\nstyle = \"compact\"\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected table style error"))?;
+        assert!(
+            table.to_string().contains("style"),
+            "error should name table style: {table}"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn formatter_extension_table_is_not_a_schema_key() -> Result<()> {
         let src = concat!("[fmt", ".extensions]\ndefinition-lists = false\n");
         let err = toml::from_str::<Schema>(src)
@@ -1037,6 +1145,7 @@ inline-attribute-spans = false
             ("\"dash\"", ThematicStyle::Dash),
             ("\"asterisk\"", ThematicStyle::Asterisk),
             ("\"underscore\"", ThematicStyle::Underscore),
+            ("\"underscore-70\"", ThematicStyle::Underscore70),
             ("\"preserve\"", ThematicStyle::Preserve),
         ] {
             let cfg = config_from_str(&format!("[fmt]\nthematic-break = {lit}\n"))?;
@@ -1052,6 +1161,7 @@ inline-attribute-spans = false
             assert_eq!(cfg.fmt_options().list_marker(), expected);
         }
         for (lit, expected) in [
+            ("\"one\"", OrderedListStyle::One),
             ("\"consistent\"", OrderedListStyle::Consistent),
             ("\"preserve\"", OrderedListStyle::Preserve),
         ] {

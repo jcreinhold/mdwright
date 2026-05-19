@@ -25,6 +25,7 @@ use std::sync::OnceLock;
 use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use regex::Regex;
 
+use crate::format_facts::FormatFacts;
 use crate::gfm::{AutolinkFact, collect_autolinks};
 use crate::line_index::LineIndex;
 use crate::parse;
@@ -219,6 +220,7 @@ pub(crate) struct Ir {
     pub(crate) line_index: LineIndex,
     pub(crate) tree: Tree,
     pub(crate) block_checkpoints: Vec<BlockCheckpointFact>,
+    pub(crate) format_facts: FormatFacts,
 }
 
 impl Ir {
@@ -292,10 +294,18 @@ impl Ir {
         tracing::debug!(nodes = tree_builder.arena_len(), "tree walk complete");
 
         let autolinks = collect_autolinks(source, &events, opts.extensions().gfm);
-        let bare_events: Vec<Event<'_>> = events.into_iter().map(|(e, _)| e).collect();
+        let bare_events: Vec<Event<'_>> = events.iter().map(|(e, _)| e.clone()).collect();
         let refs = build_reference_table(&bare_events, source);
         let suppressions = scan_suppressions(&builder.html_blocks);
         let tree = tree_builder.finalize(&refs);
+        let format_facts = FormatFacts::from_parts(
+            source,
+            &events,
+            &autolinks,
+            &builder.code_blocks,
+            &builder.html_blocks,
+            &tree,
+        );
 
         Ok(Self {
             prose_chunks: builder.prose_chunks,
@@ -314,6 +324,7 @@ impl Ir {
             line_index,
             tree,
             block_checkpoints,
+            format_facts,
         })
     }
 

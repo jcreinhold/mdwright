@@ -17,17 +17,17 @@ language-servers = ["mdwright"]
 
 ## Position encoding gotcha
 
-mdwright advertises UTF-8 position encoding. Clients that negotiate UTF-8 (VS Code 1.74+, Helix, Zed, neovim 0.10+) get
-the full surface: diagnostics, hover, formatting, range formatting, on-type formatting, and code actions. Clients that
-only support UTF-16 get diagnostics + hover; formatting and code-action providers are withdrawn rather than risk
+mdwright advertises UTF-8 position encoding. Clients that negotiate UTF-8 (VS Code 1.74+, Helix, Zed, neovim 0.10+)
+get the full surface: diagnostics, hover, formatting, range formatting, on-type formatting, and code actions. Clients
+that only support UTF-16 get diagnostics + hover; formatting and code-action providers are withdrawn rather than risk
 corrupting non-ASCII sources, and a warning is logged via `window/logMessage`. Check your editor's LSP log if formatting
 unexpectedly does nothing, it usually means the client never granted UTF-8.
 
 ## VS Code
 
-There is no official extension yet; this section will be replaced when one ships. Until then, install any
-generic-LSP client extension (e.g. [`vscode-glspc`](https://marketplace.visualstudio.com/items?itemName=jdinhlife.gruvbox))
-and point it at:
+There is no official extension yet; this section will be replaced when one ships. Until then, install any generic-LSP
+client extension (e.g. [`vscode-glspc`](https://marketplace.visualstudio.com/items?itemName=jdinhlife.gruvbox)) and
+point it at:
 
 ```jsonc,no-check
 {
@@ -59,7 +59,7 @@ language-servers = ["mdwright"]
 auto-format = true
 ```
 
-`:lsp-restart` after editing. Helix's `space-a` opens the code-action menu; pick `Fix \`bare-url\`: …` for a single
+`:lsp-restart` after editing. Helix's `space-a` opens the code-action menu; pick ``Fix `bare-url`: …`` for a single
 diagnostic or `Apply all mdwright safe fixes` to run every safe quick-fix at once.
 
 ## Zed
@@ -122,12 +122,13 @@ file-watcher event; `workspace/didChangeConfiguration` triggers the same refresh
 
 ## Range-formatting caveats
 
-`textDocument/rangeFormatting` and `textDocument/onTypeFormatting` snap the requested range out to the nearest whole
-top-level block before formatting (see [`format_range`'s rustdoc](https://docs.rs/mdwright/latest/mdwright/fn.format_range.html)).
-For sources without document-scope reorderable constructs the snapped output is a verbatim substring of the
-whole-document format; link definitions (`[label]: dest`) and footnote definitions (`[^label]: …`) are document-scope,
-so a range format may leave them in place where a whole-document format would have moved them to the canonical
-location. Save the file (or invoke whole-document formatting) periodically to reconcile.
+`textDocument/rangeFormatting` and `textDocument/onTypeFormatting` snap the
+requested range out to the nearest whole top-level block before formatting (see
+[`format_range`'s rustdoc](https://docs.rs/mdwright/latest/mdwright/fn.format_range.html)). For sources without
+document-scope reorderable constructs the snapped output is a verbatim substring of the whole-document format; link
+definitions (`[label]: dest`) and footnote definitions (`[^label]: …`) are document-scope, so a range format may leave
+them in place where a whole-document format would have moved them to the canonical location. Save the file (or invoke
+whole-document formatting) periodically to reconcile.
 
 ## See also
 

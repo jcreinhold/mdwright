@@ -7,6 +7,7 @@ pub(crate) enum Phase {
     UnorderedList,
     OrderedList,
     ThematicBreak,
+    Table,
     LinkDestination,
     HeadingAttrs,
     Math,

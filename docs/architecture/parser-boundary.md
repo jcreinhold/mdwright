@@ -16,8 +16,7 @@ Callers do not catch parser panics. They parse source with:
 let doc = mdwright_document::Document::parse(source)?;
 ```
 
-Operations over an existing `Document` stay pure over recognised facts. Formatting a parsed document remains
-infallible:
+Operations over an existing `Document` stay pure over recognised facts. Formatting a parsed document remains infallible:
 
 ```rust
 let formatted = mdwright_format::format_document(&doc, &opts);

@@ -33,8 +33,8 @@ See https://example.com for the spec.
 <!-- mdwright: allow-end bare-url -->
 ```
 
-Separate multiple rules with commas: `<!-- mdwright: allow bare-url, latex-command -->`. Use the
-literal `all` to silence every rule (rarely the right choice): `<!-- mdwright: allow all -->`.
+Separate multiple rules with commas: `<!-- mdwright: allow bare-url, latex-command -->`. Use the literal `all` to
+silence every rule (rarely the right choice): `<!-- mdwright: allow all -->`.
 
 ## Auditing what you have silenced
 
@@ -42,16 +42,16 @@ literal `all` to silence every rule (rarely the right choice): `<!-- mdwright: a
 mdwright check --no-suppress .
 ```
 
-ignores every suppression marker and reports the full diagnostic set. Use this to find
-suppressions that no longer correspond to a real diagnostic.
+ignores every suppression marker and reports the full diagnostic set. Use this to find suppressions that no longer
+correspond to a real diagnostic.
 
-`mdwright check` itself reports unused suppressions: a `<!-- mdwright: allow bare-url -->` whose
-target block has no bare URLs surfaces as an advisory, so you can delete the marker.
+`mdwright check` itself reports unused suppressions: a `<!-- mdwright: allow bare-url -->` whose target block has no
+bare URLs surfaces as an advisory, so you can delete the marker.
 
 ## Suppression vs. disabling
 
-Use a suppression marker when a rule is right project-wide but wrong at one location, and add a
-sibling HTML comment explaining why:
+Use a suppression marker when a rule is right project-wide but wrong at one location, and add a sibling HTML comment
+explaining why:
 
 ```markdown
 <!-- mdwright: allow bare-url -->
@@ -72,5 +72,4 @@ See [Configuration](../configuration.md#lint).
 ## See also
 
 - [Lint vs. format](lint-vs-format.md): suppression only affects linting; the formatter has no per-document opt-out.
-- [Rules catalogue](../rules/index.md): every rule's kebab-case name (the literal that goes in the suppression
-  comment).
+- [Rules catalogue](../rules/index.md): every rule's kebab-case name (the literal that goes in the suppression comment).

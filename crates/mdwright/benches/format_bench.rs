@@ -9,6 +9,8 @@
 //!   matches the CLI fmt-check workload.
 //! * `format/wrap/{keep,80,100,120}` — wrap-mode sweep on the
 //!   medium fixture; Knuth-Plass DP only runs in `At(n)` modes.
+//! * `format/profile/{preserve,mdformat}` — profile overhead on the
+//!   medium fixture; preserve must stay on the identity fast path.
 //! * `format/corpus/{none-wrap,wrap-100}` — full documentation corpus,
 //!   rayon-parallel; the headline metric for the ≥10× target.
 //!
@@ -151,6 +153,22 @@ fn bench_format_wrap(c: &mut Criterion) {
     g.finish();
 }
 
+fn bench_format_profile(c: &mut Criterion) {
+    let medium = load_fixture("medium.md");
+    let medium_doc = Document::parse(&medium).expect("fixture parses");
+
+    let mut g = c.benchmark_group("format/profile");
+    for (label, opts) in [
+        ("preserve", FmtOptions::default()),
+        ("mdformat", FmtOptions::mdformat()),
+    ] {
+        g.bench_function(label, |b| {
+            b.iter(|| mdwright_format::format_document(black_box(&medium_doc), black_box(&opts)));
+        });
+    }
+    g.finish();
+}
+
 fn bench_format_corpus(c: &mut Criterion) {
     let sources = load_corpus();
     let opts_default = FmtOptions::default();
@@ -220,6 +238,7 @@ criterion_group!(
     benches,
     bench_format,
     bench_format_wrap,
+    bench_format_profile,
     bench_format_corpus,
     bench_tracing_disabled,
 );

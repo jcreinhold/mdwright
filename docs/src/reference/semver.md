@@ -10,8 +10,7 @@ pre-1.0; see [Pre-1.0 caveats](#pre-10-caveats) below):
 
 - Every `pub` item exported from `mdwright` (`src/lib.rs` and the modules it re-exports). The bar is "could a downstream
   crate observe the change at compile time."
-- CLI subcommands, their flags, and their exit codes. The exit-code mapping appears in
-  [`reference/cli.md`](cli.md).
+- CLI subcommands, their flags, and their exit codes. The exit-code mapping appears in [`reference/cli.md`](cli.md).
 - The configuration schema for `mdwright.toml`, `.mdwright.toml`, and `pyproject.toml [tool.mdwright]`. The schema is
   generated into [`configuration.md`](../configuration.md) by `build.rs` from a single source of truth.
 - The `--format=json` (v2) diagnostic schema at
@@ -29,16 +28,16 @@ The following are free to change in any release, including patch releases:
   change a `pub` export.
 - The on-disk layout of build artifacts (`target/`), cached state, and intermediate files.
 - The prose output of `mdwright explain <rule>`. The rule names and their existence are covered; the wording is not.
-- Performance characteristics. We aim not to regress and track this through Criterion benches, but we do not commit to
-  a wall-clock floor.
+- Performance characteristics. We aim not to regress and track this through Criterion benches, but we do not commit to a
+  wall-clock floor.
 - The contents of `docs/`, `CHANGELOG.md`, and other repo metadata.
 - The format of `tracing` output and log lines.
 
 ## Pre-1.0 caveats
 
-Until v1.0, minor versions may include breaking API changes. The 0.x sequence is deliberately permissive so the surface
-can settle without dragging compatibility shims forward. The discipline still applies: every break appears in
-[`CHANGELOG.md`](https://github.com/jcreinhold/mdwright/blob/main/CHANGELOG.md) under **Breaking changes** in the
+Until v1.0, minor versions may include breaking API changes. The 0.x sequence is deliberately permissive so the
+surface can settle without dragging compatibility shims forward. The discipline still applies: every break appears
+in [`CHANGELOG.md`](https://github.com/jcreinhold/mdwright/blob/main/CHANGELOG.md) under **Breaking changes** in the
 relevant version's section, with a migration note where the rewrite is non-obvious.
 
 Patch releases (`0.x.Y`) never introduce breaking changes.

@@ -7,19 +7,20 @@ use crate::format::rewrite::signature::{verify_batch, verify_one};
 use crate::format::rewrite::snapshot::Snapshot;
 use crate::format::wrap_pass;
 use crate::{FmtOptions, FormatReport, Wrap};
-use mdwright_document::{ParseError, ParseOptions};
+use mdwright_document::{Document, ParseError, ParseOptions};
 
 const MAX_REWRITE_ITERS: u32 = 8;
 
-pub(crate) fn apply_rewrites(
-    source: &str,
-    opts: &FmtOptions,
-    parse_options: ParseOptions,
-) -> Result<(String, FormatReport), ParseError> {
-    let mut out = source.to_owned();
+pub(crate) fn apply_rewrites(doc: &Document, opts: &FmtOptions) -> Result<(String, FormatReport), ParseError> {
+    let parse_options = doc.parse_options();
+    let mut out = doc.source().to_owned();
     let mut report = FormatReport::default();
     for iter in 0..MAX_REWRITE_ITERS {
-        let snapshot = Snapshot::new(&out, parse_options)?;
+        let snapshot = if iter == 0 {
+            Snapshot::from_document(doc)
+        } else {
+            Snapshot::parse_owned(&out, parse_options)?
+        };
         let mut candidates = Vec::new();
         if opts.has_any_canonicalisation() {
             canonicalise::collect_candidates(&snapshot, opts, &mut candidates);
@@ -174,7 +175,7 @@ mod tests {
 
     #[test]
     fn overlapping_candidates_keep_earlier_phase() {
-        let snapshot = Snapshot::new("*x*", ParseOptions::default()).expect("snapshot parses");
+        let snapshot = Snapshot::parse_owned("*x*", ParseOptions::default()).expect("snapshot parses");
         let a = snapshot
             .candidate(
                 Phase::Italic,
@@ -203,7 +204,7 @@ mod tests {
 
     #[test]
     fn invalid_byte_boundary_candidate_is_rejected() {
-        let snapshot = Snapshot::new("é", ParseOptions::default()).expect("snapshot parses");
+        let snapshot = Snapshot::parse_owned("é", ParseOptions::default()).expect("snapshot parses");
         assert!(
             snapshot
                 .candidate(
@@ -220,7 +221,7 @@ mod tests {
 
     #[test]
     fn isolated_failed_candidate_leaves_source_unchanged() {
-        let snapshot = Snapshot::new("- a\n+ b\n", ParseOptions::default()).expect("snapshot parses");
+        let snapshot = Snapshot::parse_owned("- a\n+ b\n", ParseOptions::default()).expect("snapshot parses");
         let candidate = snapshot
             .candidate(
                 Phase::UnorderedList,

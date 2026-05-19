@@ -11,7 +11,7 @@
 use crate::format::rewrite;
 use crate::format::{apply_end_of_line, normalize_line_endings_lf, normalize_trailing_newline};
 use crate::{FmtOptions, FormatReport};
-use mdwright_document::ParseOptions;
+use mdwright_document::Document;
 
 /// Format `source` per `opts`. Returns the resulting string.
 ///
@@ -21,22 +21,19 @@ use mdwright_document::ParseOptions;
 /// transformations route through the canonicalise pass; each rewrite
 /// verifies before commit so a failed rewrite silently skips and the
 /// source bytes survive.
-pub(crate) fn format_document(source: &str, opts: &FmtOptions, parse_options: ParseOptions) -> String {
-    format_document_with_report(source, opts, parse_options).0
+pub(crate) fn format_document(doc: &Document, opts: &FmtOptions) -> String {
+    format_document_with_report(doc, opts).0
 }
 
-pub(crate) fn format_document_with_report(
-    source: &str,
-    opts: &FmtOptions,
-    parse_options: ParseOptions,
-) -> (String, FormatReport) {
+pub(crate) fn format_document_with_report(doc: &Document, opts: &FmtOptions) -> (String, FormatReport) {
+    let source = doc.source();
     let mut out = source.to_string();
     let mut report = FormatReport::default();
     let has_canonicalisation = opts.has_any_canonicalisation();
     let has_wrap = !matches!(opts.wrap(), crate::Wrap::Keep);
 
     if has_canonicalisation || has_wrap {
-        match rewrite::apply_rewrites(&out, opts, parse_options) {
+        match rewrite::apply_rewrites(doc, opts) {
             Ok((rewritten, rewrite_report)) => {
                 out = rewritten;
                 report = rewrite_report;
@@ -58,6 +55,14 @@ pub(crate) fn format_document_with_report(
     normalize_trailing_newline(&mut out, opts.trailing_newline(), source);
     apply_end_of_line(&mut out, opts.end_of_line(), source);
     (out, report)
+}
+
+pub(crate) fn format_unparsed_source(source: &str, opts: &FmtOptions) -> String {
+    let mut out = source.to_string();
+    normalize_line_endings_lf(&mut out);
+    normalize_trailing_newline(&mut out, opts.trailing_newline(), source);
+    apply_end_of_line(&mut out, opts.end_of_line(), source);
+    out
 }
 
 #[cfg(test)]

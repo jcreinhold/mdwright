@@ -14,6 +14,7 @@ pub struct FmtOptions {
     strong: StrongStyle,
     list_marker: ListMarkerStyle,
     ordered_list: OrderedListStyle,
+    table: TableStyle,
     trailing_newline: TrailingNewline,
     end_of_line: EndOfLine,
     exclude_globs: Vec<String>,
@@ -125,6 +126,12 @@ impl FmtOptions {
     #[must_use]
     pub fn ordered_list(&self) -> OrderedListStyle {
         self.ordered_list
+    }
+
+    /// GFM table canonicalisation policy.
+    #[must_use]
+    pub fn table(&self) -> TableStyle {
+        self.table
     }
 
     /// Trailing-newline policy at the document boundary.
@@ -269,6 +276,13 @@ impl FmtOptions {
         self
     }
 
+    /// Override the GFM table canonicalisation policy.
+    #[must_use]
+    pub fn with_table(mut self, table: TableStyle) -> Self {
+        self.table = table;
+        self
+    }
+
     /// Override the thematic-break canonicalisation policy.
     #[must_use]
     pub fn with_thematic_break(mut self, thematic_break: ThematicStyle) -> Self {
@@ -333,21 +347,30 @@ impl FmtOptions {
         }
     }
 
-    /// Thematic-break target byte. `None` keeps source bytes.
+    /// Ordered-list renumbering policy for the canonicalisation pass.
     #[must_use]
-    pub(crate) fn thematic_target_byte(&self) -> Option<u8> {
+    pub(crate) fn ordered_list_target(&self) -> Option<OrderedListStyle> {
+        match self.ordered_list {
+            OrderedListStyle::Consistent | OrderedListStyle::One => Some(self.ordered_list),
+            OrderedListStyle::Preserve => None,
+        }
+    }
+
+    /// Thematic-break shape for the canonicalisation pass.
+    #[must_use]
+    pub(crate) fn thematic_target(&self) -> Option<ThematicStyle> {
         match self.thematic_break_style {
-            ThematicStyle::Dash => Some(b'-'),
-            ThematicStyle::Asterisk => Some(b'*'),
-            ThematicStyle::Underscore => Some(b'_'),
+            ThematicStyle::Dash | ThematicStyle::Asterisk | ThematicStyle::Underscore | ThematicStyle::Underscore70 => {
+                Some(self.thematic_break_style)
+            }
             ThematicStyle::Preserve => None,
         }
     }
 
-    /// `true` iff ordered lists should be renumbered.
+    /// `true` iff GFM tables should be padded/aligned.
     #[must_use]
-    pub(crate) fn should_renumber_ordered_lists(&self) -> bool {
-        matches!(self.ordered_list, OrderedListStyle::Consistent)
+    pub(crate) fn should_pad_tables(&self) -> bool {
+        matches!(self.table, TableStyle::Pad)
     }
 
     /// Link-destination angle-bracket rewrite target. `None` keeps
@@ -368,8 +391,9 @@ impl FmtOptions {
         self.italic_target_byte().is_some()
             || self.strong_target_byte().is_some()
             || self.list_marker_target_byte().is_some()
-            || self.thematic_target_byte().is_some()
-            || self.should_renumber_ordered_lists()
+            || self.thematic_target().is_some()
+            || self.ordered_list_target().is_some()
+            || self.should_pad_tables()
             || self.link_def_target().is_some()
             || matches!(self.heading_attrs, HeadingAttrsStyle::Canonicalise)
             || matches!(self.math.render, MathRender::Dollar)
@@ -431,6 +455,7 @@ impl Default for FmtOptions {
             strong: StrongStyle::Preserve,
             list_marker: ListMarkerStyle::Preserve,
             ordered_list: OrderedListStyle::Preserve,
+            table: TableStyle::Preserve,
             trailing_newline: TrailingNewline::Preserve,
             end_of_line: EndOfLine::Lf,
             exclude_globs: Vec::new(),
@@ -447,6 +472,22 @@ impl Default for FmtOptions {
             math: MathOptions::default(),
             heading_attrs: HeadingAttrsStyle::default(),
         }
+    }
+}
+
+impl FmtOptions {
+    /// mdformat-compatible formatting profile where mdwright can
+    /// reproduce mdformat's spelling without weakening verification.
+    ///
+    /// mdformat 1.0 defaults to `wrap = keep`; callers that want a
+    /// column limit should still set [`Self::with_wrap`] explicitly.
+    #[must_use]
+    pub fn mdformat() -> Self {
+        Self::default()
+            .with_list_marker(ListMarkerStyle::Dash)
+            .with_ordered_list(OrderedListStyle::One)
+            .with_thematic_break(ThematicStyle::Underscore70)
+            .with_table(TableStyle::Pad)
     }
 }
 
@@ -566,11 +607,16 @@ pub enum ListMarkerStyle {
     Preserve,
 }
 
-/// Ordered-list number normalisation policy. `Consistent` renumbers
-/// from 1 (matches mdformat's default); `Preserve` (the default)
-/// keeps source numbering verbatim.
+/// Ordered-list number normalisation policy.
+///
+/// `One` rewrites markers to `1.` where verification preserves the
+/// list start. `Consistent` renumbers from the source first marker.
+/// `Preserve` keeps source numbering verbatim.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OrderedListStyle {
+    /// Rewrite every item marker in the list to `1.`.
+    One,
+    /// Renumber items from the source list's first marker.
     Consistent,
     Preserve,
 }
@@ -584,6 +630,8 @@ pub enum ThematicStyle {
     Dash,
     Asterisk,
     Underscore,
+    /// Rewrite the whole break line to mdformat's 70 underscores.
+    Underscore70,
     Preserve,
 }
 
@@ -596,10 +644,19 @@ impl ThematicStyle {
         match self {
             Self::Dash => Some(b'-'),
             Self::Asterisk => Some(b'*'),
-            Self::Underscore => Some(b'_'),
+            Self::Underscore | Self::Underscore70 => Some(b'_'),
             Self::Preserve => None,
         }
     }
+}
+
+/// GFM table canonicalisation policy.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum TableStyle {
+    /// Keep source table spacing.
+    Preserve,
+    /// Pad cells and delimiter rows to mdformat-compatible widths.
+    Pad,
 }
 
 /// Line-ending policy. `Keep` adopts the first newline in the source.

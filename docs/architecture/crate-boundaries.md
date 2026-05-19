@@ -12,8 +12,8 @@ The pre-split single crate braided independent concerns:
   fix application.
 - `FmtOptions` owns Markdown extension-recognition toggles, even though those toggles decide what the parser recognises,
   not how formatting rewrites source bytes.
-- Formatter verification reaches into parser, tree, math, reference, and semantic comparison internals through
-  `crate::` paths, so byte-rewrite safety is a formatter concern implemented with document-private knowledge.
+- Formatter verification reaches into parser, tree, math, reference, and semantic comparison internals through `crate::`
+  paths, so byte-rewrite safety is a formatter concern implemented with document-private knowledge.
 - Lint dispatch, suppression handling, standard-rule registration, diagnostics, and safe-fix application are split
   across top-level modules and `Document` methods.
 - CLI and LSP delivery pulled in heavy dependencies (`clap`, `ignore`, `rayon`, `tokio`, `tower-lsp`, terminal colour)
@@ -49,10 +49,10 @@ Design B would keep a larger `mdwright-engine` or `mdwright-document` crate that
 fix operations. CLI, LSP, and config would move out, but parser facts, lint rules, and formatter rewrites would remain
 together.
 
-This preserves more old fluent syntax (`doc.lint(...)`, `doc.format(...)`) and moves fewer files. It also keeps the
-same abstract problem: one central crate would continue to know parser byte ranges, lint suppression semantics,
-formatter transactional verification, standard-rule registration, and safe-fix edit ordering. Adding a formatter
-rewrite or lint rule would still compile in the same dependency universe.
+This preserves more old fluent syntax (`doc.lint(...)`, `doc.format(...)`) and moves fewer files. It also keeps the same
+abstract problem: one central crate would continue to know parser byte ranges, lint suppression semantics, formatter
+transactional verification, standard-rule registration, and safe-fix edit ordering. Adding a formatter rewrite or lint
+rule would still compile in the same dependency universe.
 
 ## Comparison
 
@@ -67,9 +67,9 @@ Design A has more crates, but each crate hides a different volatile decision:
 - Raw TOML schema and discovery rules are hidden in `mdwright-config`.
 - File-system/terminal policy and editor-server policy are separated into delivery crates.
 
-Design B is easier to implement, but it keeps formatter and linter operations complected with document recognition.
-That is the wrong tradeoff for the next changes: formatter bugs should be fixed inside formatter transactions, lint
-rules should consume immutable facts, and document parsing should not know who will use the facts.
+Design B is easier to implement, but it keeps formatter and linter operations complected with document recognition. That
+is the wrong tradeoff for the next changes: formatter bugs should be fixed inside formatter transactions, lint rules
+should consume immutable facts, and document parsing should not know who will use the facts.
 
 Design A wins on depth, information hiding, and lower change amplification. A new formatter rewrite should touch
 `mdwright-format` plus tests. A new lint rule should touch `mdwright-lint` plus docs. A new config key should touch
@@ -109,8 +109,8 @@ mdwright-format   mdwright-lint
        mdwright / mdwright-lsp
 ```
 
-The executable named `mdwright` is owned by the `mdwright` package under `crates/mdwright`. The repository root has no
-binary target or library target: normal library users should depend directly on the component crate that owns the
+The executable named `mdwright` is owned by the `mdwright` package under `crates/mdwright`. The repository root has
+no binary target or library target: normal library users should depend directly on the component crate that owns the
 capability they need.
 
 ## Rejected Crates
@@ -152,8 +152,8 @@ Integration tests and examples should import component crates directly unless th
 Config resolves recognition toggles into `mdwright_document::ParseOptions`. Parsing is fallible:
 `Document::parse_with_options` returns `Result<Document, ParseError>` and contains upstream parser panics inside the
 document crate. A parsed `Document` stores the `ParseOptions` used to build it. Document-aware formatter entry points
-read that policy from the `Document`, and every rewrite snapshot, semantic signature, verification reparse,
-range-format checkpoint table, and fixed-point iteration uses the same policy.
+read that policy from the `Document`, and every rewrite snapshot, semantic signature, verification reparse, range-format
+checkpoint table, and fixed-point iteration uses the same policy.
 
 `format_source(source, opts)` is the convenience path for default parse policy. Callers that need non-default
 recognition parse a `Document` with `Document::parse_with_options` and call `format_document`, `format_validated`, or
@@ -162,8 +162,8 @@ range formatting over that document.
 ## Parser Boundary
 
 `mdwright-document` owns the only production `pulldown-cmark` parser chokepoint and the only parser-panic containment
-policy. Other crates consume document facts with stable source ranges: structural spans, paragraphs, list marker sites,
-heading attribute trailers, inline and reference-link destination ranges, math regions, frontmatter, code/HTML
+policy. Other crates consume document facts with stable source ranges: structural spans, paragraphs, list marker
+sites, heading attribute trailers, inline and reference-link destination ranges, math regions, frontmatter, code/HTML
 exclusions, and top-level block checkpoints. Those facts are domain records, not pulldown event wrappers, so formatter
 and lint crates do not couple to pulldown's event vocabulary, offset iterator, panic payloads, or backtraces.
 
@@ -171,9 +171,10 @@ and lint crates do not couple to pulldown's event vocabulary, offset iterator, p
 
 ## Packaging Contract
 
-Every publishable workspace crate uses versioned internal dependencies with local `path` entries for development. Cargo
-therefore has enough information to strip paths during packaging while local workspace builds keep using the checked-out
-crates. The repository `.cargo/config.toml` patches internal packages to local paths so local `cargo package
+Every publishable workspace crate uses versioned internal dependencies with local `path` entries for development.
+Cargo therefore has enough information to strip paths during packaging while local workspace builds keep using
+the checked-out crates. The repository `.cargo/config.toml` patches internal packages to local paths so local
+`cargo package
 --no-verify` checks can run before those packages exist on crates.io. The intended publishing order is:
 
 1. `mdwright-math`

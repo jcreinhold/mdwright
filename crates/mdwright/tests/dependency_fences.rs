@@ -296,6 +296,21 @@ fn document_parser_module_is_not_public() {
 }
 
 #[test]
+fn document_format_facts_do_not_reparse_for_accessors() {
+    let source = fs::read_to_string(repo_file("crates/mdwright-document/src/format_facts.rs"))
+        .expect("read document format facts");
+    let parser_calls = source.matches("parse::collect_events_with_offsets").count();
+    assert_eq!(
+        parser_calls, 1,
+        "document formatter facts must be cached from Ir::parse; only top_level_block_checkpoints may parse source"
+    );
+    assert!(
+        !source.contains("unwrap_or_default"),
+        "document fact accessors must not hide parser failures by returning empty facts"
+    );
+}
+
+#[test]
 fn config_schema_uses_parse_extensions() {
     let mut files = Vec::new();
     for root in ["README.md", "docs/src", "crates", "examples"] {

@@ -42,7 +42,7 @@ the component crate that owns the capability they need.
 | `CheckpointTable` | struct | block-boundary cache for editor formatting |
 | `semantically_equivalent`, `first_divergence` | fns | fallible formatter semantic oracles |
 | `Wrap`, `ItalicStyle`, `StrongStyle` | enums | formatter style policy |
-| `ListMarkerStyle`, `OrderedListStyle`, `ThematicStyle` | enums | formatter style policy |
+| `ListMarkerStyle`, `OrderedListStyle`, `ThematicStyle`, `TableStyle` | enums | formatter style policy |
 | `LinkDefStyle`, `Placement`, `TrailingNewline`, `EndOfLine` | enums | formatter boundary/style policy |
 | `MathOptions`, `MathRender`, `HeadingAttrsStyle` | types | formatter opt-in canonicalisation policy |
 

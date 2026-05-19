@@ -5,6 +5,10 @@ plugins over an isolated corpus copy. The goal is classified compatibility, not 
 mdwright/mdformat output difference must be fixed, configured, or recorded here as intentional before the command can
 serve as release evidence.
 
+Use `[fmt] profile = "mdformat"` when the parity question is "how close can mdwright get to mdformat while keeping
+verified rewrites?" The profile keeps mdformat's default `wrap = keep`; a project that wants mdformat with a column
+limit must set `wrap` explicitly.
+
 Allowed status values:
 
 - `fixed`: the difference should no longer appear; the xtask fails if it does.
@@ -13,13 +17,12 @@ Allowed status values:
 - `upstream-parser-limitation`: the difference is pinned to parser behavior outside mdwright.
 - `open-bug`: a known unresolved gap; the xtask reports it as a failing release gate.
 
-The Class column is free-text and groups rows by root cause. Values in use:
-`style-option-mismatch` (wrap or indentation policy differs), `mdformat-semantic-drift`
-(mdformat output is not semantically equivalent to the source), and `intentional-policy`
-(file is generated and excluded from parity by configuration).
+The Class column is free-text and groups rows by root cause. Values in use: `style-option-mismatch` (wrap or indentation
+policy differs), `mdformat-semantic-drift` (mdformat output is not semantically equivalent to the source), and
+`intentional-policy` (file is generated and excluded from parity by configuration).
 
-Path patterns support `*`, `**`, and `prefix/**` globs. `find_classification` returns
-the first matching row, so specific paths must precede catch-all `**` entries.
+Path patterns support `*`, `**`, and `prefix/**` globs. `find_classification` returns the first matching row, so
+specific paths must precede catch-all `**` entries.
 
 ## Current Classifications
 
@@ -49,9 +52,12 @@ cargo xtask mdformat-parity \
   --corpus-root docs \
   --corpus-name mdwright-docs \
   --mdwright-config .mdwright.toml \
-  --mdformat-config <path/to/mdformat-config.toml>
+  --mdformat-config xtask/fixtures/mdformat-parity/mdformat.toml
 ```
 
-The command writes `target/mdwright/parity/mdformat-parity.json` and
-`target/mdwright/parity/mdformat-parity.md`. A clean release run has no unclassified differences, no semantic drift, no
-parse errors, no idempotence failures, and no rows marked `open-bug`.
+The mdformat config lives under `xtask/fixtures/` because it is an oracle fixture for this command. The repository root
+does not contain `.mdformat.toml`; mdwright remains the formatter used for this checkout.
+
+The command writes `target/mdwright/parity/mdformat-parity.json` and `target/mdwright/parity/mdformat-parity.md`. A
+clean release run has no unclassified differences, no semantic drift, no parse errors, no idempotence failures, and no
+rows marked `open-bug`.

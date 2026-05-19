@@ -55,7 +55,7 @@ pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candi
     let out = snapshot.source();
     let paragraphs = snapshot.document().wrappable_paragraphs();
     for p in paragraphs {
-        let Some(replacement) = rewrap_paragraph(out, &p, mode) else {
+        let Some(replacement) = rewrap_paragraph(out, p, mode) else {
             continue;
         };
         let Some(existing) = out.get(p.line_lo..p.line_hi) else {

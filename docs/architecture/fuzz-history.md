@@ -1,12 +1,12 @@
 # Fuzz-fix history
 
-Every fuzz-driven fix landed since prompt 32 (the first `fuzz`-zero milestone), with the layer it modified and the
-architectural pattern it belongs to. The pattern column maps each fix to one of the six concerns enumerated in
+Every fuzz-driven fix landed since prompt 32 (the first `fuzz`-zero milestone), with the layer it modified and
+the architectural pattern it belongs to. The pattern column maps each fix to one of the six concerns enumerated in
 [`stability.md`](stability.md). Tagged commits use the `cause-class:` convention introduced after prompt 44; older
 commits predate the convention and are tagged here retroactively from their commit-message body.
 
-The aggregate shape: **8 of the last 11 fuzz fixes** belong to patterns #1–#2 (`Parser::new_ext` chokepoint missing,
-or output decisions consulting source bytes). That is the evidence the 45-49 sweep rests on.
+The aggregate shape: **8 of the last 11 fuzz fixes** belong to patterns #1–#2 (`Parser::new_ext` chokepoint missing, or
+output decisions consulting source bytes). That is the evidence the 45-49 sweep rests on.
 
 ## Round 3 (post-round-2, evidence only — not yet fixed)
 
@@ -38,8 +38,8 @@ makes them pass.
 
 ## Pre-tag era (prompts 32-43, retroactively classified)
 
-The cause-class tag was introduced post-prompt-44; older fixes carry the same patterns. Sampled chronologically;
-this is not exhaustive but shows the same shape was already dominant.
+The cause-class tag was introduced post-prompt-44; older fixes carry the same patterns. Sampled chronologically; this is
+not exhaustive but shows the same shape was already dominant.
 
 | Commit | One-line | Pattern |
 |---|---|---|
@@ -68,10 +68,9 @@ Tallied across rounds 1-3 plus the eleven sampled pre-tag fixes (22 entries tota
 | #4 runtime gate weaker than tests | 0 fixes (only seen via CI fuzz) | superseded; preserve-by-emit is idempotent by construction |
 | #6 safety-ladder fallback redundancy | 1 (the introduction) | prompt 52 deletes the safety ladder entirely |
 
-#2 alone is 41 % of the fix history — the dominant pattern. The prompt-47 iterative-draft formatter was the
-first attempt to address it (read pass-1 draft bytes for emit decisions rather than source bytes); it shipped
-and worked, but a follow-up audit found the decisions could still drift via nested-IR-shape interactions that
-the per-site safety ladder did not cover. The prompts 51–55 sweep replaced both with structural-preserve emit
-(`.pretty()` methods do not choose a representation; they copy the source's) plus a separately verified
-canonicalisation pass (`src/format/canonicalise.rs`) for opt-in rewrites. See
-[`stability.md`](stability.md) for the post-sweep architecture.
+#2 alone is 41 % of the fix history — the dominant pattern. The prompt-47 iterative-draft formatter was the first
+attempt to address it (read pass-1 draft bytes for emit decisions rather than source bytes); it shipped and worked, but
+a follow-up audit found the decisions could still drift via nested-IR-shape interactions that the per-site safety ladder
+did not cover. The prompts 51–55 sweep replaced both with structural-preserve emit (`.pretty()` methods do not choose a
+representation; they copy the source's) plus a separately verified canonicalisation pass (`src/format/canonicalise.rs`)
+for opt-in rewrites. See [`stability.md`](stability.md) for the post-sweep architecture.

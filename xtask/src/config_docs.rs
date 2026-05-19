@@ -54,6 +54,13 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
     },
     // ---- [fmt] -------------------------------------------------------
     FieldDoc {
+        key: "fmt.profile",
+        ty: "\"preserve\" | \"mdformat\"",
+        default: "\"preserve\"",
+        description: "Formatter style profile. `preserve` keeps mdwright's identity-oriented defaults; `mdformat` applies mdformat-compatible defaults where verified rewrites can preserve semantics. Explicit `[fmt]` keys override profile defaults.",
+        cli_override: None,
+    },
+    FieldDoc {
         key: "fmt.wrap",
         ty: "\"keep\" | \"no\" | int",
         default: "\"keep\"",
@@ -83,16 +90,16 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
     },
     FieldDoc {
         key: "fmt.ordered-list",
-        ty: "\"consistent\" | \"preserve\"",
+        ty: "\"one\" | \"consistent\" | \"preserve\"",
         default: "\"preserve\"",
-        description: "Ordered-list number canonicalisation. `consistent` renumbers each list to a clean ascending run starting from the source's first item's number; `preserve` keeps source numbering verbatim.",
+        description: "Ordered-list number canonicalisation. `one` rewrites markers to `1.` only when verification preserves the list start; `consistent` renumbers each list from the source's first item; `preserve` keeps source numbering verbatim.",
         cli_override: None,
     },
     FieldDoc {
         key: "fmt.thematic-break",
-        ty: "\"dash\" | \"asterisk\" | \"underscore\" | \"preserve\"",
+        ty: "\"dash\" | \"asterisk\" | \"underscore\" | \"underscore-70\" | \"preserve\"",
         default: "\"preserve\"",
-        description: "Thematic-break canonicalisation. Rewrites the repeated character (`---` ↔ `***` ↔ `___`); the repeat count and internal spacing stay source.",
+        description: "Thematic-break canonicalisation. Fixed character modes preserve the source repeat count and spacing; `underscore-70` rewrites the whole break line to mdformat's 70 underscores.",
         cli_override: None,
     },
     FieldDoc {
@@ -137,6 +144,14 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         ty: "\"end\" | \"preserve\"",
         default: "\"preserve\"",
         description: "Where footnote definitions are emitted. Default is `preserve` because pulldown-cmark's HTML renderer ties footnote position to parse order; moving definitions would change the rendered HTML.",
+        cli_override: None,
+    },
+    // ---- [fmt.tables] -----------------------------------------------
+    FieldDoc {
+        key: "fmt.tables.style",
+        ty: "\"preserve\" | \"pad\"",
+        default: "\"preserve\"",
+        description: "GFM table spacing policy. `preserve` keeps source cell spacing; `pad` aligns cells and delimiter rows to mdformat-compatible widths when verification preserves semantics.",
         cli_override: None,
     },
     // ---- [fmt.frontmatter] -------------------------------------------

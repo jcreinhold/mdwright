@@ -1,7 +1,6 @@
 # Sample document
 
-This paragraph contains a literal TODO marker that the custom
-`no-todo-in-prose` rule will flag.
+This paragraph contains a literal TODO marker that the custom `no-todo-in-prose` rule will flag.
 
 A fenced code block hides its TODO from the rule:
 

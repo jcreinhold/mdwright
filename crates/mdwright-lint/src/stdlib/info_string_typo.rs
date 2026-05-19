@@ -45,6 +45,7 @@ const DEFAULT_ALLOWLIST: &[&str] = &[
     "jsx",
     "tsx",
     "json",
+    "jsonc",
     "json5",
     "toml",
     "yaml",
@@ -155,6 +156,9 @@ impl LintRule for InfoStringTypo {
             // (`rust,no_run`). Strip everything after the first comma
             // or whitespace before allowlist checking.
             let language = info.split([',', ' ', '\t']).next().unwrap_or("");
+            if is_myst_directive_info(language) {
+                continue;
+            }
             let language_lower = language.to_ascii_lowercase();
             if DEFAULT_ALLOWLIST.iter().any(|&a| a == language_lower)
                 || self.extra.iter().any(|e| e.eq_ignore_ascii_case(&language_lower))
@@ -177,6 +181,16 @@ impl LintRule for InfoStringTypo {
             }
         }
     }
+}
+
+fn is_myst_directive_info(language: &str) -> bool {
+    let Some(inner) = language.strip_prefix('{').and_then(|s| s.strip_suffix('}')) else {
+        return false;
+    };
+    !inner.is_empty()
+        && inner
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'))
 }
 
 #[cfg(test)]
@@ -209,6 +223,20 @@ mod tests {
         assert!(
             !extended.iter().any(|d| d.rule == "info-string-typo"),
             "extra allowlist should silence info-string-typo; got {extended:?}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn accepts_jsonc_and_myst_directive_fences() -> Result<()> {
+        let src = "```jsonc\n{}\n```\n\n```{note}\nbody\n```\n";
+        let mut rs = RuleSet::new();
+        rs.add(Box::new(InfoStringTypo::new()))
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
+        let diagnostics = rs.check(&Document::parse(src)?);
+        assert!(
+            diagnostics.is_empty(),
+            "jsonc and MyST directive fences should be accepted: {diagnostics:?}"
         );
         Ok(())
     }

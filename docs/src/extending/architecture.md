@@ -4,8 +4,8 @@ The design intent. Read this before you change document recognition, linting, or
 
 ## Workspace boundaries
 
-Each crate hides a different kind of knowledge. Read the layers top-down as a dependency stack:
-each depends only on layers below it:
+Each crate hides a different kind of knowledge. Read the layers top-down as a dependency stack: each depends only on
+layers below it:
 
 ```text
 Surfaces      mdwright (CLI)        mdwright-lsp
@@ -16,16 +16,15 @@ Math          mdwright-math
 ```
 
 - `mdwright-math`: pure TeX / math scanning and normalisation.
-- `mdwright-document`: source coordinates, pulldown invocation, parse options, recognised
-  Markdown facts.
+- `mdwright-document`: source coordinates, pulldown invocation, parse options, recognised Markdown facts.
 - `mdwright-config`: interprets user config files into document, format, and lint policy.
 - `mdwright-format`: formatting options and the transactional rewrite engine.
 - `mdwright-lint`: diagnostics, rule execution, suppression, safe fixes.
 - `mdwright`: the command-line binary: file discovery, terminal output, process exit policy.
 - `mdwright-lsp`: editor-state delivery over LSP.
 
-The repository root is a virtual workspace. There is no facade crate; library users depend
-directly on the crate that owns the capability they need.
+The repository root is a virtual workspace. There is no facade crate; library users depend directly on the crate that
+owns the capability they need.
 
 ## Document facts
 
@@ -54,9 +53,10 @@ isolation when needed, and iterates to a fixed point.
 
 ## Linting
 
-`RuleSet` owns rule execution. Callers parse a `Document`, then call `rules.check(&doc)` or `rules.check_with(&doc,
-opts)`. Suppressions, diagnostic sorting, standard-rule registry construction, and safe-fix application are lint-crate
-details.
+`RuleSet` owns rule execution. Callers parse a `Document`, then call `rules.check(&doc)` or
+`rules.check_with(&doc,
+opts)`. Suppressions, diagnostic sorting, standard-rule registry construction, and safe-fix
+application are lint-crate details.
 
 ## Doc tests
 
