@@ -58,7 +58,8 @@ rewrite or lint rule would still compile in the same dependency universe.
 
 Design A has more crates, but each crate hides a different volatile decision:
 
-- CommonMark/pulldown quirks and source-coordinate invariants are hidden in `mdwright-document`.
+- CommonMark/pulldown quirks, GFM extension overlays, and source-coordinate invariants are hidden in
+  `mdwright-document`.
 - TeX delimiter and environment recognition is hidden in `mdwright-math`.
 - Byte rewrite ordering, overlap rejection, fixed-point iteration, and semantic verification are hidden in
   `mdwright-format`.
@@ -136,6 +137,8 @@ The API is pre-1.0, so the split removes operation methods from `Document` where
   formatter policy under `FmtOptions`.
 - The CLI binary moved from the former root package into `crates/mdwright`; the binary name remains `mdwright`.
 - The configuration table for recognition toggles moved from formatter policy to `[parse.extensions]`.
+- GFM extension policy is exposed as `parse.extensions.gfm.autolinks` and `parse.extensions.gfm.tagfilter`; the document
+  crate exposes autolinks as general `AutolinkFact` values rather than URL-specific GFM facts.
 - The root facade package was deleted. Library users import `mdwright-document`, `mdwright-format`, `mdwright-lint`,
   `mdwright-config`, `mdwright-lsp`, or `mdwright-math` directly. The `mdwright` package is the command delivery package
   and exposes only command-extension helpers such as `run_with_rules`.

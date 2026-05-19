@@ -24,7 +24,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use mdwright_document::{ExtensionOptions, GfmOptions, MystOptions, PandocOptions, ParseOptions};
+use mdwright_document::{ExtensionOptions, GfmAutolinkPolicy, GfmOptions, MystOptions, PandocOptions, ParseOptions};
 use mdwright_format::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
     OrderedListStyle, Placement, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
@@ -389,15 +389,36 @@ impl From<ExtensionsSchema> for ExtensionOptions {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GfmSchema {
-    #[serde(default, rename = "bare-url-autolinks")]
-    bare_url_autolinks: Option<bool>,
+    #[serde(default)]
+    autolinks: Option<GfmAutolinkPolicySchema>,
+    #[serde(default)]
+    tagfilter: Option<bool>,
 }
 
 impl From<GfmSchema> for GfmOptions {
     fn from(s: GfmSchema) -> Self {
         let default = Self::default();
         Self {
-            bare_url_autolinks: s.bare_url_autolinks.unwrap_or(default.bare_url_autolinks),
+            autolinks: s.autolinks.map_or(default.autolinks, GfmAutolinkPolicy::from),
+            tagfilter: s.tagfilter.unwrap_or(default.tagfilter),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum GfmAutolinkPolicySchema {
+    Disabled,
+    Urls,
+    UrlsAndEmails,
+}
+
+impl From<GfmAutolinkPolicySchema> for GfmAutolinkPolicy {
+    fn from(s: GfmAutolinkPolicySchema) -> Self {
+        match s {
+            GfmAutolinkPolicySchema::Disabled => Self::Disabled,
+            GfmAutolinkPolicySchema::Urls => Self::Urls,
+            GfmAutolinkPolicySchema::UrlsAndEmails => Self::UrlsAndEmails,
         }
     }
 }
@@ -775,8 +796,8 @@ mod tests {
     use anyhow::{Result, anyhow};
 
     use super::{
-        Config, EndOfLine, FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema, StrongStyle,
-        ThematicStyle, TrailingNewline, Wrap,
+        Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema,
+        StrongStyle, ThematicStyle, TrailingNewline, Wrap,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -863,23 +884,25 @@ exclude = ["docs/generated/**"]
     #[test]
     fn parse_extensions_are_parse_policy() -> Result<()> {
         let cfg = config_from_str(
-            r"
+            r#"
 [parse.extensions]
 definition-lists = false
 heading-attribute-lists = false
 
 [parse.extensions.gfm]
-bare-url-autolinks = false
+autolinks = "disabled"
+tagfilter = false
 
 [parse.extensions.myst]
 comments = false
 
 [parse.extensions.pandoc]
 inline-attribute-spans = false
-",
+"#,
         )?;
         let extensions = cfg.parse_options().extensions();
-        assert!(!extensions.gfm.bare_url_autolinks);
+        assert_eq!(extensions.gfm.autolinks, GfmAutolinkPolicy::Disabled);
+        assert!(!extensions.gfm.tagfilter);
         assert!(!extensions.definition_lists);
         assert!(!extensions.heading_attribute_lists);
         assert!(!extensions.myst.comments);

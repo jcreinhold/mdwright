@@ -21,7 +21,7 @@ pub use format_facts::{
     OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan, UnorderedListSite,
     WrappableParagraph, top_level_block_checkpoints,
 };
-pub use gfm::GfmAutolink;
+pub use gfm::{AutolinkFact, AutolinkOrigin};
 pub use heading::{HeadingAttrs, find_attr_trailer_range};
 pub use ir::{
     AllowScope, BlockCheckpointFact, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode,
@@ -88,15 +88,25 @@ impl Default for ExtensionOptions {
 /// Recognition toggles for GitHub Flavored Markdown extensions.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct GfmOptions {
-    pub bare_url_autolinks: bool,
+    pub autolinks: GfmAutolinkPolicy,
+    pub tagfilter: bool,
 }
 
 impl Default for GfmOptions {
     fn default() -> Self {
         Self {
-            bare_url_autolinks: true,
+            autolinks: GfmAutolinkPolicy::UrlsAndEmails,
+            tagfilter: true,
         }
     }
+}
+
+/// GFM extended-autolink recognition policy.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GfmAutolinkPolicy {
+    Disabled,
+    Urls,
+    UrlsAndEmails,
 }
 
 /// Recognition toggles for `MyST`-flavoured extensions.

@@ -76,7 +76,8 @@ All other `[fmt]` knobs are config-file-only.
 
 | Key | Type | Default | CLI override | Description |
 | --- | --- | --- | --- | --- |
-| `parse.extensions.gfm.bare-url-autolinks` | bool | `true` | `none` | Recognise GFM bare `www.`, `http(s)://`, and `ftp://` URL autolinks as document facts and render them as links. Turn off for strict CommonMark-style text treatment. |
+| `parse.extensions.gfm.autolinks` | "disabled" \| "urls" \| "urls-and-emails" | `"urls-and-emails"` | `none` | Recognise GFM bare URL and email autolinks as document facts and render them as links. Use `urls` to leave bare emails as text or `disabled` for strict CommonMark-style text treatment. |
+| `parse.extensions.gfm.tagfilter` | bool | `true` | `none` | Apply GFM tagfiltering when rendering or building semantic signatures. This escapes the raw HTML tags that cmark-gfm filters, without rewriting source bytes. |
 | `parse.extensions.definition-lists` | bool | `true` | `none` | Recognise `Term\n: definition\n` definition lists. Default on; turn off on non-mkdocs corpora to suppress recognition. |
 | `parse.extensions.abbreviation-lists` | bool | `true` | `none` | Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does. |
 | `parse.extensions.heading-attribute-lists` | bool | `true` | `none` | Recognise `# Heading {#id .class}` trailers via pulldown's `ENABLE_HEADING_ATTRIBUTES`. When off, the trailer reads as plain text in the heading body. |

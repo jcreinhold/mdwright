@@ -25,7 +25,7 @@ use std::sync::OnceLock;
 use pulldown_cmark::{CodeBlockKind, Event, Tag, TagEnd};
 use regex::Regex;
 
-use crate::gfm::{GfmAutolink, scan_bare_autolinks};
+use crate::gfm::{AutolinkFact, collect_autolinks};
 use crate::line_index::LineIndex;
 use crate::parse;
 use crate::refs::{ReferenceTable, build_reference_table};
@@ -204,7 +204,7 @@ pub enum AllowScope {
 #[derive(Debug)]
 pub(crate) struct Ir {
     pub(crate) prose_chunks: Vec<TextSlice>,
-    pub(crate) gfm_bare_autolinks: Vec<GfmAutolink>,
+    pub(crate) autolinks: Vec<AutolinkFact>,
     pub(crate) inline_codes: Vec<InlineCode>,
     pub(crate) code_blocks: Vec<CodeBlock>,
     pub(crate) html_blocks: Vec<HtmlBlock>,
@@ -291,11 +291,7 @@ impl Ir {
         }
         tracing::debug!(nodes = tree_builder.arena_len(), "tree walk complete");
 
-        let gfm_bare_autolinks = if opts.extensions().gfm.bare_url_autolinks {
-            scan_bare_autolinks_from_events(&events)
-        } else {
-            Vec::new()
-        };
+        let autolinks = collect_autolinks(source, &events, opts.extensions().gfm);
         let bare_events: Vec<Event<'_>> = events.into_iter().map(|(e, _)| e).collect();
         let refs = build_reference_table(&bare_events, source);
         let suppressions = scan_suppressions(&builder.html_blocks);
@@ -303,7 +299,7 @@ impl Ir {
 
         Ok(Self {
             prose_chunks: builder.prose_chunks,
-            gfm_bare_autolinks,
+            autolinks,
             inline_codes: builder.inline_codes,
             code_blocks: builder.code_blocks,
             html_blocks: builder.html_blocks,
@@ -464,38 +460,6 @@ fn is_container_end(end: TagEnd) -> bool {
 
 fn parser_state_hash(depth: u32, event_count: u32) -> u64 {
     (u64::from(depth) << 32) | u64::from(event_count)
-}
-
-fn scan_bare_autolinks_from_events(events: &[(Event<'_>, Range<usize>)]) -> Vec<GfmAutolink> {
-    let mut out = Vec::new();
-    let mut link_depth = 0u32;
-    for (event, range) in events {
-        match event {
-            Event::Start(Tag::Link { .. } | Tag::Image { .. }) => {
-                link_depth = link_depth.saturating_add(1);
-            }
-            Event::End(TagEnd::Link | TagEnd::Image) => {
-                link_depth = link_depth.saturating_sub(1);
-            }
-            Event::Text(text) if link_depth == 0 => {
-                out.extend(scan_bare_autolinks(text.as_ref(), range.start));
-            }
-            Event::Start(_)
-            | Event::End(_)
-            | Event::Text(_)
-            | Event::Code(_)
-            | Event::InlineMath(_)
-            | Event::DisplayMath(_)
-            | Event::Html(_)
-            | Event::InlineHtml(_)
-            | Event::FootnoteReference(_)
-            | Event::SoftBreak
-            | Event::HardBreak
-            | Event::Rule
-            | Event::TaskListMarker(_) => {}
-        }
-    }
-    out
 }
 
 /// Walks the pulldown-cmark event stream and accumulates IR fields.

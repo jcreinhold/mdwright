@@ -9,11 +9,9 @@ canonically, and gates each via a per-extension toggle. It does not expand abbre
 `{...}` to HTML, or change semantics. The downstream renderer (Python-Markdown, mkdocs-material,
 jupyter-book) does that work.
 
-GFM bare URL autolinks are also recognised by default for `www.`, `http(s)://`, and `ftp://`
-URLs. This closes the cmark-gfm rendering gap for URL autolinks while keeping formatter output
-byte-preserving. GFM email autolinks are not recognised yet because pulldown-cmark can split
-trailing `_` / `-` characters as inline delimiters before mdwright's overlay sees the full source
-context.
+GFM URL and email autolinks are recognised by default. mdwright also applies GFM tagfiltering when
+rendering or building semantic signatures. These behaviours close the cmark-gfm rendering gap while
+keeping formatter output byte-preserving.
 
 ## The four extensions
 

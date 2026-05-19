@@ -157,10 +157,17 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
     },
     // ---- [parse.extensions] -----------------------------------------
     FieldDoc {
-        key: "parse.extensions.gfm.bare-url-autolinks",
+        key: "parse.extensions.gfm.autolinks",
+        ty: "\"disabled\" | \"urls\" | \"urls-and-emails\"",
+        default: "\"urls-and-emails\"",
+        description: "Recognise GFM bare URL and email autolinks as document facts and render them as links. Use `urls` to leave bare emails as text or `disabled` for strict CommonMark-style text treatment.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "parse.extensions.gfm.tagfilter",
         ty: "bool",
         default: "true",
-        description: "Recognise GFM bare `www.`, `http(s)://`, and `ftp://` URL autolinks as document facts and render them as links. Turn off for strict CommonMark-style text treatment.",
+        description: "Apply GFM tagfiltering when rendering or building semantic signatures. This escapes the raw HTML tags that cmark-gfm filters, without rewriting source bytes.",
         cli_override: None,
     },
     FieldDoc {

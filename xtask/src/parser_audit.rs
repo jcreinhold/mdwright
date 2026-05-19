@@ -5,7 +5,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
-use mdwright_document::{Document, NodeKind, ParseError, render_html};
+use mdwright_document::{
+    Document, ExtensionOptions, GfmAutolinkPolicy, GfmOptions, NodeKind, ParseError, ParseOptions,
+    render_html_with_options,
+};
 use regex::Regex;
 use serde::Serialize;
 
@@ -169,7 +172,7 @@ pub fn run(workspace: &Path, opts: ParserAuditOptions) -> Result<bool> {
         let sourcepos = sourcepos_analysis(&case, &cmark_rendered.sourcepos_html, comrak_sourcepos);
         stats.sourcepos_checked = stats.sourcepos_checked.saturating_add(sourcepos.summary.checked);
 
-        let pulldown_html = match render_html(&case.source) {
+        let pulldown_html = match render_html_with_options(&case.source, audit_parse_options(&case)) {
             Ok(html) => Some(html),
             Err(err) => {
                 stats.mdwright_parse_errors = stats.mdwright_parse_errors.saturating_add(1);
@@ -477,6 +480,19 @@ fn corpus_cmark_extensions() -> Vec<String> {
         .collect()
 }
 
+fn audit_parse_options(case: &AuditCase) -> ParseOptions {
+    let autolinks = if case.cmark_extensions.iter().any(|extension| extension == "autolink") {
+        GfmAutolinkPolicy::UrlsAndEmails
+    } else {
+        GfmAutolinkPolicy::Disabled
+    };
+    let tagfilter = case.cmark_extensions.iter().any(|extension| extension == "tagfilter");
+    ParseOptions::default().with_extensions(ExtensionOptions {
+        gfm: GfmOptions { autolinks, tagfilter },
+        ..ExtensionOptions::default()
+    })
+}
+
 fn render_with_cmark(bin: &Path, case: &AuditCase) -> Result<Rendered> {
     let html = run_cmark(bin, &case.source, &case.cmark_extensions, false)?;
     let sourcepos_html = run_cmark(bin, &case.source, &case.cmark_extensions, true)?;
@@ -608,23 +624,19 @@ fn classify_parse_error(case: &AuditCase, _err: &ParseError) -> String {
 }
 
 fn classify_html_mismatch(case: &AuditCase, oracle_html: &str, pulldown_html: &str) -> String {
-    if case.classes.iter().any(|class| class == "autolink") && looks_like_bare_email(&case.source) {
-        "mdwright-policy:gfm-email-autolinks-disabled".to_owned()
-    } else if case.classes.iter().any(|class| matches!(class.as_str(), "autolink")) || looks_like_bare_url(&case.source)
-    {
-        if case.classes.iter().any(|class| class == "autolink") {
-            "pulldown-html-mismatch:gfm-autolink".to_owned()
-        } else {
-            "mdwright-policy:gfm-bare-autolinks-enabled".to_owned()
-        }
-    } else if case.classes.iter().any(|class| matches!(class.as_str(), "tagfilter")) {
-        "mdwright-policy:gfm-tagfilter-disabled".to_owned()
-    } else if html_equivalent_after_quote_unescape(oracle_html, pulldown_html) {
+    if html_equivalent_after_quote_unescape(oracle_html, pulldown_html) {
         "pulldown-html-mismatch:quote-escaping".to_owned()
-    } else if pulldown_html.contains("<dl>") && case.source.contains(":::") {
-        "extension-gap:myst-definition-list".to_owned()
     } else if oracle_html.contains("<table") || pulldown_html.contains("<table") {
         "pulldown-html-mismatch:table-rendering".to_owned()
+    } else if (case.classes.iter().any(|class| matches!(class.as_str(), "autolink"))
+        || looks_like_bare_url(&case.source))
+        && autolink_html_mismatch(oracle_html, pulldown_html)
+    {
+        "pulldown-html-mismatch:gfm-autolink".to_owned()
+    } else if case.classes.iter().any(|class| matches!(class.as_str(), "tagfilter")) {
+        "pulldown-html-mismatch:gfm-tagfilter".to_owned()
+    } else if pulldown_html.contains("<dl>") && case.source.contains(":::") {
+        "extension-gap:myst-definition-list".to_owned()
     } else if oracle_html.contains("type=\"checkbox\"") || pulldown_html.contains("type=\"checkbox\"") {
         "pulldown-html-mismatch:tasklist-rendering".to_owned()
     } else if case.label.contains("Emphasis and strong emphasis") {
@@ -640,12 +652,19 @@ fn html_equivalent_after_quote_unescape(left: &str, right: &str) -> bool {
     normalize_spec_html(left).replace("&quot;", "\"") == normalize_spec_html(right).replace("&quot;", "\"")
 }
 
-fn looks_like_bare_url(source: &str) -> bool {
-    source.contains("http://") || source.contains("https://") || source.contains("ftp://") || source.contains("www.")
+fn autolink_html_mismatch(left: &str, right: &str) -> bool {
+    autolink_href_count(left) != autolink_href_count(right)
 }
 
-fn looks_like_bare_email(source: &str) -> bool {
-    source.contains('@')
+fn autolink_href_count(html: &str) -> usize {
+    ["href=\"http://", "href=\"https://", "href=\"ftp://", "href=\"mailto:"]
+        .into_iter()
+        .map(|needle| html.match_indices(needle).count())
+        .sum()
+}
+
+fn looks_like_bare_url(source: &str) -> bool {
+    source.contains("http://") || source.contains("https://") || source.contains("ftp://") || source.contains("www.")
 }
 
 #[derive(Clone, Debug)]
@@ -673,7 +692,7 @@ fn sourcepos_analysis(
             + doc.html_blocks().len()
             + doc.inline_codes().len()
             + doc.link_defs().len()
-            + doc.gfm_bare_autolinks().len()
+            + doc.autolinks().len()
             + usize::from(doc.frontmatter().is_some())
     });
     let envelopes = cmark_sourcepos_envelopes(&case.source, cmark_sourcepos_html);

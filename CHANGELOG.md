@@ -49,10 +49,9 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 - Added `cargo xtask parser-audit` source-position risk gates. The audit now checks cmark-gfm `data-sourcepos`
   envelopes against mdwright document facts for formatter/lint-owned constructs and fails on unclassified coordinate
   risks.
-- Added document-owned GFM bare URL autolink recognition for `www.`, `http(s)://`, and `ftp://` URLs. Rendering now
-  matches cmark-gfm for those extension cases by default, while the `bare-url` lint still asks authors to make URLs
-  explicit with `<...>` for renderer portability. GFM email autolinks and tagfiltering remain intentional parser-policy
-  divergences.
+- Added a document-owned GFM extension overlay for URL autolinks, email autolinks, and tagfiltering. Rendering now
+  matches cmark-gfm for those extension cases by default, while the `bare-url` lint still asks authors to make URL
+  autolinks explicit with `<...>` for renderer portability.
 - The wrap pass now treats MkDocs-style `!!!` / `???` admonition paragraphs as opaque blocks, preventing prose wrapping
   from collapsing the admonition marker and indented body into ordinary paragraph text.
 

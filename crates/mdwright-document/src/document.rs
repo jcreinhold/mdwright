@@ -10,7 +10,7 @@ use pulldown_cmark::html;
 
 use crate::ParseError;
 use crate::ParseOptions;
-use crate::gfm::render_autolink_events;
+use crate::gfm::apply_gfm_render_policy;
 use crate::ir::{
     BlockCheckpointFact, CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup,
     Suppression, TextSlice,
@@ -48,8 +48,8 @@ pub fn render_html(source: &str) -> Result<String, ParseError> {
 pub fn render_html_with_options(source: &str, opts: ParseOptions) -> Result<String, ParseError> {
     let src = Source::new(source);
     let canonical = CanonicalSource::from_source(&src);
-    let events = parse::collect_events(canonical, parse::options(opts))?;
-    let events = render_autolink_events(events, opts.extensions().gfm.bare_url_autolinks);
+    let events = parse::collect_events_with_offsets(canonical, parse::options(opts))?;
+    let events = apply_gfm_render_policy(canonical.as_str(), events, opts.extensions().gfm);
     let mut out = String::with_capacity(canonical.as_str().len());
     html::push_html(&mut out, events.into_iter());
     Ok(out)
@@ -143,11 +143,10 @@ impl Document {
         &self.ir.prose_chunks
     }
 
-    /// GFM bare autolinks recognised in prose when
-    /// `parse.extensions.gfm.bare-url-autolinks` is enabled.
+    /// `CommonMark` and GFM autolinks recognised in source order.
     #[must_use]
-    pub fn gfm_bare_autolinks(&self) -> &[crate::GfmAutolink] {
-        &self.ir.gfm_bare_autolinks
+    pub fn autolinks(&self) -> &[crate::AutolinkFact] {
+        &self.ir.autolinks
     }
 
     /// Inline code spans in source order. `text` excludes the

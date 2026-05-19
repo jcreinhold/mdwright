@@ -26,12 +26,11 @@ time. Each example has a Markdown source, a single `.` separator line, and the e
 **not** compare against the expected HTML. It asserts our formatter's idempotence and AST/HTML equivalence against the
 *parsed* source. The expected HTML is therefore informational here.
 
-## GFM bare URL autolinks
+## GFM autolinks and tagfiltering
 
-pulldown-cmark 0.13 does not implement GFM's bare URL autolink extension. mdwright adds a document-owned overlay for
-bare `www.`, `http(s)://`, and `ftp://` URL autolinks so rendered HTML matches cmark-gfm for that extension while the
-formatter still round-trips source bytes. GFM email autolinks remain classified in `cargo xtask parser-audit` until they
-can be recognised with source-aware context across pulldown's inline delimiter splitting.
+pulldown-cmark 0.13 does not implement GFM's extended autolink or tagfilter extensions. mdwright adds a document-owned
+overlay for bare URL autolinks, bare email autolinks, and tagfilter rendering so rendered HTML matches cmark-gfm for
+those extension cases while the formatter still round-trips source bytes.
 
 ## Runner
 

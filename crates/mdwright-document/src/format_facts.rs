@@ -403,7 +403,7 @@ impl Document {
                     paragraph_depth = paragraph_depth.saturating_sub(1);
                     if paragraph_depth == 0
                         && let Some(p) = current.take()
-                        && let Some(finished) = p.finish(bytes, self.gfm_bare_autolinks())
+                        && let Some(finished) = p.finish(bytes, self.autolinks())
                     {
                         paragraphs.push(finished);
                     }
@@ -414,7 +414,7 @@ impl Document {
                 Event::End(TagEnd::Item | TagEnd::DefinitionListDefinition | TagEnd::FootnoteDefinition) => {
                     prose_container_depth = prose_container_depth.saturating_sub(1);
                     if let Some(p) = current.take()
-                        && let Some(finished) = p.finish(bytes, self.gfm_bare_autolinks())
+                        && let Some(finished) = p.finish(bytes, self.autolinks())
                     {
                         paragraphs.push(finished);
                     }
@@ -431,7 +431,7 @@ impl Document {
                     | Tag::MetadataBlock(_),
                 ) => {
                     if let Some(p) = current.take()
-                        && let Some(finished) = p.finish(bytes, self.gfm_bare_autolinks())
+                        && let Some(finished) = p.finish(bytes, self.autolinks())
                     {
                         paragraphs.push(finished);
                     }
@@ -814,7 +814,7 @@ impl PartialParagraph {
         }
     }
 
-    fn finish(mut self, bytes: &[u8], extra_atomics: &[crate::GfmAutolink]) -> Option<WrappableParagraph> {
+    fn finish(mut self, bytes: &[u8], extra_atomics: &[crate::AutolinkFact]) -> Option<WrappableParagraph> {
         let (line_lo, first_prefix) = extract_first_prefix(bytes, self.content_lo)?;
         let line_hi = extract_line_hi(bytes, self.content_hi);
         if is_mkdocs_admonition_paragraph(bytes, line_lo, line_hi) {
@@ -822,8 +822,9 @@ impl PartialParagraph {
         }
         let cont_prefix = derive_continuation_prefix(&first_prefix)?;
         for autolink in extra_atomics {
-            if autolink.raw_range.start >= self.content_lo && autolink.raw_range.end <= self.content_hi {
-                self.atomics.push(autolink.raw_range.clone());
+            let raw_range = autolink.raw_range();
+            if raw_range.start >= self.content_lo && raw_range.end <= self.content_hi {
+                self.atomics.push(raw_range);
             }
         }
         let mut atomics = self.atomics;

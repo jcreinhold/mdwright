@@ -39,8 +39,7 @@ overlapping fact for a rewrite/lint-owned construct.
 ## Status Values
 
 - `pulldown-html-mismatch`: pulldown-rendered HTML differs from cmark-gfm expected HTML.
-- `mdwright-policy`: mdwright intentionally differs, for example default GFM bare URL autolinks in non-extension
-  CommonMark examples or disabled tagfiltering.
+- `mdwright-policy`: mdwright intentionally differs from the cmark-gfm oracle for a documented parser policy.
 - `extension-gap`: the compared parser does not implement the construct.
 - `sourcepos-risk`: rendered output matches, but coordinate facts may affect formatter/lint safety.
 - `event-only`: internal event/AST shape differs while rendered HTML and semantic signatures match.
@@ -50,12 +49,12 @@ overlapping fact for a rewrite/lint-owned construct.
 
 ## Classifications
 
-Current `gfm-spec` audit snapshot after GFM URL-autolink support:
+Current `gfm-spec` audit snapshot after GFM autolink and tagfilter support:
 
 | Metric | Count |
 | --- | ---: |
 | Cases | 673 |
-| Pulldown HTML mismatches | 47 |
+| Pulldown HTML mismatches | 40 |
 | Sourcepos envelopes checked | 1071 |
 | Sourcepos differences | 0 |
 | Unclassified differences | 0 |
@@ -67,19 +66,17 @@ Observed difference classes:
 | `pulldown-html-mismatch:quote-escaping` | 21 |
 | `pulldown-html-mismatch:emphasis-resolution` | 9 |
 | `pulldown-html-mismatch:table-rendering` | 7 |
-| `mdwright-policy:gfm-bare-autolinks-enabled` | 3 |
-| `mdwright-policy:gfm-email-autolinks-disabled` | 3 |
 | `pulldown-html-mismatch:tasklist-rendering` | 2 |
-| `mdwright-policy:gfm-tagfilter-disabled` | 1 |
 | `pulldown-html-mismatch:html-block-rendering` | 1 |
 | `upstream-panic` | 1 |
 
 | Case Set | Key | Observed | Status | Owner | Resolution |
 | --- | --- | --- | --- | --- | --- |
-| * | * | mdwright-policy:gfm-bare-autolinks-enabled | mdwright-policy | document | mdwright enables GFM bare URL autolinks by default for production GFM parity; non-extension CommonMark autolink examples intentionally render differently under that policy. |
-| * | * | mdwright-policy:gfm-email-autolinks-disabled | mdwright-policy | document | mdwright's GFM overlay currently recognises bare URL autolinks only. GFM email autolinks require source-aware context because pulldown may split trailing `_` / `-` as emphasis delimiters. |
-| * | * | mdwright-policy:gfm-tagfilter-disabled | mdwright-policy | document | mdwright intentionally does not enable GFM tagfiltering in its production parser/render policy. |
-| * | * | pulldown-html-mismatch:gfm-autolink | fixed | document | GFM bare autolink mismatches should be handled by mdwright-document's GFM autolink overlay. |
+| * | * | mdwright-policy:gfm-bare-autolinks-enabled | fixed | document | Parser-audit now mirrors the cmark-gfm extension set per spec case, so default production GFM policy no longer creates non-extension CommonMark audit drift. |
+| * | * | mdwright-policy:gfm-email-autolinks-disabled | fixed | document | GFM email autolinks are recognised by mdwright-document's source-positioned GFM overlay. |
+| * | * | mdwright-policy:gfm-tagfilter-disabled | fixed | document | GFM tagfiltering is enabled by default in mdwright-document's render/signature policy. |
+| * | * | pulldown-html-mismatch:gfm-autolink | fixed | document | GFM URL and email autolink mismatches should be handled by mdwright-document's GFM autolink overlay. |
+| * | * | pulldown-html-mismatch:gfm-tagfilter | fixed | document | GFM tagfilter mismatches should be handled by mdwright-document's GFM tagfilter overlay. |
 | * | * | pulldown-html-mismatch:quote-escaping | pulldown-html-mismatch | document | pulldown's HTML serializer leaves double quotes unescaped in text/code contexts where cmark-gfm emits `&quot;`; the Markdown event signatures are stable, so this is render-spelling drift rather than formatter rewrite risk. |
 | * | * | pulldown-html-mismatch:table-rendering | pulldown-html-mismatch | document | pulldown's table renderer minifies table markup, emits CSS `text-align` styles for alignment, and includes an empty `<tbody>` where cmark-gfm omits it. |
 | * | * | pulldown-html-mismatch:tasklist-rendering | pulldown-html-mismatch | document | task-list checkbox HTML spelling is implementation-defined in the upstream spec; pulldown's renderer places checkbox inputs on their own line and uses different attribute ordering/empty-element spelling. |

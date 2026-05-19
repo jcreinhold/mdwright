@@ -3,9 +3,9 @@
 //! `CommonMark` autolinks (`<https://example.com>`) render as
 //! clickable links across all renderers; bare URLs depend on
 //! renderer-specific autolinking heuristics. The rule scans prose
-//! chunks and GFM bare-autolink facts. Explicit `CommonMark` autolinks
-//! (`<https://example.com>`) and Markdown links are already portable,
-//! so their ranges are excluded from the prose scan.
+//! chunks and document autolink facts. Explicit `CommonMark` autolinks
+//! (`<https://example.com>`), GFM email autolinks, and Markdown links
+//! are already portable, so their ranges are excluded from the prose scan.
 
 use std::ops::Range;
 use std::sync::OnceLock;
@@ -15,7 +15,7 @@ use regex::Regex;
 use crate::diagnostic::{Diagnostic, Fix};
 use crate::regex_util::compile_static;
 use crate::rule::LintRule;
-use mdwright_document::{Document, NodeKind};
+use mdwright_document::{AutolinkOrigin, Document, NodeKind};
 
 pub struct BareUrl;
 
@@ -43,9 +43,9 @@ impl LintRule for BareUrl {
 
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
         let excluded = link_like_ranges(doc);
-        for autolink in doc.gfm_bare_autolinks() {
-            if should_flag_bare_url(&autolink.text) {
-                push_diagnostic(doc, autolink.raw_range.clone(), &autolink.text, out);
+        for autolink in doc.autolinks() {
+            if autolink.origin() == AutolinkOrigin::GfmUrl && should_flag_bare_url(autolink.text()) {
+                push_diagnostic(doc, autolink.raw_range(), autolink.text(), out);
             }
         }
         for chunk in doc.prose_chunks() {
@@ -100,11 +100,7 @@ fn link_like_ranges(doc: &Document) -> Vec<Range<usize>> {
             ranges.push(node.raw_range.clone());
         }
     }
-    ranges.extend(
-        doc.gfm_bare_autolinks()
-            .iter()
-            .map(|autolink| autolink.raw_range.clone()),
-    );
+    ranges.extend(doc.autolinks().iter().map(mdwright_document::AutolinkFact::raw_range));
     ranges
 }
 

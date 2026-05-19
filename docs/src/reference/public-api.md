@@ -13,11 +13,12 @@ the component crate that owns the capability they need.
 | `Document` | struct | `mdwright_document::Document`; parse/query handle for Markdown source |
 | `ParseError` | struct | controlled failure when parser execution cannot safely recognise source |
 | `ParseOptions` | struct | explicit Markdown recognition policy |
-| `ExtensionOptions`, `MystOptions`, `PandocOptions` | structs | fields under `ParseOptions` |
+| `ExtensionOptions`, `GfmOptions`, `GfmAutolinkPolicy`, `MystOptions`, `PandocOptions` | types | fields under `ParseOptions` |
 | `TextSlice`, `InlineCode`, `CodeBlock` | structs | returned by `Document` query methods |
 | `HtmlBlock`, `InlineHtml`, `Heading` | structs | returned by `Document` query methods |
 | `ListGroup`, `ListItem`, `LinkDef` | structs | returned by `Document` query methods |
 | `Frontmatter`, `FrontmatterDelimiter` | types | returned by `Document::frontmatter` |
+| `AutolinkFact`, `AutolinkOrigin` | types | returned by `Document::autolinks` |
 | `Suppression`, `SuppressionKind`, `AllowScope` | types | returned by `Document::suppressions` |
 | `LineIndex`, `LineIndexError` | types | byte/line/column lookup |
 | `MathRegion`, `MathSpan`, `MathError` | types | math facts exposed through `Document` |

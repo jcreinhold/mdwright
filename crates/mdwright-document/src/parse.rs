@@ -1,10 +1,10 @@
 //! The single chokepoint for every `pulldown_cmark::Parser` construction
 //! in production `src/` code.
 //!
-//! Two helpers, [`events`] and [`events_with_offsets`], take a
-//! [`CanonicalSource`] (the type-level proof that input bytes went
-//! through [`crate::source::Source`] canonicalisation) and hand back
-//! pulldown iterators. Every other place in the crate that needs a
+//! [`collect_events_with_offsets`] takes a [`CanonicalSource`] (the
+//! type-level proof that input bytes went through
+//! [`crate::source::Source`] canonicalisation) and hands back pulldown
+//! events with ranges. Every other place in the crate that needs a
 //! pulldown parser routes through here, so we have one site to reason
 //! about when adding a new emit-decision invariant or chasing a
 //! per-construct pulldown quirk.
@@ -53,6 +53,7 @@ pub(crate) fn options(opts: ParseOptions) -> Options {
 }
 
 /// Collect parser events inside the document crate's panic boundary.
+#[cfg(test)]
 pub(crate) fn collect_events(src: CanonicalSource<'_>, opts: Options) -> Result<Vec<Event<'_>>, ParseError> {
     run_parser(src, || Parser::new_ext(src.as_str(), opts).collect())
 }

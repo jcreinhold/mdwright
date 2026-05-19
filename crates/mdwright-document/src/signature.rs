@@ -6,7 +6,7 @@
 
 use pulldown_cmark::{CowStr, Event, Tag, TagEnd};
 
-use crate::gfm::render_autolink_events;
+use crate::gfm::apply_gfm_render_policy;
 use crate::source::{CanonicalSource, Source};
 use crate::{ParseError, ParseOptions, parse};
 
@@ -149,9 +149,10 @@ pub fn markdown_signature(source: &str, opts: ParseOptions) -> Result<MarkdownSi
         }
     };
 
-    let parser_events = render_autolink_events(
-        parse::collect_events(src, parse::options(opts))?,
-        opts.extensions().gfm.bare_url_autolinks,
+    let parser_events = apply_gfm_render_policy(
+        src.as_str(),
+        parse::collect_events_with_offsets(src, parse::options(opts))?,
+        opts.extensions().gfm,
     );
     for ev in parser_events {
         match ev {
