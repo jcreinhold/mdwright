@@ -6,8 +6,8 @@
 # but can be run directly:
 #
 #   bash .claude/skills/deep-module-design/scripts/audit-rust.sh <path>
-#   bash .claude/skills/deep-module-design/scripts/audit-rust.sh crates/kernel/core-ast
-#   bash .claude/skills/deep-module-design/scripts/audit-rust.sh crates/frontend/elaboration/src/resolve.rs
+#   bash .claude/skills/deep-module-design/scripts/audit-rust.sh crates/mdwright-document
+#   bash .claude/skills/deep-module-design/scripts/audit-rust.sh crates/mdwright/src/cli.rs
 #
 # What it checks:
 #   1. Public surface area (pub items) vs total items
@@ -27,8 +27,8 @@ if [ $# -lt 1 ]; then
 	echo "Usage: $0 <crate-or-module-path>"
 	echo ""
 	echo "Examples:"
-	echo "  $0 crates/kernel/core-ast"
-	echo "  $0 crates/frontend/elaboration/src/resolve.rs"
+	echo "  $0 crates/mdwright-document"
+	echo "  $0 crates/mdwright/src/cli.rs"
 	exit 2
 fi
 

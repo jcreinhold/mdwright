@@ -54,14 +54,14 @@ different.
     cargo clippy -p <crate-name>
     ```
 
-    For Lean 4 changes (run in the Lean-side sibling repo):
+    For Lean 4 changes:
 
     ```bash
-    make lean-build
+    lake build
     ```
 
     During design iteration the `lean-lsp` MCP tools (`lean_build`, `lean_diagnostic_messages`, `lean_goal`) are the fast
-    inner loop; `make lean-build` is the final gate.
+    inner loop; `lake build` is the final gate.
 
 1. **Produce the verification report.**
 
@@ -93,7 +93,7 @@ different.
 
 ### Tests
 - For Rust: `cargo nextest`, `cargo clippy` — pass/fail.
-- For Lean 4: `make lean-build` in the Lean-side sibling repo — pass/fail.
+- For Lean 4: `lake build` — pass/fail.
 
 ### Verdict: PASS / FAIL / PASS WITH NOTES
 <one-sentence summary>

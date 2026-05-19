@@ -1,7 +1,6 @@
 # Benchmark Design And Regression Tracking
 
-Kan needs both narrow and broad measurements. Use the smallest benchmark that answers the question, then expand scope if
-the change can move cost elsewhere.
+Use the smallest benchmark that answers the question, then expand scope if the change can move cost elsewhere.
 
 ## Choose The Right Benchmark Shape
 
@@ -19,14 +18,10 @@ Place it in the nearest crate bench file or add a new bench beside related ones.
 
 Use when:
 
-- the hot path depends on realistic term shape, module shape, or cache state
-- the complaint is editor latency, one-file compile cost, or a specific pipeline stage
+- the hot path depends on realistic input shape or cache state
+- the complaint is latency, single-file processing cost, or a specific pipeline stage
 
-Good existing surfaces:
-
-- `single_file/list` in `crates/pipeline/build/benches/pipeline_bench.rs`
-- `profile_interactive`
-- regression benches in `crates/frontend/typecheck-infer/benches/regression_bench.rs`
+Look for an existing `single_file/*`, `interactive`, or `regression_*` bench near the suspected hot path.
 
 ### End-To-End Benchmark
 
@@ -36,22 +31,16 @@ Use when:
 - caching or invalidation changes
 - a micro win might lose in total throughput
 
-Good existing surfaces:
-
-- `full_build` and `per_stage` in `crates/pipeline/build/benches/pipeline_bench.rs`
-- `profile_full_build`
-- `collect_baseline_quick` and `collect_baseline_full`
+Look for an existing `full_build`, `per_stage`, or `collect_baseline_*` workload.
 
 ## Criterion Guidance
 
 Use Criterion's comparison features instead of ad hoc timing loops.
 
-Useful commands:
-
 ```bash
-cargo bench -p kan-typecheck-infer --bench unification_bench -- --save-baseline before
-cargo bench -p kan-typecheck-infer --bench unification_bench -- --baseline before
-cargo bench -p kan-typecheck-infer --bench unification_bench -- --profile-time 10
+cargo bench -p <crate> --bench <bench_name> -- --save-baseline before
+cargo bench -p <crate> --bench <bench_name> -- --baseline before
+cargo bench -p <crate> --bench <bench_name> -- --profile-time 10
 ```
 
 Design rules:
@@ -60,17 +49,15 @@ Design rules:
 - Put expensive, invariant setup outside `b.iter` when the workload under test is steady-state behavior.
 - Keep setup inside `b.iter` only when setup cost is part of the real complaint.
 - Use parameterized families, not one magic size.
-- Use realistic term shapes, not only best-case atoms.
+- Use realistic input shapes, not only best-case atoms.
 - Use `black_box` around inputs and results that the optimizer could otherwise erase.
 
 ## Allocation Benchmarks
 
-Use heap profiling when allocation pressure is plausible.
+Use heap profiling when allocation pressure is plausible. Common surfaces:
 
-Repo-specific options:
-
-- `cargo run --profile profiling -p kan-profiling --bin collect_baseline_full`
-- `cargo bench -p kan-typecheck-infer --bench dhat_profile --features dhat-heap`
+- a `collect_baseline_full` workload that tracks DHAT alongside timing
+- a per-crate `dhat_profile` bench gated by a `dhat-heap` feature
 
 Questions to answer:
 
@@ -84,7 +71,7 @@ Questions to answer:
 Be skeptical of small deltas.
 
 - If a change is within noise, scale the workload or gather more samples.
-- If a microbench improves but total compile time does not, the bottleneck moved or the microbench was too narrow.
+- If a microbench improves but total throughput does not, the bottleneck moved or the microbench was too narrow.
 - If time improves and memory worsens, report both.
 - If memory improves and time worsens, report both.
 - If only cold-cache behavior changes, say that clearly.
@@ -112,7 +99,7 @@ Add measurement support when:
 - reviewers would otherwise have to trust a performance claim on sight
 - the repo has a profiling hook nearby but not at the granularity needed
 
-Keep new support near the code it protects unless the workload is intentionally shared across the compiler.
+Keep new support near the code it protects unless the workload is intentionally shared across the project.
 
 ## Review Checklist
 

@@ -1,6 +1,6 @@
 # mdwright
 
-A math-resilient Markdown linter and round-trip formatter for Kan documentation. Two pipelines share one event walk
+A math-resilient Markdown linter and round-trip formatter for technical writing. Two pipelines share one event walk
 over `pulldown-cmark`: a flat IR feeds the lint rules; a typed block / inline IR drives the formatter, where each
 construct owns its own `pretty()` method. See `README.md` for user-facing behaviour and `CHANGELOG.md` for the current
 release surface.
@@ -31,7 +31,7 @@ Spec-coverage sweep: `cargo test --release --test gfm_spec gfm_spec_coverage -- 
 
 ## Discipline
 
-- No backward compatibility. mdwright has one consumer (Kan docs); delete old code paths rather than deprecate them.
+- No backward compatibility. mdwright is pre-1.0 with a single primary consumer; delete old code paths rather than deprecate them.
 - No workarounds, hacks, `TODO`s, or placeholders. Build the intended functionality, not a simplified subset that
     compiles.
 - `unsafe` is `forbid`den crate-wide (see `Cargo.toml`). Keep it that way.

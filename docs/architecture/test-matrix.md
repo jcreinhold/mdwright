@@ -108,8 +108,8 @@ handling rather than wrapping product calls in `catch_unwind`. Findings are comm
 
 ## Production soak
 
-`cargo xtask production-soak --corpus-root /path/to/kan` runs parser, lint, format-validation, idempotence, and
-fmt-check checks over the Kan corpus from `crates/mdwright/benches/corpus.list` plus representative external Markdown
+`cargo xtask production-soak --corpus-root <path>` runs parser, lint, format-validation, idempotence, and
+fmt-check checks over the corpus enumerated by `crates/mdwright/benches/corpus.list` plus representative external Markdown
 fixtures. The command reports parse errors, validation failures, idempotence failures, fmt-check disagreements, rewrite
 candidate totals, maximum file size, and slowest files.
 

@@ -1,8 +1,8 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 //! Smoke test: every Markdown file in the first available real-doc
-//! corpus parses to a non-empty tree without panicking. In Kan this
-//! uses `docs/books/gentle-sga/i/`; in the standalone crate it falls
-//! back to checked-in test documentation.
+//! corpus parses to a non-empty tree without panicking. When the
+//! external corpus is available it is preferred; otherwise the test
+//! falls back to checked-in fixture documentation.
 
 use std::fs;
 use std::path::PathBuf;

@@ -190,19 +190,14 @@ Run the narrowest credible verification first. In this repo, prefer:
 cargo nextest run -p <affected-crate>
 ```
 
-Use `make test-kernel` or `make test-frontend` only when the change spans multiple crates or layers. For repo-specific
-patterns, open [kan-patterns.md](references/kan-patterns.md).
+Widen to a workspace-level test run only when the change spans multiple crates or layers. For repo-specific patterns,
+open [repo-patterns.md](references/repo-patterns.md).
 
 When the correct answer is a bench or profiling guardrail rather than a correctness test, stop and switch to
 `optimizing-rust-performance`. The handoff rules are in [perf-handoff.md](references/perf-handoff.md).
 
 ## Related Skills
 
-- `binding-structure-audit` for binders, substitution, weakening, or locally nameless laws
-- `partial-cbpv-kernel` for split-kernel changes with theory-sensitive tests
-- `effect-inference-theory` for effect inference obligations and boundary cases
-- `control-flow-linearity` for handler multiplicity and negative linearity tests
-- `homotopy-type-theory-cubical-models-univalence-and-w-types` for cubical laws and boundary behavior
-- `kernel-boundary-enforcement` when non-kernel tests must use wrappers, not internal terms
-- `theory-implementation-alignment` when the job is to compare spec to code before writing tests
 - `optimizing-rust-performance` when the missing guardrail is a bench or profile, not a correctness test
+- `deep-module-design` when the test problem is really a module-boundary problem (tests coupled to internals because
+    the interface is the wrong shape)

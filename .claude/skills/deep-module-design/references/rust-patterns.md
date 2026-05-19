@@ -302,7 +302,7 @@ ______________________________________________________________________
 
 **Complected:** Using a generic wrapper that discards known information.
 
-This is the most common complecting pattern in the kan codebase. When code knows it has a value type but wraps it in a
+This is a common complecting pattern in compiler-shaped codebases. When code knows it has a value type but wraps it in a
 generic `OpenTerm`, it braids the specific type information with a generic container — and every downstream consumer
 must re-discover what the code already knew.
 
@@ -324,7 +324,8 @@ fn process(term: OpenValueTerm<'tcx>) -> OpenValueTerm<'tcx> {
 }
 ```
 
-See the `kernel-boundary-enforcement` skill for the full set of split wrappers and when to use them.
+A typed split per value family (one `OpenValueTerm`, `OpenTypeTerm`, etc., rather than a single
+`OpenTerm<Kind>`) is usually the right move once the downstream code already knows the kind.
 
 ______________________________________________________________________
 

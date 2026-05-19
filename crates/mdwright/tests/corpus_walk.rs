@@ -1,4 +1,4 @@
-//! End-to-end idempotence over the full Kan documentation corpus.
+//! End-to-end idempotence over the full external documentation corpus.
 //!
 //! Gated on `MDWRIGHT_CORPUS_TEST=1` so the default `cargo test` run
 //! stays self-contained — the corpus lives outside the crate and is
@@ -24,15 +24,16 @@ fn workspace_root() -> PathBuf {
 
 /// Resolve the root of the documentation corpus referenced by `corpus.list`.
 ///
-/// Order: `MDWRIGHT_CORPUS_ROOT` env var, then a sibling `kan` checkout
-/// next to this crate. Returns `None` when no candidate is usable so the
-/// opt-in test can skip with a clear message rather than panic.
+/// Order: `MDWRIGHT_CORPUS_ROOT` env var, then a sibling `mdwright-corpus`
+/// directory next to this checkout. Returns `None` when no candidate is
+/// usable so the opt-in test can skip with a clear message rather than
+/// panic.
 fn corpus_root() -> Option<PathBuf> {
     if let Some(v) = std::env::var_os("MDWRIGHT_CORPUS_ROOT") {
         let p = PathBuf::from(v);
         return p.join("docs").join("books").is_dir().then_some(p);
     }
-    let sibling = workspace_root().parent()?.join("kan");
+    let sibling = workspace_root().parent()?.join("mdwright-corpus");
     sibling.join("docs").join("books").is_dir().then_some(sibling)
 }
 
@@ -55,8 +56,8 @@ fn idempotent_over_corpus() {
     let Some(root) = corpus_root() else {
         eprintln!(
             "skipping; set MDWRIGHT_CORPUS_ROOT to a directory containing the \
-             corpus paths listed in benches/corpus.list (or place a `kan` \
-             checkout next to this crate)",
+             corpus paths listed in benches/corpus.list (or place a \
+             `mdwright-corpus` checkout next to this crate)",
         );
         return;
     };

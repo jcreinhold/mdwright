@@ -358,8 +358,7 @@ polymorphism\* is the proof analogue of reflexive abstraction. Tao's rule for le
 easy to prove"\* — is "the cost is the interface, not the implementation" in proof clothing.
 
 For substantive guidance, load `writing-mathematical-proofs` for the philosophy and cross-language structured-proof
-discipline, or `translating-proofs-to-lean4` for the Lean tactical apparatus (`have` / `suffices` / `calc`, the
-Lamport-primitive ↔ Lean-tactic mapping, and "tactic soup" defaults).
+discipline.
 
 ## Before Declaring Done
 
@@ -390,7 +389,7 @@ is ready:
 **Language gate:**
 
 - Rust: `cargo clippy -p <crate>` and `cargo nextest run -p <crate>`.
-- Lean 4: run `make lean-build` in the Lean checkout. The `lean-lsp` MCP tools (`lean_build`,
+- Lean 4: `lake build` in the Lean package. The `lean-lsp` MCP tools (`lean_build`,
     `lean_diagnostic_messages`, `lean_goal`) are the fast inner loop during iteration.
 
 If any box doesn't tick, the design isn't done — fix the design, don't relax the box.
@@ -421,19 +420,7 @@ Pick by what the boundary is _for_, not by what language the file is in.
 
 - `dead-code-removal` — when the primary problem is dead surface area, not design.
 - `mathematical-structure-design` — when the module boundary also encodes algebraic structure.
-
-Rust-side neighbors:
-
-- `kernel-boundary-enforcement` — when the boundary is a trust/safety boundary, not just a design issue.
 - `ir-architecture-design` — when designing a new IR from scratch, not refactoring an existing module.
-
-Lean-side neighbors:
-
 - `writing-mathematical-proofs` — when the boundary in question is a theorem-and-its-proof rather than a code module.
     The same philosophy carries over (theorem statement = interface; lemma = function); the proof-side disciplines
     (Tao's "easy to use, not easy to prove"; Lamport's hierarchical method; Leron's level test) live there.
-- `translating-proofs-to-lean4` — Lean proof-engineering discipline (mathlib search, MCP tooling, tactic hygiene) and
-    the Lean tactical apparatus for structured proofs (`have` / `suffices` / `calc`, the Lamport-primitive ↔ Lean-tactic
-    mapping). Load alongside this skill when the change involves both. Lives in the Lean-side sibling repo.
-- `optimizing-lean-performance` — when reshaping a Lean module is motivated by elaboration or build cost. Lives in the
-    Lean-side sibling repo.

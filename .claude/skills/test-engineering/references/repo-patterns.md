@@ -1,4 +1,4 @@
-# Kan Patterns
+# Repo Patterns
 
 ## Preferred verification commands
 
@@ -8,9 +8,8 @@ Common commands:
 
 ```bash
 cargo nextest run -p <crate>
-make test-kernel
-make test-frontend
-make rust-test
+cargo nextest run -p <crate> --test <suite>
+cargo nextest run --workspace
 ```
 
 ## Common test locations
@@ -19,12 +18,12 @@ make rust-test
 - unit tests: inline `mod tests`
 - benches: `benches/`
 
-## Common Kan test shapes
+## Common test shapes
 
-- kernel math: laws, under-binder coverage, negative theory boundaries
-- registry/storage: roundtrip, ordering, identity, conflict detection
+- core algorithms / data structures: laws, boundary cases, negative theory boundaries
+- registry / storage: roundtrip, ordering, identity, conflict detection
 - pipeline passes: preservation and semantic equivalence
-- CLI/tooling: visible behavior and persisted state
+- CLI / tooling: visible behavior, exit status, persisted state
 
 ## Prefer nearby authorities
 

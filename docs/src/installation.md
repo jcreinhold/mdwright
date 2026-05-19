@@ -1,6 +1,18 @@
 # Installation
 
-mdwright has no runtime dependencies. Pick whichever channel matches your environment.
+mdwright has no runtime dependencies — it ships as a single binary. Pick whichever channel matches your environment.
+
+## One-line install (recommended)
+
+No Rust toolchain required. The cargo-dist shell installer pulls the prebuilt binary for your platform from the latest
+release and places it on your `$PATH`:
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/jcreinhold/mdwright/releases/latest/download/mdwright-installer.sh | sh
+```
+
+Supported targets: Linux x86_64, macOS aarch64 (see [Platform support](#platform-support) below).
 
 ## From crates.io
 
@@ -8,23 +20,24 @@ mdwright has no runtime dependencies. Pick whichever channel matches your enviro
 cargo install mdwright
 ```
 
-Requires Rust 1.91 or later (the MSRV is enforced in CI). The install drops a single binary,
-`mdwright`, on your `$PATH`. Rust integrations use the component crates directly:
-`mdwright-document`, `mdwright-format`, `mdwright-lint`, `mdwright-config`, `mdwright-lsp`, and
-`mdwright-math`.
+Requires Rust 1.91 or later (the MSRV is enforced in CI). The install drops a single binary, `mdwright`, on your
+`$PATH`. Rust integrations depend on the component crates directly — see [Public API surface](reference/public-api.md)
+for the roster and what each owns.
 
-## Prebuilt binary
+## Via cargo-binstall
 
-`cargo-binstall` pulls the GitHub-release tarball for your target and falls back to a source build
-if no prebuilt binary is available:
+`cargo-binstall` pulls the GitHub-release tarball for your target and falls back to a source build if no prebuilt binary
+is available:
 
 ```sh
 cargo binstall mdwright
 ```
 
-Or download a `.tar.xz` directly from the
-[GitHub releases page](https://github.com/jcreinhold/mdwright/releases) and place the `mdwright`
-binary on your `$PATH`.
+## Release tarball
+
+Download a `.tar.xz` directly from the [GitHub releases page](https://github.com/jcreinhold/mdwright/releases) and
+place the `mdwright` binary on your `$PATH`. Useful for air-gapped environments or when you want to pin a specific build
+artifact.
 
 ## Building from a clone
 
@@ -35,9 +48,10 @@ cargo build --release -p mdwright
 ./target/release/mdwright --help
 ```
 
-`cargo nextest run` exercises the full test suite (golden snapshots, GFM spec runner, property
-tests). `cargo bench` runs the Criterion benches; `cargo xtask doc-rules --check` and `cargo xtask
-doc-cli --check` verify that the auto-generated documentation pages are up to date.
+`cargo nextest run` exercises the full test suite (golden snapshots, GFM spec runner, property tests). `cargo bench`
+runs the Criterion benches; `cargo xtask doc-rules --check` and `cargo
+xtask doc-cli --check` verify that the
+auto-generated documentation pages are up to date.
 
 ## Platform support
 

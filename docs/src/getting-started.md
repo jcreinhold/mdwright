@@ -23,8 +23,6 @@ The Euler identity, $e^{i\pi} + 1 = 0$, is famous.
 Here is some code:
 ```
 
-(Yes, that last code fence is unclosed on purpose.)
-
 ## Lint
 
 ```sh
@@ -87,9 +85,10 @@ Re-run `mdwright check`. Output is empty: the file is clean.
 mdwright fmt README.md
 ```
 
-`fmt` rewrites the file in place. Run `git diff` (in a real project) to see what changed. The defaults: ATX headings,
-dash list markers, tight lists, no trailing whitespace, hard-wrap at 100 columns. Display math, inline math, and fenced
-code blocks are preserved verbatim.
+`fmt` rewrites the file in place. Run `git diff` (in a real project) to see what changed. The defaults preserve source
+style — emphasis delimiters, list markers, thematic breaks, line wrap — so the diff is usually small. Display math,
+inline math, and fenced code blocks pass through verbatim. Opt in to canonicalisation per knob in `.mdwright.toml`; see
+[Formatter policy](format/policy.md) and [Style knobs](format/style.md).
 
 ## Configure one rule
 

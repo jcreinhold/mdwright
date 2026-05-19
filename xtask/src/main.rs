@@ -66,7 +66,7 @@ enum Command {
     },
     /// Run parser/lint/format/idempotence checks over the release corpus.
     ProductionSoak {
-        /// Kan checkout root containing paths from `crates/mdwright/benches/corpus.list`.
+        /// Corpus root containing paths from `crates/mdwright/benches/corpus.list`.
         #[arg(long)]
         corpus_root: PathBuf,
     },

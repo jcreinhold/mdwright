@@ -1,49 +1,44 @@
 # Math rendering
 
-mdwright does not typeset math. It preserves math syntax in your source so a downstream renderer — KaTeX, MathJax,
-mkdocs-material's math plugin, jupyter-book — can do the actual rendering. The `--math-render` flag controls the shape
-of the math regions in mdwright's formatted output so the downstream renderer recognises them.
+mdwright does not typeset math. It shapes math regions so a downstream renderer — KaTeX, MathJax,
+mkdocs-material's math plugin, jupyter-book — can do the typesetting. `--math-render` chooses the
+shape.
 
-For *what* mdwright treats as math, see [Math regions](math-regions.md). This page is about *how those regions are
-emitted*.
+For *what* mdwright treats as math, see [Math regions](math-regions.md). This page is about *how
+those regions are emitted*.
 
-## The three modes
+## The two modes
 
-| Mode | Behaviour |
-| --- | --- |
-| `none` (default) | Pass math regions through verbatim. |
-| `commonmark-katex` | Same emission as `none`, but greppable as an intent signal in build logs and CI output. |
-| `dollar` | Rewrite `\[ … \]` to `$$ … $$` and `\( … \)` to `$ … $`. LaTeX environments are not rewritten. |
+| Mode      | Behaviour                                                                    |
+| --------- | ---------------------------------------------------------------------------- |
+| `none`    | Pass math regions through verbatim. Default.                                 |
+| `dollar`  | Rewrite `\[ … \]` to `$$ … $$` and `\( … \)` to `$ … $`. Environments stay.  |
 
-The default is `none` — mdwright never rewrites math by surprise.
+A third value, `commonmark-katex`, is a documentation alias: the behaviour matches `none` exactly,
+but the name leaves a greppable signal in CI logs that the build expects KaTeX downstream.
 
 ### When to use which
 
-- **`none`** is right for most projects. Both KaTeX (via the `mhchem`/`auto-render` config) and MathJax v3's
-    auto-renderer recognise `\[ … \]` and `\( … \)` directly. mkdocs-material's math plugin, jupyter-book, and Pelican
-    all work out of the box.
-- **`commonmark-katex`** is functionally identical to `none`. Use it in CI when you want grep / log search to confirm
-    "yes, this build expects KaTeX downstream" — the mode name leaves a trace.
-- **`dollar`** is for pipelines that expect Pandoc-style `$` delimiters. The rewrite is one-directional: `\[ … \]`
-    becomes `$$ … $$`, `\( … \)` becomes `$ … $`. Source already in dollar form passes through unchanged. LaTeX
-    environments (`\begin{align*} … \end{align*}`) are left alone — there is no dollar form of an environment.
+- **`none`** fits most projects. KaTeX (via `auto-render`), MathJax v3's auto-renderer,
+  mkdocs-material's math plugin, jupyter-book, and Pelican all recognise `\[ … \]` and `\( … \)`
+  out of the box.
+- **`dollar`** fits Pandoc-style pipelines that expect `$` delimiters. The rewrite is
+  one-directional: `\[` becomes `$$`, `\(` becomes `$`, source already in dollar form passes
+  through unchanged, and LaTeX environments stay environments (there is no dollar form of
+  `\begin{align*}`).
 
 ## CLI and config
-
-On the command line, the flag attaches to `mdwright fmt`:
 
 ```sh,no-check
 mdwright fmt --math-render=dollar path/to/notes.md
 ```
-
-In `.mdwright.toml`:
 
 ```toml,no-check
 [fmt.math]
 render = "dollar"  # or "none", "commonmark-katex"
 ```
 
-The CLI flag overrides the config file. Both fall back to `MathRender::None` when unset.
+The CLI flag overrides the config file; both fall back to `MathRender::None`.
 
 ## Inspecting the rendered HTML
 
@@ -54,16 +49,16 @@ mdwright render notes.md > notes.html
 mdwright render --math-render=dollar notes.md
 ```
 
-This is a diagnostic surface, not a production renderer. mdwright's HTML emitter does not enable pulldown-cmark's math
-extension — math regions land in the HTML as plain text in whatever delimiter form the formatter produced. Feed that
-HTML through KaTeX, MathJax, or your static-site generator's math plugin to see the actual typeset output.
+This is a diagnostic surface, not a production renderer. mdwright's HTML emitter does not enable
+pulldown-cmark's math extension — math regions land in the HTML as plain text in whatever
+delimiter form the formatter produced. Feed that HTML through KaTeX, MathJax, or your static-site
+generator's math plugin to see the actual typeset output.
 
-## The HTML-equivalence gate
+## The gate under `dollar` mode
 
-`mdwright fmt` runs every reformat through an HTML-equivalence gate that catches accidental semantic drift. The
-straightforward version of that gate compares the source's HTML against the formatted output's HTML; under
-`--math-render=dollar`, that comparison would always diverge, because the formatter intentionally rewrites math.
-
-The gate's actual contract is *idempotence-on-mode*: formatting the output a second time with the same options must
-produce the same canonical event stream. Round-1-to-round-2 divergence is still a hard failure. See
-`mdwright_format::format_validated` for the validating formatter entry point.
+The HTML-equivalence gate in [Round-trip safety](round-trip-safety.md) compares pre-format HTML
+against post-format HTML. Under `--math-render=dollar` that comparison would always diverge,
+because the formatter intentionally rewrites math. The gate's actual contract is
+*idempotence-on-mode*: formatting the output a second time with the same options must produce the
+same canonical event stream. Round-1-to-round-2 divergence is still a hard failure. See
+`mdwright_format::format_validated` for the entry point.

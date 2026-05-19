@@ -31,15 +31,16 @@ fn workspace_root() -> PathBuf {
 
 /// Resolve the root of the documentation corpus referenced by `corpus.list`.
 ///
-/// Order: `MDWRIGHT_CORPUS_ROOT` env var, then a sibling `kan` checkout
-/// next to this crate (the common local layout: `~/Code/mdwright` next to
-/// `~/Code/kan`). Panics with a setup hint if neither is found.
+/// Order: `MDWRIGHT_CORPUS_ROOT` env var, then a sibling `mdwright-corpus`
+/// directory next to this checkout (the common local layout:
+/// `~/Code/mdwright` next to `~/Code/mdwright-corpus`). Panics with a
+/// setup hint if neither is found.
 fn corpus_root() -> PathBuf {
     if let Some(v) = std::env::var_os("MDWRIGHT_CORPUS_ROOT") {
         return PathBuf::from(v);
     }
     if let Some(parent) = workspace_root().parent() {
-        let sibling = parent.join("kan");
+        let sibling = parent.join("mdwright-corpus");
         if sibling.join("docs").join("books").is_dir() {
             return sibling;
         }

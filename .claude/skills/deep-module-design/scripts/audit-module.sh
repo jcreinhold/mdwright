@@ -23,8 +23,8 @@ if [ $# -lt 1 ]; then
 	echo "Usage: $0 <crate-or-module-or-lean-path>"
 	echo ""
 	echo "Examples:"
-	echo "  $0 crates/kernel/core-ast"
-	echo "  $0 crates/frontend/elaboration/src/resolve.rs"
+	echo "  $0 crates/mdwright-document"
+	echo "  $0 crates/mdwright/src/cli.rs"
 	exit 2
 fi
 

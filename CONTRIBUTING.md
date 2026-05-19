@@ -55,7 +55,7 @@ maintainers will.
 
 ## House rules worth knowing
 
-- No backward compatibility shims — mdwright has one consumer (Kan docs); delete old paths rather than deprecate them.
+- No backward compatibility shims — mdwright is pre-1.0 with a single primary consumer; delete old paths rather than deprecate them.
 - `unsafe` is `forbid`den crate-wide. Keep it that way.
 - Add fixtures before code for block-level formatter work (`tests/golden_block/` and friends).
 - For fuzz-found bugs, land the minimised repro under `tests/regressions/` in the same change as the fix.

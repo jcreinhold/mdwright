@@ -1,6 +1,6 @@
 # mdwright
 
-A math-resilient Markdown linter and round-trip formatter for Kan documentation.
+A math-resilient Markdown linter and round-trip formatter for technical writing.
 
 ## Read the Nearest Guide
 
@@ -34,7 +34,7 @@ There is no Makefile. Drive the workspace through `cargo` directly:
 - `cargo clippy --workspace --all-targets -- -D warnings` — lint at the level the workspace `[lints]` block expects.
 - `cargo fmt` — format.
 - `cargo bench -p mdwright --bench format_bench --bench lint_bench` — Criterion benches.
-- `cargo xtask production-soak --corpus-root /Users/jcreinhold/Code/kan` — release-oriented corpus soak.
+- `cargo xtask production-soak --corpus-root <PATH>` — release-oriented corpus soak (`<PATH>` is a directory of Markdown files; set via `MDWRIGHT_CORPUS_ROOT` or pass `--corpus-root`).
 
 Spec-coverage sweep: `cargo test --release -p mdwright --test gfm_spec gfm_spec_coverage -- --nocapture`.
 

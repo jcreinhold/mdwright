@@ -33,9 +33,8 @@ See https://example.com for the spec.
 <!-- mdwright: allow-end bare-url -->
 ```
 
-**Multiple rules.** Separate with commas: `<!-- mdwright: allow bare-url, latex-command -->`.
-
-**All rules.** Use the literal `all` (rarely the right choice): `<!-- mdwright: allow all -->`.
+Separate multiple rules with commas: `<!-- mdwright: allow bare-url, latex-command -->`. Use the
+literal `all` to silence every rule (rarely the right choice): `<!-- mdwright: allow all -->`.
 
 ## Auditing what you have silenced
 
@@ -43,16 +42,16 @@ See https://example.com for the spec.
 mdwright check --no-suppress .
 ```
 
-ignores every suppression marker and reports the full diagnostic set. Use this to spot-check that you are not
-suppressing something that became a real bug after a refactor.
+ignores every suppression marker and reports the full diagnostic set. Use this to find
+suppressions that no longer correspond to a real diagnostic.
 
-`mdwright check` itself reports unused suppressions: a `<!-- mdwright: allow bare-url -->` that no longer applies
-(because the next block has no bare URLs) surfaces as an advisory so you can delete the marker.
+`mdwright check` itself reports unused suppressions: a `<!-- mdwright: allow bare-url -->` whose
+target block has no bare URLs surfaces as an advisory, so you can delete the marker.
 
-## Choosing suppression over disabling
+## Suppression vs. disabling
 
-A suppression marker is the right choice when you want a rule enabled project-wide and silenced at one location with a
-stated reason. Add a sibling HTML comment explaining why:
+Use a suppression marker when a rule is right project-wide but wrong at one location, and add a
+sibling HTML comment explaining why:
 
 ```markdown
 <!-- mdwright: allow bare-url -->
@@ -61,7 +60,7 @@ stated reason. Add a sibling HTML comment explaining why:
 See https://example.com for the spec.
 ```
 
-When you find yourself suppressing the same rule in dozens of places, disable it in configuration:
+When the same suppression appears in dozens of places, disable the rule in configuration instead:
 
 ```toml,no-check
 [lint]

@@ -42,8 +42,8 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
   leaking TOML, terminal, or editor dependencies into parser/format/lint users.
 - Internal workspace dependencies are versioned as well as path-based so every publishable crate can be packaged.
 - Added a release-oriented `cargo xtask production-soak --corpus-root <path>` gate that runs parse, lint, format
-  validation, idempotence, fmt-check comparison, and aggregate rewrite metrics over the Kan corpus and representative
-  external Markdown fixtures.
+  validation, idempotence, fmt-check comparison, and aggregate rewrite metrics over a primary documentation corpus and
+  representative external Markdown fixtures.
 
 ### Performance
 

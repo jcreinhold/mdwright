@@ -4,34 +4,28 @@ The design intent. Read this before you change document recognition, linting, or
 
 ## Workspace boundaries
 
-mdwright is split by the knowledge each component hides:
+Each crate hides a different kind of knowledge. Read the layers top-down as a dependency stack —
+each depends only on layers below it:
 
 ```text
-mdwright-math
-      ^
-      |
-mdwright-document
-      ^            ^
-      |            |
-mdwright-format   mdwright-lint
-      ^             ^
-      |             |
-      +---- mdwright-config
-                  ^
-                  |
-       mdwright / mdwright-lsp
+Surfaces      mdwright (CLI)        mdwright-lsp
+Engines       mdwright-format       mdwright-lint
+Glue          mdwright-config
+Document      mdwright-document
+Math          mdwright-math
 ```
 
-- `mdwright-document` owns source coordinates, pulldown invocation, parse options, and recognised Markdown facts.
-- `mdwright-math` owns pure TeX/math scanning and normalisation.
-- `mdwright-format` owns formatting options and the transactional rewrite engine.
-- `mdwright-lint` owns diagnostics, rule execution, suppression, and safe fixes.
-- `mdwright-config` interprets user config files into document, format, and lint policy.
-- `mdwright` owns the command-line binary, file discovery, terminal output, and process exit policy.
-- `mdwright-lsp` owns editor-state delivery over LSP.
+- `mdwright-math` — pure TeX / math scanning and normalisation.
+- `mdwright-document` — source coordinates, pulldown invocation, parse options, recognised
+  Markdown facts.
+- `mdwright-config` — interprets user config files into document, format, and lint policy.
+- `mdwright-format` — formatting options and the transactional rewrite engine.
+- `mdwright-lint` — diagnostics, rule execution, suppression, safe fixes.
+- `mdwright` — the command-line binary: file discovery, terminal output, process exit policy.
+- `mdwright-lsp` — editor-state delivery over LSP.
 
-The repository root is a virtual workspace. There is no facade crate; Rust library users depend directly on the
-component crate that owns the capability they need.
+The repository root is a virtual workspace. There is no facade crate; library users depend
+directly on the crate that owns the capability they need.
 
 ## Document facts
 
@@ -79,13 +73,13 @@ a CSS class) but the test sees it.
 
 ## Where to look
 
-| Want to change…         | Edit…                                                   |
-| ----------------------- | ------------------------------------------------------- |
-| A lint rule             | `crates/mdwright-lint/src/stdlib/<rule>.rs` + its explanation |
-| Document recognition    | `crates/mdwright-document/src/`                         |
-| Math recognition        | `crates/mdwright-math/src/`                             |
-| Formatter rewrites      | `crates/mdwright-format/src/format/`                    |
-| Wrap algorithm          | `crates/mdwright-format/src/format/wrap_pass.rs`        |
-| Config schema           | `crates/mdwright-config/src/config.rs` + `xtask/src/config_docs.rs` |
-| CLI surface             | `crates/mdwright/src/cli.rs`                            |
-| LSP surface             | `crates/mdwright-lsp/src/lsp.rs`                        |
+| Want to change…      | Edit…                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| A lint rule          | `crates/mdwright-lint/src/stdlib/<rule>.rs` + its explanation      |
+| Document recognition | `crates/mdwright-document/src/`                                    |
+| Math recognition     | `crates/mdwright-math/src/`                                        |
+| Formatter rewrites   | `crates/mdwright-format/src/format/`                               |
+| Wrap algorithm       | `crates/mdwright-format/src/format/wrap_pass.rs`                   |
+| Config schema        | `crates/mdwright-config/src/config.rs` + `xtask/src/config_docs.rs` |
+| CLI surface          | `crates/mdwright/src/cli.rs`                                       |
+| LSP surface          | `crates/mdwright-lsp/src/lsp.rs`                                   |

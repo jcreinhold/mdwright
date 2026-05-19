@@ -32,8 +32,9 @@ use super::span::{AnyDelim, DisplayDelim, InlineDelim, MathBody, MathError, Math
 
 /// Which math delimiter pairs to recognise.
 ///
-/// Defaults match the Kan corpus convention. The dollar variants are
-/// opt-in because `$` collides with currency symbols in non-math prose.
+/// Defaults recognise `\(…\)`, `\[…\]`, and LaTeX environments. The
+/// dollar variants are opt-in because `$` collides with currency
+/// symbols and shell prompts in non-math prose.
 #[derive(Copy, Clone, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct MathConfig {

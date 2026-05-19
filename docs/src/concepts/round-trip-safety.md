@@ -1,44 +1,40 @@
 # Round-trip safety
 
-`mdwright fmt` is a *semantic* rewriter, not a string-level one. The contract is that the rendered HTML of the output
-is byte-identical to the rendered HTML of the input, modulo whitespace inside paragraphs that does not change word
-boundaries. The gate is enforced by the `gfm_spec_snapshot` test on every commit: every input where the gate fails is
-either fixed at the root or recorded in the [deviation table](../deviations.md) with a one-line reason.
+`mdwright fmt` is a *semantic* rewriter, not a string-level one. The contract: the rendered HTML
+of the output matches the rendered HTML of the input, modulo whitespace inside a paragraph that
+does not change word boundaries. The `gfm_spec_snapshot` test enforces it on every commit. Any
+input that fails the gate is either fixed at the root or recorded in the
+[deviation table](../deviations.md) with a one-line reason.
 
 ## The HTML-equivalence gate
 
-For each document mdwright formats, the test pipeline runs:
+For every document mdwright formats, the gate runs:
 
-1. Parse the original input to a `pulldown-cmark` event stream.
-2. Render that stream to HTML.
-3. Format the input.
-4. Parse the formatted output to a `pulldown-cmark` event stream.
-5. Render that stream to HTML.
-6. Assert (1) and (3) yield the same HTML, ignoring whitespace-only differences inside text paragraphs.
+1. Render the input to HTML.
+2. Format the input, then render the output to HTML.
+3. Assert (1) and (2) match, ignoring whitespace-only differences inside text paragraphs.
 
-If the assertion fails, the formatter has changed semantics. There is no exception path: either the formatter is fixed
-or the input lands on the deviation list with a documented reason.
+"Render" here means parse with `pulldown-cmark` and emit HTML from the event stream, so a parse
+divergence is caught in the same comparison. If the assertion fails the formatter has changed
+semantics; there is no exception path.
 
 ## What "semantic" buys you
 
-Concretely: mdwright will refuse to rewrite a paragraph if doing so would split a sentence across a list item boundary;
-it will not collapse two blank lines into one inside a fenced code block; it will not reflow display math because
-reflowing math is a category error. The cost is that some syntactically-equivalent rewrites are *not* applied — a setext
-heading is left as-is rather than converted to ATX when the result would change the HTML id-anchor an external link
-points at.
+Some syntactically-equivalent rewrites are not applied. The clearest case: mdwright leaves a
+setext heading as-is rather than converting it to ATX when the conversion would change the HTML
+id-anchor that external links point at. The cost of round-trip safety is that the formatter
+sometimes declines a clean-up it could otherwise perform.
 
 ## Reading deviation errors
 
-When the gate trips during development, the test output names the input file, the formatted output, and the divergent
-line of HTML. The typical fix is in one of three places:
+When the gate trips during development, the test output names the input file, the formatted
+output, and the divergent line of HTML. The fix lives in one of three places:
 
 1. **Document recognition** misclassified a span — fix the document facts, not the formatter.
-2. **A formatter rewrite producer** proposed a stale or over-broad byte edit — fix the candidate owner/range or the
-   verification signature, not the caller.
-3. **A new spec case** the existing rules do not handle — extend the recognised facts, then the formatter or linter.
-
-Workarounds in the formatter that paper over recogniser bugs are explicitly out of scope; the
-[AGENTS.md](https://github.com/jcreinhold/mdwright/blob/main/AGENTS.md#discipline) discipline document forbids them.
+2. **A rewrite producer** proposed a stale or over-broad byte edit — fix the candidate
+   owner/range or the verification signature, not the caller.
+3. **A new spec case** the existing rules do not handle — extend the recognised facts, then the
+   formatter or linter.
 
 ## See also
 

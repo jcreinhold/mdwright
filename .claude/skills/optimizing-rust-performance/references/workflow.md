@@ -6,12 +6,11 @@ Use this order. Do not skip ahead.
 
 Pick the workload that matches the user-visible complaint.
 
-- Parser or syntax-only suspicion: use parser-only or parse-stage workloads.
-- Typechecker, evaluator, normalization, or unification suspicion: start with the nearest crate bench, then confirm with
-    a broader frontend workload if the change may affect compile latency.
-- End-to-end compile throughput suspicion: use `crates/pipeline/build/benches/pipeline_bench.rs` or the `profiling/`
-    binaries first.
-- Runtime or interpreter suspicion: use `crates/execution/interpreter/benches/interpreter.rs` or backend benches.
+- Parser or syntax-only suspicion: use parser-only or parse-stage benches.
+- Mid-pipeline suspicion (typecheck, analysis, normalization, traversal): start with the nearest crate bench, then
+    confirm with a broader workload if the change may affect end-to-end latency.
+- End-to-end throughput suspicion: use a pipeline or corpus bench, or a shared profiling binary if the project has one.
+- Runtime, interpreter, or codegen suspicion: use the runtime/backend benches close to the symptom.
 
 Prefer existing workloads over inventing new ones. If nothing credible exists, add one before changing code.
 
@@ -20,50 +19,36 @@ Prefer existing workloads over inventing new ones. If nothing credible exists, a
 Use optimized builds for performance claims.
 
 ```bash
-cargo bench -p kan-core --bench normalization_bench
-cargo bench -p kan-typecheck-infer --bench unification_bench
-cargo bench -p kan-build --bench pipeline_bench
+cargo bench -p <crate> --bench <bench_name>
 ```
 
-For broader compiler profiling, Kan already has a shared profiling crate:
+If the project has a shared profiling binary or workspace crate for end-to-end profiling, use it for broader claims:
 
 ```bash
 export RUSTFLAGS="-C target-cpu=native -C force-frame-pointers=yes"
-
-cargo run --profile profiling -p kan-profiling --bin collect_baseline_quick
-cargo run --profile profiling -p kan-profiling --bin collect_baseline_full
-
-cargo run --profile profiling -p kan-profiling --bin profile_frontend
-cargo run --profile profiling -p kan-profiling --bin profile_full_build
-cargo run --profile profiling -p kan-profiling --bin profile_interactive
-cargo run --profile profiling -p kan-profiling --bin profile_parser
+cargo run --profile profiling -p <profiling_crate> --bin <workload>
 ```
 
-Use `collect_baseline_quick` for iteration and `collect_baseline_full` when allocation pressure matters.
+Pick the lightest workload that exercises the suspected hot path; reach for fuller workloads only when allocation
+pressure or end-to-end latency claims are in question.
 
 ## 3. Localize The Bottleneck
 
 Match tool to symptom.
 
-- CPU time hot path: Criterion, `profile_*`, `./profiling/scripts/profile.sh`, `cargo flamegraph`, or
-    `./profiling/scripts/profile_with_samply.sh`.
-- Allocation rate or retained heap suspicion: `collect_baseline_full` or
-    `crates/frontend/typecheck-infer/benches/dhat_profile.rs`.
+- CPU time hot path: Criterion, `cargo flamegraph`, samply, or project profiling scripts.
+- Allocation rate or retained heap suspicion: DHAT (`dhat-heap` feature in Criterion), allocation-aware baseline runs.
 - Cache/layout suspicion: inspect sizes, pointer chasing, key choice, and hot/cold field mix after profiling points
     there.
 - Compile-time code size suspicion in codegen-heavy crates: consider `cargo llvm-lines` only after runtime or throughput
     profiles point at LLVM/codegen work.
 
-Useful commands:
+Useful Criterion commands:
 
 ```bash
-./profiling/scripts/profile.sh frontend
-./profiling/scripts/profile.sh full-build
-./profiling/scripts/profile_with_samply.sh interactive
-
-cargo bench -p kan-typecheck-infer --bench unification_bench -- --save-baseline before
-cargo bench -p kan-typecheck-infer --bench unification_bench -- --baseline before
-cargo bench -p kan-typecheck-infer --bench unification_bench -- --profile-time 10
+cargo bench -p <crate> --bench <bench_name> -- --save-baseline before
+cargo bench -p <crate> --bench <bench_name> -- --baseline before
+cargo bench -p <crate> --bench <bench_name> -- --profile-time 10
 ```
 
 Use `--profile-time` when attaching a profiler to Criterion benches so Criterion's own sampling logic does not dominate
@@ -111,6 +96,6 @@ Stop and collect better data when:
 - "This should be faster" with no workload.
 - Reporting only percent speedup with no raw numbers.
 - Measuring debug builds.
-- Benchmarking term construction when the complaint is normalization, conversion, or unification.
+- Benchmarking setup or construction when the complaint is hot-path work.
 - Declaring victory from one bench while pipeline throughput or memory gets worse.
 - Changing data structure, allocator, or hasher without characterizing keys, sizes, or lifetime.
