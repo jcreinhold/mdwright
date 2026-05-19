@@ -30,14 +30,14 @@ sometimes declines a clean-up it could otherwise perform.
 When the gate trips during development, the test output names the input file, the formatted
 output, and the divergent line of HTML. The fix lives in one of three places:
 
-1. **Document recognition** misclassified a span — fix the document facts, not the formatter.
-2. **A rewrite producer** proposed a stale or over-broad byte edit — fix the candidate
+1. **Document recognition** misclassified a span—fix the document facts, not the formatter.
+2. **A rewrite producer** proposed a stale or over-broad byte edit—fix the candidate
    owner/range or the verification signature, not the caller.
-3. **A new spec case** the existing rules do not handle — extend the recognised facts, then the
+3. **A new spec case** the existing rules do not handle—extend the recognised facts, then the
    formatter or linter.
 
 ## See also
 
-- [Deviations](../deviations.md) — every documented exception, with rationale.
-- [Architecture](../extending/architecture.md) — the two-IR design that makes the gate enforceable.
-- [Lint vs. format](lint-vs-format.md) — the formatter never relies on linter output.
+- [Deviations](../deviations.md)—every documented exception, with rationale.
+- [Architecture](../extending/architecture.md)—the two-IR design that makes the gate enforceable.
+- [Lint vs. format](lint-vs-format.md)—the formatter never relies on linter output.

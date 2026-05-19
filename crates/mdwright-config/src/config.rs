@@ -24,7 +24,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use mdwright_document::{ExtensionOptions, MystOptions, PandocOptions, ParseOptions};
+use mdwright_document::{ExtensionOptions, GfmOptions, MystOptions, PandocOptions, ParseOptions};
 use mdwright_format::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
     OrderedListStyle, Placement, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
@@ -355,6 +355,8 @@ impl From<HeadingAttrsSchema> for HeadingAttrsStyle {
     reason = "shape mirrors `ExtensionOptions`; the `_lists` postfix matches the TOML key convention"
 )]
 struct ExtensionsSchema {
+    #[serde(default)]
+    gfm: Option<GfmSchema>,
     #[serde(default, rename = "definition-lists")]
     definition_lists: Option<bool>,
     #[serde(default, rename = "abbreviation-lists")]
@@ -373,12 +375,29 @@ impl From<ExtensionsSchema> for ExtensionOptions {
     fn from(s: ExtensionsSchema) -> Self {
         let default = Self::default();
         Self {
+            gfm: s.gfm.map_or(default.gfm, GfmOptions::from),
             definition_lists: s.definition_lists.unwrap_or(default.definition_lists),
             abbreviation_lists: s.abbreviation_lists.unwrap_or(default.abbreviation_lists),
             heading_attribute_lists: s.heading_attribute_lists.unwrap_or(default.heading_attribute_lists),
             block_attribute_lists: s.block_attribute_lists.unwrap_or(default.block_attribute_lists),
             myst: s.myst.map_or(default.myst, MystOptions::from),
             pandoc: s.pandoc.map_or(default.pandoc, PandocOptions::from),
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GfmSchema {
+    #[serde(default, rename = "bare-url-autolinks")]
+    bare_url_autolinks: Option<bool>,
+}
+
+impl From<GfmSchema> for GfmOptions {
+    fn from(s: GfmSchema) -> Self {
+        let default = Self::default();
+        Self {
+            bare_url_autolinks: s.bare_url_autolinks.unwrap_or(default.bare_url_autolinks),
         }
     }
 }
@@ -849,6 +868,9 @@ exclude = ["docs/generated/**"]
 definition-lists = false
 heading-attribute-lists = false
 
+[parse.extensions.gfm]
+bare-url-autolinks = false
+
 [parse.extensions.myst]
 comments = false
 
@@ -857,6 +879,7 @@ inline-attribute-spans = false
 ",
         )?;
         let extensions = cfg.parse_options().extensions();
+        assert!(!extensions.gfm.bare_url_autolinks);
         assert!(!extensions.definition_lists);
         assert!(!extensions.heading_attribute_lists);
         assert!(!extensions.myst.comments);

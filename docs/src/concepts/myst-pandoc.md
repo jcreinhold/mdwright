@@ -2,7 +2,7 @@
 
 MyST (Markedly Structured Text) is the substrate for jupyter-book and Sphinx-MyST. Pandoc has
 overlapping syntax for the same shapes. mdwright recognises the common constructs from both
-flavours and preserves their bytes verbatim — it does not expand directives, render roles, or
+flavours and preserves their bytes verbatim—it does not expand directives, render roles, or
 resolve substitutions. The downstream renderer (Sphinx, jupyter-book, Pandoc) does that work.
 
 Like [Markdown extensions](extensions.md) and [math rendering](math-rendering.md), recognition is
@@ -72,8 +72,8 @@ The figure caption text.
 :::
 ```
 
-Nested directives use opener / closer counts that increase outward — `::::` outside, `:::` inside
-— and mdwright preserves the nesting:
+Nested directives use opener / closer counts that increase outward—`::::` outside, `:::` inside
+—and mdwright preserves the nesting:
 
 ```markdown,no-check
 ::::{note}
@@ -141,7 +141,7 @@ literal text and survive untouched.
 ## What mdwright does not do
 
 Expansion, role rendering, substitution resolution, and directive-name validation are all the
-downstream renderer's job. A `:::{figure}` is emitted as `:::{figure}` — the image is not inlined
+downstream renderer's job. A `:::{figure}` is emitted as `:::{figure}`—the image is not inlined
 and the options are not rendered; `` {term}`Vector Space` `` stays as-is; `{{my-sub}}` is
 preserved even when the frontmatter declares a replacement; any directive name matching
 `[a-zA-Z0-9_-]+` is accepted, and an unknown name is downstream's problem.
@@ -154,5 +154,5 @@ without touching the MyST / Pandoc constructs the downstream renderer needs.
 Every MyST / Pandoc construct passes through the same idempotence-on-mode contract as the rest of
 the formatter; see [Round-trip safety](round-trip-safety.md). Verbatim preservation overlays
 satisfy it trivially as long as the recogniser classifies the same bytes the same way on both
-passes — and it does, since the scanner is fully deterministic over source bytes plus the
+passes—and it does, since the scanner is fully deterministic over source bytes plus the
 exclusion vectors (fenced code, inline code, HTML, math).

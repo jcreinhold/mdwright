@@ -27,17 +27,17 @@ See `docs/architecture/crate-boundaries.md` and `docs/architecture/parser-bounda
 
 There is no Makefile. Drive the workspace through `cargo` directly:
 
-- `cargo check --workspace --all-targets` — type-check everything.
-- `cargo nextest run --workspace --no-fail-fast` — run tests. For one suite use
+- `cargo check --workspace --all-targets`: type-check everything.
+- `cargo nextest run --workspace --no-fail-fast`: run tests. For one suite use
   `cargo nextest run -p mdwright --test gfm_spec`. Do not use `cargo test` unless a documented coverage command
   specifically requires it.
-- `cargo clippy --workspace --all-targets -- -D warnings` — lint at the level the workspace `[lints]` block expects.
-- `cargo fmt` — format.
-- `cargo bench -p mdwright --bench format_bench --bench lint_bench` — Criterion benches.
-- `cargo xtask production-soak --corpus-root <PATH>` — release-oriented corpus soak (`<PATH>` is a directory of Markdown files; set via `MDWRIGHT_CORPUS_ROOT` or pass `--corpus-root`).
-- `cargo xtask mdformat-parity --corpus-root <PATH> --corpus-name <NAME> --mdwright-config <PATH> --mdformat-config <PATH>` —
+- `cargo clippy --workspace --all-targets -- -D warnings`: lint at the level the workspace `[lints]` block expects.
+- `cargo fmt`: format.
+- `cargo bench -p mdwright --bench format_bench --bench lint_bench`: Criterion benches.
+- `cargo xtask production-soak --corpus-root <PATH>`: release-oriented corpus soak (`<PATH>` is a directory of Markdown files; set via `MDWRIGHT_CORPUS_ROOT` or pass `--corpus-root`).
+- `cargo xtask mdformat-parity --corpus-root <PATH> --corpus-name <NAME> --mdwright-config <PATH> --mdformat-config <PATH>`:
   compare mdwright output against mdformat with a checked classification table for intentional divergences.
-- `cargo xtask parser-audit --case-set all --ensure-tools --include-comrak` — compare mdwright's parser backend against
+- `cargo xtask parser-audit --case-set all --ensure-tools --include-comrak`: compare mdwright's parser backend against
   cmark-gfm expected/rendered HTML, with optional comrak diagnostics.
 
 Spec-coverage sweep: `cargo test --release -p mdwright --test gfm_spec gfm_spec_coverage -- --nocapture`.

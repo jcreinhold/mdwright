@@ -17,7 +17,7 @@ canonicalisation) and [Configuration](../configuration.md) for the full
 | `"underscore"` | Rewrite `*…*` to `_…_` when verification preserves the parse. |
 
 **Verification skips when:** the rewrite would change the parse of the enclosing paragraph
-window. The most common case is intraword underscore (`id_S`, `Hom_{cart}`) — pulldown
+window. The most common case is intraword underscore (`id_S`, `Hom_{cart}`)—pulldown
 already treats these as plain text under CM §6.2 rule 6, so no rewrite is proposed and
 nothing skips. Where rewrites *do* skip silently is in dense multi-delimiter runs
 (`*_*…*_*`-style chains) whose pairing depends on flanking neighbours; verification
@@ -56,7 +56,7 @@ strong = "underscore"
 
 **Atomic per list.** The pass rewrites every bullet in a list together, not bullet by
 bullet. Partial rewrites would split the list at the parse layer (mixed-marker lists are
-two adjacent lists in pulldown's view). Nested lists are treated independently — the
+two adjacent lists in pulldown's view). Nested lists are treated independently—the
 outer list and inner list each commit or skip.
 
 ```toml
@@ -71,7 +71,7 @@ list-marker = "dash"
 | `"preserve"` (default) | Each ordered list keeps its source numbering. `3. a / 5. b / 9. c` stays. |
 | `"consistent"` | Renumber so item `k` (0-indexed) becomes `start_num + k`, where `start_num` is the source's first item's number. `3. a / 5. b / 9. c` → `3. a / 4. b / 5. c`. |
 
-Atomic per list — every marker in the list updates together, or none does. The starting
+Atomic per list—every marker in the list updates together, or none does. The starting
 number is preserved (mirrors mdformat's behaviour); only the increment is canonicalised.
 
 ```toml
@@ -107,7 +107,7 @@ thematic-break = "dash"
 Applies to both reference-link definitions (`[ref]: dest`) and inline link destinations
 (`[text](dest)`). Verification skips when the bare form contains whitespace, unbalanced
 parentheses, or other bytes that would prevent pulldown from parsing it as a bare
-destination — the angle-wrapped form is kept in those cases.
+destination—the angle-wrapped form is kept in those cases.
 
 ```toml
 [fmt.refs]

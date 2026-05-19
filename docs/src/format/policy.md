@@ -2,7 +2,7 @@
 
 mdwright's formatter has two responsibilities, in this order:
 
-## 1. Identity emit — preserve
+## 1. Identity emit—preserve
 
 Start with the user's source bytes. With every style knob at its default and `wrap = "keep"`, formatting returns those
 bytes unchanged except for the document-boundary policies: line endings, trailing newline handling, and end-of-line
@@ -13,7 +13,7 @@ synthesise Markdown for recognised structures.
 
 You opt out of preservation by setting the rewrite knobs below. There is no "semi-preserve" mode.
 
-## 2. Verified rewrites — opt-in
+## 2. Verified rewrites—opt-in
 
 The formatter crate collects style-canonicalisation and wrapping candidates, then applies them through one private
 transactional rewrite engine. Each candidate is owned by the current parsed document snapshot, ordered deterministically,
@@ -57,7 +57,7 @@ verification (e.g. intraword underscore that can't safely become asterisk).
 ## What the canonicalisation pass does NOT do
 
 - Does not rewrap prose (`wrap` is a separate knob; see [Configuration](../configuration.md)).
-- Does not change content semantics — every rewrite must reparse to the same canonical
+- Does not change content semantics—every rewrite must reparse to the same canonical
   event stream as the bytes it replaces, or it is skipped.
 - Does not expose rewrite candidates, snapshot ownership, or verification signatures as public API. Those details stay
   private to `mdwright-format`.

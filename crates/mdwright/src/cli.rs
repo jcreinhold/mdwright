@@ -43,7 +43,7 @@ use serde::Serialize;
 
 use crate::discover::discover_markdown;
 use mdwright_config::Config;
-use mdwright_document::{Document, LineIndex, ParseOptions, contains_rejected_control_chars, render_html};
+use mdwright_document::{Document, LineIndex, ParseOptions, contains_rejected_control_chars, render_html_with_options};
 use mdwright_format::{
     CheckpointTable, FmtOptions, FormatError, MathRender, format_document, format_range_with_checkpoints,
     format_validated,
@@ -114,7 +114,7 @@ struct Cli {
     /// Refuse files (or stdin payloads) that contain C0 control bytes
     /// other than TAB, LF, FF, and CR. `CommonMark` accepts these
     /// verbatim (it only substitutes NUL with U+FFFD), but their
-    /// presence is usually evidence the input is not Markdown — and
+    /// presence is usually evidence the input is not Markdown, and
     /// pulldown's silent NUL rewrite makes round-trip idempotence
     /// undefined on such inputs. Off by default; opt-in for callers
     /// (CI gates, docs pipelines) that prefer hard rejection.
@@ -146,7 +146,7 @@ enum Command {
     ///
     /// Pipes the formatted output through the same HTML renderer the
     /// `format_validated` gate uses. mdwright does not typeset math
-    /// itself — math regions land in the HTML as their source bytes
+    /// itself; math regions land in the HTML as their source bytes
     /// (or as `--math-render=dollar` rewrites, if requested) so a
     /// downstream `KaTeX` / `MathJax` runner can render them.
     Render(RenderArgs),
@@ -226,7 +226,7 @@ struct FmtArgs {
     /// The check parses both source and formatted output to HTML and
     /// refuses to write when they differ. Use this only if you have
     /// independent verification that the formatter is safe for the
-    /// input — for example, a CI pipeline that already runs the
+    /// input, for example, a CI pipeline that already runs the
     /// check elsewhere.
     #[arg(long)]
     no_validate: bool,
@@ -250,7 +250,7 @@ struct FmtArgs {
     range: Option<RangeArg>,
 
     /// Delimiter rewrite policy for math regions at emit time.
-    /// `none` (default) passes math through verbatim — today's
+    /// `none` (default) passes math through verbatim: today's
     /// behaviour. `commonmark-katex` is the same emission as `none`
     /// but greppable as an intent signal in build logs. `dollar`
     /// rewrites `\[…\]` to `$$ … $$` and `\(…\)` to `$ … $` for
@@ -423,7 +423,7 @@ fn run_render(args: &RenderArgs, config_path: Option<&std::path::Path>, policy: 
 
     let doc = Document::parse_with_options(&source, cfg.parse_options())?;
     let formatted = format_document(&doc, &opts);
-    let html = render_html(&formatted)?;
+    let html = render_html_with_options(&formatted, cfg.parse_options())?;
     let stdout = io::stdout();
     let mut out = stdout.lock();
     out.write_all(html.as_bytes())?;
@@ -490,7 +490,7 @@ fn closest_rule_name(available: &RuleSet, query: &str) -> Option<String> {
 }
 
 /// Return an error if `len` exceeds the configured cap. `cap == 0`
-/// means "no cap" — matches the `--max-input-bytes 0` escape hatch.
+/// means "no cap"; it matches the `--max-input-bytes 0` escape hatch.
 fn enforce_input_cap(label: &str, len: usize, cap: usize) -> Result<()> {
     if cap > 0 && len > cap {
         bail!(
@@ -527,7 +527,7 @@ fn enforce_input_policy(label: &str, source: &str, policy: InputPolicy) -> Resul
 /// runs after the read so the diagnostic mentions the original input.
 // Sequential stdin read; the lock guard is released as soon as the
 // I/O chain ends. Suppress the nursery hint that wants the guard
-// dropped a statement earlier — doing so would force splitting the
+// dropped a statement earlier; doing so would force splitting the
 // `take` chain across blocks for no actual contention.
 #[allow(clippy::significant_drop_tightening)]
 fn read_stdin_capped(buf: &mut String, policy: InputPolicy, label: &str) -> Result<()> {
@@ -977,9 +977,8 @@ fn resolve_config(explicit: Option<&std::path::Path>) -> Result<Config> {
 /// Note: this swaps in a fresh stdlib `InfoStringTypo` instance, so
 /// a downstream binary that registered its own implementation of the
 /// `info-string-typo` name would see it replaced with the stdlib
-/// version. That's an artifact of the current config-to-rule wiring
-/// — a proper `Configurable` trait extension is tracked for a later
-/// session. For the official binary the behaviour is unchanged.
+/// version. That's an artifact of the current config-to-rule wiring.
+/// For the official binary the behaviour is unchanged.
 fn apply_config_to_rules(rules: &mut RuleSet, cfg: &Config) -> Result<()> {
     if !cfg.extra_info_strings().is_empty() && rules.contains("info-string-typo") {
         let _removed = rules.remove("info-string-typo");
@@ -994,7 +993,7 @@ fn apply_config_to_rules(rules: &mut RuleSet, cfg: &Config) -> Result<()> {
 
 /// Build a `Gitignore` matcher from the configured patterns. The
 /// base is the directory containing the loaded `mdwright.toml`, so
-/// patterns are anchored to "the project root" — `docs/vendored/**`
+/// patterns are anchored to "the project root"; `docs/vendored/**`
 /// resolves the same way regardless of which subdirectory the user
 /// invokes `mdwright` from. When no config file is present (defaults
 /// case), `$PWD` is the base.
@@ -1073,7 +1072,7 @@ fn run_stdin(
 ///
 /// The first token decides the base set; subsequent tokens use `+`
 /// to add, `-` to remove. A bare name as the first token starts from
-/// `{<name>}`; subsequent bare names also start the set fresh — the
+/// `{<name>}`; subsequent bare names also start the set fresh. The
 /// CLI accepts comma-separated bare lists like
 /// `--rules unbalanced-backtick,adjacent-code-no-space` for
 /// convenience.
@@ -1342,8 +1341,8 @@ fn help_line_for(rules: &RuleSet, rule_name: &str) -> Option<String> {
     if body.is_empty() {
         return Some(rule.description().to_owned());
     }
-    // Take the first paragraph under "## What it does", or — if the
-    // template wasn't followed — the first non-heading paragraph.
+    // Take the first paragraph under "## What it does", or, if the
+    // template wasn't followed, the first non-heading paragraph.
     let mut lines = body.lines();
     while let Some(line) = lines.next() {
         let t = line.trim();

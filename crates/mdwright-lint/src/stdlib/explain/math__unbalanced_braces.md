@@ -1,6 +1,6 @@
 ## What it does
 
-Inside a math region, flags `{` and `}` whose depths do not balance — either an extra opening
+Inside a math region, flags `{` and `}` whose depths do not balance—either an extra opening
 brace with no matching close, or a stray `}`.
 
 ## Why

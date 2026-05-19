@@ -7,7 +7,7 @@ closer (`\]` / `\)`) before the end of the document.
 
 `\[ … \]` and `\( … \)` are TeX-style math delimiters. mdwright treats the region between an
 opener and its closer as math: it suspends prose lint rules inside, and the formatter passes the
-bytes through verbatim. An unbalanced opener means we cannot tell where math ends — every
+bytes through verbatim. An unbalanced opener means we cannot tell where math ends—every
 following prose rule misreads the rest of the document, and the formatter might break the
 content's rendering.
 

@@ -10,6 +10,7 @@ use pulldown_cmark::html;
 
 use crate::ParseError;
 use crate::ParseOptions;
+use crate::gfm::render_autolink_events;
 use crate::ir::{
     BlockCheckpointFact, CodeBlock, Frontmatter, Heading, HtmlBlock, InlineCode, InlineHtml, Ir, LinkDef, ListGroup,
     Suppression, TextSlice,
@@ -35,9 +36,20 @@ use mdwright_math::{MathError, MathRegion};
 /// Returns [`ParseError`] if parser execution cannot safely recognise
 /// the canonicalised source.
 pub fn render_html(source: &str) -> Result<String, ParseError> {
+    render_html_with_options(source, ParseOptions::default())
+}
+
+/// Render Markdown to HTML under explicit recognition options.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if parser execution cannot safely recognise
+/// the canonicalised source.
+pub fn render_html_with_options(source: &str, opts: ParseOptions) -> Result<String, ParseError> {
     let src = Source::new(source);
     let canonical = CanonicalSource::from_source(&src);
-    let events = parse::collect_events(canonical, parse::options(ParseOptions::default()))?;
+    let events = parse::collect_events(canonical, parse::options(opts))?;
+    let events = render_autolink_events(events, opts.extensions().gfm.bare_url_autolinks);
     let mut out = String::with_capacity(canonical.as_str().len());
     html::push_html(&mut out, events.into_iter());
     Ok(out)
@@ -129,6 +141,13 @@ impl Document {
     #[must_use]
     pub fn prose_chunks(&self) -> &[TextSlice] {
         &self.ir.prose_chunks
+    }
+
+    /// GFM bare autolinks recognised in prose when
+    /// `parse.extensions.gfm.bare-url-autolinks` is enabled.
+    #[must_use]
+    pub fn gfm_bare_autolinks(&self) -> &[crate::GfmAutolink] {
+        &self.ir.gfm_bare_autolinks
     }
 
     /// Inline code spans in source order. `text` excludes the

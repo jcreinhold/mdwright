@@ -1,6 +1,6 @@
 ## What it does
 
-Flags damaged subscript notation produced by older roundtrip Markdown tools — patterns like
+Flags damaged subscript notation produced by older roundtrip Markdown tools—patterns like
 `x\_i` (escaped underscore that was supposed to be a TeX subscript) where the surrounding
 context confirms a math intent (digits, single-letter identifiers, sign-and-digit pairs).
 
@@ -8,7 +8,7 @@ context confirms a math intent (digits, single-letter identifiers, sign-and-digi
 
 Older `mdformat` versions and a few other tools defensively escaped `_` inside what looked
 like prose, even when the underscore was a math subscript. The result is `x\_i` in the
-source, which renders as `x_i` literally — not as a subscript. The rule finds these and
+source, which renders as `x_i` literally—not as a subscript. The rule finds these and
 proposes either the TeX form (`x_i` inside math) or the Unicode form (`xᵢ`) depending on
 context.
 

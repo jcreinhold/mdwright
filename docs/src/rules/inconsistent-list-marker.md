@@ -49,5 +49,5 @@ written would render two adjacent lists when one was meant.
 
 ## References
 
-- [CommonMark §5.2 — List items](https://spec.commonmark.org/0.31.2/#list-items).
+- [CommonMark §5.2—List items](https://spec.commonmark.org/0.31.2/#list-items).
 - `[fmt] list-marker` config key controls the canonical marker for the formatter.

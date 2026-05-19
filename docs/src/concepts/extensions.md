@@ -9,6 +9,12 @@ canonically, and gates each via a per-extension toggle. It does not expand abbre
 `{...}` to HTML, or change semantics. The downstream renderer (Python-Markdown, mkdocs-material,
 jupyter-book) does that work.
 
+GFM bare URL autolinks are also recognised by default for `www.`, `http(s)://`, and `ftp://`
+URLs. This closes the cmark-gfm rendering gap for URL autolinks while keeping formatter output
+byte-preserving. GFM email autolinks are not recognised yet because pulldown-cmark can split
+trailing `_` / `-` characters as inline delimiters before mdwright's overlay sees the full source
+context.
+
 ## The four extensions
 
 | Extension                   | Source shape                            | Default |
@@ -53,7 +59,7 @@ Canonical emission matches mdformat-mkdocs:
 
 - **Tight** form (`Term\n:   body`) for single-paragraph definitions.
 - **Loose** form (blank line between term and the `:` marker) when the definition has multiple
-  block children — a paragraph plus a nested list / code block, or multi-paragraph text. The blank
+  block children: a paragraph plus a nested list / code block, or multi-paragraph text. The blank
   line is the syntactic boundary that makes the multi-block body parse correctly.
 
 Multiple definitions for one term emit on consecutive `:   ` lines with no blank between them;
@@ -77,7 +83,7 @@ The trailer parses through pulldown-cmark's `ENABLE_HEADING_ATTRIBUTES` flag, la
 | Mode                 | Behaviour |
 | -------------------- | --------- |
 | `preserve` (default) | Emit the source trailer byte-verbatim between the inline body and the line break. |
-| `canonicalise`       | Emit `{#id .class₁ .class₂ k=v}` — id first, then classes (source order), then `key=value` pairs (source order). Values containing whitespace are double-quoted. |
+| `canonicalise`       | Emit `{#id .class₁ .class₂ k=v}`: id first, then classes (source order), then `key=value` pairs (source order). Values containing whitespace are double-quoted. |
 
 ```toml,no-check
 [fmt]
@@ -86,7 +92,7 @@ heading-attrs = "preserve"  # or "canonicalise"
 
 **Pulldown limitation.** pulldown-cmark 0.13's heading-attribute parser splits the trailer on
 whitespace and does not honour double-quoted values. `# H {title="hello world"}` parses as two
-attributes — `title="hello` and `world"` — not one. mdformat-mkdocs (which uses python-markdown's
+attributes, `title="hello` and `world"`, not one. mdformat-mkdocs (which uses python-markdown's
 `attr_list`) handles the quoted form correctly. Until pulldown upstream lands the fix, mdwright's
 heading-attribute output for quoted values diverges from mdformat-mkdocs; documented in
 [Deviations from spec](../deviations.md).
@@ -104,7 +110,7 @@ The HTML standard is maintained by the W3C.
 
 mdwright recognises the `*[TERM]: definition` shape and preserves the declarations verbatim. It
 does **not** expand occurrences (the downstream renderer wraps them in
-`<abbr title="…">…</abbr>`). Each declaration is one source line — continuation lines are not
+`<abbr title="…">…</abbr>`). Each declaration is one source line; continuation lines are not
 supported, matching python-markdown's `abbr` extension.
 
 Consecutive abbreviation lines (no blank line between them) are bundled into one source paragraph
@@ -127,7 +133,7 @@ The trailer must:
 
 When mdwright recognises the pattern, the entire block (body + trailer) is emitted as a single
 verbatim source slice. Other paragraph-level rewrites (line wrap, link normalisation, escape
-rewrites) are skipped for that paragraph — the price of preservation is a narrower active surface
+rewrites) are skipped for that paragraph, so preservation narrows the formatter's active surface
 for the formatter on annotated blocks.
 
 **Inline attribute lists** (`some *emphasised* { .em } text` mid-paragraph) are explicitly out of
@@ -137,7 +143,7 @@ exercise. Inline `{...}` tokens flow through as plain text.
 ## Round-trip and idempotence
 
 Reformatting under any combination of these extensions still goes through the
-[HTML-equivalence gate](round-trip-safety.md) — verbatim overlays satisfy it trivially, and the
+[HTML-equivalence gate](round-trip-safety.md). Verbatim overlays satisfy it trivially, and the
 canonical emission shape for typed-block constructs is a fixed point of its own parser by
 construction.
 

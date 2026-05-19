@@ -3,10 +3,11 @@
 //! `CommonMark` autolinks (`<https://example.com>`) render as
 //! clickable links across all renderers; bare URLs depend on
 //! renderer-specific autolinking heuristics. The rule scans prose
-//! chunks — autolinks already parsed by pulldown-cmark live inside
-//! `Link` containers, so they don't appear in `prose_chunks` and
-//! won't double-fire.
+//! chunks and GFM bare-autolink facts. Explicit `CommonMark` autolinks
+//! (`<https://example.com>`) and Markdown links are already portable,
+//! so their ranges are excluded from the prose scan.
 
+use std::ops::Range;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -14,7 +15,7 @@ use regex::Regex;
 use crate::diagnostic::{Diagnostic, Fix};
 use crate::regex_util::compile_static;
 use crate::rule::LintRule;
-use mdwright_document::Document;
+use mdwright_document::{Document, NodeKind};
 
 pub struct BareUrl;
 
@@ -41,6 +42,12 @@ impl LintRule for BareUrl {
     }
 
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
+        let excluded = link_like_ranges(doc);
+        for autolink in doc.gfm_bare_autolinks() {
+            if should_flag_bare_url(&autolink.text) {
+                push_diagnostic(doc, autolink.raw_range.clone(), &autolink.text, out);
+            }
+        }
         for chunk in doc.prose_chunks() {
             for m in pattern().find_iter(&chunk.text) {
                 let mut end = m.end();
@@ -56,15 +63,53 @@ impl LintRule for BareUrl {
                 if url.is_empty() {
                     continue;
                 }
-                let message = format!("bare URL `{url}` — wrap as `<{url}>` for a portable autolink");
-                let fix = Fix {
-                    replacement: format!("<{url}>"),
-                    safe: true,
-                };
-                if let Some(d) = Diagnostic::at(doc, chunk.byte_offset, m.start()..end, message, Some(fix)) {
-                    out.push(d);
+                let raw_range = chunk.byte_offset.saturating_add(m.start())..chunk.byte_offset.saturating_add(end);
+                if !ranges_overlap_any(&raw_range, &excluded) {
+                    push_diagnostic(doc, raw_range, url, out);
                 }
             }
         }
     }
+}
+
+fn should_flag_bare_url(text: &str) -> bool {
+    text.starts_with("http://") || text.starts_with("https://")
+}
+
+fn push_diagnostic(doc: &Document, raw_range: Range<usize>, url: &str, out: &mut Vec<Diagnostic>) {
+    let message = format!("bare URL `{url}` — wrap as `<{url}>` for a portable autolink");
+    let fix = Fix {
+        replacement: format!("<{url}>"),
+        safe: true,
+    };
+    let local = 0..raw_range.end.saturating_sub(raw_range.start);
+    if let Some(d) = Diagnostic::at(doc, raw_range.start, local, message, Some(fix)) {
+        out.push(d);
+    }
+}
+
+fn link_like_ranges(doc: &Document) -> Vec<Range<usize>> {
+    let tree = doc.tree();
+    let mut ranges = Vec::new();
+    for id in tree.descendants(tree.root()) {
+        let Some(node) = tree.node(id) else { continue };
+        if matches!(
+            node.kind,
+            NodeKind::Link { .. } | NodeKind::Image { .. } | NodeKind::Autolink
+        ) {
+            ranges.push(node.raw_range.clone());
+        }
+    }
+    ranges.extend(
+        doc.gfm_bare_autolinks()
+            .iter()
+            .map(|autolink| autolink.raw_range.clone()),
+    );
+    ranges
+}
+
+fn ranges_overlap_any(range: &Range<usize>, others: &[Range<usize>]) -> bool {
+    others
+        .iter()
+        .any(|other| range.start < other.end && other.start < range.end)
 }

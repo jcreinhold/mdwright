@@ -1,6 +1,6 @@
 ## What it does
 
-Flags TeX-style `\command{…}` invocations in prose (outside math regions) — for example
+Flags TeX-style `\command{…}` invocations in prose (outside math regions)—for example
 `\textbf{important}` or `\emph{see below}`.
 
 ## Why

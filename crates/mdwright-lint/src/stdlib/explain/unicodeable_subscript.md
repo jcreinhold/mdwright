@@ -1,8 +1,8 @@
 ## What it does
 
 Flags math-region subscripts whose contents are simple enough to express as Unicode subscript
-characters — single digits, single letters that have a Unicode subscript codepoint, and short
-sign/digit pairs — when the surrounding context is prose rather than display math.
+characters—single digits, single letters that have a Unicode subscript codepoint, and short
+sign/digit pairs—when the surrounding context is prose rather than display math.
 
 ## Why
 

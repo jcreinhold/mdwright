@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
-use mdwright_document::{Document, ParseError, render_html};
+use mdwright_document::{Document, NodeKind, ParseError, render_html};
+use regex::Regex;
 use serde::Serialize;
 
 use crate::gfm_spec::{SpecCase, parse_spec, spec_path};
@@ -55,6 +56,10 @@ struct AuditStats {
     pulldown_html_mismatches: usize,
     comrak_html_mismatches: usize,
     sourcepos_risks: usize,
+    sourcepos_checked: usize,
+    sourcepos_differences: usize,
+    sourcepos_unclassified: usize,
+    sourcepos_mitigations: usize,
     classified_differences: usize,
     unclassified_differences: usize,
     fixed_rows_still_observed: usize,
@@ -92,6 +97,14 @@ struct SourceposSummary {
     cmark_sourcepos_attrs: usize,
     comrak_sourcepos_attrs: Option<usize>,
     mdwright_structural_facts: Option<usize>,
+    checked: usize,
+    differences: usize,
+    risks: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct SourceposRisk {
+    observed: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -149,6 +162,13 @@ pub fn run(workspace: &Path, opts: ParserAuditOptions) -> Result<bool> {
             }
         }
 
+        let comrak_rendered = opts.include_comrak.then(|| render_with_comrak(&case.source));
+        let comrak_sourcepos = comrak_rendered
+            .as_ref()
+            .map(|rendered| rendered.sourcepos_html.as_str());
+        let sourcepos = sourcepos_analysis(&case, &cmark_rendered.sourcepos_html, comrak_sourcepos);
+        stats.sourcepos_checked = stats.sourcepos_checked.saturating_add(sourcepos.summary.checked);
+
         let pulldown_html = match render_html(&case.source) {
             Ok(html) => Some(html),
             Err(err) => {
@@ -165,7 +185,7 @@ pub fn run(workspace: &Path, opts: ParserAuditOptions) -> Result<bool> {
                         pulldown_html: None,
                         cmark_html: Some(cmark_rendered.html.clone()),
                         comrak_html: None,
-                        sourcepos: sourcepos_summary(&case, &cmark_rendered.sourcepos_html, None),
+                        sourcepos: sourcepos.summary.clone(),
                     },
                 );
                 continue;
@@ -173,12 +193,11 @@ pub fn run(workspace: &Path, opts: ParserAuditOptions) -> Result<bool> {
         };
         let pulldown_html = pulldown_html.expect("parse errors continue");
         let oracle_html = case.expected_html.as_deref().unwrap_or(&cmark_rendered.html);
-        if normalize_spec_html(oracle_html) != normalize_spec_html(&pulldown_html) {
+        let html_mismatched = normalize_spec_html(oracle_html) != normalize_spec_html(&pulldown_html);
+        if html_mismatched {
             let observed = classify_html_mismatch(&case, oracle_html, &pulldown_html);
             stats.pulldown_html_mismatches = stats.pulldown_html_mismatches.saturating_add(1);
-            let comrak = opts.include_comrak.then(|| render_with_comrak(&case.source));
-            let comrak_html = comrak.as_ref().map(|rendered| rendered.html.clone());
-            let comrak_sourcepos = comrak.as_ref().map(|rendered| rendered.sourcepos_html.as_str());
+            let comrak_html = comrak_rendered.as_ref().map(|rendered| rendered.html.clone());
             record_difference(
                 &mut stats,
                 &mut failures,
@@ -187,25 +206,45 @@ pub fn run(workspace: &Path, opts: ParserAuditOptions) -> Result<bool> {
                 DifferenceInput {
                     case: &case,
                     observed: &observed,
-                    pulldown_html: Some(pulldown_html),
+                    pulldown_html: Some(pulldown_html.clone()),
                     cmark_html: Some(cmark_rendered.html.clone()),
                     comrak_html,
-                    sourcepos: sourcepos_summary(&case, &cmark_rendered.sourcepos_html, comrak_sourcepos),
+                    sourcepos: sourcepos.summary.clone(),
                 },
             );
-            continue;
+        } else if let Some(comrak) = &comrak_rendered
+            && normalize_spec_html(oracle_html) != normalize_spec_html(&comrak.html)
+        {
+            stats.comrak_html_mismatches = stats.comrak_html_mismatches.saturating_add(1);
         }
 
-        if opts.include_comrak {
-            let comrak = render_with_comrak(&case.source);
-            if normalize_spec_html(oracle_html) != normalize_spec_html(&comrak.html) {
-                stats.comrak_html_mismatches = stats.comrak_html_mismatches.saturating_add(1);
-            }
-        }
-
-        let summary = sourcepos_summary(&case, &cmark_rendered.sourcepos_html, None);
-        if sourcepos_is_risky(&case, &summary) {
+        if !sourcepos.risks.is_empty() {
             stats.sourcepos_risks = stats.sourcepos_risks.saturating_add(1);
+            stats.sourcepos_differences = stats.sourcepos_differences.saturating_add(sourcepos.risks.len());
+            for risk in sourcepos.risks {
+                let before_unclassified = stats.unclassified_differences;
+                let before_mitigation = stats.mitigation_rows_observed;
+                record_difference(
+                    &mut stats,
+                    &mut failures,
+                    &mut differences,
+                    &classifications,
+                    DifferenceInput {
+                        case: &case,
+                        observed: &risk.observed,
+                        pulldown_html: Some(pulldown_html.clone()),
+                        cmark_html: Some(cmark_rendered.html.clone()),
+                        comrak_html: comrak_rendered.as_ref().map(|rendered| rendered.html.clone()),
+                        sourcepos: sourcepos.summary.clone(),
+                    },
+                );
+                if stats.unclassified_differences > before_unclassified {
+                    stats.sourcepos_unclassified = stats.sourcepos_unclassified.saturating_add(1);
+                }
+                if stats.mitigation_rows_observed > before_mitigation {
+                    stats.sourcepos_mitigations = stats.sourcepos_mitigations.saturating_add(1);
+                }
+            }
         }
     }
 
@@ -569,13 +608,17 @@ fn classify_parse_error(case: &AuditCase, _err: &ParseError) -> String {
 }
 
 fn classify_html_mismatch(case: &AuditCase, oracle_html: &str, pulldown_html: &str) -> String {
-    if case
-        .classes
-        .iter()
-        .any(|class| matches!(class.as_str(), "autolink" | "tagfilter"))
-        || looks_like_bare_url(&case.source)
+    if case.classes.iter().any(|class| class == "autolink") && looks_like_bare_email(&case.source) {
+        "mdwright-policy:gfm-email-autolinks-disabled".to_owned()
+    } else if case.classes.iter().any(|class| matches!(class.as_str(), "autolink")) || looks_like_bare_url(&case.source)
     {
-        "mdwright-policy".to_owned()
+        if case.classes.iter().any(|class| class == "autolink") {
+            "pulldown-html-mismatch:gfm-autolink".to_owned()
+        } else {
+            "mdwright-policy:gfm-bare-autolinks-enabled".to_owned()
+        }
+    } else if case.classes.iter().any(|class| matches!(class.as_str(), "tagfilter")) {
+        "mdwright-policy:gfm-tagfilter-disabled".to_owned()
     } else if html_equivalent_after_quote_unescape(oracle_html, pulldown_html) {
         "pulldown-html-mismatch:quote-escaping".to_owned()
     } else if pulldown_html.contains("<dl>") && case.source.contains(":::") {
@@ -598,38 +641,155 @@ fn html_equivalent_after_quote_unescape(left: &str, right: &str) -> bool {
 }
 
 fn looks_like_bare_url(source: &str) -> bool {
-    source.contains("http://") || source.contains("https://") || source.contains("www.")
+    source.contains("http://") || source.contains("https://") || source.contains("ftp://") || source.contains("www.")
 }
 
-fn sourcepos_summary(
+fn looks_like_bare_email(source: &str) -> bool {
+    source.contains('@')
+}
+
+#[derive(Clone, Debug)]
+struct SourceposAnalysis {
+    summary: SourceposSummary,
+    risks: Vec<SourceposRisk>,
+}
+
+#[derive(Clone, Debug)]
+struct SourceposEnvelope {
+    kind: &'static str,
+    range: std::ops::Range<usize>,
+}
+
+fn sourcepos_analysis(
     case: &AuditCase,
     cmark_sourcepos_html: &str,
     comrak_sourcepos_html: Option<&str>,
-) -> SourceposSummary {
-    let mdwright_structural_facts = Document::parse(&case.source).ok().map(|doc| {
+) -> SourceposAnalysis {
+    let doc = Document::parse(&case.source).ok();
+    let mdwright_structural_facts = doc.as_ref().map(|doc| {
         doc.headings().len()
             + doc.list_groups().len()
             + doc.code_blocks().len()
             + doc.html_blocks().len()
             + doc.inline_codes().len()
             + doc.link_defs().len()
+            + doc.gfm_bare_autolinks().len()
             + usize::from(doc.frontmatter().is_some())
     });
-    SourceposSummary {
+    let envelopes = cmark_sourcepos_envelopes(&case.source, cmark_sourcepos_html);
+    let risks = doc
+        .as_ref()
+        .map_or_else(Vec::new, |doc| sourcepos_risks(doc, &envelopes));
+    let summary = SourceposSummary {
         cmark_sourcepos_attrs: count_sourcepos_attrs(cmark_sourcepos_html),
         comrak_sourcepos_attrs: comrak_sourcepos_html.map(count_sourcepos_attrs),
         mdwright_structural_facts,
+        checked: envelopes.len(),
+        differences: risks.len(),
+        risks: risks.iter().map(|risk| risk.observed.clone()).collect(),
+    };
+    SourceposAnalysis { summary, risks }
+}
+
+#[allow(
+    clippy::expect_used,
+    reason = "static sourcepos regex is covered by parser-audit tests"
+)]
+fn sourcepos_regex() -> &'static Regex {
+    static RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r#"<(?P<tag>[A-Za-z][A-Za-z0-9]*)(?:\s+[^>]*)?\sdata-sourcepos="(?P<sl>\d+):(?P<sc>\d+)-(?P<el>\d+):(?P<ec>\d+)""#)
+            .expect("sourcepos regex compiles")
+    })
+}
+
+fn cmark_sourcepos_envelopes(source: &str, html: &str) -> Vec<SourceposEnvelope> {
+    let index = mdwright_document::LineIndex::new(source);
+    sourcepos_regex()
+        .captures_iter(html)
+        .filter_map(|caps| {
+            let tag = caps.name("tag")?.as_str();
+            let kind = sourcepos_kind_for_tag(tag)?;
+            let start_line = parse_usize(caps.name("sl")?.as_str())?;
+            let start_col = parse_usize(caps.name("sc")?.as_str())?;
+            let end_line = parse_usize(caps.name("el")?.as_str())?;
+            let end_col = parse_usize(caps.name("ec")?.as_str())?;
+            let start =
+                index.byte_of_position_0based(source, start_line.saturating_sub(1), start_col.saturating_sub(1))?;
+            let end = index.byte_of_position_0based(source, end_line.saturating_sub(1), end_col)?;
+            Some(SourceposEnvelope {
+                kind,
+                range: start..end,
+            })
+        })
+        .collect()
+}
+
+fn parse_usize(s: &str) -> Option<usize> {
+    s.parse().ok()
+}
+
+fn sourcepos_kind_for_tag(tag: &str) -> Option<&'static str> {
+    match tag {
+        "p" => Some("paragraph"),
+        "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => Some("heading"),
+        "ul" | "ol" => Some("list"),
+        "li" => Some("list-item"),
+        "blockquote" => Some("blockquote"),
+        "pre" => Some("code-block"),
+        "table" => Some("table"),
+        _ => None,
     }
 }
 
-fn sourcepos_is_risky(case: &AuditCase, summary: &SourceposSummary) -> bool {
-    summary.cmark_sourcepos_attrs > 0
-        && summary.mdwright_structural_facts == Some(0)
-        && (case.source.contains('|')
-            || case.source.contains("```")
-            || case.source.contains('<')
-            || case.source.contains('[')
-            || case.source.contains('#'))
+fn sourcepos_risks(doc: &Document, envelopes: &[SourceposEnvelope]) -> Vec<SourceposRisk> {
+    let facts = mdwright_sourcepos_facts(doc);
+    let frontmatter = doc.frontmatter().map(|frontmatter| frontmatter.slice.raw_range.clone());
+    envelopes
+        .iter()
+        .filter(|envelope| {
+            frontmatter
+                .as_ref()
+                .is_none_or(|range| !ranges_overlap(range, &envelope.range))
+        })
+        .filter(|envelope| {
+            !facts
+                .iter()
+                .any(|fact| fact.kind == envelope.kind && ranges_overlap(&fact.range, &envelope.range))
+        })
+        .map(|envelope| SourceposRisk {
+            observed: format!("sourcepos-risk:{}", envelope.kind),
+        })
+        .collect()
+}
+
+fn mdwright_sourcepos_facts(doc: &Document) -> Vec<SourceposEnvelope> {
+    let mut facts = Vec::new();
+    let tree = doc.tree();
+    for id in tree.descendants(tree.root()) {
+        let Some(node) = tree.node(id) else { continue };
+        let kind = match node.kind {
+            NodeKind::Paragraph => Some("paragraph"),
+            NodeKind::Heading { .. } => Some("heading"),
+            NodeKind::List { .. } => Some("list"),
+            NodeKind::Item { .. } => Some("list-item"),
+            NodeKind::BlockQuote => Some("blockquote"),
+            NodeKind::CodeBlock { .. } => Some("code-block"),
+            NodeKind::Table { .. } => Some("table"),
+            _ => None,
+        };
+        if let Some(kind) = kind {
+            facts.push(SourceposEnvelope {
+                kind,
+                range: node.raw_range.clone(),
+            });
+        }
+    }
+    facts
+}
+
+fn ranges_overlap(left: &std::ops::Range<usize>, right: &std::ops::Range<usize>) -> bool {
+    left.start < right.end && right.start < left.end
 }
 
 fn count_sourcepos_attrs(html: &str) -> usize {
@@ -808,6 +968,11 @@ fn markdown_report(report: &AuditReport) -> String {
         "- unclassified differences: `{}`\n",
         report.stats.unclassified_differences
     ));
+    out.push_str(&format!("- sourcepos checked: `{}`\n", report.stats.sourcepos_checked));
+    out.push_str(&format!(
+        "- sourcepos differences: `{}`\n",
+        report.stats.sourcepos_differences
+    ));
     out.push_str("\n## Differences\n\n");
     out.push_str("| Case Set | Key | Observed | Status | Owner | Resolution |\n");
     out.push_str("| --- | --- | --- | --- | --- | --- |\n");
@@ -845,6 +1010,10 @@ fn print_summary(output: &Path, report: &AuditReport) {
     println!("  pulldown HTML mismatches: {}", report.stats.pulldown_html_mismatches);
     println!("  comrak HTML mismatches: {}", report.stats.comrak_html_mismatches);
     println!("  sourcepos risks: {}", report.stats.sourcepos_risks);
+    println!("  sourcepos checked: {}", report.stats.sourcepos_checked);
+    println!("  sourcepos differences: {}", report.stats.sourcepos_differences);
+    println!("  sourcepos unclassified: {}", report.stats.sourcepos_unclassified);
+    println!("  sourcepos mitigations: {}", report.stats.sourcepos_mitigations);
     println!("  classified differences: {}", report.stats.classified_differences);
     println!("  unclassified differences: {}", report.stats.unclassified_differences);
     println!("  reports:");
@@ -953,6 +1122,76 @@ mod tests {
             classify_html_mismatch(&case, "<p>expected</p>\n", "<p>actual</p>\n"),
             "pulldown-html-mismatch"
         );
+    }
+
+    #[test]
+    fn sourcepos_envelopes_map_cmark_line_columns_to_bytes() {
+        let source = "# Head\n\nParagraph\n";
+        let html = r#"<h1 data-sourcepos="1:1-1:6">Head</h1>
+<p data-sourcepos="3:1-3:9">Paragraph</p>
+"#;
+        let envelopes = cmark_sourcepos_envelopes(source, html);
+        assert_eq!(envelopes.len(), 2);
+        assert_eq!(envelopes[0].kind, "heading");
+        assert_eq!(envelopes[0].range, 0..6);
+        assert_eq!(envelopes[1].kind, "paragraph");
+        assert_eq!(envelopes[1].range, 8..17);
+    }
+
+    #[test]
+    fn sourcepos_risks_are_recorded_as_classified_differences() {
+        let rows = vec![ClassificationRow {
+            case_set: "*".to_owned(),
+            key_pattern: "*".to_owned(),
+            observed: "sourcepos-risk:*".to_owned(),
+            status: "sourcepos-risk".to_owned(),
+            owner: "document".to_owned(),
+            resolution: "synthetic sourcepos risk classification".to_owned(),
+        }];
+        let case = test_case("gfm-spec", "case-1", "Tabs");
+        let mut stats = AuditStats::default();
+        let mut failures = Vec::new();
+        let mut differences = Vec::new();
+        record_difference(
+            &mut stats,
+            &mut failures,
+            &mut differences,
+            &rows,
+            DifferenceInput {
+                case: &case,
+                observed: "sourcepos-risk:heading",
+                pulldown_html: None,
+                cmark_html: None,
+                comrak_html: None,
+                sourcepos: SourceposSummary::default(),
+            },
+        );
+        assert_eq!(stats.classified_differences, 1);
+        assert!(failures.is_empty());
+    }
+
+    #[test]
+    fn unclassified_sourcepos_risks_fail() {
+        let case = test_case("gfm-spec", "case-1", "Tabs");
+        let mut stats = AuditStats::default();
+        let mut failures = Vec::new();
+        let mut differences = Vec::new();
+        record_difference(
+            &mut stats,
+            &mut failures,
+            &mut differences,
+            &[],
+            DifferenceInput {
+                case: &case,
+                observed: "sourcepos-risk:heading",
+                pulldown_html: None,
+                cmark_html: None,
+                comrak_html: None,
+                sourcepos: SourceposSummary::default(),
+            },
+        );
+        assert_eq!(stats.unclassified_differences, 1);
+        assert_eq!(failures.len(), 1);
     }
 
     #[test]

@@ -3,6 +3,7 @@
 mod document;
 mod error;
 mod format_facts;
+mod gfm;
 mod heading;
 mod ir;
 mod line_index;
@@ -13,13 +14,14 @@ mod source;
 mod tree;
 mod util;
 
-pub use document::{Document, render_html};
+pub use document::{Document, render_html, render_html_with_options};
 pub use error::ParseError;
 pub use format_facts::{
     HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite, OrderedItemSite,
     OrderedListSite, ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan, UnorderedListSite,
     WrappableParagraph, top_level_block_checkpoints,
 };
+pub use gfm::GfmAutolink;
 pub use heading::{HeadingAttrs, find_attr_trailer_range};
 pub use ir::{
     AllowScope, BlockCheckpointFact, CodeBlock, Frontmatter, FrontmatterDelimiter, Heading, HtmlBlock, InlineCode,
@@ -60,6 +62,7 @@ impl ParseOptions {
     reason = "one toggle per mdformat-mkdocs extension; the parallel naming with the TOML schema is intentional"
 )]
 pub struct ExtensionOptions {
+    pub gfm: GfmOptions,
     pub definition_lists: bool,
     pub abbreviation_lists: bool,
     pub heading_attribute_lists: bool,
@@ -71,12 +74,27 @@ pub struct ExtensionOptions {
 impl Default for ExtensionOptions {
     fn default() -> Self {
         Self {
+            gfm: GfmOptions::default(),
             definition_lists: true,
             abbreviation_lists: true,
             heading_attribute_lists: true,
             block_attribute_lists: true,
             myst: MystOptions::default(),
             pandoc: PandocOptions::default(),
+        }
+    }
+}
+
+/// Recognition toggles for GitHub Flavored Markdown extensions.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct GfmOptions {
+    pub bare_url_autolinks: bool,
+}
+
+impl Default for GfmOptions {
+    fn default() -> Self {
+        Self {
+            bare_url_autolinks: true,
         }
     }
 }

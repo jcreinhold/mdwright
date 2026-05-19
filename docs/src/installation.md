@@ -1,6 +1,6 @@
 # Installation
 
-mdwright has no runtime dependencies — it ships as a single binary. Pick whichever channel matches your environment.
+mdwright has no runtime dependencies—it ships as a single binary. Pick whichever channel matches your environment.
 
 ## One-line install (recommended)
 
@@ -21,7 +21,7 @@ cargo install mdwright
 ```
 
 Requires Rust 1.91 or later (the MSRV is enforced in CI). The install drops a single binary, `mdwright`, on your
-`$PATH`. Rust integrations depend on the component crates directly — see [Public API surface](reference/public-api.md)
+`$PATH`. Rust integrations depend on the component crates directly—see [Public API surface](reference/public-api.md)
 for the roster and what each owns.
 
 ## Via cargo-binstall

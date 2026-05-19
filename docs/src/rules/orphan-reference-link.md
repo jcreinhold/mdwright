@@ -17,7 +17,7 @@ Flags reference-style links of the form `[text][label]` or shortcut form `[label
 
 ## Why
 
-CommonMark renders an unresolved reference link as literal text — `[text][label]` shows up in
+CommonMark renders an unresolved reference link as literal text—`[text][label]` shows up in
 the output as `[text][label]` rather than as a clickable link. This silently breaks navigation,
 usually because the author renamed a link definition without updating its references (or vice
 versa).
@@ -46,4 +46,4 @@ See the [installation guide][install] for details.
 
 ## References
 
-- [CommonMark §6.5 — Links](https://spec.commonmark.org/0.31.2/#links).
+- [CommonMark §6.5—Links](https://spec.commonmark.org/0.31.2/#links).

@@ -78,7 +78,7 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         key: "fmt.list-marker",
         ty: "\"dash\" | \"asterisk\" | \"plus\" | \"preserve\"",
         default: "\"preserve\"",
-        description: "Unordered-list bullet canonicalisation. Atomic per list — every bullet in one list rewrites together or none do.",
+        description: "Unordered-list bullet canonicalisation. Every bullet in one list rewrites together or none do.",
         cli_override: None,
     },
     FieldDoc {
@@ -156,6 +156,13 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         cli_override: None,
     },
     // ---- [parse.extensions] -----------------------------------------
+    FieldDoc {
+        key: "parse.extensions.gfm.bare-url-autolinks",
+        ty: "bool",
+        default: "true",
+        description: "Recognise GFM bare `www.`, `http(s)://`, and `ftp://` URL autolinks as document facts and render them as links. Turn off for strict CommonMark-style text treatment.",
+        cli_override: None,
+    },
     FieldDoc {
         key: "parse.extensions.definition-lists",
         ty: "bool",
@@ -274,7 +281,7 @@ wrap = 100
 The following knobs accept CLI flags that take precedence over the
 config file:
 
-- `lint.rules` — `--rules`
+- `lint.rules`: `--rules`
 - `--no-suppress` toggles whether `<!-- mdwright: allow ... -->`
   comments are honoured; there is no config-file equivalent.
 
@@ -289,7 +296,7 @@ All other `[fmt]` knobs are config-file-only.
 pub fn render() -> String {
     let mut out = String::with_capacity(8192);
     out.push_str(PREAMBLE);
-    out.push_str("<!-- BEGIN GENERATED — do not edit. Regenerate by running `cargo xtask doc-config`. -->\n\n");
+    out.push_str("<!-- BEGIN GENERATED: do not edit. Regenerate by running `cargo xtask doc-config`. -->\n\n");
     render_section(&mut out, "[lint]", "lint.");
     render_section(&mut out, "[fmt]", "fmt.");
     render_section(&mut out, "[parse]", "parse.");
@@ -307,7 +314,7 @@ fn render_section(out: &mut String, heading: &str, prefix: &str) {
         if !field.key.starts_with(prefix) {
             continue;
         }
-        let cli = field.cli_override.unwrap_or("—");
+        let cli = field.cli_override.unwrap_or("none");
         // Escape pipe characters in the type column so the table parses.
         let ty_escaped = field.ty.replace('|', "\\|");
         out.push_str("| `");

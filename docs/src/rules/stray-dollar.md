@@ -21,7 +21,7 @@ inline math. Authors who rely on TeX-style `\( … \)` instead can accidentally 
 output where they wanted a literal `$5`, and authors who rely on `$…$` for math can produce
 prose where they meant math. Either way, a stray single `$` in prose is almost always a typo.
 
-This rule is opt-in because projects that consistently use `$…$` for math have no use for it —
+This rule is opt-in because projects that consistently use `$…$` for math have no use for it—
 the linter would flood with false positives. Turn it on in projects that standardise on
 `\( … \)` or no inline math at all.
 
@@ -47,6 +47,6 @@ That costs \$5.
 
 ## References
 
-- Pandoc Markdown — math extension.
+- Pandoc Markdown—math extension.
 - mdwright treats `\( … \)`, `\[ … \]`, and named environments as math regions; `$…$` is
   excluded by default because it conflicts with literal-dollar prose.

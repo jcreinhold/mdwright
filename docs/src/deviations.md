@@ -7,10 +7,10 @@ HTML and the normalised event stream.
 This document is the user-facing index of where mdwright currently **does not** byte-for-byte round-trip the spec. It is
 split into two parts because the underlying mechanism does:
 
-- **Editorial deviations** — choices we have made and intend to keep. Curated in `tests/gfm-spec/allowlist.toml`. Each
+- **Editorial deviations**—choices we have made and intend to keep. Curated in `tests/gfm-spec/allowlist.toml`. Each
   entry has a one-line rationale and a pointer to where the decision is documented.
-- **Tracked regressions** — known divergences that we intend to fix. Recorded in `tests/gfm-spec/snapshot.txt`. The
-  snapshot is asserted byte-for-byte, so any drift — regression *or* improvement — fails CI and forces a deliberate
+- **Tracked regressions**—known divergences that we intend to fix. Recorded in `tests/gfm-spec/snapshot.txt`. The
+  snapshot is asserted byte-for-byte, so any drift—regression *or* improvement—fails CI and forces a deliberate
   update.
 
 The `gfm_spec_coverage` test prints the live count for both groups; the numbers below are a snapshot of the current main
@@ -32,7 +32,7 @@ A *case* may fail more than one comparison kind (`semantic`, `idempotence`); the
 
 ### Pulldown text-chunking deviations
 
-35 spec examples currently fail the AST-event comparison only — HTML matches byte-for-byte and round-trip is idempotent.
+35 spec examples currently fail the AST-event comparison only—HTML matches byte-for-byte and round-trip is idempotent.
 The mismatch reflects pulldown-cmark's text-run chunking: pulldown splits long runs of text into events at points
 cmark-gfm does not, so the normalised `Event::Text(…)` stream differs even though every other event lines up and every
 rendered HTML byte agrees.
@@ -85,7 +85,7 @@ jupyter-book demo at `tests/external/jupyter_book_minimal/` plus the per-constru
 
 | Construct                       | Source pattern that diverges                      | Why                                                                                                                                                              |
 | ------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Malformed `:::{name}` source    | Bare `:::{warning} Experimental` with no closer   | Pulldown parses the opener as part of a definition-list or paragraph; mdwright's directive overlay matches on byte-range overlap and emits the union of the tree-node range and the directive region, so the bytes survive — but the surrounding misclassified bytes flow through pulldown's normal path. Fix the source by closing the directive. |
+| Malformed `:::{name}` source    | Bare `:::{warning} Experimental` with no closer   | Pulldown parses the opener as part of a definition-list or paragraph; mdwright's directive overlay matches on byte-range overlap and emits the union of the tree-node range and the directive region, so the bytes survive—but the surrounding misclassified bytes flow through pulldown's normal path. Fix the source by closing the directive. |
 
 ## How to read the live numbers
 

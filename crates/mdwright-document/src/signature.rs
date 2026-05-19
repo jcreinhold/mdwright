@@ -6,6 +6,7 @@
 
 use pulldown_cmark::{CowStr, Event, Tag, TagEnd};
 
+use crate::gfm::render_autolink_events;
 use crate::source::{CanonicalSource, Source};
 use crate::{ParseError, ParseOptions, parse};
 
@@ -135,7 +136,7 @@ enum EndTag {
 pub fn markdown_signature(source: &str, opts: ParseOptions) -> Result<MarkdownSignature, ParseError> {
     let source = Source::new(source);
     let src = CanonicalSource::from_source(&source);
-    let mut events: Vec<CanonicalEvent> = Vec::new();
+    let mut signature_events: Vec<CanonicalEvent> = Vec::new();
     let mut code_block_depth: u32 = 0;
     let mut pending: Option<String> = None;
 
@@ -148,25 +149,29 @@ pub fn markdown_signature(source: &str, opts: ParseOptions) -> Result<MarkdownSi
         }
     };
 
-    for ev in parse::collect_events(src, parse::options(opts))? {
+    let parser_events = render_autolink_events(
+        parse::collect_events(src, parse::options(opts))?,
+        opts.extensions().gfm.bare_url_autolinks,
+    );
+    for ev in parser_events {
         match ev {
             Event::Start(tag) => {
                 if matches!(tag, Tag::CodeBlock(_)) {
                     code_block_depth = code_block_depth.saturating_add(1);
                 }
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::Start(canonical_start(tag)));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::Start(canonical_start(tag)));
             }
             Event::End(tag) => {
                 if matches!(tag, TagEnd::CodeBlock) {
                     code_block_depth = code_block_depth.saturating_sub(1);
                 }
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::End(canonical_end(tag)));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::End(canonical_end(tag)));
             }
             Event::Text(s) if code_block_depth > 0 => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::VerbatimText(s.into_string()));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::VerbatimText(s.into_string()));
             }
             Event::Text(s) => {
                 pending.get_or_insert_with(String::new).push_str(&s);
@@ -178,45 +183,47 @@ pub fn markdown_signature(source: &str, opts: ParseOptions) -> Result<MarkdownSi
                 }
             }
             Event::HardBreak => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::HardBreak);
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::HardBreak);
             }
             Event::Code(s) => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::Code(s.into_string()));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::Code(s.into_string()));
             }
             Event::InlineMath(s) => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::InlineMath(s.into_string()));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::InlineMath(s.into_string()));
             }
             Event::DisplayMath(s) => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::DisplayMath(s.into_string()));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::DisplayMath(s.into_string()));
             }
             Event::Html(s) => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::Html(s.into_string()));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::Html(s.into_string()));
             }
             Event::InlineHtml(s) => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::InlineHtml(s.into_string()));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::InlineHtml(s.into_string()));
             }
             Event::FootnoteReference(s) => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::FootnoteReference(s.into_string()));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::FootnoteReference(s.into_string()));
             }
             Event::Rule => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::Rule);
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::Rule);
             }
             Event::TaskListMarker(b) => {
-                flush(&mut pending, &mut events);
-                events.push(CanonicalEvent::TaskListMarker(b));
+                flush(&mut pending, &mut signature_events);
+                signature_events.push(CanonicalEvent::TaskListMarker(b));
             }
         }
     }
-    flush(&mut pending, &mut events);
-    Ok(MarkdownSignature { events })
+    flush(&mut pending, &mut signature_events);
+    Ok(MarkdownSignature {
+        events: signature_events,
+    })
 }
 
 fn cow_to_string(c: CowStr<'_>) -> String {

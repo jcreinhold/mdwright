@@ -6,7 +6,7 @@ surface** that the version number commits to.
 ## Covered
 
 A change to any of the following is a breaking change and requires a major-version bump (or a minor bump while we are
-pre-1.0 — see [Pre-1.0 caveats](#pre-10-caveats) below):
+pre-1.0—see [Pre-1.0 caveats](#pre-10-caveats) below):
 
 - Every `pub` item exported from `mdwright` (`src/lib.rs` and the modules it re-exports). The bar is "could a downstream
   crate observe the change at compile time."
@@ -37,7 +37,7 @@ The following are free to change in any release, including patch releases:
 ## Pre-1.0 caveats
 
 Until v1.0, minor versions may include breaking API changes. The 0.x sequence is deliberately permissive so the surface
-can settle without dragging compatibility shims forward. The discipline still applies — every break appears in
+can settle without dragging compatibility shims forward. The discipline still applies—every break appears in
 [`CHANGELOG.md`](https://github.com/jcreinhold/mdwright/blob/main/CHANGELOG.md) under **Breaking changes** in the
 relevant version's section, with a migration note where the rewrite is non-obvious.
 

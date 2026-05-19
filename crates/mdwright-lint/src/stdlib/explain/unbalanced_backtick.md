@@ -1,7 +1,7 @@
 ## What it does
 
 Flags inline code spans whose backtick fence was not closed before the end of a paragraph or the
-end of the document — e.g. `` `foo `` with no matching `` ` ``.
+end of the document—e.g. `` `foo `` with no matching `` ` ``.
 
 ## Why
 
@@ -31,4 +31,4 @@ Run `cargo build` to compile.
 
 ## References
 
-- [CommonMark §6.1 — Code spans](https://spec.commonmark.org/0.31.2/#code-spans).
+- [CommonMark §6.1—Code spans](https://spec.commonmark.org/0.31.2/#code-spans).

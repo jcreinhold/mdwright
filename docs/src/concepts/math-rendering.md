@@ -1,7 +1,7 @@
 # Math rendering
 
-mdwright does not typeset math. It shapes math regions so a downstream renderer — KaTeX, MathJax,
-mkdocs-material's math plugin, jupyter-book — can do the typesetting. `--math-render` chooses the
+mdwright does not typeset math. It shapes math regions so a downstream renderer—KaTeX, MathJax,
+mkdocs-material's math plugin, jupyter-book—can do the typesetting. `--math-render` chooses the
 shape.
 
 For *what* mdwright treats as math, see [Math regions](math-regions.md). This page is about *how
@@ -50,7 +50,7 @@ mdwright render --math-render=dollar notes.md
 ```
 
 This is a diagnostic surface, not a production renderer. mdwright's HTML emitter does not enable
-pulldown-cmark's math extension — math regions land in the HTML as plain text in whatever
+pulldown-cmark's math extension—math regions land in the HTML as plain text in whatever
 delimiter form the formatter produced. Feed that HTML through KaTeX, MathJax, or your static-site
 generator's math plugin to see the actual typeset output.
 

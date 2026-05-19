@@ -5,9 +5,9 @@ autolink (`<https://example.com>`) or a `[text](url)` link.
 
 ## Why
 
-Whether a bare URL renders as a clickable link depends entirely on the renderer's autolink
-heuristics, which differ across GitHub, GitLab, Pandoc, KaTeX-aware mdBook, and editor
-previews. Wrapping the URL in `<…>` makes the link explicit and portable.
+mdwright recognises GFM bare URL autolinks for rendering, but whether the same source renders as
+a clickable link still depends on each downstream renderer's extension set. Wrapping the URL in
+`<…>` makes the link explicit and portable across CommonMark renderers.
 
 The autofix (`safe: true`) wraps the URL in angle brackets in place; `mdwright fix` applies it.
 
@@ -31,4 +31,4 @@ See <https://example.com> for details.
 
 ## References
 
-- [CommonMark §6.4 — Autolinks](https://spec.commonmark.org/0.31.2/#autolinks).
+- [CommonMark §6.4: Autolinks](https://spec.commonmark.org/0.31.2/#autolinks).

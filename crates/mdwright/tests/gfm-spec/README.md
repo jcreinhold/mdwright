@@ -13,7 +13,7 @@ To refresh, run from the repo root:
 ```
 curl -fsSL \
   https://raw.githubusercontent.com/github/cmark-gfm/master/test/spec.txt \
-  -o tools/mdwright/tests/gfm-spec/spec.txt
+  -o crates/mdwright/tests/gfm-spec/spec.txt
 ```
 
 Update the pinned-commit line above when refreshing.
@@ -23,14 +23,15 @@ Update the pinned-commit line above when refreshing.
 Cases are delimited by 32-backtick fences with an `example` tag, optionally followed by a class (`autolink`, `disabled`,
 `strikethrough`, `table`, `tagfilter`). Tabs in the source are escaped as `→` (U+2192) and decoded back to `\t` at load
 time. Each example has a Markdown source, a single `.` separator line, and the expected HTML output. The runner does
-**not** compare against the expected HTML — it asserts our formatter's idempotence and AST/HTML equivalence against the
+**not** compare against the expected HTML. It asserts our formatter's idempotence and AST/HTML equivalence against the
 *parsed* source. The expected HTML is therefore informational here.
 
-## Bare URL autolinks
+## GFM bare URL autolinks
 
-mdwright does not enable pulldown-cmark's GFM bare-URL autolink extension. Bare URLs in source parse to plain `Text`
-nodes and round-trip verbatim through the formatter — a deliberate choice that keeps the formatter's output stable for
-prose corpora.
+pulldown-cmark 0.13 does not implement GFM's bare URL autolink extension. mdwright adds a document-owned overlay for
+bare `www.`, `http(s)://`, and `ftp://` URL autolinks so rendered HTML matches cmark-gfm for that extension while the
+formatter still round-trips source bytes. GFM email autolinks remain classified in `cargo xtask parser-audit` until they
+can be recognised with source-aware context across pulldown's inline delimiter splitting.
 
 ## Runner
 
@@ -41,8 +42,8 @@ idempotence plus mdwright semantic equivalence. It does **not** compare against 
 Phase R replaced the ratchet with a snapshot. Two tests in `tests/gfm_spec.rs`:
 
 - `gfm_spec_snapshot` runs every case through `parse → format → parse → format`, collects the residual `(case, kind)`
-  failures *not* covered by `allowlist.toml`, and asserts byte-for-byte equality with `snapshot.txt`. Any drift —
-  regression *or* improvement — fails CI. Regenerate after a deliberate change with:
+  failures *not* covered by `allowlist.toml`, and asserts byte-for-byte equality with `snapshot.txt`. Any drift,
+  regression or improvement, fails CI. Regenerate after a deliberate change with:
 
   ```
   MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot
@@ -53,9 +54,9 @@ Phase R replaced the ratchet with a snapshot. Two tests in `tests/gfm_spec.rs`:
 
 ## Allowlist vs. snapshot
 
-- `allowlist.toml` — *editorial deviations*. Choices we have made and intend to keep. Currently empty; adding here is a
+- `allowlist.toml`: *editorial deviations*. Choices we have made and intend to keep. Currently empty; adding here is a
   statement that mdwright will never round-trip that case.
-- `snapshot.txt` — *tracked regressions*. Known divergences we intend to fix. Adding here is a statement that the
+- `snapshot.txt`: *tracked regressions*. Known divergences we intend to fix. Adding here is a statement that the
   current output is wrong, but recorded so we notice when it changes.
 
 User-facing summary of both: [`docs/deviations.md`](../../docs/deviations.md).

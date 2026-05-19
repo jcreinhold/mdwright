@@ -23,7 +23,7 @@ That single blank line then re-renders _every_ item with `<p>` wrappers, which a
 padding throughout the list. Authors who write one stray blank line frequently don't notice the
 cascading effect on items above and below.
 
-This rule is advisory because the "wrong" tightness is rarely a bug per se — but the surprise
+This rule is advisory because the "wrong" tightness is rarely a bug per se—but the surprise
 is consistent enough that flagging it is worth a one-line nudge.
 
 ## Example (bad)
@@ -66,4 +66,4 @@ Or loose throughout:
 
 ## References
 
-- [CommonMark §5.3 — Lists](https://spec.commonmark.org/0.31.2/#lists).
+- [CommonMark §5.3—Lists](https://spec.commonmark.org/0.31.2/#lists).

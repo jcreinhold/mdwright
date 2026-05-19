@@ -60,5 +60,5 @@ well under 50 ms on Linux release builds.
 
 ## See also
 
-- [GitHub Actions](github-actions.md) — server-side CI gate.
-- [Editor integrations](editor-integrations.md) — fix-on-save flow.
+- [GitHub Actions](github-actions.md)—server-side CI gate.
+- [Editor integrations](editor-integrations.md)—fix-on-save flow.

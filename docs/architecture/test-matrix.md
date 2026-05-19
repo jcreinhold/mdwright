@@ -35,8 +35,8 @@ Three families:
 
 **Invariants tested:**
 
-- **Idempotence:** `format(format(s)) == format(s)` — strict byte equality.
-- **HTML preservation / semantic equivalence:** `semantically_equivalent(s, format(s))` —
+- **Idempotence:** `format(format(s)) == format(s)`: strict byte equality.
+- **HTML preservation / semantic equivalence:** `semantically_equivalent(s, format(s))`:
   canonical pulldown event streams agree.
 - **Lint preservation:** `format` does not introduce new default-on diagnostics
   (modulo `bare-url`, which the formatter is allowed to fix into `<...>` autolinks).
@@ -52,9 +52,9 @@ a full Cartesian product would be 4·3·4·3·2·3 = 864 modes and is not pulled
 Each `*.in` file is a minimal failing input committed in the same change as its fix.
 Two gates per fixture:
 
-- `regression_inputs_preserve_html` — `format_validated` must succeed (HTML equivalent
+- `regression_inputs_preserve_html`: `format_validated` must succeed (HTML equivalent
   to source). Skipped for fixtures whose stem ends in `.idem`.
-- `regression_inputs_are_idempotent` — byte equality across two format passes. Applied
+- `regression_inputs_are_idempotent`: byte equality across two format passes. Applied
   to every fixture.
 
 **Invariant:** previously-broken shapes do not re-regress.
@@ -69,9 +69,9 @@ at `tests/gfm-spec/snapshot.txt`.
 
 Two tests:
 
-- `gfm_spec_snapshot` — runs every spec case and compares the residual allowlist
+- `gfm_spec_snapshot`: runs every spec case and compares the residual allowlist
   against `snapshot.txt`. Update with `MDWRIGHT_UPDATE_SNAPSHOT=1`.
-- `gfm_spec_coverage` — asserts the bucketing (fully matching / intentional dev /
+- `gfm_spec_coverage`: asserts the bucketing (fully matching / intentional dev /
   tracked regression / unexpected) and refuses any `unexpected` count.
 
 **Invariant:** the formatter's GFM conformance is stable; the snapshot only changes
@@ -87,11 +87,13 @@ when intentionally rebaselined.
 
 The audit compares mdwright's `pulldown-cmark` backend against the vendored
 cmark-gfm expected HTML and a pinned `cmark-gfm` binary. Optional comrak output is
-reported as diagnostic evidence, not as a release gate.
+reported as diagnostic evidence, not as a release gate. It also performs
+risk-gated source-position checks for constructs that mdwright uses as formatter
+or lint facts.
 
 **Invariant:** parser-backend differences are explicit. Unclassified pulldown HTML
-mismatches, uncontained parser panics, rows marked `fixed`, and rows marked
-`needs-mdwright-mitigation` fail the command.
+mismatches, unclassified source-position risks, uncontained parser panics, rows
+marked `fixed`, and rows marked `needs-mdwright-mitigation` fail the command.
 
 **Does NOT cover:** formatter idempotence or rewrite safety; those remain covered by
 the GFM snapshot, property tests, fuzz, and production soak.
@@ -102,8 +104,8 @@ the GFM snapshot, property tests, fuzz, and production soak.
 
 | Target | Oracle | Option byte |
 |---|---|---|
-| `fuzz_idempotence` | `format(format(s)) == format(s)` | Yes — drives wrap × mode × math × canonicalisation |
-| `fuzz_parse_format` | `semantically_equivalent(s, format(s))` | Yes — same allocation as `fuzz_idempotence` |
+| `fuzz_idempotence` | `format(format(s)) == format(s)` | Yes; drives wrap × mode × math × canonicalisation |
+| `fuzz_parse_format` | `semantically_equivalent(s, format(s))` | Yes; same allocation as `fuzz_idempotence` |
 | `fuzz_structured_idempotence` | Structured-document idempotence over generated Markdown | Yes |
 | `fuzz_verbatim_identity` | Default options are identity modulo document-boundary normalisations | No |
 | `fuzz_lint` | Standard lint rules do not panic and diagnostics are deterministic/in-bounds | No |

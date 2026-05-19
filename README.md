@@ -3,13 +3,13 @@
 [![ci](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml/badge.svg)](https://github.com/jcreinhold/mdwright/actions/workflows/ci.yml)
 [![docs](https://github.com/jcreinhold/mdwright/actions/workflows/docs.yml/badge.svg)](https://jcreinhold.github.io/mdwright/)
 
-A Markdown linter and round-trip formatter. `mdwright fmt` is HTML-equivalent to its input — it refuses any rewrite
-that would change the rendered DOM — and the lint catalogue covers the control-sequence patterns that generic
+A Markdown linter and round-trip formatter. `mdwright fmt` is HTML-equivalent to its input—it refuses any rewrite
+that would change the rendered DOM—and the lint catalogue covers the control-sequence patterns that generic
 Markdown formatters routinely mangle. Built so it stays safe on Markdown that contains LaTeX (`\( … \)`, `\[ … \]`,
 `\begin{…} … \end{…}`); useful on any Markdown.
 
-**Preserve by default.** Source style choices — emphasis delimiters (`_foo_` vs `*foo*`), list markers (`-` / `*` /
-`+`), thematic breaks, link-destination angle brackets — pass through untouched. Canonicalisation is opt-in one knob at
+**Preserve by default.** Source style choices—emphasis delimiters (`_foo_` vs `*foo*`), list markers (`-` / `*` /
+`+`), thematic breaks, link-destination angle brackets—pass through untouched. Canonicalisation is opt-in one knob at
 a time in `.mdwright.toml`. For aggressive canonicalisation as the default, [mdformat](https://mdformat.readthedocs.io/)
 is the standard choice.
 
@@ -73,7 +73,7 @@ error[bare-url]: bare URL should be wrapped in angle brackets or rendered as a l
    |
  3 | See https://example.com for the spec.
    |     ^^^^^^^^^^^^^^^^^^^
-   = help: CommonMark autolinks need angle brackets — `<https://example.com>` — to render as a link.
+   = help: CommonMark autolinks need angle brackets—`<https://example.com>`—to render as a link.
    = fix (safe): <https://example.com>
    = note: see `mdwright explain bare-url`
 ```
@@ -81,13 +81,13 @@ error[bare-url]: bare URL should be wrapped in angle brackets or rendered as a l
 Pass files, directories, or both; directories are walked recursively with `.gitignore` honoured.
 
 `mdwright explain <rule>` prints the long-form rationale of any rule plus a link into the doc site.
-`mdwright lsp` runs a built-in language server over stdio — recipes for Helix, Zed, VS Code, and Neovim are at
+`mdwright lsp` runs a built-in language server over stdio—recipes for Helix, Zed, VS Code, and Neovim are at
 [Editor integration](docs/src/integration/editor-integrations.md).
 
 ## Configure
 
 mdwright walks up from `$PWD` to find a `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml [tool.mdwright]`. Out of
-the box, no config file is needed — defaults preserve your source. A minimal `.mdwright.toml` looks like:
+the box, no config file is needed—defaults preserve your source. A minimal `.mdwright.toml` looks like:
 
 ```toml
 [lint]
@@ -136,11 +136,11 @@ see [Pre-commit](https://jcreinhold.github.io/mdwright/integration/pre-commit.ht
 ## Safety
 
 `mdwright` is built to run on untrusted Markdown. The only user-tunable bound is `--max-input-bytes` (default 10 MB);
-three further bounds are fixed at compile time and degrade gracefully — paragraphs that overrun the token cap or 100
+three further bounds are fixed at compile time and degrade gracefully—paragraphs that overrun the token cap or 100
 ms wrap budget are emitted without re-wrapping rather than failing the run. Five coverage-guided fuzz targets under
 [`fuzz/`](./fuzz) cover parse/format HTML equivalence, idempotence, lint determinism, and verbatim identity; reproducers
 for fixed bugs live under [`crates/mdwright/tests/regressions/`](./crates/mdwright/tests/regressions). Panics on any
-input are security bugs — see [SECURITY.md](./SECURITY.md) for disclosure.
+input are security bugs—see [SECURITY.md](./SECURITY.md) for disclosure.
 
 ## Platform support
 
