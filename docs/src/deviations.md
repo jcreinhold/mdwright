@@ -28,6 +28,27 @@ branch.
 A *case* may fail more than one comparison kind (`semantic`, `idempotence`); the snapshot file is keyed by
 `(case, kind)` and currently lists no tracked regressions.
 
+## Parser Backend Drift
+
+The formatter round-trip gate is not the same as cmark-gfm renderer equivalence. `cargo xtask parser-audit` compares
+mdwright's current pulldown-cmark backend with cmark-gfm and renders mdwright through the opt-in `cmark-gfm` render
+profile. The current GFM-spec parser audit has 15 classified HTML differences, 0 source-position differences, and 0
+unclassified differences.
+
+The remaining differences are accepted constraints of the current backend:
+
+| Class | Count | Status |
+| --- | ---: | --- |
+| Emphasis delimiter-stack resolution | 9 | accepted parser-backend drift |
+| Raw HTML block indentation/newline spelling | 4 | accepted render drift with stable source facts |
+| Task-list examples marked disabled by the spec | 2 | accepted spec-fixture drift |
+| Contained upstream parser panic | 1 | converted to `ParseError` |
+
+`[render] profile = "cmark-gfm"` changes only HTML spelling for `mdwright render`: quote escaping, link-destination
+escaping, ordinary GFM table layout, task-list checkbox spelling, and one raw-HTML newline case where the parser already
+exposes enough structure. It does not change emphasis resolution or parser tree semantics. Full cmark-gfm parser
+equivalence would require upstream pulldown-cmark changes, a maintained fork, or a parser backend switch.
+
 ## Editorial deviations
 
 ### Pulldown text-chunking deviations

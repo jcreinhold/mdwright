@@ -170,6 +170,14 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         description: "Apply GFM tagfiltering when rendering or building semantic signatures. This escapes the raw HTML tags that cmark-gfm filters, without rewriting source bytes.",
         cli_override: None,
     },
+    // ---- [render] ----------------------------------------------------
+    FieldDoc {
+        key: "render.profile",
+        ty: "\"pulldown\" | \"cmark-gfm\"",
+        default: "\"pulldown\"",
+        description: "HTML spelling profile for `mdwright render`. `pulldown` preserves the default renderer; `cmark-gfm` matches cmark-gfm's quote, link-destination, table, task-list, and HTML-block spelling where parser semantics already agree.",
+        cli_override: Some("--render-profile"),
+    },
     FieldDoc {
         key: "parse.extensions.definition-lists",
         ty: "bool",
@@ -289,10 +297,11 @@ The following knobs accept CLI flags that take precedence over the
 config file:
 
 - `lint.rules`: `--rules`
+- `render.profile`: `mdwright render --render-profile`
 - `--no-suppress` toggles whether `<!-- mdwright: allow ... -->`
   comments are honoured; there is no config-file equivalent.
 
-All other `[fmt]` knobs are config-file-only.
+All `[fmt]` knobs are config-file-only.
 
 ## Schema reference
 
@@ -307,6 +316,7 @@ pub fn render() -> String {
     render_section(&mut out, "[lint]", "lint.");
     render_section(&mut out, "[fmt]", "fmt.");
     render_section(&mut out, "[parse]", "parse.");
+    render_section(&mut out, "[render]", "render.");
     out.push_str("<!-- END GENERATED -->\n");
     out
 }

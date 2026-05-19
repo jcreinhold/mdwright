@@ -22,7 +22,8 @@ the component crate that owns the capability they need.
 | `Suppression`, `SuppressionKind`, `AllowScope` | types | returned by `Document::suppressions` |
 | `LineIndex`, `LineIndexError` | types | byte/line/column lookup |
 | `MathRegion`, `MathSpan`, `MathError` | types | math facts exposed through `Document` |
-| `render_html` | fn | fallible CLI `render` and formatter verification helper |
+| `RenderOptions`, `RenderProfile` | types | HTML spelling policy for source-to-HTML helpers |
+| `render_html`, `render_html_with_options`, `render_html_with_render_options` | fns | fallible CLI `render` and formatter verification helpers |
 | `contains_rejected_control_chars` | fn | CLI input policy and fuzz harnesses |
 
 `Document` is parse/query only. Linting, formatting, and safe-fix application are owned by their operation crates.

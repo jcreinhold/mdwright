@@ -17,6 +17,7 @@ use crate::ir::{
 };
 use crate::line_index::LineIndex;
 use crate::parse;
+use crate::render::{RenderOptions, RenderProfile, render_cmark_gfm_html};
 use crate::source::{CanonicalSource, Source};
 use crate::tree::{NodeKind, Tree};
 use mdwright_math::{MathError, MathRegion};
@@ -46,13 +47,32 @@ pub fn render_html(source: &str) -> Result<String, ParseError> {
 /// Returns [`ParseError`] if parser execution cannot safely recognise
 /// the canonicalised source.
 pub fn render_html_with_options(source: &str, opts: ParseOptions) -> Result<String, ParseError> {
+    render_html_with_render_options(source, opts, RenderOptions::default())
+}
+
+/// Render Markdown to HTML under explicit recognition and render options.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if parser execution cannot safely recognise
+/// the canonicalised source.
+pub fn render_html_with_render_options(
+    source: &str,
+    opts: ParseOptions,
+    render: RenderOptions,
+) -> Result<String, ParseError> {
     let src = Source::new(source);
     let canonical = CanonicalSource::from_source(&src);
     let events = parse::collect_events_with_offsets(canonical, parse::options(opts))?;
     let events = apply_gfm_render_policy(canonical.as_str(), events, opts.extensions().gfm);
-    let mut out = String::with_capacity(canonical.as_str().len());
-    html::push_html(&mut out, events.into_iter());
-    Ok(out)
+    match render.profile() {
+        RenderProfile::Pulldown => {
+            let mut out = String::with_capacity(canonical.as_str().len());
+            html::push_html(&mut out, events.into_iter());
+            Ok(out)
+        }
+        RenderProfile::CmarkGfm => Ok(render_cmark_gfm_html(events)),
+    }
 }
 
 /// A parsed Markdown document.

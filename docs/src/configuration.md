@@ -36,10 +36,11 @@ The following knobs accept CLI flags that take precedence over the
 config file:
 
 - `lint.rules`: `--rules`
+- `render.profile`: `mdwright render --render-profile`
 - `--no-suppress` toggles whether `<!-- mdwright: allow ... -->`
   comments are honoured; there is no config-file equivalent.
 
-All other `[fmt]` knobs are config-file-only.
+All `[fmt]` knobs are config-file-only.
 
 ## Schema reference
 
@@ -89,5 +90,11 @@ All other `[fmt]` knobs are config-file-only.
 | `parse.extensions.pandoc.fenced-divs` | bool | `true` | `none` | Recognise Pandoc `::: {.cls}` fenced div openers (attribute form). Closer is a colon-only line of matching count. |
 | `parse.extensions.pandoc.short-form-divs` | bool | `true` | `none` | Recognise Pandoc `:::name` fenced div openers (short form). |
 | `parse.extensions.pandoc.inline-attribute-spans` | bool | `true` | `none` | Recognise Pandoc `[content]{.cls}` inline attribute spans as a scan-and-preserve overlay. |
+
+### `[render]` and nested tables
+
+| Key | Type | Default | CLI override | Description |
+| --- | --- | --- | --- | --- |
+| `render.profile` | "pulldown" \| "cmark-gfm" | `"pulldown"` | `--render-profile` | HTML spelling profile for `mdwright render`. `pulldown` preserves the default renderer; `cmark-gfm` matches cmark-gfm's quote, link-destination, table, task-list, and HTML-block spelling where parser semantics already agree. |
 
 <!-- END GENERATED -->

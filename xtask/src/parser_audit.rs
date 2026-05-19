@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 
 use anyhow::{Context, Result, bail};
 use mdwright_document::{
-    Document, ExtensionOptions, GfmAutolinkPolicy, GfmOptions, NodeKind, ParseError, ParseOptions,
-    render_html_with_options,
+    Document, ExtensionOptions, GfmAutolinkPolicy, GfmOptions, NodeKind, ParseError, ParseOptions, RenderOptions,
+    RenderProfile, render_html_with_render_options,
 };
 use regex::Regex;
 use serde::Serialize;
@@ -42,6 +42,7 @@ pub struct ParserAuditOptions {
 struct AuditReport {
     cmark_gfm_bin: String,
     cmark_gfm_commit: String,
+    render_profile: String,
     include_comrak: bool,
     stats: AuditStats,
     differences: Vec<DifferenceReport>,
@@ -172,28 +173,30 @@ pub fn run(workspace: &Path, opts: ParserAuditOptions) -> Result<bool> {
         let sourcepos = sourcepos_analysis(&case, &cmark_rendered.sourcepos_html, comrak_sourcepos);
         stats.sourcepos_checked = stats.sourcepos_checked.saturating_add(sourcepos.summary.checked);
 
-        let pulldown_html = match render_html_with_options(&case.source, audit_parse_options(&case)) {
-            Ok(html) => Some(html),
-            Err(err) => {
-                stats.mdwright_parse_errors = stats.mdwright_parse_errors.saturating_add(1);
-                let observed = classify_parse_error(&case, &err);
-                record_difference(
-                    &mut stats,
-                    &mut failures,
-                    &mut differences,
-                    &classifications,
-                    DifferenceInput {
-                        case: &case,
-                        observed: &observed,
-                        pulldown_html: None,
-                        cmark_html: Some(cmark_rendered.html.clone()),
-                        comrak_html: None,
-                        sourcepos: sourcepos.summary.clone(),
-                    },
-                );
-                continue;
-            }
-        };
+        let render_options = RenderOptions::default().with_profile(RenderProfile::CmarkGfm);
+        let pulldown_html =
+            match render_html_with_render_options(&case.source, audit_parse_options(&case), render_options) {
+                Ok(html) => Some(html),
+                Err(err) => {
+                    stats.mdwright_parse_errors = stats.mdwright_parse_errors.saturating_add(1);
+                    let observed = classify_parse_error(&case, &err);
+                    record_difference(
+                        &mut stats,
+                        &mut failures,
+                        &mut differences,
+                        &classifications,
+                        DifferenceInput {
+                            case: &case,
+                            observed: &observed,
+                            pulldown_html: None,
+                            cmark_html: Some(cmark_rendered.html.clone()),
+                            comrak_html: None,
+                            sourcepos: sourcepos.summary.clone(),
+                        },
+                    );
+                    continue;
+                }
+            };
         let pulldown_html = pulldown_html.expect("parse errors continue");
         let oracle_html = case.expected_html.as_deref().unwrap_or(&cmark_rendered.html);
         let html_mismatched = normalize_spec_html(oracle_html) != normalize_spec_html(&pulldown_html);
@@ -254,6 +257,7 @@ pub fn run(workspace: &Path, opts: ParserAuditOptions) -> Result<bool> {
     let report = AuditReport {
         cmark_gfm_bin: cmark.display().to_string(),
         cmark_gfm_commit: CMARK_GFM_COMMIT.to_owned(),
+        render_profile: "cmark-gfm".to_owned(),
         include_comrak: opts.include_comrak,
         stats,
         differences,
@@ -971,12 +975,13 @@ fn markdown_report(report: &AuditReport) -> String {
     out.push_str("# Parser backend audit report\n\n");
     out.push_str(&format!("- cmark-gfm binary: `{}`\n", report.cmark_gfm_bin));
     out.push_str(&format!("- cmark-gfm commit: `{}`\n", report.cmark_gfm_commit));
+    out.push_str(&format!("- mdwright render profile: `{}`\n", report.render_profile));
     out.push_str(&format!("- comrak diagnostics: `{}`\n", yes_no(report.include_comrak)));
     out.push_str(&format!("- cases: `{}`\n", report.stats.cases));
     out.push_str(&format!("- GFM spec cases: `{}`\n", report.stats.gfm_spec_cases));
     out.push_str(&format!("- corpus cases: `{}`\n", report.stats.corpus_cases));
     out.push_str(&format!(
-        "- pulldown HTML mismatches: `{}`\n",
+        "- mdwright HTML mismatches: `{}`\n",
         report.stats.pulldown_html_mismatches
     ));
     out.push_str(&format!(
@@ -1026,7 +1031,7 @@ fn print_summary(output: &Path, report: &AuditReport) {
         "  cmark expected mismatches: {}",
         report.stats.cmark_expected_mismatches
     );
-    println!("  pulldown HTML mismatches: {}", report.stats.pulldown_html_mismatches);
+    println!("  mdwright HTML mismatches: {}", report.stats.pulldown_html_mismatches);
     println!("  comrak HTML mismatches: {}", report.stats.comrak_html_mismatches);
     println!("  sourcepos risks: {}", report.stats.sourcepos_risks);
     println!("  sourcepos checked: {}", report.stats.sourcepos_checked);

@@ -43,7 +43,10 @@ use serde::Serialize;
 
 use crate::discover::discover_markdown;
 use mdwright_config::Config;
-use mdwright_document::{Document, LineIndex, ParseOptions, contains_rejected_control_chars, render_html_with_options};
+use mdwright_document::{
+    Document, LineIndex, ParseOptions, RenderOptions, RenderProfile, contains_rejected_control_chars,
+    render_html_with_render_options,
+};
 use mdwright_format::{
     CheckpointTable, FmtOptions, FormatError, MathRender, format_document, format_range_with_checkpoints,
     format_validated,
@@ -310,6 +313,13 @@ struct RenderArgs {
     /// corresponding flag on `mdwright fmt` for the modes.
     #[arg(long, value_enum)]
     math_render: Option<MathRenderArg>,
+
+    /// HTML spelling profile. `pulldown` preserves the default
+    /// renderer; `cmark-gfm` matches cmark-gfm spelling for renderer
+    /// differences that do not require changing parser semantics.
+    /// Overrides `[render] profile` in the config file.
+    #[arg(long, value_enum)]
+    render_profile: Option<RenderProfileArg>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -326,6 +336,22 @@ impl From<MathRenderArg> for MathRender {
             MathRenderArg::None => Self::None,
             MathRenderArg::CommonmarkKatex => Self::CommonmarkKatex,
             MathRenderArg::Dollar => Self::Dollar,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+enum RenderProfileArg {
+    Pulldown,
+    #[value(name = "cmark-gfm")]
+    CmarkGfm,
+}
+
+impl From<RenderProfileArg> for RenderProfile {
+    fn from(profile: RenderProfileArg) -> Self {
+        match profile {
+            RenderProfileArg::Pulldown => Self::Pulldown,
+            RenderProfileArg::CmarkGfm => Self::CmarkGfm,
         }
     }
 }
@@ -388,13 +414,18 @@ fn run(available: RuleSet) -> Result<ExitCode> {
 /// Multiple paths are concatenated in argument order with a single
 /// `\n` between, so a render of `intro.md notes.md` is one HTML
 /// document. The formatter runs in its default `Normalise` mode; the
-/// only knob exposed here is `--math-render`, since that is what
-/// changes the math regions visible in the rendered HTML.
+/// `--math-render` changes math spelling before rendering;
+/// `--render-profile` changes HTML spelling where parser semantics
+/// already agree.
 fn run_render(args: &RenderArgs, config_path: Option<&std::path::Path>, policy: InputPolicy) -> Result<ExitCode> {
     let cfg = resolve_config(config_path)?;
     let mut opts = cfg.fmt_options().clone();
+    let mut render_options: RenderOptions = cfg.render_options();
     if let Some(mr) = args.math_render {
         opts = opts.with_math_render(mr.into());
+    }
+    if let Some(profile) = args.render_profile {
+        render_options = render_options.with_profile(profile.into());
     }
 
     let source = if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
@@ -423,7 +454,7 @@ fn run_render(args: &RenderArgs, config_path: Option<&std::path::Path>, policy: 
 
     let doc = Document::parse_with_options(&source, cfg.parse_options())?;
     let formatted = format_document(&doc, &opts);
-    let html = render_html_with_options(&formatted, cfg.parse_options())?;
+    let html = render_html_with_render_options(&formatted, cfg.parse_options(), render_options)?;
     let stdout = io::stdout();
     let mut out = stdout.lock();
     out.write_all(html.as_bytes())?;

@@ -86,10 +86,11 @@ when intentionally rebaselined.
 `docs/architecture/parser-backend-audit.md`.
 
 The audit compares mdwright's `pulldown-cmark` backend against the vendored
-cmark-gfm expected HTML and a pinned `cmark-gfm` binary. Optional comrak output is
-reported as diagnostic evidence, not as a release gate. It also performs
-risk-gated source-position checks for constructs that mdwright uses as formatter
-or lint facts.
+cmark-gfm expected HTML and a pinned `cmark-gfm` binary. It renders mdwright
+through the `cmark-gfm` render profile so parser drift is not hidden by HTML
+serializer spelling. Optional comrak output is reported as diagnostic evidence,
+not as a release gate. The audit also performs risk-gated source-position checks
+for constructs that mdwright uses as formatter or lint facts.
 
 **Invariant:** parser-backend differences are explicit. Unclassified pulldown HTML
 mismatches, unclassified source-position risks, uncontained parser panics, rows

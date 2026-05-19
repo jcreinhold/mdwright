@@ -24,7 +24,10 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use mdwright_document::{ExtensionOptions, GfmAutolinkPolicy, GfmOptions, MystOptions, PandocOptions, ParseOptions};
+use mdwright_document::{
+    ExtensionOptions, GfmAutolinkPolicy, GfmOptions, MystOptions, PandocOptions, ParseOptions, RenderOptions,
+    RenderProfile,
+};
 use mdwright_format::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
     OrderedListStyle, Placement, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
@@ -45,6 +48,7 @@ pub struct Config {
     extra_info_strings: Vec<String>,
     fmt_options: FmtOptions,
     parse_options: ParseOptions,
+    render_options: RenderOptions,
     /// Path of the file this config was loaded from, if any. `None`
     /// for the defaults instance.
     source: Option<PathBuf>,
@@ -134,6 +138,12 @@ impl Config {
         self.parse_options
     }
 
+    /// Resolved HTML rendering policy.
+    #[must_use]
+    pub fn render_options(&self) -> RenderOptions {
+        self.render_options
+    }
+
     /// The all-defaults [`Config`] — what [`Self::discover`] returns
     /// when no `.mdwright.toml` / `mdwright.toml` / `pyproject.toml`
     /// is found on the upward walk. Exposed for long-lived processes
@@ -145,13 +155,19 @@ impl Config {
     }
 
     fn from_schema(schema: Schema, source: Option<PathBuf>) -> Self {
-        let Schema { lint, fmt, parse } = schema;
+        let Schema {
+            lint,
+            fmt,
+            parse,
+            render,
+        } = schema;
         Self {
             rules_spec: lint.rules,
             exclude_globs: lint.exclude,
             extra_info_strings: lint.info_strings.extra,
             fmt_options: fmt_options_from_schema(fmt),
             parse_options: parse_options_from_schema(parse),
+            render_options: render_options_from_schema(render),
             source,
         }
     }
@@ -200,6 +216,8 @@ struct Schema {
     fmt: FmtSchema,
     #[serde(default)]
     parse: ParseSchema,
+    #[serde(default)]
+    render: RenderSchema,
 }
 
 #[derive(Debug, Deserialize)]
@@ -329,6 +347,34 @@ fn parse_options_from_schema(schema: ParseSchema) -> ParseOptions {
     schema.extensions.map_or_else(ParseOptions::default, |extensions| {
         ParseOptions::default().with_extensions(ExtensionOptions::from(extensions))
     })
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenderSchema {
+    #[serde(default)]
+    profile: Option<RenderProfileSchema>,
+}
+
+fn render_options_from_schema(schema: RenderSchema) -> RenderOptions {
+    let default = RenderOptions::default();
+    RenderOptions::default().with_profile(schema.profile.map_or_else(|| default.profile(), RenderProfile::from))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum RenderProfileSchema {
+    Pulldown,
+    CmarkGfm,
+}
+
+impl From<RenderProfileSchema> for RenderProfile {
+    fn from(s: RenderProfileSchema) -> Self {
+        match s {
+            RenderProfileSchema::Pulldown => Self::Pulldown,
+            RenderProfileSchema::CmarkGfm => Self::CmarkGfm,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -796,8 +842,8 @@ mod tests {
     use anyhow::{Result, anyhow};
 
     use super::{
-        Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListMarkerStyle, OrderedListStyle, Schema,
-        StrongStyle, ThematicStyle, TrailingNewline, Wrap,
+        Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListMarkerStyle, OrderedListStyle,
+        RenderProfile, Schema, StrongStyle, ThematicStyle, TrailingNewline, Wrap,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -907,6 +953,28 @@ inline-attribute-spans = false
         assert!(!extensions.heading_attribute_lists);
         assert!(!extensions.myst.comments);
         assert!(!extensions.pandoc.inline_attribute_spans);
+        Ok(())
+    }
+
+    #[test]
+    fn render_profile_is_render_policy() -> Result<()> {
+        let default = config_from_str("")?;
+        assert_eq!(default.render_options().profile(), RenderProfile::Pulldown);
+
+        let cfg = config_from_str("[render]\nprofile = \"cmark-gfm\"\n")?;
+        assert_eq!(cfg.render_options().profile(), RenderProfile::CmarkGfm);
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unknown_render_profile() -> Result<()> {
+        let err = config_from_str("[render]\nprofile = \"github\"\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected error"))?;
+        assert!(
+            err.to_string().contains("profile"),
+            "error should name rejected render profile: {err}"
+        );
         Ok(())
     }
 

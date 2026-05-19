@@ -47,12 +47,17 @@ The CLI flag overrides the config file; both fall back to `MathRender::None`.
 ```sh,no-check
 mdwright render notes.md > notes.html
 mdwright render --math-render=dollar notes.md
+mdwright render --render-profile=cmark-gfm notes.md
 ```
 
 This is a diagnostic surface, not a production renderer. mdwright's HTML emitter does not enable
 pulldown-cmark's math extension: math regions land in the HTML as plain text in whatever
 delimiter form the formatter produced. Feed that HTML through KaTeX, MathJax, or your static-site
 generator's math plugin to see the actual typeset output.
+
+`--render-profile=cmark-gfm` changes HTML spelling only. It is useful when comparing diagnostic
+HTML with cmark-gfm-based tools, but it does not change parser semantics or formatter source
+rewrites.
 
 ## The gate under `dollar` mode
 

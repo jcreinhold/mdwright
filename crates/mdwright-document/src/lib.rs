@@ -9,12 +9,13 @@ mod ir;
 mod line_index;
 mod parse;
 mod refs;
+mod render;
 mod signature;
 mod source;
 mod tree;
 mod util;
 
-pub use document::{Document, render_html, render_html_with_options};
+pub use document::{Document, render_html, render_html_with_options, render_html_with_render_options};
 pub use error::ParseError;
 pub use format_facts::{
     HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite, OrderedItemSite,
@@ -30,6 +31,7 @@ pub use ir::{
 pub use line_index::{LineIndex, LineIndexError};
 pub use mdwright_math::{MathError, MathRegion, MathSpan};
 pub use refs::NormalisedLabel;
+pub use render::{RenderOptions, RenderProfile};
 pub use signature::{MarkdownSignature, markdown_signature};
 pub use source::{ByteSpan, CanonicalSource, OffsetMap, OriginalSpan, Source};
 pub use tree::{Node, NodeId, NodeKind, TableAlign, Tree};

@@ -87,3 +87,18 @@ fn render_dollar_rewrites_math_in_html() {
         "bracket/paren delimiters leaked through:\n{stdout}"
     );
 }
+
+#[test]
+fn render_profile_override_uses_cmark_gfm_html_spelling() {
+    let source = "| foo | bar |\n| --- | --- |\n| baz | bim |\n";
+    let (ok, stdout, stderr) = run_render(&["--render-profile=cmark-gfm"], source);
+    assert!(ok, "render exited non-zero; stderr:\n{stderr}");
+    assert!(
+        stdout.contains("<thead>\n<tr>\n<th>foo</th>\n<th>bar</th>\n</tr>\n</thead>"),
+        "expected cmark-gfm table spelling; got:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("<table><thead>"),
+        "pulldown compact table spelling leaked through:\n{stdout}"
+    );
+}

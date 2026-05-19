@@ -52,6 +52,13 @@ follow [SemVer](https://semver.org/spec/v2.0.0.html).
 - Added a document-owned GFM extension overlay for URL autolinks, email autolinks, and tagfiltering. Rendering now
   matches cmark-gfm for those extension cases by default, while the `bare-url` lint still asks authors to make URL
   autolinks explicit with `<...>` for renderer portability.
+- Added `[render] profile = "pulldown" | "cmark-gfm"` and `mdwright render --render-profile`. The default keeps
+  pulldown-style HTML output; the cmark-gfm profile matches cmark-gfm spelling for quote escaping, link-destination
+  escaping, ordinary GFM tables, task-list checkboxes, and one raw-HTML newline case without changing parser semantics
+  or formatter source bytes.
+- Documented the remaining cmark-gfm parser-backend divergences as accepted current-backend constraints: emphasis
+  delimiter-stack resolution, a few raw HTML block indentation cases, disabled task-list spec fixtures, and the
+  contained upstream parser panic.
 - The wrap pass now treats MkDocs-style `!!!` / `???` admonition paragraphs as opaque blocks, preventing prose wrapping
   from collapsing the admonition marker and indented body into ordinary paragraph text.
 

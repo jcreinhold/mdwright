@@ -1,7 +1,7 @@
 # CLI reference
 
 Auto-generated from clap's `--help` output by `cargo xtask doc-cli`. Edit the CLI definition in
-`crates/mdwright/src/bin/mdwright.rs` (or the rule registry for `list-rules`); never edit this file by hand.
+`crates/mdwright/src/cli.rs` (or the rule registry for `list-rules`); never edit this file by hand.
 
 ## `mdwright`
 
@@ -270,6 +270,51 @@ Options:
           Delimiter rewrite policy for math regions at emit time. `none` (default) passes math through verbatim: today's behaviour. `commonmark-katex` is the same emission as `none` but greppable as an intent signal in build logs. `dollar` rewrites `\[…\]` to `$$ … $$` and `\(…\)` to `$ … $` for downstream renderers that prefer dollar delimiters; LaTeX environments are not rewritten. Overrides `[fmt.math] render` in the config file
           
           [possible values: none, commonmark-katex, dollar]
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+## `mdwright render`
+
+```text
+Format the input and emit the rendered HTML to stdout.
+
+Pipes the formatted output through the same HTML renderer the `format_validated` gate uses. mdwright does not typeset math itself; math regions land in the HTML as their source bytes (or as `--math-render=dollar` rewrites, if requested) so a downstream `KaTeX` / `MathJax` runner can render them.
+
+Usage: mdwright render [OPTIONS] [PATHS]...
+
+Arguments:
+  [PATHS]...
+          File to render. A literal `-` (or an empty list) reads from stdin. Multiple paths are concatenated in argument order with a single newline between, then rendered as one document
+
+Options:
+      --config <CONFIG>
+          Explicit path to a config file. When omitted, mdwright walks up from `$PWD` looking, at each ancestor, for `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` containing a `[tool.mdwright]` table (in that precedence). The walk stops at the filesystem root or the first directory containing `.git/` (the workspace boundary). If nothing matches, built-in defaults apply
+
+      --stdin-filename <STDIN_FILENAME>
+          File name to report when reading from stdin. Defaults to `<stdin>`. Cosmetic; surfaced in error messages only
+
+      --math-render <MATH_RENDER>
+          Delimiter rewrite policy for math regions. See the corresponding flag on `mdwright fmt` for the modes
+          
+          [possible values: none, commonmark-katex, dollar]
+
+  -v, --verbose...
+          Increase log verbosity. `-v` = info, `-vv` = debug, `-vvv` = trace. `RUST_LOG` overrides this when set
+
+      --max-input-bytes <BYTES>
+          Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely
+          
+          [default: 10000000]
+
+      --render-profile <RENDER_PROFILE>
+          HTML spelling profile. `pulldown` preserves the default renderer; `cmark-gfm` matches cmark-gfm spelling for renderer differences that do not require changing parser semantics. Overrides `[render] profile` in the config file
+          
+          [possible values: pulldown, cmark-gfm]
+
+      --reject-control-chars
+          Refuse files (or stdin payloads) that contain C0 control bytes other than TAB, LF, FF, and CR. `CommonMark` accepts these verbatim (it only substitutes NUL with U+FFFD), but their presence is usually evidence the input is not Markdown, and pulldown's silent NUL rewrite makes round-trip idempotence undefined on such inputs. Off by default; opt-in for callers (CI gates, docs pipelines) that prefer hard rejection
 
   -h, --help
           Print help (see a summary with '-h')

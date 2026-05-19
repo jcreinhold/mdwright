@@ -139,6 +139,8 @@ The API is pre-1.0, so the split removes operation methods from `Document` where
 - The configuration table for recognition toggles moved from formatter policy to `[parse.extensions]`.
 - GFM extension policy is exposed as `parse.extensions.gfm.autolinks` and `parse.extensions.gfm.tagfilter`; the document
   crate exposes autolinks as general `AutolinkFact` values rather than URL-specific GFM facts.
+- HTML render spelling is document-owned policy exposed as `[render] profile`; it does not change parser recognition,
+  formatter canonicalisation, or document facts.
 - The root facade package was deleted. Library users import `mdwright-document`, `mdwright-format`, `mdwright-lint`,
   `mdwright-config`, `mdwright-lsp`, or `mdwright-math` directly. The `mdwright` package is the command delivery package
   and exposes only command-extension helpers such as `run_with_rules`.

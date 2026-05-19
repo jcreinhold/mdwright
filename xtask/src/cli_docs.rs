@@ -18,7 +18,17 @@ pub const CLI_DOC_PATH: &str = "docs/src/reference/cli.md";
 /// Subcommands rendered by the generator. The empty string represents
 /// the top-level invocation (`mdwright --help`). Order matches the
 /// order users see them in the top-level help.
-const SUBCOMMANDS: &[&str] = &["", "check", "fix", "fmt", "fmt-check", "list-rules", "explain", "lsp"];
+const SUBCOMMANDS: &[&str] = &[
+    "",
+    "check",
+    "fix",
+    "fmt",
+    "fmt-check",
+    "render",
+    "list-rules",
+    "explain",
+    "lsp",
+];
 
 /// Build the expected contents of [`CLI_DOC_PATH`] by invoking each
 /// subcommand's `--help`. Pass `Some(path)` to use an already-built
@@ -38,7 +48,7 @@ pub fn render(workspace: &Path, binary_override: Option<&Path>) -> Result<String
     let mut out = String::from("# CLI reference\n\n");
     out.push_str(
         "Auto-generated from clap's `--help` output by `cargo xtask doc-cli`. Edit the CLI definition in\n\
-         `crates/mdwright/src/bin/mdwright.rs` (or the rule registry for `list-rules`); never edit this file by hand.\n",
+         `crates/mdwright/src/cli.rs` (or the rule registry for `list-rules`); never edit this file by hand.\n",
     );
 
     for subcmd in SUBCOMMANDS {

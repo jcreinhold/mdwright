@@ -16,6 +16,9 @@ exclude = [
   "tests/gfm-spec/**",
 ]
 
+[render]
+profile = "pulldown"
+
 [lint]
 exclude = [
   # Per-rule pages necessarily contain rule-violating examples in
