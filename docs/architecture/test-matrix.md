@@ -140,6 +140,19 @@ The parity gate is intentionally not byte-equality with mdformat. Differences ar
 on unclassified differences, mdwright semantic drift, parser errors, idempotence failures, mdBook failures, rows marked
 `fixed` that still appear, and rows marked `open-bug`.
 
+## Release evidence
+
+`cargo xtask release-evidence --output target/mdwright/release` aggregates local release-candidate evidence into
+`release-evidence.json` and `release-evidence.md`. The command records git state and tool versions, reads existing
+parser-audit, mdformat-parity, production-soak, and package/install reports, and points at manual notes for fast checks,
+fuzz rounds, and benchmarks.
+
+**Invariant:** the release candidate has one inspectable evidence bundle that states the current claim, lists accepted
+divergences, and names missing evidence as blockers.
+
+**Does NOT cover:** running expensive gates. The command summarizes evidence; it does not replace parser-audit,
+mdformat-parity, production-soak, fuzzing, packaging, or Criterion.
+
 ## How to choose what to add when
 
 | Symptom | Right surface |

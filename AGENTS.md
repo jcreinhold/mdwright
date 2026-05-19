@@ -41,6 +41,8 @@ There is no Makefile. Drive the workspace through `cargo` directly:
   config is a parity fixture, not the repository formatter.
 - `cargo xtask parser-audit --case-set all --ensure-tools --include-comrak`: compare mdwright's parser backend against
   cmark-gfm expected/rendered HTML, with optional comrak diagnostics.
+- `cargo xtask release-evidence --output target/mdwright/release`: aggregate local release-candidate evidence into
+  JSON and Markdown reports.
 
 Spec-coverage sweep: `cargo test --release -p mdwright --test gfm_spec gfm_spec_coverage -- --nocapture`.
 

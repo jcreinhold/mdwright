@@ -64,5 +64,6 @@
 - [CLI](reference/cli.md)
 - [Diagnostic schema](reference/diagnostic-schema.md)
 - [Public API surface](reference/public-api.md)
+- [Release evidence](reference/release-evidence.md)
 - [Semver policy](reference/semver.md)
 - [Deviations from spec](deviations.md)

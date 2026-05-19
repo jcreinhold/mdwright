@@ -24,6 +24,7 @@ pub mod gfm_spec;
 pub mod mdformat_parity;
 pub mod parser_audit;
 pub mod production_soak;
+pub mod release_evidence;
 pub mod since;
 pub mod version_refs;
 

@@ -8,6 +8,10 @@ use mdwright_config::Config;
 use mdwright_document::Document;
 use mdwright_format::{FormatError, FormatReport, format_document, format_document_with_report, format_validated};
 use mdwright_lint::RuleSet;
+use serde::Serialize;
+
+const REPORT_JSON: &str = "production-soak.json";
+const REPORT_MD: &str = "production-soak.md";
 
 #[derive(Debug, Default)]
 struct SoakStats {
@@ -34,7 +38,32 @@ impl SoakStats {
     }
 }
 
-pub fn run(workspace: &Path, corpus_root: &Path) -> Result<bool> {
+#[derive(Debug, Serialize)]
+struct SoakReport {
+    corpus_root: String,
+    success: bool,
+    files_scanned: usize,
+    parse_errors: usize,
+    lint_diagnostics: usize,
+    validation_errors: usize,
+    idempotence_failures: usize,
+    fmt_check_disagreements: usize,
+    max_file_size: usize,
+    rewrite_candidates: usize,
+    rewrite_committed: usize,
+    rewrite_rejected_overlap: usize,
+    rewrite_rejected_verification: usize,
+    slowest_files: Vec<SlowFileReport>,
+}
+
+#[derive(Debug, Serialize)]
+struct SlowFileReport {
+    path: String,
+    elapsed_ms: u128,
+    bytes: usize,
+}
+
+pub fn run(workspace: &Path, corpus_root: &Path, output: Option<&Path>) -> Result<bool> {
     let cfg = Config::discover(corpus_root).unwrap_or_else(|_| Config::defaults());
     let parse_options = cfg.parse_options();
     let fmt_options = cfg.fmt_options().clone();
@@ -98,7 +127,14 @@ pub fn run(workspace: &Path, corpus_root: &Path) -> Result<bool> {
     }
 
     print_report(&stats);
-    Ok(!stats.has_failures())
+    let success = !stats.has_failures();
+    if let Some(output) = output {
+        write_reports(output, &report_for(corpus_root, &stats, success))?;
+        println!("  reports:");
+        println!("    {}", output.join(REPORT_JSON).display());
+        println!("    {}", output.join(REPORT_MD).display());
+    }
+    Ok(success)
 }
 
 fn collect_inputs(workspace: &Path, corpus_root: &Path) -> Result<Vec<PathBuf>> {
@@ -195,4 +231,89 @@ fn print_report(stats: &SoakStats) {
     for (elapsed, path, len) in &stats.slowest {
         println!("    {:>8.3?}  {:>8} byte(s)  {}", elapsed, len, path.display());
     }
+}
+
+fn report_for(corpus_root: &Path, stats: &SoakStats, success: bool) -> SoakReport {
+    SoakReport {
+        corpus_root: corpus_root.display().to_string(),
+        success,
+        files_scanned: stats.files_scanned,
+        parse_errors: stats.parse_errors,
+        lint_diagnostics: stats.lint_diagnostics,
+        validation_errors: stats.validation_errors,
+        idempotence_failures: stats.idempotence_failures,
+        fmt_check_disagreements: stats.fmt_check_disagreements,
+        max_file_size: stats.max_file_size,
+        rewrite_candidates: stats.rewrite_report.rewrite_candidates,
+        rewrite_committed: stats.rewrite_report.rewrite_committed,
+        rewrite_rejected_overlap: stats.rewrite_report.rewrite_rejected_overlap,
+        rewrite_rejected_verification: stats.rewrite_report.rewrite_rejected_verification,
+        slowest_files: stats
+            .slowest
+            .iter()
+            .map(|(elapsed, path, bytes)| SlowFileReport {
+                path: path.display().to_string(),
+                elapsed_ms: elapsed.as_millis(),
+                bytes: *bytes,
+            })
+            .collect(),
+    }
+}
+
+fn write_reports(output: &Path, report: &SoakReport) -> Result<()> {
+    fs::create_dir_all(output).with_context(|| format!("create {}", output.display()))?;
+    fs::write(
+        output.join(REPORT_JSON),
+        serde_json::to_string_pretty(report).context("serialize production soak report")?,
+    )
+    .with_context(|| format!("write {}", output.join(REPORT_JSON).display()))?;
+    fs::write(output.join(REPORT_MD), markdown_report(report))
+        .with_context(|| format!("write {}", output.join(REPORT_MD).display()))?;
+    Ok(())
+}
+
+fn markdown_report(report: &SoakReport) -> String {
+    let mut out = String::from("# Production soak report\n\n");
+    out.push_str(&format!("- Corpus root: `{}`\n", report.corpus_root));
+    out.push_str(&format!("- Success: `{}`\n", yes_no(report.success)));
+    out.push_str(&format!("- Files scanned: `{}`\n", report.files_scanned));
+    out.push_str(&format!("- Parse errors: `{}`\n", report.parse_errors));
+    out.push_str(&format!("- Lint diagnostics: `{}`\n", report.lint_diagnostics));
+    out.push_str(&format!("- Format validation errors: `{}`\n", report.validation_errors));
+    out.push_str(&format!(
+        "- Format idempotence failures: `{}`\n",
+        report.idempotence_failures
+    ));
+    out.push_str(&format!(
+        "- fmt-check disagreements: `{}`\n",
+        report.fmt_check_disagreements
+    ));
+    out.push_str(&format!("- Max file size: `{}` byte(s)\n", report.max_file_size));
+    out.push_str("\n## Rewrite totals\n\n");
+    out.push_str("| Metric | Count |\n");
+    out.push_str("| --- | ---: |\n");
+    out.push_str(&format!("| Candidates attempted | {} |\n", report.rewrite_candidates));
+    out.push_str(&format!("| Candidates committed | {} |\n", report.rewrite_committed));
+    out.push_str(&format!(
+        "| Rejected by overlap | {} |\n",
+        report.rewrite_rejected_overlap
+    ));
+    out.push_str(&format!(
+        "| Rejected by verification | {} |\n",
+        report.rewrite_rejected_verification
+    ));
+    out.push_str("\n## Slowest files\n\n");
+    out.push_str("| Time | Bytes | Path |\n");
+    out.push_str("| ---: | ---: | --- |\n");
+    for file in &report.slowest_files {
+        out.push_str(&format!(
+            "| {} ms | {} | `{}` |\n",
+            file.elapsed_ms, file.bytes, file.path
+        ));
+    }
+    out
+}
+
+fn yes_no(value: bool) -> &'static str {
+    if value { "yes" } else { "no" }
 }

@@ -51,6 +51,8 @@ All notable changes to mdwright are listed here. The format follows
   output difference to be classified as fixed, configured, intentional, upstream-owned, or an open release-blocking bug.
 - Added `cargo xtask parser-audit` source-position risk gates. The audit now checks cmark-gfm `data-sourcepos` envelopes
   against mdwright document facts for formatter/lint-owned constructs and fails on unclassified coordinate risks.
+- Added `cargo xtask release-evidence --output target/mdwright/release`, which aggregates local release-candidate
+  evidence into JSON and Markdown reports without wiring costly gates into CI.
 - Added a document-owned GFM extension overlay for URL autolinks, email autolinks, and tagfiltering. Rendering now
   matches cmark-gfm for those extension cases by default, while the `bare-url` lint still asks authors to make URL
   autolinks explicit with `<...>` for renderer portability.

@@ -1,11 +1,12 @@
-//! `cargo xtask doc-rules`         — regenerate or verify `docs/src/rules/*.md`.
-//! `cargo xtask doc-cli`           — regenerate or verify `docs/src/reference/cli.md`.
-//! `cargo xtask doc-config`        — regenerate or verify `docs/src/configuration.md`.
-//! `cargo xtask bump-docs-version` — sync `vX.Y.Z` pins in integration docs to `Cargo.toml`.
-//! `cargo xtask diagnose-fuzz`     — explain a libFuzzer crash artifact.
-//! `cargo xtask production-soak`   — run release-oriented corpus checks.
-//! `cargo xtask mdformat-parity`   — compare mdwright and mdformat output over a corpus.
-//! `cargo xtask parser-audit`      — compare pulldown-cmark with cmark-gfm.
+//! `cargo xtask doc-rules`: regenerate or verify `docs/src/rules/*.md`.
+//! `cargo xtask doc-cli`: regenerate or verify `docs/src/reference/cli.md`.
+//! `cargo xtask doc-config`: regenerate or verify `docs/src/configuration.md`.
+//! `cargo xtask bump-docs-version`: sync `vX.Y.Z` pins in integration docs to `Cargo.toml`.
+//! `cargo xtask diagnose-fuzz`: explain a libFuzzer crash artifact.
+//! `cargo xtask production-soak`: run release-oriented corpus checks.
+//! `cargo xtask mdformat-parity`: compare mdwright and mdformat output over a corpus.
+//! `cargo xtask parser-audit`: compare pulldown-cmark with cmark-gfm.
+//! `cargo xtask release-evidence`: aggregate local release-candidate evidence.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -71,6 +72,9 @@ enum Command {
         /// Corpus root containing paths from `crates/mdwright/benches/corpus.list`.
         #[arg(long)]
         corpus_root: PathBuf,
+        /// Directory for JSON and Markdown reports.
+        #[arg(long)]
+        output: Option<PathBuf>,
     },
     /// Compare mdwright and mdformat output over a corpus.
     MdformatParity {
@@ -119,6 +123,12 @@ enum Command {
         /// Optional release corpus root to include with `--case-set corpus` or `all`.
         #[arg(long)]
         corpus_root: Option<PathBuf>,
+    },
+    /// Aggregate local release-candidate evidence into JSON and Markdown.
+    ReleaseEvidence {
+        /// Directory for JSON and Markdown reports.
+        #[arg(long, default_value = "target/mdwright/release")]
+        output: PathBuf,
     },
 }
 
@@ -207,8 +217,15 @@ fn run() -> Result<ExitCode> {
             }
             Ok(ExitCode::SUCCESS)
         }
-        Command::ProductionSoak { corpus_root } => {
-            if xtask::production_soak::run(&workspace, &corpus_root)? {
+        Command::ProductionSoak { corpus_root, output } => {
+            let output = output.as_deref().map(|path| {
+                if path.is_absolute() {
+                    path.to_path_buf()
+                } else {
+                    workspace.join(path)
+                }
+            });
+            if xtask::production_soak::run(&workspace, &corpus_root, output.as_deref())? {
                 Ok(ExitCode::SUCCESS)
             } else {
                 Ok(ExitCode::from(1))
@@ -286,6 +303,18 @@ fn run() -> Result<ExitCode> {
                 };
                 xtask::version_refs::regenerate(&workspace, &v)?;
                 Ok(ExitCode::SUCCESS)
+            }
+        }
+        Command::ReleaseEvidence { output } => {
+            let output = if output.is_absolute() {
+                output
+            } else {
+                workspace.join(output)
+            };
+            if xtask::release_evidence::run(&workspace, &output)? {
+                Ok(ExitCode::SUCCESS)
+            } else {
+                Ok(ExitCode::from(1))
             }
         }
     }
