@@ -120,15 +120,33 @@ The server discovers `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml`'s `[
 the workspace root, exactly like the CLI. Edit one of those files and the server re-lints every open buffer on the next
 file-watcher event; `workspace/didChangeConfiguration` triggers the same refresh.
 
+The LSP server keeps the same default input-size boundary as the CLI: a single open buffer above 10 MB stays open, but
+mdwright publishes one document-level diagnostic and suppresses linting, formatting, range formatting, and code actions
+for that version.
+
 ## Range-formatting caveats
 
 `textDocument/rangeFormatting` and `textDocument/onTypeFormatting` snap the
-requested range out to the nearest whole top-level block before formatting (see
-[`format_range`'s rustdoc](https://docs.rs/mdwright/latest/mdwright/fn.format_range.html)). For sources without
-document-scope reorderable constructs the snapped output is a verbatim substring of the whole-document format; link
-definitions (`[label]: dest`) and footnote definitions (`[^label]: …`) are document-scope, so a range format may leave
-them in place where a whole-document format would have moved them to the canonical location. Save the file (or invoke
-whole-document formatting) periodically to reconcile.
+requested range out to the nearest whole top-level block before formatting. For sources without document-scope
+reorderable constructs the snapped output is a verbatim substring of the whole-document format; link definitions
+(`[label]: dest`) and footnote definitions (`[^label]: …`) are document-scope, so a range format may leave them in place
+where a whole-document format would have moved them to the canonical location. Save the file (or invoke whole-document
+formatting) periodically to reconcile.
+
+## Smoke test
+
+Before publishing an editor integration, run this manual check:
+
+1. Start the server with `mdwright lsp`.
+2. Open a Markdown file that contains `https://example.com` and confirm the `bare-url` diagnostic appears.
+3. Insert `- [n]:Z` followed by a carriage return, newline, and two tabs. The server should publish one parser diagnostic
+   at the start of the file and keep running.
+4. Replace the file contents with valid Markdown. Normal diagnostics should return without restarting the server.
+5. Run whole-document formatting and range formatting on a paragraph that mdwright changes.
+6. Edit `.mdwright.toml` and trigger your editor's LSP config reload or file-watcher refresh. Open buffers should be
+   re-linted with the new policy.
+7. Check the editor's LSP log if formatting is unavailable; the common cause is a client that did not negotiate UTF-8
+   positions.
 
 ## See also
 

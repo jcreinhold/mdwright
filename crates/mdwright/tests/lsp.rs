@@ -21,6 +21,7 @@ use mdwright_lsp::build_service_for_tests;
 use serde_json::{Value, json};
 use tower::{Service, ServiceExt};
 use tower_lsp::jsonrpc::Request;
+use tower_lsp::lsp_types::Url;
 
 fn req(id: i64, method: &'static str, params: Value) -> Request {
     Request::build(method).id(id).params(params).finish()
@@ -30,7 +31,7 @@ fn notif(method: &'static str, params: Value) -> Request {
     Request::build(method).params(params).finish()
 }
 
-fn init_params(utf8: bool) -> Value {
+fn init_params(utf8: bool, root_uri: Option<&str>) -> Value {
     let position_encodings: Vec<&str> = if utf8 { vec!["utf-8"] } else { vec!["utf-16"] };
     json!({
         "capabilities": {
@@ -42,7 +43,7 @@ fn init_params(utf8: bool) -> Value {
             },
         },
         "processId": null,
-        "rootUri": null,
+        "rootUri": root_uri,
     })
 }
 
@@ -50,11 +51,19 @@ async fn initialize(
     service: &mut tower_lsp::LspService<impl tower_lsp::LanguageServer + 'static>,
     utf8: bool,
 ) -> Value {
+    initialize_with_root(service, utf8, None).await
+}
+
+async fn initialize_with_root(
+    service: &mut tower_lsp::LspService<impl tower_lsp::LanguageServer + 'static>,
+    utf8: bool,
+    root_uri: Option<&str>,
+) -> Value {
     let resp = service
         .ready()
         .await
         .expect("service ready")
-        .call(req(1, "initialize", init_params(utf8)))
+        .call(req(1, "initialize", init_params(utf8, root_uri)))
         .await
         .expect("call ok")
         .expect("initialize returns a response");
@@ -68,6 +77,70 @@ async fn initialize(
         .await
         .expect("call ok");
     body
+}
+
+async fn open_doc(
+    service: &mut tower_lsp::LspService<impl tower_lsp::LanguageServer + 'static>,
+    uri: &str,
+    version: i32,
+    source: &str,
+) {
+    let _ack = service
+        .ready()
+        .await
+        .expect("service ready")
+        .call(notif(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": uri,
+                    "languageId": "markdown",
+                    "version": version,
+                    "text": source,
+                }
+            }),
+        ))
+        .await
+        .expect("call ok");
+}
+
+async fn change_doc(
+    service: &mut tower_lsp::LspService<impl tower_lsp::LanguageServer + 'static>,
+    uri: &str,
+    version: i32,
+    source: &str,
+) {
+    let _ack = service
+        .ready()
+        .await
+        .expect("service ready")
+        .call(notif(
+            "textDocument/didChange",
+            json!({
+                "textDocument": { "uri": uri, "version": version },
+                "contentChanges": [{ "text": source }],
+            }),
+        ))
+        .await
+        .expect("call ok");
+}
+
+async fn request(
+    service: &mut tower_lsp::LspService<impl tower_lsp::LanguageServer + 'static>,
+    id: i64,
+    method: &'static str,
+    params: Value,
+) -> Value {
+    let resp = service
+        .ready()
+        .await
+        .expect("service ready")
+        .call(req(id, method, params))
+        .await
+        .expect("call ok")
+        .unwrap_or_else(|| panic!("{method} returns a response"));
+    let (_, body) = resp.into_parts();
+    body.unwrap_or_else(|err| panic!("{method} returned error: {err:?}"))
 }
 
 #[tokio::test]
@@ -128,23 +201,7 @@ async fn did_open_publishes_diagnostics() {
 
     let uri = "file:///tmp/mdwright-test-open.md";
     let source = "See https://example.com for details.\n";
-    let _ack = service
-        .ready()
-        .await
-        .expect("service ready")
-        .call(notif(
-            "textDocument/didOpen",
-            json!({
-                "textDocument": {
-                    "uri": uri,
-                    "languageId": "markdown",
-                    "version": 1,
-                    "text": source,
-                }
-            }),
-        ))
-        .await
-        .expect("call ok");
+    open_doc(&mut service, uri, 1, source).await;
 
     let published = wait_for_publish(socket, uri).await;
     let diags = published["diagnostics"].as_array().expect("diagnostics array");
@@ -167,41 +224,19 @@ async fn formatting_returns_expected_textedit() {
     // demonstrably rewrites. CRLF normalisation to LF is the
     // shortest-path guaranteed edit (`end_of_line = "lf"` default).
     let source = "alpha\r\nbeta\r\n";
-    let _ack = service
-        .ready()
-        .await
-        .expect("service ready")
-        .call(notif(
-            "textDocument/didOpen",
-            json!({
-                "textDocument": {
-                    "uri": uri,
-                    "languageId": "markdown",
-                    "version": 1,
-                    "text": source,
-                }
-            }),
-        ))
-        .await
-        .expect("call ok");
+    open_doc(&mut service, uri, 1, source).await;
 
-    let resp = service
-        .ready()
-        .await
-        .expect("service ready")
-        .call(req(
-            42,
-            "textDocument/formatting",
-            json!({
-                "textDocument": { "uri": uri },
-                "options": { "tabSize": 4, "insertSpaces": true },
-            }),
-        ))
-        .await
-        .expect("call ok")
-        .expect("formatting returns a response");
-    let (_, body) = resp.into_parts();
-    let edits = body.expect("formatting Ok").as_array().cloned().unwrap_or_default();
+    let body = request(
+        &mut service,
+        42,
+        "textDocument/formatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    let edits = body.as_array().cloned().unwrap_or_default();
     assert!(
         !edits.is_empty(),
         "format should produce at least one edit for {source:?}"
@@ -231,23 +266,7 @@ async fn parser_panic_input_publishes_parse_diagnostic_and_recovers() {
 
     let uri = "file:///tmp/mdwright-test-parser-boundary.md";
     let source = "- [n]:Z\r\n\t\t";
-    let _ack = service
-        .ready()
-        .await
-        .expect("service ready")
-        .call(notif(
-            "textDocument/didOpen",
-            json!({
-                "textDocument": {
-                    "uri": uri,
-                    "languageId": "markdown",
-                    "version": 1,
-                    "text": source,
-                }
-            }),
-        ))
-        .await
-        .expect("call ok");
+    open_doc(&mut service, uri, 1, source).await;
 
     let published = wait_for_publish(&mut socket, uri).await;
     let diags = published["diagnostics"].as_array().expect("diagnostics array");
@@ -263,46 +282,278 @@ async fn parser_panic_input_publishes_parse_diagnostic_and_recovers() {
     assert_eq!(diags[0]["range"]["end"]["line"], 0);
     assert_eq!(diags[0]["range"]["end"]["character"], 0);
 
-    let resp = service
-        .ready()
-        .await
-        .expect("service ready")
-        .call(req(
-            43,
-            "textDocument/formatting",
-            json!({
-                "textDocument": { "uri": uri },
-                "options": { "tabSize": 4, "insertSpaces": true },
-            }),
-        ))
-        .await
-        .expect("call ok")
-        .expect("formatting returns a response");
-    let (_, body) = resp.into_parts();
-    assert!(
-        body.expect("formatting request succeeds").is_null(),
-        "parse-failed document returns no edits"
-    );
+    let body = request(
+        &mut service,
+        43,
+        "textDocument/formatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    assert!(body.is_null(), "parse-failed document returns no edits");
 
-    let _ack = service
-        .ready()
-        .await
-        .expect("service ready")
-        .call(notif(
-            "textDocument/didChange",
-            json!({
-                "textDocument": { "uri": uri, "version": 2 },
-                "contentChanges": [{ "text": "See https://example.com now.\n" }],
-            }),
-        ))
-        .await
-        .expect("call ok");
+    let body = request(
+        &mut service,
+        44,
+        "textDocument/rangeFormatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 0, "character": 1 },
+            },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    assert!(body.is_null(), "parse-failed range format returns no edits");
+
+    let body = request(
+        &mut service,
+        45,
+        "textDocument/onTypeFormatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "position": { "line": 0, "character": 0 },
+            "ch": "\n",
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    assert!(body.is_null(), "parse-failed on-type format returns no edits");
+
+    let body = request(
+        &mut service,
+        46,
+        "textDocument/codeAction",
+        json!({
+            "textDocument": { "uri": uri },
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 0, "character": 0 },
+            },
+            "context": { "diagnostics": [] },
+        }),
+    )
+    .await;
+    assert!(body.is_null(), "parse-failed fix-all returns no actions");
+
+    change_doc(&mut service, uri, 2, "See https://example.com now.\n").await;
 
     let published = wait_for_publish(&mut socket, uri).await;
     let diags = published["diagnostics"].as_array().expect("diagnostics array");
     assert!(
         diags.iter().any(|diag| diag["code"].as_str() == Some("bare-url")),
         "expected normal lint diagnostics after parseable edit, got {diags:?}",
+    );
+}
+
+#[tokio::test]
+async fn range_formatting_uses_verified_formatter_output() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(temp.path().join(".mdwright.toml"), "[fmt]\nwrap = 40\n").expect("write config");
+    let root_uri = Url::from_directory_path(temp.path())
+        .expect("directory uri")
+        .to_string();
+    let (mut service, _socket) = build_service_for_tests();
+    let _body = initialize_with_root(&mut service, true, Some(&root_uri)).await;
+
+    let uri = Url::from_file_path(temp.path().join("range.md"))
+        .expect("file uri")
+        .to_string();
+    let source =
+        "This is a long paragraph that should wrap when the LSP range formatter delegates to mdwright-format.\n";
+    open_doc(&mut service, &uri, 1, source).await;
+
+    let body = request(
+        &mut service,
+        47,
+        "textDocument/rangeFormatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "range": {
+                "start": { "line": 0, "character": 0 },
+                "end": { "line": 0, "character": source.len() },
+            },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    let edits = body.as_array().cloned().expect("range formatting returns edits");
+    assert_eq!(edits.len(), 1, "expected one snapped range edit: {edits:?}");
+    let got = edits[0]["newText"].as_str().expect("newText");
+
+    let cfg = mdwright_config::Config::discover(temp.path()).expect("config");
+    let doc = mdwright_document::Document::parse_with_options(source, cfg.parse_options()).expect("fixture parses");
+    let checkpoints = mdwright_format::CheckpointTable::from_document(&doc);
+    let expected =
+        mdwright_format::format_range_with_checkpoints(&doc, cfg.fmt_options(), &checkpoints, 0..source.len());
+    assert_eq!(got, expected);
+}
+
+#[tokio::test]
+async fn stale_change_does_not_overwrite_newer_document_state() {
+    let (mut service, _socket) = build_service_for_tests();
+    let _body = initialize(&mut service, true).await;
+
+    let uri = "file:///tmp/mdwright-test-stale-version.md";
+    let source = "alpha\r\nbeta\r\n";
+    open_doc(&mut service, uri, 2, source).await;
+    change_doc(&mut service, uri, 1, "- [n]:Z\r\n\t\t").await;
+
+    let body = request(
+        &mut service,
+        48,
+        "textDocument/formatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    let edits = body.as_array().cloned().unwrap_or_default();
+    assert!(
+        !edits.is_empty(),
+        "stale parse-failing change must not replace the newer parseable text"
+    );
+}
+
+#[tokio::test]
+async fn oversized_document_publishes_diagnostic_and_does_not_format() {
+    let (mut service, mut socket) = build_service_for_tests();
+    let _body = initialize(&mut service, true).await;
+
+    let uri = "file:///tmp/mdwright-test-large.md";
+    let source = "a".repeat(10_000_001);
+    open_doc(&mut service, uri, 1, &source).await;
+
+    let published = wait_for_publish(&mut socket, uri).await;
+    let diags = published["diagnostics"].as_array().expect("diagnostics array");
+    assert_eq!(diags.len(), 1, "oversized input should suppress lint diagnostics");
+    assert!(
+        diags[0]["message"]
+            .as_str()
+            .is_some_and(|msg| msg.contains("exceeds the mdwright LSP limit")),
+        "unexpected size diagnostic: {diags:?}",
+    );
+
+    let body = request(
+        &mut service,
+        49,
+        "textDocument/formatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    assert!(body.is_null(), "oversized document returns no format edits");
+}
+
+#[tokio::test]
+async fn root_config_discovery_controls_lsp_diagnostics() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    std::fs::write(
+        temp.path().join(".mdwright.toml"),
+        "[lint]\nrules = \"default,-bare-url\"\n",
+    )
+    .expect("write config");
+    let root_uri = Url::from_directory_path(temp.path())
+        .expect("directory uri")
+        .to_string();
+    let (mut service, socket) = build_service_for_tests();
+    let _body = initialize_with_root(&mut service, true, Some(&root_uri)).await;
+
+    let uri = Url::from_file_path(temp.path().join("doc.md"))
+        .expect("file uri")
+        .to_string();
+    open_doc(&mut service, &uri, 1, "See https://example.com now.\n").await;
+
+    let published = wait_for_publish(socket, &uri).await;
+    let diags = published["diagnostics"].as_array().expect("diagnostics array");
+    assert!(
+        diags.iter().all(|diag| diag["code"].as_str() != Some("bare-url")),
+        "root config should disable bare-url diagnostics: {diags:?}",
+    );
+}
+
+#[tokio::test]
+async fn config_reload_recomputes_parse_options_for_open_documents() {
+    let temp = tempfile::tempdir().expect("tempdir");
+    let config_path = temp.path().join(".mdwright.toml");
+    std::fs::write(
+        &config_path,
+        "[fmt]\nheading-attrs = \"canonicalise\"\n[parse.extensions]\nheading-attribute-lists = false\n",
+    )
+    .expect("write config");
+    let root_uri = Url::from_directory_path(temp.path())
+        .expect("directory uri")
+        .to_string();
+    let (mut service, mut socket) = build_service_for_tests();
+    let _body = initialize_with_root(&mut service, true, Some(&root_uri)).await;
+
+    let uri = Url::from_file_path(temp.path().join("doc.md"))
+        .expect("file uri")
+        .to_string();
+    let source = "# Title {.b #a}\n";
+    open_doc(&mut service, &uri, 1, source).await;
+    let _initial_publish = wait_for_publish(&mut socket, &uri).await;
+
+    let body = request(
+        &mut service,
+        50,
+        "textDocument/formatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    assert!(
+        body.as_array().is_some_and(Vec::is_empty),
+        "disabled heading attrs should leave source unchanged: {body:?}",
+    );
+
+    std::fs::write(
+        &config_path,
+        "[fmt]\nheading-attrs = \"canonicalise\"\n[parse.extensions]\nheading-attribute-lists = true\n",
+    )
+    .expect("rewrite config");
+    let _ack = service
+        .ready()
+        .await
+        .expect("service ready")
+        .call(notif(
+            "workspace/didChangeWatchedFiles",
+            json!({
+                "changes": [{
+                    "uri": Url::from_file_path(&config_path).expect("config uri").to_string(),
+                    "type": 2
+                }],
+            }),
+        ))
+        .await
+        .expect("call ok");
+    let _reload_publish = wait_for_publish(&mut socket, &uri).await;
+
+    let body = request(
+        &mut service,
+        51,
+        "textDocument/formatting",
+        json!({
+            "textDocument": { "uri": uri },
+            "options": { "tabSize": 4, "insertSpaces": true },
+        }),
+    )
+    .await;
+    let edits = body.as_array().cloned().expect("formatting edits after reload");
+    assert!(
+        edits
+            .iter()
+            .any(|edit| edit["newText"].as_str() == Some("# Title {#a .b}\n")),
+        "config reload should rebuild document facts with updated parse policy: {edits:?}",
     );
 }
 

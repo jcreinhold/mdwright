@@ -50,6 +50,8 @@ use mdwright_lint::{
     Diagnostic as MdwrightDiagnostic, RuleSet, Severity as MdwrightSeverity, apply_safe_fixes, rule_doc_url, stdlib,
 };
 
+const LSP_MAX_INPUT_BYTES: usize = 10_000_000;
+
 /// Run the LSP server over stdio. Returns when the client sends
 /// `exit` (or when the transport closes).
 pub async fn serve() {
@@ -78,6 +80,7 @@ struct State {
     docs: FxHashMap<Url, OpenDoc>,
     config: Arc<Config>,
     root: Option<PathBuf>,
+    revision: u64,
     /// Whether the client granted UTF-8 position encoding. Formatting
     /// and code-action providers are gated on this; without it,
     /// [`LineIndex::byte_of_position_0based`] would return wrong byte
@@ -90,40 +93,84 @@ struct OpenDoc {
     text: String,
     version: i32,
     line_index: Arc<LineIndex>,
-    table: Option<Arc<CheckpointTable>>,
+    recognition: RecognitionState,
     diagnostics: Vec<MdwrightDiagnostic>,
-    parse_error: Option<String>,
     lint_task: Option<JoinHandle<()>>,
+}
+
+#[derive(Clone)]
+enum RecognitionState {
+    Parsed {
+        document: Arc<Document>,
+        checkpoints: Arc<CheckpointTable>,
+    },
+    ParseFailed(ParseError),
+    TooLarge {
+        len: usize,
+        cap: usize,
+    },
+}
+
+impl RecognitionState {
+    fn recognize(text: &str, parse_options: ParseOptions) -> Self {
+        if text.len() > LSP_MAX_INPUT_BYTES {
+            return Self::TooLarge {
+                len: text.len(),
+                cap: LSP_MAX_INPUT_BYTES,
+            };
+        }
+        match Document::parse_with_options(text, parse_options) {
+            Ok(document) => {
+                let document = Arc::new(document);
+                let checkpoints = Arc::new(CheckpointTable::from_document(&document));
+                Self::Parsed { document, checkpoints }
+            }
+            Err(err) => Self::ParseFailed(err),
+        }
+    }
+
+    fn document(&self) -> Option<Arc<Document>> {
+        match self {
+            Self::Parsed { document, .. } => Some(Arc::clone(document)),
+            Self::ParseFailed(_) | Self::TooLarge { .. } => None,
+        }
+    }
+
+    fn parsed(&self) -> Option<(Arc<Document>, Arc<CheckpointTable>)> {
+        match self {
+            Self::Parsed { document, checkpoints } => Some((Arc::clone(document), Arc::clone(checkpoints))),
+            Self::ParseFailed(_) | Self::TooLarge { .. } => None,
+        }
+    }
 }
 
 impl OpenDoc {
     fn new(text: String, version: i32, parse_options: ParseOptions) -> Self {
         let line_index = Arc::new(LineIndex::new(&text));
-        let (table, parse_error) = match Document::parse_with_options(&text, parse_options) {
-            Ok(doc) => (Some(Arc::new(CheckpointTable::from_document(&doc))), None),
-            Err(err) => (None, Some(err.to_string())),
-        };
+        let recognition = RecognitionState::recognize(&text, parse_options);
         Self {
             text,
             version,
             line_index,
-            table,
+            recognition,
             diagnostics: Vec::new(),
-            parse_error,
             lint_task: None,
         }
     }
 
     fn replace(&mut self, text: String, version: i32, parse_options: ParseOptions) {
         self.line_index = Arc::new(LineIndex::new(&text));
-        let (table, parse_error) = match Document::parse_with_options(&text, parse_options) {
-            Ok(doc) => (Some(Arc::new(CheckpointTable::from_document(&doc))), None),
-            Err(err) => (None, Some(err.to_string())),
-        };
-        self.table = table;
-        self.parse_error = parse_error;
+        self.recognition = RecognitionState::recognize(&text, parse_options);
         self.text = text;
         self.version = version;
+        if let Some(prev) = self.lint_task.take() {
+            prev.abort();
+        }
+    }
+
+    fn rebuild_recognition(&mut self, parse_options: ParseOptions) {
+        self.line_index = Arc::new(LineIndex::new(&self.text));
+        self.recognition = RecognitionState::recognize(&self.text, parse_options);
         if let Some(prev) = self.lint_task.take() {
             prev.abort();
         }
@@ -136,6 +183,7 @@ impl MdwrightLs {
             docs: FxHashMap::default(),
             config: Arc::new(Config::defaults()),
             root: None,
+            revision: 0,
             utf8: false,
         };
         Self {
@@ -157,6 +205,7 @@ impl LanguageServer for MdwrightLs {
             state.utf8 = utf8;
             state.root = root;
             state.config = config;
+            state.revision = state.revision.wrapping_add(1);
         }
 
         let position_encoding = if utf8 { Some(PositionEncodingKind::UTF8) } else { None };
@@ -260,18 +309,19 @@ impl LanguageServer for MdwrightLs {
         let parse_options = state.config.parse_options();
         let doc = OpenDoc::new(text, version, parse_options);
         state.docs.insert(uri.clone(), doc);
-        let (text, version, line_index, rules, parse_options) = {
+        let (text, version, line_index, recognition, rules, revision) = {
             let Some(entry) = state.docs.get(&uri) else { return };
             (
                 entry.text.clone(),
                 entry.version,
                 Arc::clone(&entry.line_index),
+                entry.recognition.clone(),
                 build_rules(&state.config),
-                state.config.parse_options(),
+                state.revision,
             )
         };
         drop(state);
-        self.lint_and_publish(uri, text, version, line_index, rules, parse_options)
+        self.lint_and_publish(uri, text, version, line_index, recognition, rules, revision)
             .await;
     }
 
@@ -288,10 +338,21 @@ impl LanguageServer for MdwrightLs {
             .docs
             .entry(uri.clone())
             .or_insert_with(|| OpenDoc::new(String::new(), version, parse_options));
+        if version < entry.version {
+            tracing::warn!(
+                uri = %uri,
+                incoming_version = version,
+                current_version = entry.version,
+                "ignored stale textDocument/didChange"
+            );
+            return;
+        }
         entry.replace(text, version, parse_options);
         let text_snapshot = entry.text.clone();
         let line_index = Arc::clone(&entry.line_index);
+        let recognition = entry.recognition.clone();
         let rules = build_rules(&state.config);
+        let revision = state.revision;
         let state_handle = Arc::clone(&self.state);
         let client = self.client.clone();
         let uri_for_task = uri.clone();
@@ -304,8 +365,9 @@ impl LanguageServer for MdwrightLs {
                 text_snapshot,
                 version,
                 line_index,
+                recognition,
                 rules,
-                parse_options,
+                revision,
             )
             .await;
         });
@@ -323,10 +385,11 @@ impl LanguageServer for MdwrightLs {
         let text = entry.text.clone();
         let version = entry.version;
         let line_index = Arc::clone(&entry.line_index);
+        let recognition = entry.recognition.clone();
         let rules = build_rules(&state.config);
-        let parse_options = state.config.parse_options();
+        let revision = state.revision;
         drop(state);
-        self.lint_and_publish(uri, text, version, line_index, rules, parse_options)
+        self.lint_and_publish(uri, text, version, line_index, recognition, rules, revision)
             .await;
     }
 
@@ -361,14 +424,13 @@ impl LanguageServer for MdwrightLs {
             return Ok(None);
         };
         let opts = state.config.fmt_options().clone();
-        let parse_options = state.config.parse_options();
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
-        drop(state);
-        let Ok(parsed) = Document::parse_with_options(&source, parse_options) else {
-            tracing::warn!("formatting skipped because document did not parse");
+        let Some(parsed) = doc.recognition.document() else {
+            tracing::warn!("formatting skipped because document is not recognised");
             return Ok(None);
         };
+        drop(state);
         let formatted = format_document(&parsed, &opts);
         if formatted == source {
             return Ok(Some(Vec::new()));
@@ -391,17 +453,16 @@ impl LanguageServer for MdwrightLs {
             return Ok(None);
         };
         let opts = state.config.fmt_options().clone();
-        let parse_options = state.config.parse_options();
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
-        let Some(table) = doc.table.as_ref().map(Arc::clone) else {
-            tracing::warn!("range formatting skipped because document did not parse");
+        let Some((parsed, table)) = doc.recognition.parsed() else {
+            tracing::warn!("range formatting skipped because document is not recognised");
             return Ok(None);
         };
         drop(state);
         Ok(format_range_edits(
             &source,
-            parse_options,
+            &parsed,
             &line_index,
             &table,
             &opts,
@@ -420,11 +481,10 @@ impl LanguageServer for MdwrightLs {
             return Ok(None);
         };
         let opts = state.config.fmt_options().clone();
-        let parse_options = state.config.parse_options();
         let source = doc.text.clone();
         let line_index = Arc::clone(&doc.line_index);
-        let Some(table) = doc.table.as_ref().map(Arc::clone) else {
-            tracing::warn!("on-type formatting skipped because document did not parse");
+        let Some((parsed, table)) = doc.recognition.parsed() else {
+            tracing::warn!("on-type formatting skipped because document is not recognised");
             return Ok(None);
         };
         drop(state);
@@ -434,7 +494,7 @@ impl LanguageServer for MdwrightLs {
         };
         Ok(format_range_edits(
             &source,
-            parse_options,
+            &parsed,
             &line_index,
             &table,
             &opts,
@@ -455,7 +515,7 @@ impl LanguageServer for MdwrightLs {
         let line_index = Arc::clone(&doc.line_index);
         let source = doc.text.clone();
         let diags = doc.diagnostics.clone();
-        let parse_options = state.config.parse_options();
+        let parsed = doc.recognition.document();
         drop(state);
 
         let mut actions: Vec<CodeActionOrCommand> = Vec::new();
@@ -498,7 +558,7 @@ impl LanguageServer for MdwrightLs {
         }
 
         if diags.iter().any(|d| d.fix.as_ref().is_some_and(|f| f.safe)) {
-            let Ok(parsed) = Document::parse_with_options(&source, parse_options) else {
+            let Some(parsed) = parsed else {
                 return Ok(if actions.is_empty() { None } else { Some(actions) });
             };
             let (new_text, applied) = apply_safe_fixes(&parsed, &diags);
@@ -571,8 +631,9 @@ impl MdwrightLs {
         text: String,
         version: i32,
         line_index: Arc<LineIndex>,
+        recognition: RecognitionState,
         rules: Arc<RuleSet>,
-        parse_options: ParseOptions,
+        revision: u64,
     ) {
         run_lint_pass(
             &self.client,
@@ -581,8 +642,9 @@ impl MdwrightLs {
             text,
             version,
             line_index,
+            recognition,
             rules,
-            parse_options,
+            revision,
         )
         .await;
     }
@@ -590,24 +652,37 @@ impl MdwrightLs {
     async fn refresh_config_and_relint(&self) {
         let root = self.state.lock().await.root.clone();
         let new_config = Arc::new(discover_or_default(root.as_deref()));
-        let to_relint: Vec<(Url, String, i32, Arc<LineIndex>)> = {
+        let parse_options = new_config.parse_options();
+        let to_relint: Vec<(Url, String, i32, Arc<LineIndex>, RecognitionState)> = {
             let mut state = self.state.lock().await;
             state.config = Arc::clone(&new_config);
+            state.revision = state.revision.wrapping_add(1);
             state
                 .docs
-                .iter()
-                .map(|(uri, doc)| (uri.clone(), doc.text.clone(), doc.version, Arc::clone(&doc.line_index)))
+                .iter_mut()
+                .map(|(uri, doc)| {
+                    doc.rebuild_recognition(parse_options);
+                    (
+                        uri.clone(),
+                        doc.text.clone(),
+                        doc.version,
+                        Arc::clone(&doc.line_index),
+                        doc.recognition.clone(),
+                    )
+                })
                 .collect()
         };
         let rules = build_rules(&new_config);
-        for (uri, text, version, line_index) in to_relint {
+        let revision = self.state.lock().await.revision;
+        for (uri, text, version, line_index, recognition) in to_relint {
             self.lint_and_publish(
                 uri,
                 text,
                 version,
                 line_index,
+                recognition,
                 Arc::clone(&rules),
-                new_config.parse_options(),
+                revision,
             )
             .await;
         }
@@ -624,37 +699,29 @@ async fn run_lint_pass(
     text: String,
     version: i32,
     line_index: Arc<LineIndex>,
+    recognition: RecognitionState,
     rules: Arc<RuleSet>,
-    parse_options: ParseOptions,
+    revision: u64,
 ) {
-    let parsed = Document::parse_with_options(&text, parse_options);
-    let (diags, lsp_diags, table, parse_error) = match parsed {
-        Ok(parsed) => {
-            let diags = rules.check(&parsed);
+    let (diags, lsp_diags) = match recognition {
+        RecognitionState::Parsed { document, .. } => {
+            let diags = rules.check(&document);
             let lsp_diags: Vec<LspDiagnostic> = diags.iter().map(|d| mdwright_to_lsp(&line_index, &text, d)).collect();
-            (
-                diags,
-                lsp_diags,
-                Some(Arc::new(CheckpointTable::from_document(&parsed))),
-                None,
-            )
+            (diags, lsp_diags)
         }
-        Err(err) => (
-            Vec::new(),
-            vec![parse_error_lsp_diag(&err)],
-            None,
-            Some(err.to_string()),
-        ),
+        RecognitionState::ParseFailed(err) => (Vec::new(), vec![parse_error_lsp_diag(&err)]),
+        RecognitionState::TooLarge { len, cap } => (Vec::new(), vec![input_too_large_lsp_diag(len, cap)]),
     };
     {
         let mut state = state.lock().await;
+        if state.revision != revision {
+            return;
+        }
         if let Some(doc) = state.docs.get_mut(&uri) {
             if doc.version != version {
                 return;
             }
             doc.diagnostics = diags;
-            doc.parse_error = parse_error;
-            doc.table = table;
         } else {
             return;
         }
@@ -671,6 +738,19 @@ fn parse_error_lsp_diag(err: &ParseError) -> LspDiagnostic {
         severity: Some(DiagnosticSeverity::ERROR),
         source: Some("mdwright".to_owned()),
         message: err.to_string(),
+        ..LspDiagnostic::default()
+    }
+}
+
+fn input_too_large_lsp_diag(len: usize, cap: usize) -> LspDiagnostic {
+    LspDiagnostic {
+        range: Range {
+            start: Position::new(0, 0),
+            end: Position::new(0, 0),
+        },
+        severity: Some(DiagnosticSeverity::ERROR),
+        source: Some("mdwright".to_owned()),
+        message: format!("Markdown input is {len} bytes; exceeds the mdwright LSP limit of {cap} bytes"),
         ..LspDiagnostic::default()
     }
 }
@@ -819,7 +899,7 @@ fn overlaps(a_start: usize, a_end: usize, b_start: Option<usize>, b_end: Option<
 
 fn format_range_edits(
     source: &str,
-    parse_options: ParseOptions,
+    doc: &Document,
     line_index: &LineIndex,
     table: &CheckpointTable,
     opts: &FmtOptions,
@@ -828,10 +908,7 @@ fn format_range_edits(
     let lo = byte_of_position(line_index, source, lsp_range.start)?;
     let hi = byte_of_position(line_index, source, lsp_range.end).unwrap_or(source.len());
     let (lo, hi) = if hi < lo { (hi, lo) } else { (lo, hi) };
-    let Ok(doc) = Document::parse_with_options(source, parse_options) else {
-        return None;
-    };
-    let formatted = format_range_with_checkpoints(&doc, opts, table, lo..hi);
+    let formatted = format_range_with_checkpoints(doc, opts, table, lo..hi);
     // The formatter snaps outward to whole-block boundaries; we need
     // the snapped byte range to compute the LSP edit range. Recompute
     // by asking the checkpoint table.
