@@ -41,9 +41,9 @@ successful formatting.
 | Typed candidates in one global list | Rejected. Enriching the old candidate type still leaves one shared selector that has to compare unrelated edits. It can express "keep this parent edit, drop that child edit" even when neither producer meant to own that relationship. |
 | Ordered rewrite families | Chosen. Each family owns one style decision and must prove local non-overlap before commit. Cross-family order is explicit, and a family cannot silently steal ownership from another family through a range sort. |
 
-The old global model was shallow: callers supplied a phase, owner, byte range, replacement, verification mode, and label,
-then relied on a common engine to interpret those fields correctly. The family pipeline hides that coordination in the
-formatter implementation. Producers no longer compete in one phase/range list.
+The old global model was shallow: callers supplied a phase, owner, byte range, replacement, verification mode, and
+label, then relied on a common engine to interpret those fields correctly. The family pipeline hides that coordination
+in the formatter implementation. Producers no longer compete in one phase/range list.
 
 ## Ownership rules
 
@@ -71,5 +71,5 @@ Paragraph wrapping is a terminal operation. It reads document-owned paragraph fa
 ranges, content ranges, prefixes, hard breaks, and inline atomics. It computes paragraph replacements after all earlier
 canonicalizers have reached local normal form, verifies the paragraph batch, and commits the batch or none of it.
 
-Unsupported paragraph shapes stay unchanged. They are counted in the formatter report rather than widened into
-paragraph edits whose safety depends on later passes.
+Unsupported paragraph shapes stay unchanged. They are counted in the formatter report rather than widened into paragraph
+edits whose safety depends on later passes.

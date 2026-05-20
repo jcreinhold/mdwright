@@ -50,11 +50,11 @@ fn golden_wrap() {
             FmtOptions::default()
         };
         let doc = Document::parse(&input).expect("fixture parses");
-        let got = mdwright_format::format_document(&doc, &opts);
+        let (got, report) = mdwright_format::format_document_with_report(&doc, &opts);
         count = count.saturating_add(1);
         if got != expected {
             failures.push(format!(
-                "--- {stem} ---\n--- input ---\n{input}--- expected ---\n{expected}--- got ---\n{got}--- end ---\n"
+                "--- {stem} ---\n--- input ---\n{input}--- expected ---\n{expected}--- got ---\n{got}--- report ---\n{report:?}\n--- end ---\n"
             ));
         }
     }

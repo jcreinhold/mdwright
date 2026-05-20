@@ -27,8 +27,8 @@ from a dollar-delimited dialect catch the change.
 ## How the scanner runs
 
 The math crate recognises candidate math spans over strings and byte ranges. The document crate supplies Markdown
-exclusion ranges (code, HTML, other opaque regions), then stores the accepted math regions as document facts with
-stable coordinates back to the original source. The exact source bytes, including whitespace, casing, comment chars, and
+exclusion ranges (code, HTML, other opaque regions), then stores the accepted math regions as document facts with stable
+coordinates back to the original source. The exact source bytes, including whitespace, casing, comment chars, and
 trailing backslashes, pass through unchanged. The formatter cannot accidentally apply emphasis, escape, or wrap logic
 inside a math region: rewrite candidates are verified against the document's math-region signature before they commit.
 Lint rules that match on text see the same opaque region; [latex-command](../rules/latex-command.md), for instance, only

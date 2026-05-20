@@ -88,6 +88,10 @@ fn help_surfaces_familiar_verbs_and_fmt_check_is_check_oriented() {
         has_option(&fmt_stdout, "--range"),
         "fmt help should expose range formatting"
     );
+    assert!(
+        has_option(&fmt_stdout, "--explain-format"),
+        "fmt help should expose format explanations"
+    );
 
     let fmt_check = command(&["fmt-check", "--help"]).output().expect("fmt-check help");
     let (fmt_check_stdout, _) = output_text(&fmt_check);
@@ -102,6 +106,10 @@ fn help_surfaces_familiar_verbs_and_fmt_check_is_check_oriented() {
     assert!(
         has_option(&fmt_check_stdout, "--diff"),
         "fmt-check help should expose --diff"
+    );
+    assert!(
+        has_option(&fmt_check_stdout, "--explain-format"),
+        "fmt-check help should expose format explanations"
     );
 }
 
@@ -160,12 +168,98 @@ fn fmt_check_diff_prints_reviewable_diff_without_mutating() {
     let (stdout, stderr) = output_text(&out);
     assert_eq!(out.status.code(), Some(1), "stdout:\n{stdout}\nstderr:\n{stderr}");
     assert!(stdout.contains("--- a/./note.md"), "missing diff header:\n{stdout}");
+    assert!(stdout.contains("@@"), "missing unified diff hunk header:\n{stdout}");
     assert!(stdout.contains("+alpha beta"), "missing formatted line:\n{stdout}");
+    assert!(
+        !stdout.contains("wrap column"),
+        "diff should not show custom wrap-column annotations:\n{stdout}"
+    );
+    assert!(
+        !stdout.lines().any(|line| line == "-" || line == "+"),
+        "diff should not invent blank changed lines from trailing newlines:\n{stdout}"
+    );
     assert!(
         stderr.is_empty(),
         "fmt-check --diff should keep stderr clean: {stderr:?}"
     );
     assert_eq!(fs::read_to_string(&note).expect("read markdown"), "alpha\nbeta\n");
+}
+
+#[test]
+fn fmt_check_diff_uses_unified_hunks_for_wrapped_paragraphs() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(dir.path().join(".mdwright.toml"), "[fmt]\nwrap = 12\n").expect("write config");
+    let note = dir.path().join("note.md");
+    fs::write(&note, "alpha beta gamma\n").expect("write markdown");
+
+    let out = command_in(dir.path(), &["fmt-check", "--diff"]);
+    let (stdout, stderr) = output_text(&out);
+    assert_eq!(out.status.code(), Some(1), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(stdout.contains("@@"), "missing unified diff hunk header:\n{stdout}");
+    assert!(
+        !stdout.lines().any(|line| line.starts_with('?')),
+        "diff should be patch-compatible and not include marker lines:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("+alpha beta") || stdout.contains("+gamma"),
+        "diff should still include the formatting change:\n{stdout}"
+    );
+    assert!(
+        !stdout.lines().any(|line| line == "-" || line == "+"),
+        "diff should not invent blank changed lines from trailing newlines:\n{stdout}"
+    );
+    assert!(stderr.is_empty(), "fmt-check --diff should keep stderr clean");
+    assert_eq!(
+        fs::read_to_string(&note).expect("read markdown"),
+        "alpha beta gamma\n",
+        "fmt-check --diff must not mutate files"
+    );
+}
+
+#[test]
+fn explain_format_uses_stderr_and_keeps_diff_patch_compatible() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(dir.path().join(".mdwright.toml"), "[fmt]\nwrap = 12\n").expect("write config");
+    let note = dir.path().join("note.md");
+    fs::write(&note, "alpha beta gamma\n").expect("write markdown");
+
+    let out = command_in(dir.path(), &["fmt-check", "--diff", "--explain-format"]);
+    let (stdout, stderr) = output_text(&out);
+    assert_eq!(out.status.code(), Some(1), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(stdout.contains("@@"), "diff should stay on stdout:\n{stdout}");
+    assert!(
+        !stdout.contains("format explanation") && !stdout.contains("paragraph-wrap"),
+        "explanations must not contaminate diff stdout:\n{stdout}"
+    );
+    assert!(
+        stderr.contains("format explanation")
+            && stderr.contains("paragraph-wrap")
+            && stderr.contains("strategy=stable"),
+        "stderr should explain formatter decisions:\n{stderr}"
+    );
+    assert_eq!(
+        fs::read_to_string(&note).expect("read markdown"),
+        "alpha beta gamma\n",
+        "fmt-check --diff must not mutate files"
+    );
+}
+
+#[test]
+fn fmt_explain_format_preserves_mutation_contract() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(dir.path().join(".mdwright.toml"), "[fmt]\nwrap = 12\n").expect("write config");
+    let note = dir.path().join("note.md");
+    fs::write(&note, "alpha beta gamma\n").expect("write markdown");
+
+    let out = command_in(dir.path(), &["fmt", "--explain-format"]);
+    let (stdout, stderr) = output_text(&out);
+    assert_eq!(out.status.code(), Some(0), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(stdout.is_empty(), "fmt should not write formatted Markdown to stdout");
+    assert!(
+        stderr.contains("format explanation") && stderr.contains("paragraph-wrap"),
+        "stderr should explain formatter decisions:\n{stderr}"
+    );
+    assert_eq!(fs::read_to_string(&note).expect("read markdown"), "alpha beta\ngamma\n");
 }
 
 #[test]

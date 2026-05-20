@@ -7,8 +7,8 @@ All notable changes to mdwright are listed here. The format follows
 
 ### Changed (breaking, pre-1.0)
 
-- Split the codebase into a virtual workspace of deep crates. There is no root facade package: command users install
-  the `mdwright` package, while Rust library users depend directly on `mdwright-document`, `mdwright-format`,
+- Split the codebase into a virtual workspace of deep crates. There is no root facade package: command users install the
+  `mdwright` package, while Rust library users depend directly on `mdwright-document`, `mdwright-format`,
   `mdwright-lint`, `mdwright-config`, `mdwright-lsp`, or `mdwright-math`.
 - Moved the executable target into the `mdwright` package under `crates/mdwright`. The binary name remains `mdwright`,
   and CLI behaviour is unchanged.
@@ -23,8 +23,8 @@ All notable changes to mdwright are listed here. The format follows
 - `Document::parse`, `Document::parse_with_options`, `render_html`, `format_source`, and the formatter semantic oracles
   are now fallible. `mdwright-document` contains upstream parser panics and reports them as `ParseError`; CLI and LSP
   delivery surfaces report controlled parse errors instead of crashing.
-- Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. Component
-  crates expose their own narrow APIs, and the `mdwright` package exposes only command-extension helpers such as
+- Removed the old public module-shaped facade for parser, formatter, linter, config, and LSP internals. Component crates
+  expose their own narrow APIs, and the `mdwright` package exposes only command-extension helpers such as
   `run_with_rules`.
 - Narrowed the pre-1.0 public surface before release. `mdwright-lsp::build_service_for_tests`, document source-map
   internals (`Source`, `CanonicalSource`, `OffsetMap`, `ByteSpan`, `OriginalSpan`), parser tree internals (`Tree`,
@@ -84,17 +84,17 @@ All notable changes to mdwright are listed here. The format follows
 
 ## [0.1.0] – 2026-05-18
 
-First crates.io release. mdwright has been developed internally through a sequence of in-repo versions (0.1, 0.3,
-0.4) that were never published; this 0.1.0 is the first version external users can pin to. Pre-1.0 caveats apply; see
+First crates.io release. mdwright has been developed internally through a sequence of in-repo versions (0.1, 0.3, 0.4)
+that were never published; this 0.1.0 is the first version external users can pin to. Pre-1.0 caveats apply; see
 [reference/semver.md](https://jcreinhold.github.io/mdwright/reference/semver.html#pre-10-caveats) and the public-surface
 snapshot at [reference/public-api.md](https://jcreinhold.github.io/mdwright/reference/public-api.html).
 
 ### Lint
 
-- Standard library of fifteen rules under `mdwright::stdlib`: `adjacent-code-no-space`, `bare-url`,
-  `duplicate-heading`, `duplicate-link-label`, `escaped-emphasis`, `heading-punctuation`, `inconsistent-list-marker`,
-  `info-string-typo`, `latex-command`, `list-tightness-flipped`, `orphan-reference-link`, `stray-dollar`,
-  `subscript-damage`, `trailing-whitespace`, `unbalanced-backtick`, `unicodeable-subscript`, plus three math rules
+- Standard library of fifteen rules under `mdwright::stdlib`: `adjacent-code-no-space`, `bare-url`, `duplicate-heading`,
+  `duplicate-link-label`, `escaped-emphasis`, `heading-punctuation`, `inconsistent-list-marker`, `info-string-typo`,
+  `latex-command`, `list-tightness-flipped`, `orphan-reference-link`, `stray-dollar`, `subscript-damage`,
+  `trailing-whitespace`, `unbalanced-backtick`, `unicodeable-subscript`, plus three math rules
   (`math/unbalanced-braces`, `math/unbalanced-delim`, `math/unbalanced-env`). `RuleSet::stdlib_defaults` returns the
   curated default-on subset; `RuleSet::stdlib_all` returns the lot.
 - Third-party rules via the [`LintRule`] trait and `RuleSet::add`. See `examples/extending/` for the canonical plugin
@@ -105,17 +105,16 @@ snapshot at [reference/public-api.md](https://jcreinhold.github.io/mdwright/refe
 ### Format
 
 - Math-resilient round-trip formatter. Math regions (`\[…\]`, `$$…$$`, `\(…\)`, `$…$`, and LaTeX environments) are
-  preserved verbatim by default; the structural recogniser at `mdwright::cm::math` uses the IR's inline and block
-  atoms, including inline HTML, as exclusion zones, closing the "stray `$` anchors a phantom math region" class of false
+  preserved verbatim by default; the structural recogniser at `mdwright::cm::math` uses the IR's inline and block atoms,
+  including inline HTML, as exclusion zones, closing the "stray `$` anchors a phantom math region" class of false
   positive. Dollar variants remain opt-in via `MathConfig`.
 - Preserve-by-default style knobs. `italic`, `strong`, `list_marker`, `thematic_break_style`, `ordered_list`,
-  `link_def_style` all default to `Preserve`; the default formatter leaves source style unchanged. Each knob has
-  an opt-in canonicalising target (`asterisk`, `underscore`, `dash`, etc.) configurable via `.mdwright.toml` or
+  `link_def_style` all default to `Preserve`; the default formatter leaves source style unchanged. Each knob has an
+  opt-in canonicalising target (`asterisk`, `underscore`, `dash`, etc.) configurable via `.mdwright.toml` or
   programmatically through fluent setters (`with_italic`, `with_strong`, `with_list_marker`, `with_ordered_list`,
   `with_thematic_break`, `with_link_def_style`).
-- `StrongStyle` is independent of `ItalicStyle`. `*italic*` with `__strong__` is expressible
-  (`[fmt] strong = "asterisk" |
-  "underscore" | "preserve"`, default `preserve`).
+- `StrongStyle` is independent of `ItalicStyle`. `*italic*` with `__strong__` is expressible (`[fmt] strong = "asterisk"
+  | "underscore" | "preserve"`, default `preserve`).
 - `--math-render={none, commonmark-katex, dollar}` flag on `fmt` plus a `mdwright render` subcommand for one-shot
   conversion. The converter at `src/cm/math/render.rs` lifts LaTeX-flavoured delimiters to CommonMark-compatible `$…$` /
   `$$…$$` for downstream KaTeX rendering.
@@ -134,8 +133,8 @@ snapshot at [reference/public-api.md](https://jcreinhold.github.io/mdwright/refe
   (paragraphs > 100 000 boxes skip the DP and emit verbatim; 100 ms time budget).
 - Frontmatter preservation: YAML (`---`) and TOML (`+++`) opening fences. `Frontmatter::delimiter` is read back through
   `Document::frontmatter`.
-- Range formatting: `format_range` and `format_range_with_checkpoints` re-emit the smallest set
-  of whole top-level blocks covering a caller-supplied byte range. Substring contract fenced by
+- Range formatting: `format_range` and `format_range_with_checkpoints` re-emit the smallest set of whole top-level
+  blocks covering a caller-supplied byte range. Substring contract fenced by
   `tests/properties.rs::range_format_is_substring_of_whole`.
 
 ### CLI
@@ -164,10 +163,10 @@ snapshot at [reference/public-api.md](https://jcreinhold.github.io/mdwright/refe
 
 ### Editor integration
 
-- `mdwright lsp` subcommand: a built-in Language Server Protocol server (stdio transport,
-  `tower-lsp` backend) exposing diagnostics, code actions for safe autofixes, hover docs
-  sourced from `mdwright explain`, and `textDocument/formatting` / `rangeFormatting`
-  / `onTypeFormatting`. Editor recipes for Helix, Zed, VS Code, and Neovim live at
+- `mdwright lsp` subcommand: a built-in Language Server Protocol server (stdio transport, `tower-lsp` backend) exposing
+  diagnostics, code actions for safe autofixes, hover docs sourced from `mdwright explain`, and
+  `textDocument/formatting` / `rangeFormatting` / `onTypeFormatting`. Editor recipes for Helix, Zed, VS Code, and Neovim
+  live at
   [`integration/editor-integrations.md`](https://jcreinhold.github.io/mdwright/integration/editor-integrations.html).
 
 ### Configuration
@@ -200,17 +199,16 @@ snapshot at [reference/public-api.md](https://jcreinhold.github.io/mdwright/refe
 - CLI reference at [`reference/cli.md`](https://jcreinhold.github.io/mdwright/reference/cli.html) generated by
   `cargo xtask doc-cli`.
 - Public-API surface snapshot at
-  [`reference/public-api.md`](https://jcreinhold.github.io/mdwright/reference/public-api.html).
-  Pre-1.0, this snapshot is descriptive; see the
-  [Pre-1.0
-  caveats](https://jcreinhold.github.io/mdwright/reference/semver.html#pre-10-caveats) in the semver policy.
+  [`reference/public-api.md`](https://jcreinhold.github.io/mdwright/reference/public-api.html). Pre-1.0, this snapshot
+  is descriptive; see the [Pre-1.0 caveats](https://jcreinhold.github.io/mdwright/reference/semver.html#pre-10-caveats)
+  in the semver policy.
 
 ### Architecture
 
 - IR is spec-aligned: each CM/GFM construct is a typed Rust value whose constructor enforces well-formedness. Spec
   conformance is a construction-time property rather than a runtime sieve.
-- The `format::*` pipeline dispatches per-construct `pretty()` methods through `TypedBlock::pretty`. Structural emit
-  is a single pass with pure source-byte preservation (`src/format/document.rs`): every `.pretty()` reads source bytes
+- The `format::*` pipeline dispatches per-construct `pretty()` methods through `TypedBlock::pretty`. Structural emit is
+  a single pass with pure source-byte preservation (`src/format/document.rs`): every `.pretty()` reads source bytes
   through `Tree::raw_text` or a node's source-recorded field; none consult `FmtOptions` style knobs. Idempotent by
   construction.
 - Style canonicalisation runs as a separate post-structural pass at `src/format/canonicalise.rs`. Each rewrite is
@@ -218,9 +216,8 @@ snapshot at [reference/public-api.md](https://jcreinhold.github.io/mdwright/refe
   failed verifications skip silently with `tracing::warn!`. The pass iterates to a fixed point (cap
   `MAX_CANONICALISE_ITERS = 8`).
 - Math recognition lives at `mdwright::cm::math` and runs before the tree build so the IR sees math as opaque atoms.
-- Plugin extension model: `mdwright::cli::run_with_rules(RuleSet) ->
-  ExitCode` lets downstream binaries embed
-  mdwright with extra lint rules over the published IR. Dynamic / WASM plugin loading is explicitly deferred (see
+- Plugin extension model: `mdwright::cli::run_with_rules(RuleSet) -> ExitCode` lets downstream binaries embed mdwright
+  with extra lint rules over the published IR. Dynamic / WASM plugin loading is explicitly deferred (see
   [`extending/plugin-loading.md`](https://jcreinhold.github.io/mdwright/extending/plugin-loading.html)).
 - See [`format/policy.md`](https://jcreinhold.github.io/mdwright/format/policy.html) (user-facing) and
   `docs/architecture/stability.md` (contributor-facing) for the design.
@@ -247,8 +244,8 @@ snapshot at [reference/public-api.md](https://jcreinhold.github.io/mdwright/refe
 
 ### Known issues
 
-- Idempotence regression on paragraphs whose lines are separated by a form-feed-only line: the formatter
-  re-splits such paragraphs so a continuation-line `+` ends up at a block-start position on reparse, promoting
-  it to an empty bullet-list marker. Class is "block-boundary classification disagrees between once and twice
-  when a whitespace-only line carries non-blank-line whitespace (form-feed, line tabulation, …)." Reproducer at
+- Idempotence regression on paragraphs whose lines are separated by a form-feed-only line: the formatter re-splits such
+  paragraphs so a continuation-line `+` ends up at a block-start position on reparse, promoting it to an empty
+  bullet-list marker. Class is "block-boundary classification disagrees between once and twice when a whitespace-only
+  line carries non-blank-line whitespace (form-feed, line tabulation, …)." Reproducer at
   [`fuzz/known-issues/idempotence-formfeed-paragraph-resplit.in`](./fuzz/known-issues/README.md).

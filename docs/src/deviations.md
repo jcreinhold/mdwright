@@ -9,8 +9,8 @@ split into two parts because the underlying mechanism does:
 
 - **Editorial deviations**: choices we have made and intend to keep. Curated in `tests/gfm-spec/allowlist.toml`. Each
   entry has a one-line rationale and a pointer to where the decision is documented.
-- **Tracked regressions**: known divergences that we intend to fix. Recorded in `tests/gfm-spec/snapshot.txt`.
-  The snapshot is asserted byte-for-byte, so any drift, whether regression *or* improvement, fails CI and forces a
+- **Tracked regressions**: known divergences that we intend to fix. Recorded in `tests/gfm-spec/snapshot.txt`. The
+  snapshot is asserted byte-for-byte, so any drift, whether regression *or* improvement, fails CI and forces a
   deliberate update.
 
 The `gfm_spec_coverage` test prints the live count for both groups; the numbers below are a snapshot of the current main
@@ -45,8 +45,8 @@ The remaining differences are accepted constraints of the current backend:
 | Contained upstream parser panic | 1 | converted to `ParseError` |
 
 `[render] profile = "cmark-gfm"` changes only HTML spelling for `mdwright render`: quote escaping, link-destination
-escaping, ordinary GFM table layout, task-list checkbox spelling, and one raw-HTML newline case where the parser
-already exposes enough structure. It does not change emphasis resolution or parser tree semantics. Full cmark-gfm parser
+escaping, ordinary GFM table layout, task-list checkbox spelling, and one raw-HTML newline case where the parser already
+exposes enough structure. It does not change emphasis resolution or parser tree semantics. Full cmark-gfm parser
 equivalence would require upstream pulldown-cmark changes, a maintained fork, or a parser backend switch.
 
 ## Editorial deviations
@@ -84,8 +84,8 @@ There are currently no tracked GFM-spec formatter regressions. Any future non-al
 ## mdformat-mkdocs parity deviations
 
 mdwright matches mdformat-mkdocs byte-for-byte for the four Markdown extensions covered in
-[Markdown extensions](concepts/extensions.md). The parity test at `tests/extension_parity.rs` enforces this against
-five committed reference fixtures. Known divergences below; each row exists because the upstream pulldown-cmark parser
+[Markdown extensions](concepts/extensions.md). The parity test at `tests/extension_parity.rs` enforces this against five
+committed reference fixtures. Known divergences below; each row exists because the upstream pulldown-cmark parser
 doesn't surface enough information for mdwright to round-trip the source faithfully.
 
 | Construct                       | Source pattern that diverges      | Why                                                                                                                                                              |
@@ -98,10 +98,10 @@ deliberate add to this table (with a rationale and an upstream pointer) or a fix
 ## MyST + Pandoc directive parity
 
 mdwright preserves MyST directive containers, Pandoc fenced divs, inline roles, MyST substitutions, Pandoc inline
-attribute spans, and MyST `%` line comments byte-verbatim. See [MyST + Pandoc directives](concepts/myst-pandoc.md)
-for the full scope. The bar is **idempotence-on-mode**, not byte-equal round-trip with mdformat-mkdocs:
-mdformat-mkdocs does not implement these constructs at all, so there is no upstream reference to diff against.
-The vendored jupyter-book demo at `tests/external/jupyter_book_minimal/` plus the per-construct regressions at
+attribute spans, and MyST `%` line comments byte-verbatim. See [MyST + Pandoc directives](concepts/myst-pandoc.md) for
+the full scope. The bar is **idempotence-on-mode**, not byte-equal round-trip with mdformat-mkdocs: mdformat-mkdocs does
+not implement these constructs at all, so there is no upstream reference to diff against. The vendored jupyter-book demo
+at `tests/external/jupyter_book_minimal/` plus the per-construct regressions at
 `tests/regressions/{directive_*,inline_role_*,myst_*}.in` are the safety net.
 
 | Construct                       | Source pattern that diverges                      | Why                                                                                                                                                              |

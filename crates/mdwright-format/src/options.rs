@@ -108,7 +108,7 @@ impl FmtOptions {
 
     /// Paragraph wrap strategy.
     #[must_use]
-    pub(crate) fn wrap_strategy(&self) -> WrapStrategy {
+    pub fn wrap_strategy(&self) -> WrapStrategy {
         self.wrap_strategy
     }
 
@@ -261,10 +261,9 @@ impl FmtOptions {
         self
     }
 
-    /// Override the wrap strategy. Kept crate-private because user-facing
-    /// selection happens through formatter profiles.
+    /// Override the paragraph wrap strategy.
     #[must_use]
-    pub(crate) fn with_wrap_strategy(mut self, strategy: WrapStrategy) -> Self {
+    pub fn with_wrap_strategy(mut self, strategy: WrapStrategy) -> Self {
         self.wrap_strategy = strategy;
         self
     }
@@ -477,7 +476,7 @@ impl Default for FmtOptions {
     fn default() -> Self {
         Self {
             wrap: Wrap::Keep,
-            wrap_strategy: WrapStrategy::Balanced,
+            wrap_strategy: WrapStrategy::Stable,
             // Style knobs default to Preserve so structural emit
             // round-trips source bytes. Canonicalisation reads these
             // knobs to opt in to rewrites.
@@ -515,7 +514,7 @@ impl FmtOptions {
     #[must_use]
     pub fn mdformat() -> Self {
         Self::default()
-            .with_wrap_strategy(WrapStrategy::MdformatReflow)
+            .with_wrap_strategy(WrapStrategy::Stable)
             .with_list_marker(ListMarkerStyle::Dash)
             .with_list_continuation_indent(ListContinuationIndent::FourSpace)
             .with_ordered_list(OrderedListStyle::One)
@@ -610,13 +609,24 @@ impl Wrap {
     }
 }
 
-/// Internal paragraph-wrap planner.
+/// Paragraph-wrap planner.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) enum WrapStrategy {
-    /// Rebalance the whole paragraph with the existing squared-slack planner.
-    Balanced,
+pub enum WrapStrategy {
     /// Reflow each hard-break-bounded run with mdformat-compatible soft breaks.
-    MdformatReflow,
+    Stable,
+    /// Rebalance the whole paragraph with a squared-slack planner.
+    Balanced,
+}
+
+impl WrapStrategy {
+    /// TOML spelling for this strategy.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stable => "stable",
+            Self::Balanced => "balanced",
+        }
+    }
 }
 
 /// Italic delimiter normalisation policy. Defaults to `Preserve`:

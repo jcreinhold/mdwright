@@ -136,8 +136,8 @@ survive untouched.
 
 ## What mdwright does not do
 
-Expansion, role rendering, substitution resolution, and directive-name validation are all the downstream renderer's
-job. A `:::{figure}` is emitted as `:::{figure}`; the image is not inlined and the options are not rendered;
+Expansion, role rendering, substitution resolution, and directive-name validation are all the downstream renderer's job.
+A `:::{figure}` is emitted as `:::{figure}`; the image is not inlined and the options are not rendered;
 `` {term}`Vector Space` `` stays as-is; `{{my-sub}}` is preserved even when the frontmatter declares a replacement; any
 directive name matching `[a-zA-Z0-9_-]+` is accepted, and an unknown name is downstream's problem.
 

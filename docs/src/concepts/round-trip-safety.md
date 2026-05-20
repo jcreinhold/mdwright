@@ -1,8 +1,8 @@
 # Round-trip safety
 
-`mdwright fmt` is a *semantic* rewriter, not a string-level one. The contract: the rendered HTML of the output
-matches the rendered HTML of the input, modulo whitespace inside a paragraph that does not change word boundaries.
-The `gfm_spec_snapshot` test enforces it on every commit. Any input that fails the gate is either fixed at the root or
+`mdwright fmt` is a *semantic* rewriter, not a string-level one. The contract: the rendered HTML of the output matches
+the rendered HTML of the input, modulo whitespace inside a paragraph that does not change word boundaries. The
+`gfm_spec_snapshot` test enforces it on every commit. Any input that fails the gate is either fixed at the root or
 recorded in the [deviation table](../deviations.md) with a one-line reason.
 
 ## The HTML-equivalence gate

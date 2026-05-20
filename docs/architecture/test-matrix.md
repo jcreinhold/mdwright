@@ -112,9 +112,9 @@ fuzz, and production soak.
 | 3     | reserved for corpus continuity |
 | 4–7   | Canonicalisation mode (16 enumerated: preserve, one per style knob, two combined) |
 
-**Invariant:** no input causes a panic or property violation in 10 minutes. Parser implementation panics are
-converted to `ParseError` at the `mdwright-document` boundary, so fuzz targets discard parse errors through
-normal `Result` handling rather than wrapping product calls in `catch_unwind`. Findings are committed to
+**Invariant:** no input causes a panic or property violation in 10 minutes. Parser implementation panics are converted
+to `ParseError` at the `mdwright-document` boundary, so fuzz targets discard parse errors through normal `Result`
+handling rather than wrapping product calls in `catch_unwind`. Findings are committed to
 `crates/mdwright/tests/regressions/` as `.in` fixtures.
 
 ## Production soak
@@ -129,11 +129,10 @@ enforces the same shape via `--max-input-bytes`.
 
 ## mdformat parity
 
-`cargo xtask mdformat-parity --corpus-root <path> --corpus-name <name> --mdwright-config <path>
---mdformat-config xtask/fixtures/mdformat-parity/mdformat.toml`
-copies a corpus into isolated temp roots, runs mdwright and mdformat, and writes JSON / Markdown reports under
-`target/mdwright/parity/`. The command compares changed file sets, line-diff stats, idempotence, mdBook buildability
-when applicable, and semantic equivalence of each formatter output to the original.
+`cargo xtask mdformat-parity --corpus-root <path> --corpus-name <name> --mdwright-config <path> --mdformat-config
+xtask/fixtures/mdformat-parity/mdformat.toml` copies a corpus into isolated temp roots, runs mdwright and mdformat, and
+writes JSON / Markdown reports under `target/mdwright/parity/`. The command compares changed file sets, line-diff stats,
+idempotence, mdBook buildability when applicable, and semantic equivalence of each formatter output to the original.
 
 The mdformat config is checked in as an xtask fixture so mdformat does not look like the repository's own formatter.
 
@@ -168,6 +167,6 @@ mdformat-parity, production-soak, fuzzing, packaging, or Criterion.
 
 ## What this matrix does NOT include
 
-Lint-rule coverage lives with each rule under `src/stdlib/*` and `tests/`; that's a parallel matrix and
-isn't summarised here. CLI-surface tests live at `tests/cli_*.rs`. The diagnostic JSON v2 schema is gated by
+Lint-rule coverage lives with each rule under `src/stdlib/*` and `tests/`; that's a parallel matrix and isn't summarised
+here. CLI-surface tests live at `tests/cli_*.rs`. The diagnostic JSON v2 schema is gated by
 `tests/diagnostic_json_v2.rs`.

@@ -135,12 +135,20 @@ fn verify_plan(
     }
     if verify_batch(before, &candidate, plan.edits(), opts, parse_options) {
         report.rewrite_committed = report.rewrite_committed.saturating_add(plan.len());
+        match plan.kind() {
+            PlanKind::TerminalWrap => {
+                report.rewrite_committed_wrap = report.rewrite_committed_wrap.saturating_add(plan.len());
+            }
+            PlanKind::Family(_) => {
+                report.rewrite_committed_style = report.rewrite_committed_style.saturating_add(plan.len());
+            }
+        }
         return Some(candidate);
     }
 
     let first = plan.edits().first();
     report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(plan.len());
-    tracing::warn!(
+    tracing::debug!(
         target: "mdwright::rewrite",
         family = ?plan.kind(),
         edits = plan.len(),

@@ -17,9 +17,9 @@ language-servers = ["mdwright"]
 
 ## Position encoding gotcha
 
-mdwright advertises UTF-8 position encoding. Clients that negotiate UTF-8 (VS Code 1.74+, Helix, Zed, neovim 0.10+)
-get the full surface: diagnostics, hover, formatting, range formatting, on-type formatting, and code actions. Clients
-that only support UTF-16 get diagnostics + hover; formatting and code-action providers are withdrawn rather than risk
+mdwright advertises UTF-8 position encoding. Clients that negotiate UTF-8 (VS Code 1.74+, Helix, Zed, neovim 0.10+) get
+the full surface: diagnostics, hover, formatting, range formatting, on-type formatting, and code actions. Clients that
+only support UTF-16 get diagnostics + hover; formatting and code-action providers are withdrawn rather than risk
 corrupting non-ASCII sources, and a warning is logged via `window/logMessage`. Check your editor's LSP log if formatting
 unexpectedly does nothing, it usually means the client never granted UTF-8.
 
@@ -127,8 +127,8 @@ for that version.
 ## Range-formatting caveats
 
 `textDocument/rangeFormatting` and `textDocument/onTypeFormatting` snap the requested range out to the nearest whole
-top-level block before formatting. For sources without document-scope reorderable constructs the snapped output
-is a verbatim substring of the whole-document format; link definitions (`[label]: dest`) and footnote definitions
+top-level block before formatting. For sources without document-scope reorderable constructs the snapped output is a
+verbatim substring of the whole-document format; link definitions (`[label]: dest`) and footnote definitions
 (`[^label]: …`) are document-scope, so a range format may leave them in place where a whole-document format would have
 moved them to the canonical location. Save the file (or invoke whole-document formatting) periodically to reconcile.
 

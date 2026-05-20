@@ -80,8 +80,8 @@ error[bare-url]: bare URL should be wrapped in angle brackets or rendered as a l
 
 Pass files, directories, or both; directories are walked recursively with `.gitignore` honoured.
 
-`mdwright explain <rule>` prints the long-form rationale of any rule plus a link into the doc site.
-`mdwright lsp` runs a built-in language server over stdio; recipes for Helix, Zed, VS Code, and Neovim are at
+`mdwright explain <rule>` prints the long-form rationale of any rule plus a link into the doc site. `mdwright lsp` runs
+a built-in language server over stdio; recipes for Helix, Zed, VS Code, and Neovim are at
 [Editor integration](docs/src/integration/editor-integrations.md).
 
 ## Configure
@@ -121,8 +121,8 @@ GitHub Actions:
     args: check --check .
 ```
 
-Full recipes (including the `language: rust` variants that don't need `mdwright` on `$PATH`):
-see [Pre-commit](https://jcreinhold.github.io/mdwright/integration/pre-commit.html) and
+Full recipes (including the `language: rust` variants that don't need `mdwright` on `$PATH`): see
+[Pre-commit](https://jcreinhold.github.io/mdwright/integration/pre-commit.html) and
 [GitHub Actions](https://jcreinhold.github.io/mdwright/integration/github-actions.html).
 
 ## Exit codes
@@ -136,8 +136,8 @@ see [Pre-commit](https://jcreinhold.github.io/mdwright/integration/pre-commit.ht
 ## Safety
 
 `mdwright` is built to run on untrusted Markdown. The only user-tunable bound is `--max-input-bytes` (default 10 MB);
-three further bounds are fixed at compile time and degrade gracefully. Paragraphs that overrun the token cap or 100
-ms wrap budget are emitted without re-wrapping rather than failing the run. Five coverage-guided fuzz targets under
+three further bounds are fixed at compile time and degrade gracefully. Paragraphs that overrun the token cap or 100 ms
+wrap budget are emitted without re-wrapping rather than failing the run. Five coverage-guided fuzz targets under
 [`fuzz/`](./fuzz) cover parse/format HTML equivalence, idempotence, lint determinism, and verbatim identity; reproducers
 for fixed bugs live under [`crates/mdwright/tests/regressions/`](./crates/mdwright/tests/regressions). Panics on any
 input are security bugs; see [SECURITY.md](./SECURITY.md) for disclosure.

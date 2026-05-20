@@ -35,8 +35,8 @@ cargo binstall mdwright
 
 ## Release tarball
 
-Download a `.tar.xz` directly from the [GitHub releases page](https://github.com/jcreinhold/mdwright/releases) and
-place the `mdwright` binary on your `$PATH`. Useful for air-gapped environments or when you want to pin a specific build
+Download a `.tar.xz` directly from the [GitHub releases page](https://github.com/jcreinhold/mdwright/releases) and place
+the `mdwright` binary on your `$PATH`. Useful for air-gapped environments or when you want to pin a specific build
 artifact.
 
 ## Building from a clone
@@ -49,8 +49,7 @@ cargo build --release -p mdwright
 ```
 
 `cargo nextest run` exercises the full test suite (golden snapshots, GFM spec runner, property tests). `cargo bench`
-runs the Criterion benches; `cargo xtask doc-rules --check` and `cargo
-xtask doc-cli --check` verify that the
+runs the Criterion benches; `cargo xtask doc-rules --check` and `cargo xtask doc-cli --check` verify that the
 auto-generated documentation pages are up to date.
 
 ## Platform support

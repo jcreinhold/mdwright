@@ -1,7 +1,7 @@
 # Stability charter
 
-> **Invariant.** Formatting a parsed document preserves Markdown meaning, or refuses the rewrite that would change
-> it. Default formatting is identity emit modulo document-boundary normalisation; opt-in style and wrap changes are
+> **Invariant.** Formatting a parsed document preserves Markdown meaning, or refuses the rewrite that would change it.
+> Default formatting is identity emit modulo document-boundary normalisation; opt-in style and wrap changes are
 > transactional byte rewrites, each verified against document-owned parser facts.
 
 mdwright's correctness rests on three deep modules in `mdwright-document` and `mdwright-format`, not on layered

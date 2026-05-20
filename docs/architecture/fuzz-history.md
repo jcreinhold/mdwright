@@ -5,9 +5,9 @@ it belongs to. Patterns are numbered to match the concerns enumerated in [`stabi
 
 The dominant pattern, by a wide margin, is **#2: an output decision consulted source bytes to choose a representation.**
 9 of 22 classified fixes fall here. That concentration is why structural emit is now identity (the formatter copies
-source bytes for the structural skeleton instead of re-deriving them): removing the read-to-decide site removes the
-bug class. The opt-in canonicalisation path is hardened separately — rewrite families own normal-form plans with
-explicit byte ownership, and verification checks safety before commit. See
+source bytes for the structural skeleton instead of re-deriving them): removing the read-to-decide site removes the bug
+class. The opt-in canonicalisation path is hardened separately — rewrite families own normal-form plans with explicit
+byte ownership, and verification checks safety before commit. See
 [`formatter-rewrite-boundary.md`](formatter-rewrite-boundary.md) for the current emit shape.
 
 ## Histogram

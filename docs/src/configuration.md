@@ -60,6 +60,7 @@ All `[fmt]` knobs are config-file-only.
 | --- | --- | --- | --- | --- |
 | `fmt.profile` | "preserve" \| "mdformat" | `"preserve"` | `none` | Formatter style profile. `preserve` keeps mdwright's identity-oriented defaults; `mdformat` applies mdformat-compatible defaults where verified rewrites can preserve semantics. Explicit `[fmt]` keys override profile defaults. |
 | `fmt.wrap` | "keep" \| "no" \| int | `"keep"` | `none` | Wrap mode for prose paragraphs. `keep` leaves existing breaks alone; `no` forbids new breaks; an integer enforces that column for breakable lines in every formatter profile. |
+| `fmt.wrap-strategy` | "stable" \| "balanced" | `"stable"` | `none` | Reflow strategy used when `fmt.wrap` is an integer. `stable` greedily fills soft-break runs and is the default; `balanced` rebalances paragraphs for more even line lengths. |
 | `fmt.italic` | "asterisk" \| "underscore" \| "preserve" | `"preserve"` | `none` | Italic delimiter canonicalisation. `preserve` (default) leaves source bytes; `asterisk` / `underscore` opt into the post-pass rewrite. See [Style knobs](format/style.md). |
 | `fmt.strong` | "asterisk" \| "underscore" \| "preserve" | `"preserve"` | `none` | Strong-emphasis delimiter canonicalisation. Independent of `fmt.italic`: `*italic*` with `__strong__` is expressible. |
 | `fmt.list-marker` | "dash" \| "asterisk" \| "plus" \| "preserve" | `"preserve"` | `none` | Unordered-list bullet canonicalisation. Each marker is rewritten through a marker-local fact and the family commits only after verification. |

@@ -21,8 +21,8 @@ The command writes:
 - `target/mdwright/release/release-evidence.json`
 - `target/mdwright/release/release-evidence.md`
 
-The command does not rerun every expensive gate. It records git state and tool versions, reads existing machine
-reports, points at manual evidence notes, and lists blockers when evidence is missing. This keeps the command narrow: it
+The command does not rerun every expensive gate. It records git state and tool versions, reads existing machine reports,
+points at manual evidence notes, and lists blockers when evidence is missing. This keeps the command narrow: it
 summarizes release evidence instead of duplicating parser audit, mdformat parity, production soak, fuzzing, packaging,
 or benchmarks.
 

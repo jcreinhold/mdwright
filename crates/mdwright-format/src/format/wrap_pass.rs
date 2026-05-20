@@ -1,6 +1,6 @@
 //! Terminal paragraph wrap over normalized source bytes.
 //!
-//! Knuth-Plass-lite squared-slack DP targeting byte ranges.
+//! Terminal paragraph wrap over normalized source bytes.
 //!
 //! ## Contract
 //!
@@ -25,14 +25,14 @@
 //! ## Safety
 //!
 //! For each paragraph, the rewrite extracts inline atomics by source byte
-//! range and tokenises the remaining text on whitespace. The default
-//! strategy applies the DP to the paragraph segment; the mdformat-compatible
-//! strategy first converts physical source lines inside a hard-break-bounded
-//! segment into a soft-break run, then applies the same line-budget planner.
-//! Both paths re-emit with `\n` + the continuation prefix between lines. The
-//! rewrite engine calls this module only after earlier rewrite families have
-//! reached local normal form for the current snapshot, then verifies the
-//! paragraph batch in document context before commit.
+//! range and tokenises the remaining text on whitespace. The stable strategy
+//! converts physical source lines inside a hard-break-bounded segment into one
+//! soft-break run, then greedily fills lines up to the configured budget. The
+//! balanced strategy applies the squared-slack planner to the same paragraph
+//! segment. Both paths re-emit with `\n` + the continuation prefix between
+//! lines. The rewrite engine calls this module only after earlier rewrite
+//! families have reached local normal form for the current snapshot, then
+//! verifies the paragraph batch in document context before commit.
 
 use std::ops::Range;
 use std::time::{Duration, Instant};
@@ -197,7 +197,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, opts: &FmtOptions) -> ParagraphWra
                     }
                 }
             }
-            WrapStrategy::MdformatReflow => {
+            WrapStrategy::Stable => {
                 let Some(physical) = tokenize_physical_lines(bytes, seg, p.atomics(), p.cont_prefix()) else {
                     return ParagraphWrap::Unsupported;
                 };
@@ -216,8 +216,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, opts: &FmtOptions) -> ParagraphWra
                 match mode {
                     Wrap::No => collapse_soft_break_run(run),
                     Wrap::At(_) => {
-                        let Some(lines) =
-                            layout_mdformat_reflow(run, first_target, cont_target, last_line_extra, start)
+                        let Some(lines) = layout_stable_reflow(run, first_target, cont_target, last_line_extra, start)
                         else {
                             return ParagraphWrap::Unsupported;
                         };
@@ -433,7 +432,7 @@ fn tokenize_physical_lines<'a>(
     let mut lines = Vec::new();
     let mut lo = seg.start;
     let prefix = source_cont_prefix.as_bytes();
-    while lo <= seg.end {
+    while lo < seg.end {
         let hi = bytes
             .get(lo..seg.end)
             .and_then(|tail| tail.iter().position(|&b| b == b'\n'))
@@ -490,7 +489,7 @@ fn collapse_soft_break_run(run: SoftBreakRun<'_>) -> Vec<Vec<Token<'_>>> {
     if line.is_empty() { Vec::new() } else { vec![line] }
 }
 
-fn layout_mdformat_reflow(
+fn layout_stable_reflow(
     run: SoftBreakRun<'_>,
     first_target: u32,
     cont_target: u32,
@@ -501,10 +500,66 @@ fn layout_mdformat_reflow(
     if tokens.is_empty() {
         return Some(Vec::new());
     }
-    if line_width(&tokens, 0, tokens.len()).saturating_add(last_line_extra) <= first_target {
-        return Some(vec![tokens]);
+    if tokens.len() > MAX_WRAP_TOKENS {
+        tracing::warn!(
+            tokens = tokens.len(),
+            cap = MAX_WRAP_TOKENS,
+            "wrap: paragraph exceeds token cap; emitting verbatim without re-wrap"
+        );
+        return None;
     }
-    layout_lines(&tokens, first_target, cont_target, last_line_extra, start)
+
+    let mut lines = Vec::new();
+    let mut i = 0usize;
+    let mut tick = 0usize;
+    while i < tokens.len() {
+        tick = tick.saturating_add(1);
+        if tick.is_multiple_of(TIME_CHECK_STRIDE) && start.elapsed() >= MAX_WRAP_TIME {
+            tracing::warn!(
+                tokens = tokens.len(),
+                budget_ms = MAX_WRAP_TIME.as_millis(),
+                "wrap: stable reflow time budget exceeded; emitting verbatim without re-wrap"
+            );
+            return None;
+        }
+
+        let raw_target = if lines.is_empty() { first_target } else { cont_target };
+        let last_target = raw_target.saturating_sub(last_line_extra).max(1);
+        if line_width(&tokens, i, tokens.len()) <= last_target {
+            lines.push(tokens.get(i..).unwrap_or(&[]).to_vec());
+            break;
+        }
+
+        let mut end = i;
+        let mut width = 0u32;
+        while end < tokens.len() {
+            let Some(token) = tokens.get(end) else {
+                break;
+            };
+            let next_width = if end == i {
+                token.width
+            } else {
+                width.saturating_add(1).saturating_add(token.width)
+            };
+            let candidate_end = end.saturating_add(1);
+            let target = if candidate_end == tokens.len() {
+                last_target
+            } else {
+                raw_target
+            };
+            if next_width > target {
+                break;
+            }
+            width = next_width;
+            end = candidate_end;
+        }
+        if end == i {
+            end = i.saturating_add(1);
+        }
+        lines.push(tokens.get(i..end).unwrap_or(&[]).to_vec());
+        i = end;
+    }
+    Some(lines)
 }
 
 fn lines_fit_budget(lines: &[Vec<Token<'_>>], first_target: u32, cont_target: u32, last_line_extra: u32) -> bool {
@@ -633,7 +688,7 @@ fn badness(line_w: u32, target: u32, is_last_line: bool, boxes_on_line: usize) -
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use crate::{FmtOptions, ListContinuationIndent, Wrap};
+    use crate::{FmtOptions, ListContinuationIndent, Wrap, WrapStrategy};
 
     fn wrap_with(input: &str, opts: &FmtOptions) -> String {
         crate::format_document(
@@ -664,6 +719,18 @@ mod tests {
         let out = wrap(s, Wrap::At(15));
         let lines: Vec<&str> = out.lines().collect();
         assert!(lines.iter().all(|l| l.chars().count() <= 15), "{out:?}");
+    }
+
+    #[test]
+    fn at_uses_stable_greedy_reflow_by_default() {
+        let s = "alpha\ngamma delta\n";
+        assert_eq!(wrap(s, Wrap::At(12)), "alpha gamma\ndelta\n");
+    }
+
+    #[test]
+    fn stable_reflow_fills_lines_greedily() {
+        let s = "alpha beta gamma\n";
+        assert_eq!(wrap(s, Wrap::At(12)), "alpha beta\ngamma\n");
     }
 
     #[test]
@@ -740,6 +807,15 @@ mod tests {
         let s = "alpha\ngamma delta\n";
         let opts = FmtOptions::mdformat().with_wrap(Wrap::At(12));
         assert_eq!(wrap_with(s, &opts), "alpha gamma\ndelta\n");
+    }
+
+    #[test]
+    fn balanced_wrap_remains_opt_in() {
+        let s = "one two three four five six seven eight\n";
+        let opts = FmtOptions::default()
+            .with_wrap(Wrap::At(16))
+            .with_wrap_strategy(WrapStrategy::Balanced);
+        assert_eq!(wrap_with(s, &opts), "one two three\nfour five six\nseven eight\n");
     }
 
     #[test]

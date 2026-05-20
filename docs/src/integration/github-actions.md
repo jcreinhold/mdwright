@@ -68,8 +68,8 @@ This resolves the same release artifacts and skips the compile step.
 
 ## Reading the output in PR annotations
 
-mdwright's pretty output is human-readable in the Actions log. For PR annotations (squiggles in the GitHub
-UI), pipe JSON v2 through a converter; there is no first-class action yet, but the schema is documented at
+mdwright's pretty output is human-readable in the Actions log. For PR annotations (squiggles in the GitHub UI), pipe
+JSON v2 through a converter; there is no first-class action yet, but the schema is documented at
 [Diagnostic schema](../reference/diagnostic-schema.md) and stable across 0.x.
 
 ## See also

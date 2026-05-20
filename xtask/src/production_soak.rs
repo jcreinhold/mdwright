@@ -51,6 +51,8 @@ struct SoakReport {
     max_file_size: usize,
     rewrite_candidates: usize,
     rewrite_committed: usize,
+    rewrite_committed_wrap: usize,
+    rewrite_committed_style: usize,
     rewrite_rejected_overlap: usize,
     rewrite_rejected_verification: usize,
     rewrite_rejected_convergence: usize,
@@ -205,6 +207,12 @@ fn collect_markdown_files(root: &Path, files: &mut Vec<PathBuf>) -> Result<()> {
 fn merge_report(total: &mut FormatReport, report: &FormatReport) {
     total.rewrite_candidates = total.rewrite_candidates.saturating_add(report.rewrite_candidates);
     total.rewrite_committed = total.rewrite_committed.saturating_add(report.rewrite_committed);
+    total.rewrite_committed_wrap = total
+        .rewrite_committed_wrap
+        .saturating_add(report.rewrite_committed_wrap);
+    total.rewrite_committed_style = total
+        .rewrite_committed_style
+        .saturating_add(report.rewrite_committed_style);
     total.rewrite_rejected_overlap = total
         .rewrite_rejected_overlap
         .saturating_add(report.rewrite_rejected_overlap);
@@ -265,6 +273,8 @@ fn report_for(corpus_root: &Path, stats: &SoakStats, success: bool) -> SoakRepor
         max_file_size: stats.max_file_size,
         rewrite_candidates: stats.rewrite_report.rewrite_candidates,
         rewrite_committed: stats.rewrite_report.rewrite_committed,
+        rewrite_committed_wrap: stats.rewrite_report.rewrite_committed_wrap,
+        rewrite_committed_style: stats.rewrite_report.rewrite_committed_style,
         rewrite_rejected_overlap: stats.rewrite_report.rewrite_rejected_overlap,
         rewrite_rejected_verification: stats.rewrite_report.rewrite_rejected_verification,
         rewrite_rejected_convergence: stats.rewrite_report.rewrite_rejected_convergence,
@@ -315,6 +325,14 @@ fn markdown_report(report: &SoakReport) -> String {
     out.push_str("| --- | ---: |\n");
     out.push_str(&format!("| Candidates attempted | {} |\n", report.rewrite_candidates));
     out.push_str(&format!("| Candidates committed | {} |\n", report.rewrite_committed));
+    out.push_str(&format!(
+        "| Wrap edits committed | {} |\n",
+        report.rewrite_committed_wrap
+    ));
+    out.push_str(&format!(
+        "| Style edits committed | {} |\n",
+        report.rewrite_committed_style
+    ));
     out.push_str(&format!(
         "| Rejected by overlap | {} |\n",
         report.rewrite_rejected_overlap

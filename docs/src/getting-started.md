@@ -85,9 +85,9 @@ Re-run `mdwright check`. Output is empty: the file is clean.
 mdwright fmt README.md
 ```
 
-`fmt` rewrites the file in place. Run `git diff` (in a real project) to see what changed. The defaults preserve
-source style, including emphasis delimiters, list markers, thematic breaks, and line wrap, so the diff is usually
-small. Display math, inline math, and fenced code blocks pass through verbatim. Opt in to canonicalisation per knob in
+`fmt` rewrites the file in place. Run `git diff` (in a real project) to see what changed. The defaults preserve source
+style, including emphasis delimiters, list markers, thematic breaks, and line wrap, so the diff is usually small.
+Display math, inline math, and fenced code blocks pass through verbatim. Opt in to canonicalisation per knob in
 `.mdwright.toml`; see [Formatter policy](format/policy.md) and [Style knobs](format/style.md).
 
 ## Configure one rule

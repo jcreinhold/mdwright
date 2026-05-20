@@ -13,7 +13,7 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 | Parse Markdown into stable facts | `Document`, `ParseError`, `ParseOptions` | `mdwright-document` |
 | Configure Markdown recognition | `ExtensionOptions`, `GfmOptions`, `GfmAutolinkPolicy`, `MystOptions`, `PandocOptions` | `mdwright-document` |
 | Render Markdown to HTML | `RenderOptions`, `RenderProfile`, `render_html`, `render_html_with_options`, `render_html_with_render_options` | `mdwright-document` |
-| Format parsed or source Markdown | `FmtOptions`, `FormatError`, `format_document`, `format_source`, `format_validated` | `mdwright-format` |
+| Format parsed or source Markdown | `FmtOptions`, `WrapStrategy`, `FormatError`, `format_document`, `format_document_with_report`, `format_source`, `format_validated`, `format_validated_with_report` | `mdwright-format` |
 | Format editor ranges | `CheckpointTable`, `format_range`, `format_range_with_checkpoints` | `mdwright-format` |
 | Compare formatter semantics | `semantically_equivalent`, `first_divergence` | `mdwright-format` |
 | Run lint rules | `RuleSet`, `LintOptions` | `mdwright-lint` |

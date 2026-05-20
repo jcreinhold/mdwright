@@ -14,9 +14,9 @@ See [Formatter policy](policy.md) for the overall design (structural emit + opt-
 | `"asterisk"` | Rewrite `_…_` to `*…*` when verification preserves the parse. |
 | `"underscore"` | Rewrite `*…*` to `_…_` when verification preserves the parse. |
 
-**Verification skips when:** the rewrite would change the parse of the enclosing paragraph window. The most common
-case is intraword underscore (`id_S`, `Hom_{cart}`): pulldown already treats these as plain text under CM §6.2 rule
-6, so no rewrite is proposed and nothing skips. Where rewrites *do* skip silently is in dense multi-delimiter runs
+**Verification skips when:** the rewrite would change the parse of the enclosing paragraph window. The most common case
+is intraword underscore (`id_S`, `Hom_{cart}`): pulldown already treats these as plain text under CM §6.2 rule 6, so no
+rewrite is proposed and nothing skips. Where rewrites *do* skip silently is in dense multi-delimiter runs
 (`*_*…*_*`-style chains) whose pairing depends on flanking neighbours; verification catches these and leaves the source
 bytes in place.
 
@@ -140,13 +140,19 @@ style = "pad"
 exception is an indivisible atomic token, such as a long code span, URL, math atom, or single long word. Those tokens
 are left intact rather than split into invalid Markdown.
 
-The default profile uses mdwright's balanced paragraph planner for explicit wrapping. The mdformat profile treats
-ordinary source newlines inside a paragraph as soft breaks, reflows each hard-break-bounded run, and uses the same final
-line-budget check.
+The default wrap strategy is `"stable"`: ordinary source newlines inside a paragraph are soft break positions, hard
+breaks stay hard boundaries, and each hard-break-bounded run is filled greedily up to the configured column. Use
+`wrap-strategy = "balanced"` when you want mdwright to rebalance paragraphs for more even line lengths.
 
 ```toml
 [fmt]
 wrap = 120
+```
+
+```toml
+[fmt]
+wrap = 120
+wrap-strategy = "balanced"
 ```
 
 ## `[fmt.lists] continuation-indent`
@@ -157,8 +163,8 @@ wrap = 120
 | `"four-space"` | Continuation lines use four spaces after the containing block prefix. |
 
 This setting only affects paragraphs that are wrapped inside list items. It is separate from `list-marker` because the
-bullet character and continuation indentation are independent style decisions. The mdformat profile defaults this key
-to `"four-space"`; explicit config overrides that default.
+bullet character and continuation indentation are independent style decisions. The mdformat profile defaults this key to
+`"four-space"`; explicit config overrides that default.
 
 ```toml
 [fmt]
@@ -207,7 +213,7 @@ mdformat behaviours that would change the parsed document.
 
 ## How verification skips become visible
 
-When a rewrite would change the parse of the enclosing paragraph window, the canonicalisation pass
-logs a `tracing::warn!` with the byte span and skipped rewrite. Capture these in production with
+When a rewrite would change the parse of the enclosing paragraph window, the canonicalisation pass logs a
+`tracing::warn!` with the byte span and skipped rewrite. Capture these in production with
 `RUST_LOG=mdwright_format=warn`. A high skip rate on one document usually points at a structural-emit edge case worth
 filing as a regression input.

@@ -5,11 +5,11 @@ plugins) over an isolated corpus copy. The goal is classified compatibility, not
 output difference is either fixed, configured, or recorded below as intentional; otherwise the command fails as a
 release gate.
 
-Use `[fmt] profile = "mdformat"` to ask "how close can mdwright get to mdformat while keeping verified rewrites?"
-The profile keeps mdformat's default `wrap = keep`; a project that wants mdformat with a column limit must set `wrap`
+Use `[fmt] profile = "mdformat"` to ask "how close can mdwright get to mdformat while keeping verified rewrites?" The
+profile keeps mdformat's default `wrap = keep`; a project that wants mdformat with a column limit must set `wrap`
 explicitly. When `wrap` is an integer, mdwright enforces that line budget for breakable prose in every profile. The
-mdformat profile changes wrapping strategy to mdformat-compatible soft-break reflow and defaults list continuation
-indentation to four spaces.
+default stable wrap strategy uses mdformat-compatible soft-break reflow. The mdformat profile also defaults list
+continuation indentation to four spaces.
 
 ## Status values
 
@@ -45,7 +45,7 @@ generated-doc exclusions are owned by docs.
 | mdwright-docs | `**` | prose wrap | style-option-mismatch | intentional-divergence | formatter | Integer `wrap` now enforces a line budget for breakable prose in every profile. mdwright may wrap lines that mdformat leaves above the configured width. |
 | release-prose-corpus | `**` | prose wrap line budget | style-option-mismatch | intentional-divergence | formatter | mdwright enforces `wrap = 120` for breakable prose lines. mdformat 1.0.0 leaves the observed over-budget source lines unchanged. |
 | release-math-corpus | `**/*-template.md` | mdformat semantic drift | mdformat-semantic-drift | intentional-divergence | formatter | mdwright preserves the source semantics; mdformat changes the rendered HTML on some template files in this corpus. |
-| release-math-corpus | `**` | math-heavy prose and list reflow | style-option-mismatch | intentional-divergence | formatter | Under `profile = "mdformat"`, mdwright treats ordinary paragraph newlines as soft breaks and enforces over-budget breakable lines. The default mdwright profile still uses balanced reflow when `wrap` is an integer. mdformat leaves some over-budget lines unchanged. |
+| release-math-corpus | `**` | math-heavy prose and list reflow | style-option-mismatch | intentional-divergence | formatter | mdwright treats ordinary paragraph newlines as soft breaks and enforces over-budget breakable lines. mdformat leaves some over-budget lines unchanged. |
 | external | `**` | prose wrap | style-option-mismatch | intentional-divergence | formatter | Same as the `mdwright-docs` catch-all. Single oversized atomics may still exceed the target by policy. |
 
 ## Release use

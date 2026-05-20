@@ -91,8 +91,8 @@ across the boundary.
 | **Semver implications** | The WASM API is its own semver surface, parallel to the native `LintRule` trait. |
 
 **Verdict:** not planned. The cost is real and the demand is hypothetical. Revisit only when a concrete adopter has
-tried Architecture A, hit a specific limit (sandbox isolation, language diversity, hot reload), and articulated what
-the WASM contract would need to address.
+tried Architecture A, hit a specific limit (sandbox isolation, language diversity, hot reload), and articulated what the
+WASM contract would need to address.
 
 ## What would change this decision
 

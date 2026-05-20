@@ -5,14 +5,14 @@ capability that pushed the design, but the tool is useful on any Markdown.
 
 Three commitments shape the tool.
 
-**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after; every change in the rendered DOM
-is treated as a bug. Whitespace inside a paragraph may shift (`a  b` becomes `a b`), but the word boundaries
-and the rendered tree do not. Where the formatter cannot prove equivalence it refuses to rewrite; the
+**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after; every change in the rendered DOM is
+treated as a bug. Whitespace inside a paragraph may shift (`a  b` becomes `a b`), but the word boundaries and the
+rendered tree do not. Where the formatter cannot prove equivalence it refuses to rewrite; the
 [deviation table](deviations.md) lists every exception with a reproducer.
 
-**Math-resilient.** `\( … \)`, `\[ … \]`, and `\begin{NAME} … \end{NAME}` pass through verbatim. The
-scanner identifies math regions before any other pass touches the document, so the formatter never reflows
-`\frac{a}{b}` into `\\frac{a}{b}` and the linter never flags a backslash inside `\begin{align*}`. See
+**Math-resilient.** `\( … \)`, `\[ … \]`, and `\begin{NAME} … \end{NAME}` pass through verbatim. The scanner identifies
+math regions before any other pass touches the document, so the formatter never reflows `\frac{a}{b}` into
+`\\frac{a}{b}` and the linter never flags a backslash inside `\begin{align*}`. See
 [Math regions](concepts/math-regions.md) for the design.
 
 **Fast.** Several hundred times faster than `mdformat --check` on a multi-thousand-file corpus. Benches under

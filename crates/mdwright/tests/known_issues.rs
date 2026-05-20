@@ -1,40 +1,30 @@
-//! Pinned failure modes that cannot be fixed in-tree.
+//! Pinned dependency behaviours that affect mdwright's parser boundary.
 //!
-//! Each test in this file asserts that an *upstream* defect still
-//! exhibits the same observable behaviour. When upstream lands a fix
-//! the corresponding direct-upstream test will start failing. The
-//! mdwright-facing test asserts that the document boundary contains
-//! the defect as a controlled parse error.
+//! Each test in this file asserts an upstream behaviour that has shaped
+//! a document-boundary regression. If upstream changes again, update
+//! the direct-upstream assertion and keep the mdwright-facing test at
+//! the parser boundary.
 //!
 //! No mdwright bug ever lives here. If a finding traces to mdwright
 //! code, fix it; if it traces to a dependency, pin it here.
 
-#![allow(clippy::expect_used, reason = "test scaffolding for an upstream panic pin")]
-
-use std::panic::{AssertUnwindSafe, catch_unwind};
+#![allow(clippy::expect_used, reason = "test scaffolding for an upstream parser pin")]
 
 use mdwright_document::Document;
 use pulldown_cmark::{Options, Parser};
 
 const LINK_REF_TAB_REPRO: &str = "- [n]:Z\r\n\t\t";
 
-/// Pulldown-cmark 0.13.3 panics with `Option::unwrap` on `None`
-/// inside `parse.rs:2367` for the 11-byte input
-/// `- [n]:Z\r\n\t\t`. The 32-byte reproducer the fuzz target found
-/// was the long-form; the minimum is this one.
+/// Pulldown-cmark used to panic with `Option::unwrap` on `None` for
+/// the 11-byte input `- [n]:Z\r\n\t\t`. The direct parser no longer
+/// panics on the pinned reproducer; keep this test so the old upstream
+/// failure mode does not silently become ambiguous history.
 ///
 /// Upstream: <https://github.com/pulldown-cmark/pulldown-cmark/issues/1095>.
 #[test]
-fn pulldown_panics_on_link_ref_tab() {
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        let parser = Parser::new_ext(LINK_REF_TAB_REPRO, Options::all());
-        for _ in parser {}
-    }));
-    assert!(
-        result.is_err(),
-        "pulldown-cmark no longer panics on `- [n]:Z\\r\\n\\t\\t` \
-         — remove the upstream pin and the document-boundary containment regression",
-    );
+fn pulldown_accepts_link_ref_tab_without_panicking() {
+    let parser = Parser::new_ext(LINK_REF_TAB_REPRO, Options::all());
+    for _ in parser {}
 }
 
 #[test]

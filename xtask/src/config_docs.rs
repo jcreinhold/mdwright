@@ -68,6 +68,13 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         cli_override: None,
     },
     FieldDoc {
+        key: "fmt.wrap-strategy",
+        ty: "\"stable\" | \"balanced\"",
+        default: "\"stable\"",
+        description: "Reflow strategy used when `fmt.wrap` is an integer. `stable` greedily fills soft-break runs and is the default; `balanced` rebalances paragraphs for more even line lengths.",
+        cli_override: None,
+    },
+    FieldDoc {
         key: "fmt.italic",
         ty: "\"asterisk\" | \"underscore\" | \"preserve\"",
         default: "\"preserve\"",

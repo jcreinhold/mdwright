@@ -31,7 +31,7 @@ use mdwright_document::{
 use mdwright_format::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent, ListMarkerStyle,
     MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline,
-    Wrap,
+    Wrap, WrapStrategy,
 };
 use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer};
@@ -261,6 +261,8 @@ struct FmtSchema {
     profile: Option<FmtProfileSchema>,
     #[serde(default)]
     wrap: Option<WrapSchema>,
+    #[serde(default, rename = "wrap-strategy")]
+    wrap_strategy: Option<WrapStrategySchema>,
     #[serde(default)]
     italic: Option<ItalicSchema>,
     #[serde(default)]
@@ -325,6 +327,9 @@ fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
     );
     if let Some(wrap) = schema.wrap {
         opts = opts.with_wrap(Wrap::from(wrap));
+    }
+    if let Some(strategy) = schema.wrap_strategy {
+        opts = opts.with_wrap_strategy(WrapStrategy::from(strategy));
     }
     if let Some(italic) = schema.italic {
         opts = opts.with_italic(ItalicStyle::from(italic));
@@ -713,6 +718,22 @@ enum WrapMode {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum WrapStrategySchema {
+    Stable,
+    Balanced,
+}
+
+impl From<WrapStrategySchema> for WrapStrategy {
+    fn from(s: WrapStrategySchema) -> Self {
+        match s {
+            WrapStrategySchema::Stable => Self::Stable,
+            WrapStrategySchema::Balanced => Self::Balanced,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum ItalicSchema {
     Asterisk,
@@ -978,6 +999,7 @@ mod tests {
     use super::{
         Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListContinuationIndent, ListMarkerStyle,
         OrderedListStyle, RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
+        WrapStrategy,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -1017,6 +1039,7 @@ style = "pad"
         assert_eq!(cfg.extra_info_strings(), &["promql".to_owned()]);
         let fmt = cfg.fmt_options();
         assert_eq!(fmt.wrap(), Wrap::At(70));
+        assert_eq!(fmt.wrap_strategy(), WrapStrategy::Stable);
         assert_eq!(fmt.italic(), ItalicStyle::Asterisk);
         assert_eq!(fmt.strong(), StrongStyle::Underscore);
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
@@ -1121,6 +1144,7 @@ inline-attribute-spans = false
         let cfg = config_from_str("[fmt]\nprofile = \"mdformat\"\n")?;
         let fmt = cfg.fmt_options();
         assert_eq!(fmt.wrap(), Wrap::Keep);
+        assert_eq!(fmt.wrap_strategy(), WrapStrategy::Stable);
         assert_eq!(fmt.italic(), ItalicStyle::Preserve);
         assert_eq!(fmt.strong(), StrongStyle::Preserve);
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
@@ -1139,6 +1163,7 @@ inline-attribute-spans = false
 [fmt]
 profile = "mdformat"
 wrap = 120
+wrap-strategy = "balanced"
 list-marker = "plus"
 ordered-list = "consistent"
 thematic-break = "dash"
@@ -1152,11 +1177,30 @@ style = "preserve"
         )?;
         let fmt = cfg.fmt_options();
         assert_eq!(fmt.wrap(), Wrap::At(120));
+        assert_eq!(fmt.wrap_strategy(), WrapStrategy::Balanced);
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Plus);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::Consistent);
         assert_eq!(fmt.list_continuation_indent(), ListContinuationIndent::MarkerWidth);
         assert_eq!(fmt.thematic_break_style(), ThematicStyle::Dash);
         assert_eq!(fmt.table(), TableStyle::Preserve);
+        Ok(())
+    }
+
+    #[test]
+    fn fmt_wrap_strategy_accepts_supported_styles() -> Result<()> {
+        let stable = config_from_str("[fmt]\nwrap-strategy = \"stable\"\n")?;
+        assert_eq!(stable.fmt_options().wrap_strategy(), WrapStrategy::Stable);
+
+        let balanced = config_from_str("[fmt]\nwrap-strategy = \"balanced\"\n")?;
+        assert_eq!(balanced.fmt_options().wrap_strategy(), WrapStrategy::Balanced);
+
+        let err = config_from_str("[fmt]\nwrap-strategy = \"pretty\"\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected wrap-strategy error"))?;
+        assert!(
+            err.to_string().contains("wrap-strategy"),
+            "error should name wrap-strategy: {err}"
+        );
         Ok(())
     }
 

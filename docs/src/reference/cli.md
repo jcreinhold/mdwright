@@ -206,6 +206,9 @@ Options:
       --explain-divergence
           When the HTML-equivalence gate rejects a file, print a unified diff of the source's HTML against the formatted output's HTML to stderr. Diagnostic surface for triaging gate failures; does not change the gate's pass/fail decision
 
+      --explain-format
+          Explain formatter decisions on stderr. Does not change write, check, diff, or validation behavior
+
       --range <LINE:COL-LINE:COL>
           Format only the smallest set of whole top-level blocks covering `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of end; 0-based LSP convention). Reads from stdin only; writes the covering blocks to stdout. Mutually exclusive with `--check` and `--diff`.
           
@@ -247,6 +250,8 @@ Options:
           When the HTML-equivalence gate rejects a file, print a unified diff of the source's HTML against the formatted output's HTML to stderr. Diagnostic surface for triaging gate failures; does not change the gate's pass/fail decision
       --reject-control-chars
           Refuse files (or stdin payloads) that contain C0 control bytes other than TAB, LF, FF, and CR. `CommonMark` accepts these verbatim (it only substitutes NUL with U+FFFD), but their presence is usually evidence the input is not Markdown, and pulldown's silent NUL rewrite makes round-trip idempotence undefined on such inputs. Off by default; opt-in for callers (CI gates, docs pipelines) that prefer hard rejection
+      --explain-format
+          Explain formatter decisions on stderr. Does not change check, diff, or validation behavior
       --math-render <MATH_RENDER>
           Delimiter rewrite policy for math regions at emit time. Overrides `[fmt.math] render` in the config file [possible values: none, commonmark-katex, dollar]
   -h, --help

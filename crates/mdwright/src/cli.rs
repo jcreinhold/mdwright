@@ -41,6 +41,7 @@ use ignore::gitignore::{Gitignore, GitignoreBuilder};
 use owo_colors::OwoColorize;
 use rayon::prelude::*;
 use serde::Serialize;
+use similar::TextDiff;
 
 use crate::discover::discover_markdown;
 use mdwright_config::Config;
@@ -49,8 +50,8 @@ use mdwright_document::{
     render_html_with_render_options,
 };
 use mdwright_format::{
-    CheckpointTable, FmtOptions, FormatError, MathRender, format_document, format_range_with_checkpoints,
-    format_validated,
+    CheckpointTable, FmtOptions, FormatError, FormatReport, MathRender, format_document, format_document_with_report,
+    format_range_with_checkpoints, format_validated_with_report,
 };
 use mdwright_lint::{Diagnostic, LintOptions, RuleSet, Severity, Snippet, apply_safe_fixes, rule_doc_url, stdlib};
 
@@ -242,6 +243,11 @@ struct FmtArgs {
     #[arg(long)]
     explain_divergence: bool,
 
+    /// Explain formatter decisions on stderr. Does not change write,
+    /// check, diff, or validation behavior.
+    #[arg(long)]
+    explain_format: bool,
+
     /// Format only the smallest set of whole top-level blocks covering
     /// `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of
     /// end; 0-based LSP convention). Reads from stdin only; writes the
@@ -298,6 +304,11 @@ struct FmtCheckArgs {
     #[arg(long)]
     explain_divergence: bool,
 
+    /// Explain formatter decisions on stderr. Does not change check,
+    /// diff, or validation behavior.
+    #[arg(long)]
+    explain_format: bool,
+
     /// Delimiter rewrite policy for math regions at emit time.
     /// Overrides `[fmt.math] render` in the config file.
     #[arg(long, value_enum)]
@@ -313,6 +324,7 @@ struct FmtRunArgs {
     stdin_filename: Option<PathBuf>,
     no_validate: bool,
     explain_divergence: bool,
+    explain_format: bool,
     range: Option<RangeArg>,
     math_render: Option<MathRenderArg>,
     check_command: bool,
@@ -327,6 +339,7 @@ impl From<FmtArgs> for FmtRunArgs {
             stdin_filename: args.stdin_filename,
             no_validate: args.no_validate,
             explain_divergence: args.explain_divergence,
+            explain_format: args.explain_format,
             range: args.range,
             math_render: args.math_render,
             check_command: false,
@@ -343,6 +356,7 @@ impl From<FmtCheckArgs> for FmtRunArgs {
             stdin_filename: args.stdin_filename,
             no_validate: args.no_validate,
             explain_divergence: args.explain_divergence,
+            explain_format: args.explain_format,
             range: None,
             math_render: args.math_render,
             check_command: true,
@@ -693,6 +707,54 @@ fn format_drift_hint(check_command: bool) -> &'static str {
     }
 }
 
+fn write_format_explanation<W: Write>(out: &mut W, path: &str, opts: &FmtOptions, report: &FormatReport) -> Result<()> {
+    writeln!(out, "mdwright: format explanation for {path}")?;
+    if report.rewrite_committed_wrap > 0 {
+        writeln!(
+            out,
+            "  paragraph-wrap: {} edit(s), wrap={}, strategy={}",
+            report.rewrite_committed_wrap,
+            wrap_label(opts),
+            opts.wrap_strategy().as_str()
+        )?;
+    }
+    if report.rewrite_committed_style > 0 {
+        writeln!(out, "  style rewrites: {} edit(s)", report.rewrite_committed_style)?;
+    }
+    if report.rewrite_skipped_wrap > 0 {
+        writeln!(
+            out,
+            "  skipped wrap: {} unsupported paragraph shape(s)",
+            report.rewrite_skipped_wrap
+        )?;
+    }
+    if report.rewrite_rejected_verification > 0 {
+        writeln!(
+            out,
+            "  validation rejected: {} rewrite edit(s)",
+            report.rewrite_rejected_verification
+        )?;
+    }
+    if report.rewrite_committed == 0 && report.rewrite_skipped_wrap == 0 && report.rewrite_rejected_verification == 0 {
+        writeln!(out, "  document boundary: line-ending or trailing-newline policy")?;
+    }
+    Ok(())
+}
+
+fn write_format_rejection<W: Write>(out: &mut W, path: &str, diff_summary: &str) -> Result<()> {
+    writeln!(out, "mdwright: format explanation for {path}")?;
+    writeln!(out, "  validation rejected: {diff_summary}")?;
+    Ok(())
+}
+
+fn wrap_label(opts: &FmtOptions) -> String {
+    match opts.wrap() {
+        mdwright_format::Wrap::Keep => "keep".to_owned(),
+        mdwright_format::Wrap::No => "no".to_owned(),
+        mdwright_format::Wrap::At(n) => n.to_string(),
+    }
+}
+
 fn run_fmt(args: &FmtRunArgs, config_path: Option<&std::path::Path>, policy: InputPolicy) -> Result<ExitCode> {
     let cfg = resolve_config(config_path)?;
     let mut opts = cfg.fmt_options().clone();
@@ -749,9 +811,9 @@ fn run_fmt(args: &FmtRunArgs, config_path: Option<&std::path::Path>, policy: Inp
                     return Ok(());
                 }
             };
-            let formatted = if validate {
-                match format_validated(&doc, &opts) {
-                    Ok(s) => s,
+            let (formatted, report) = if validate {
+                match format_validated_with_report(&doc, &opts) {
+                    Ok(result) => result,
                     Err(FormatError::Parse(err)) => {
                         parse_errors.fetch_add(1, Ordering::Relaxed);
                         let guard = stderr_lock.lock().map_err(|_| anyhow!("stderr lock poisoned"))?;
@@ -769,8 +831,17 @@ fn run_fmt(args: &FmtRunArgs, config_path: Option<&std::path::Path>, policy: Inp
                             "mdwright: refusing to write {}: format changes meaning ({diff_summary}) (rerun with --no-validate to override)",
                             path.display()
                         )?;
+                        if args.explain_format {
+                            write_format_rejection(&mut err, &path.display().to_string(), &diff_summary)?;
+                        }
                         if args.explain_divergence {
-                            write_unified_diff(&mut err, &path.display().to_string(), &src, &formatted)?;
+                            write_unified_diff(
+                                &mut err,
+                                &path.display().to_string(),
+                                &src,
+                                &formatted,
+                                DiffColor::auto_stderr(),
+                            )?;
                         }
                         drop(guard);
                         drop(formatted);
@@ -778,17 +849,29 @@ fn run_fmt(args: &FmtRunArgs, config_path: Option<&std::path::Path>, policy: Inp
                     }
                 }
             } else {
-                format_document(&doc, &opts)
+                format_document_with_report(&doc, &opts)
             };
             if formatted == source {
                 return Ok(());
             }
             changed.fetch_add(1, Ordering::Relaxed);
+            if args.explain_format {
+                let guard = stderr_lock.lock().map_err(|_| anyhow!("stderr lock poisoned"))?;
+                let mut stderr = io::stderr().lock();
+                write_format_explanation(&mut stderr, &path.display().to_string(), &opts, &report)?;
+                drop(guard);
+            }
             if args.diff {
                 let guard = stdout_lock.lock().map_err(|_| anyhow!("stdout lock poisoned"))?;
                 let stdout = io::stdout();
                 let mut out = stdout.lock();
-                write_unified_diff(&mut out, &path.display().to_string(), &source, &formatted)?;
+                write_unified_diff(
+                    &mut out,
+                    &path.display().to_string(),
+                    &source,
+                    &formatted,
+                    DiffColor::auto_stdout(),
+                )?;
                 drop(guard);
             } else if !args.check {
                 fs::write(path, &formatted).with_context(|| format!("write {}", path.display()))?;
@@ -879,11 +962,11 @@ fn run_fmt_stdin(
     let mut buf = String::new();
     read_stdin_capped(&mut buf, policy, &name)?;
     let doc = Document::parse_with_options(&buf, parse_options)?;
-    let formatted = if args.no_validate {
-        format_document(&doc, opts)
+    let (formatted, report) = if args.no_validate {
+        format_document_with_report(&doc, opts)
     } else {
-        match format_validated(&doc, opts) {
-            Ok(s) => s,
+        match format_validated_with_report(&doc, opts) {
+            Ok(result) => result,
             Err(FormatError::Parse(err)) => return Err(err.into()),
             Err(FormatError::SemanticDivergence { diff_summary, .. }) => {
                 let mut err = io::stderr().lock();
@@ -891,16 +974,23 @@ fn run_fmt_stdin(
                     err,
                     "mdwright: refusing to format {name}: format changes meaning ({diff_summary}) (rerun with --no-validate to override)",
                 )?;
+                if args.explain_format {
+                    write_format_rejection(&mut err, &name, &diff_summary)?;
+                }
                 return Ok(ExitCode::from(2));
             }
         }
     };
     if args.check {
         if formatted != buf {
+            if args.explain_format {
+                let mut stderr = io::stderr().lock();
+                write_format_explanation(&mut stderr, &name, opts, &report)?;
+            }
             if args.diff {
                 let stdout = io::stdout();
                 let mut out = stdout.lock();
-                write_unified_diff(&mut out, &name, &buf, &formatted)?;
+                write_unified_diff(&mut out, &name, &buf, &formatted, DiffColor::auto_stdout())?;
             } else {
                 let mut stderr = io::stderr().lock();
                 writeln!(
@@ -915,41 +1005,91 @@ fn run_fmt_stdin(
     }
     let stdout = io::stdout();
     let mut out = stdout.lock();
+    if formatted != buf && args.explain_format {
+        let mut stderr = io::stderr().lock();
+        write_format_explanation(&mut stderr, &name, opts, &report)?;
+    }
     if args.diff {
-        write_unified_diff(&mut out, &name, &buf, &formatted)?;
+        write_unified_diff(&mut out, &name, &buf, &formatted, DiffColor::auto_stdout())?;
     } else {
         out.write_all(formatted.as_bytes())?;
     }
     Ok(ExitCode::SUCCESS)
 }
 
-/// Minimal unified diff: emits per-line `-old` / `+new` with no
-/// context. The output is enough for code review of a reformat run
-/// and avoids a heavyweight crate dependency. (sessions 10+ may
-/// promote this to a real Myers diff via `similar` if needed.)
-fn write_unified_diff<W: Write>(out: &mut W, path: &str, old: &str, new: &str) -> Result<()> {
-    writeln!(out, "--- a/{path}")?;
-    writeln!(out, "+++ b/{path}")?;
-    let old_lines: Vec<&str> = old.split('\n').collect();
-    let new_lines: Vec<&str> = new.split('\n').collect();
-    let len = old_lines.len().max(new_lines.len());
-    let mut i = 0usize;
-    while i < len {
-        let o = old_lines.get(i).copied();
-        let n = new_lines.get(i).copied();
-        if o == n {
-            i = i.saturating_add(1);
-            continue;
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum DiffColor {
+    Plain,
+    Ansi,
+}
+
+impl DiffColor {
+    fn auto_stdout() -> Self {
+        if io::stdout().is_terminal() {
+            Self::Ansi
+        } else {
+            Self::Plain
         }
-        if let Some(o) = o {
-            writeln!(out, "-{o}")?;
+    }
+
+    fn auto_stderr() -> Self {
+        if io::stderr().is_terminal() {
+            Self::Ansi
+        } else {
+            Self::Plain
         }
-        if let Some(n) = n {
-            writeln!(out, "+{n}")?;
-        }
-        i = i.saturating_add(1);
+    }
+}
+
+fn write_unified_diff<W: Write>(out: &mut W, path: &str, old: &str, new: &str, color: DiffColor) -> Result<()> {
+    let diff = TextDiff::from_lines(old, new)
+        .unified_diff()
+        .context_radius(3)
+        .header(&format!("a/{path}"), &format!("b/{path}"))
+        .to_string();
+    if color == DiffColor::Ansi {
+        write_colored_unified_diff(out, &diff)?;
+    } else {
+        out.write_all(diff.as_bytes())?;
     }
     Ok(())
+}
+
+fn write_colored_unified_diff<W: Write>(out: &mut W, diff: &str) -> Result<()> {
+    for line in diff.split_inclusive('\n') {
+        let (body, newline) = line.strip_suffix('\n').map_or((line, ""), |body| (body, "\n"));
+        match body {
+            s if s.starts_with("--- ") => write!(out, "{}", s.red())?,
+            s if s.starts_with("+++ ") => write!(out, "{}", s.green())?,
+            s if s.starts_with("@@ ") => write!(out, "{}", s.cyan())?,
+            s if s.starts_with('-') => write!(out, "{}", s.red())?,
+            s if s.starts_with('+') => write!(out, "{}", s.green())?,
+            s if s.starts_with("\\ No newline") => write!(out, "{}", s.yellow())?,
+            s => write!(out, "{s}")?,
+        }
+        out.write_all(newline.as_bytes())?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unified_diff_color_is_opt_in_at_render_time() -> Result<()> {
+        let mut plain = Vec::new();
+        write_unified_diff(&mut plain, "note.md", "alpha\n", "beta\n", DiffColor::Plain)?;
+        let plain = String::from_utf8(plain)?;
+        assert!(!plain.contains("\u{1b}["));
+
+        let mut colored = Vec::new();
+        write_unified_diff(&mut colored, "note.md", "alpha\n", "beta\n", DiffColor::Ansi)?;
+        let colored = String::from_utf8(colored)?;
+        assert!(colored.contains("\u{1b}["));
+        assert!(colored.contains("@@"));
+        Ok(())
+    }
 }
 
 fn run_lint(

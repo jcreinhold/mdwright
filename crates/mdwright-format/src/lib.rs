@@ -12,7 +12,7 @@ pub use incremental::CheckpointTable;
 pub use options::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent, ListMarkerStyle,
     MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline,
-    Wrap,
+    Wrap, WrapStrategy,
 };
 
 use mdwright_document::{Document, ParseError};
@@ -58,6 +58,8 @@ impl From<ParseError> for FormatError {
 pub struct FormatReport {
     pub rewrite_candidates: usize,
     pub rewrite_committed: usize,
+    pub rewrite_committed_wrap: usize,
+    pub rewrite_committed_style: usize,
     pub rewrite_rejected_overlap: usize,
     pub rewrite_rejected_verification: usize,
     pub rewrite_rejected_convergence: usize,
@@ -95,11 +97,22 @@ pub fn format_source(source: &str, opts: &FmtOptions) -> Result<String, FormatEr
 /// Returns an error if formatting the output a second time produces a
 /// different canonical event stream.
 pub fn format_validated(doc: &Document, opts: &FmtOptions) -> Result<String, FormatError> {
-    let formatted = format_document(doc, opts);
+    format_validated_with_report(doc, opts).map(|(formatted, _report)| formatted)
+}
+
+/// Format, return aggregate metrics, and verify that a second pass is
+/// semantically stable.
+///
+/// # Errors
+///
+/// Returns an error if formatting the output a second time produces a
+/// different canonical event stream.
+pub fn format_validated_with_report(doc: &Document, opts: &FmtOptions) -> Result<(String, FormatReport), FormatError> {
+    let (formatted, report) = format_document_with_report(doc, opts);
     let formatted_doc = Document::parse_with_options(&formatted, doc.parse_options())?;
     let twice = format_document(&formatted_doc, opts);
     match format::semantic::first_divergence_with_options(&formatted, &twice, doc.parse_options())? {
-        None => Ok(formatted),
+        None => Ok((formatted, report)),
         Some(diff_summary) => Err(FormatError::SemanticDivergence {
             source: formatted.clone(),
             formatted: twice,

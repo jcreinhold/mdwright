@@ -49,8 +49,8 @@ Every change must show green on:
 - `clippy` (`cargo clippy --all-targets --locked -- -D warnings` on Linux/stable).
 - `fmt` (`cargo fmt --check` on Linux/stable).
 
-`main` is configured (via GitHub branch protection) to require these checks before merge. If you have permission
-to adjust branch protection, keep the required-check list in sync with the workflow's job names; if you don't, the
+`main` is configured (via GitHub branch protection) to require these checks before merge. If you have permission to
+adjust branch protection, keep the required-check list in sync with the workflow's job names; if you don't, the
 maintainers will.
 
 ## House rules worth knowing

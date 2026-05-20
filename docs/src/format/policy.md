@@ -35,9 +35,9 @@ Paragraph shapes the wrap pass cannot model stay unchanged and are counted in th
 An integer wrap setting is a line-budget contract, not a profile-specific preference. With `wrap = 120`, breakable
 paragraph lines are kept at or below 120 display columns in both the default formatter profile and the mdformat profile.
 The only accepted overflow is one indivisible atomic token, such as a code span, URL, math atom, or single long word.
-The mdformat profile changes the planner from balanced reflow to mdformat-compatible soft-break reflow: ordinary source
-newlines inside a paragraph may be joined, hard breaks stay hard boundaries, and overlong breakable runs are wrapped to
-the configured budget.
+The default wrap strategy is stable soft-break reflow: ordinary source newlines inside a paragraph may be joined, hard
+breaks stay hard boundaries, and overlong breakable runs are wrapped to the configured budget. `wrap-strategy =
+"balanced"` opts into a paragraph rebalancer for authors who prefer more even line lengths.
 
 Default: every style knob is `Preserve` and wrapping is `Keep`. With the default config the rewrite-family pipeline
 short-circuits before running. Set per-knob targets in `.mdwright.toml` to opt in.
@@ -67,8 +67,8 @@ ordered-list = "consistent"    # 3. a / 5. b / 9. c → 3. a / 4. b / 5. c
 style = "angle"                # [ref]: url → [ref]: <url>
 ```
 
-Each knob also accepts `"preserve"` to explicitly disable canonicalisation. See [Style knobs](style.md) for the
-per-knob reference, including which rewrites might skip verification (e.g. intraword underscore that can't safely become
+Each knob also accepts `"preserve"` to explicitly disable canonicalisation. See [Style knobs](style.md) for the per-knob
+reference, including which rewrites might skip verification (e.g. intraword underscore that can't safely become
 asterisk).
 
 ## What the canonicalisation pass does NOT do

@@ -139,7 +139,7 @@ for typed-block constructs is a fixed point of its own parser by construction.
 
 ## Parity with mdformat-mkdocs
 
-The parity goal is concrete: an mkdocs-material site running mdformat-mkdocs swaps in mdwright with no visible
-diff. The parity test at `tests/extension_parity.rs` byte-compares mdwright's output against mdformat-mkdocs
-reference output for the five extension regression fixtures; any divergence is fixed in mdwright or recorded in
+The parity goal is concrete: an mkdocs-material site running mdformat-mkdocs swaps in mdwright with no visible diff. The
+parity test at `tests/extension_parity.rs` byte-compares mdwright's output against mdformat-mkdocs reference output for
+the five extension regression fixtures; any divergence is fixed in mdwright or recorded in
 [Deviations from spec](../deviations.md).

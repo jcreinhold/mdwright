@@ -18,8 +18,7 @@ repos:
       - id: mdwright-fmt-check-system
 ```
 
-`mdwright-check-system` runs `mdwright check --check`; `mdwright-fmt-check-system` runs `mdwright
-fmt-check`. Both exit
+`mdwright-check-system` runs `mdwright check --check`; `mdwright-fmt-check-system` runs `mdwright fmt-check`. Both exit
 non-zero on issues, blocking the commit.
 
 ## Letting pre-commit build mdwright

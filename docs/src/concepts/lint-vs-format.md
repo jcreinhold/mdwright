@@ -18,8 +18,8 @@ them fail CI.
 
 ## Why the pipelines are separate
 
-The linter answers a local question: *does this Markdown have problems?* A bare URL, a mismatched code
-fence, a duplicate heading id. Diagnostics carry locations and optional fixes. Rules implement the
+The linter answers a local question: *does this Markdown have problems?* A bare URL, a mismatched code fence, a
+duplicate heading id. Diagnostics carry locations and optional fixes. Rules implement the
 [`LintRule`](../extending/lint-rules.md) trait and operate on a flat IR (events with byte spans).
 
 The formatter answers a whole-document question: *which verified byte rewrites should apply?* Structural emit is

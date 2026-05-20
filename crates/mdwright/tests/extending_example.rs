@@ -116,7 +116,15 @@ fn fenced_todo_is_not_flagged() {
     // fire on it.
     let body = b"```rust\n// TODO: hidden from prose-only rules.\n```\n";
     let out = run_example_with_stdin(
-        &["check", "--check", "--rules", "no-todo-in-prose", "--format", "compact"],
+        &[
+            "check",
+            "--check",
+            "--rules",
+            "no-todo-in-prose",
+            "--format",
+            "compact",
+            "-",
+        ],
         body,
     );
     assert!(
@@ -133,7 +141,7 @@ fn stdlib_rule_still_fires_through_extended_binary() {
     // Sanity: registering an extra rule does not displace stdlib
     // rules. `bare-url` lives in the stdlib and trips on this input.
     let out = run_example_with_stdin(
-        &["check", "--rules", "bare-url", "--format", "compact"],
+        &["check", "--rules", "bare-url", "--format", "compact", "-"],
         b"See https://example.com for details.\n",
     );
     let stdout = String::from_utf8_lossy(&out.stdout);

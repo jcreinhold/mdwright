@@ -57,7 +57,7 @@ cmark-gfm-based tools, but it does not change parser semantics or formatter sour
 ## The gate under `dollar` mode
 
 The HTML-equivalence gate in [Round-trip safety](round-trip-safety.md) compares pre-format HTML against post-format
-HTML. Under `--math-render=dollar` that comparison would always diverge, because the formatter intentionally
-rewrites math. The gate's actual contract is *idempotence-on-mode*: formatting the output a second time with the
-same options must produce the same canonical event stream. Round-1-to-round-2 divergence is still a hard failure. See
+HTML. Under `--math-render=dollar` that comparison would always diverge, because the formatter intentionally rewrites
+math. The gate's actual contract is *idempotence-on-mode*: formatting the output a second time with the same options
+must produce the same canonical event stream. Round-1-to-round-2 divergence is still a hard failure. See
 `mdwright_format::format_validated` for the entry point.

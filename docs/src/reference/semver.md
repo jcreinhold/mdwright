@@ -14,8 +14,8 @@ pre-1.0; see [Pre-1.0 caveats](#pre-10-caveats) below):
 - CLI subcommands, their flags, and their exit codes. The exit-code mapping appears in [`reference/cli.md`](cli.md).
 - The configuration schema for `mdwright.toml`, `.mdwright.toml`, and `pyproject.toml [tool.mdwright]`. The schema is
   generated into [`configuration.md`](../configuration.md) from the `mdwright-config` schema source.
-- The `--format=json` (v2) diagnostic schema at
-  [`reference/diagnostic-schema.md`](diagnostic-schema.md) and the JSON Schema at
+- The `--format=json` (v2) diagnostic schema at [`reference/diagnostic-schema.md`](diagnostic-schema.md) and the JSON
+  Schema at
   [`docs/diagnostic-schema.json`](https://github.com/jcreinhold/mdwright/blob/main/docs/diagnostic-schema.json). New
   optional fields are non-breaking; renaming or removing a field is breaking.
 - The `mdwright_lint::LintRule` trait signature. Adding a method with a default body is non-breaking; adding a method
@@ -36,9 +36,9 @@ The following are free to change in any release, including patch releases:
 
 ## Pre-1.0 caveats
 
-Until v1.0, minor versions may include breaking API changes. The 0.x sequence is deliberately permissive so the
-surface can settle without dragging compatibility shims forward. The discipline still applies: every break appears
-in [`CHANGELOG.md`](https://github.com/jcreinhold/mdwright/blob/main/CHANGELOG.md) under **Breaking changes** in the
+Until v1.0, minor versions may include breaking API changes. The 0.x sequence is deliberately permissive so the surface
+can settle without dragging compatibility shims forward. The discipline still applies: every break appears in
+[`CHANGELOG.md`](https://github.com/jcreinhold/mdwright/blob/main/CHANGELOG.md) under **Breaking changes** in the
 relevant version's section, with a migration note where the rewrite is non-obvious.
 
 Patch releases (`0.x.Y`) never introduce breaking changes.

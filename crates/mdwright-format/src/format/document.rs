@@ -118,7 +118,8 @@ mod tests {
         assert_eq!(once, twice);
         assert!(once.contains("_italic"), "{once}");
         assert!(once.contains("text_"), "{once}");
-        assert!(once.contains("**strong text**"), "{once}");
+        assert!(once.contains("**strong"), "{once}");
+        assert!(once.contains("text**"), "{once}");
         assert!(once.contains("[a link](<https://example.com/path>)"), "{once}");
         assert!(once.contains('\n'));
         assert!(report.rewrite_committed >= 4, "{report:?}");

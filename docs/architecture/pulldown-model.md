@@ -30,8 +30,8 @@ Test: `line_endings_softbreak_between_lines`.
 Pulldown strips trailing blank lines from indented code blocks before emitting the final `Event::Text`. A
 whitespace-only line is "blank."
 
-The source `"\t|\n\t"` produces a single `Event::Text("|\n")` inside the indented code block: the trailing tab-only
-line is consumed as a blank line, but the terminating `\n` of the *content* line stays in the payload. The formatter's
+The source `"\t|\n\t"` produces a single `Event::Text("|\n")` inside the indented code block: the trailing tab-only line
+is consumed as a blank line, but the terminating `\n` of the *content* line stays in the payload. The formatter's
 `normalize_trailing_newline` consumes that trailing LF when re-emitting; without it the formatter would emit one
 trailing LF too many.
 
@@ -60,8 +60,8 @@ Test: `emphasis_pairs_within_paragraph` and `emphasis_pairs_across_strikethrough
 CM §4.7: trim leading and trailing whitespace; collapse internal runs of whitespace to a single U+0020; case-fold via
 Unicode default case folding. Two labels resolve to the same definition iff their normalised forms agree.
 
-Pulldown 0.13 does **not** emit a `LinkReferenceDefinition` event. Definitions are resolved internally during parse,
-and reference uses surface as `Tag::Link { id: ".." }` where `id` is the *raw label bytes* the source used (not the
+Pulldown 0.13 does **not** emit a `LinkReferenceDefinition` event. Definitions are resolved internally during parse, and
+reference uses surface as `Tag::Link { id: ".." }` where `id` is the *raw label bytes* the source used (not the
 normalised form). The mdwright-side authoritative scan for definitions lives in
 `crates/mdwright-document/src/refs.rs::build_reference_table`; that module is the sole site that runs CM §4.7
 normalisation.
@@ -125,8 +125,8 @@ Term
 ```
 
 emits the nested triple `Start(DefinitionList)` → `Start(DefinitionListTitle)` → … → `End(DefinitionListTitle)` →
-`Start(DefinitionListDefinition)` → … → `End(DefinitionListDefinition)` → `End(DefinitionList)`. Each definition's
-body is opened/closed independently, so a definition containing multiple paragraphs emits multiple `Start(Paragraph)` /
+`Start(DefinitionListDefinition)` → … → `End(DefinitionListDefinition)` → `End(DefinitionList)`. Each definition's body
+is opened/closed independently, so a definition containing multiple paragraphs emits multiple `Start(Paragraph)` /
 `End(Paragraph)` pairs inside one `DefinitionListDefinition`.
 
 The private document tree relies on this nesting shape to construct definition-list nodes in

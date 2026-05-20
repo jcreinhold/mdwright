@@ -53,10 +53,9 @@ signatures before committing the whole plan. It does not expose partial family p
 
 ## Linting
 
-`RuleSet` owns rule execution. Callers parse a `Document`, then call `rules.check(&doc)` or
-`rules.check_with(&doc,
-opts)`. Suppressions, diagnostic sorting, standard-rule registry construction, and safe-fix
-application are lint-crate details.
+`RuleSet` owns rule execution. Callers parse a `Document`, then call `rules.check(&doc)` or `rules.check_with(&doc,
+opts)`. Suppressions, diagnostic sorting, standard-rule registry construction, and safe-fix application are lint-crate
+details.
 
 ## Doc tests
 
