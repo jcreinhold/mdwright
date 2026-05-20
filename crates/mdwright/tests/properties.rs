@@ -18,8 +18,8 @@ use std::io::Write;
 
 use mdwright_document::Document;
 use mdwright_format::{
-    FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, OrderedListStyle, StrongStyle, ThematicStyle, Wrap,
-    format_range, semantically_equivalent,
+    FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
+    OrderedListStyle, StrongStyle, ThematicStyle, Wrap, format_range, semantically_equivalent,
 };
 use mdwright_lint::RuleSet;
 use proptest::prelude::*;
@@ -207,8 +207,7 @@ proptest! {
 // purpose: the user-visible contract is "formatted Markdown reparses
 // to the same meaning", which only exists at the public surface.
 // Coupling tests to internal representation types would bake an
-// implementation choice into the test suite — see
-// `/Users/jcreinhold/.claude/plans/phase-r-per-construct-keen-firefly.md`.
+// implementation choice into the test suite.
 // ---------------------------------------------------------------------------
 
 fn check_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
@@ -250,6 +249,98 @@ fn opts_matrix() -> Vec<FmtOptions> {
         FmtOptions::default().with_wrap(Wrap::At(120)),
         FmtOptions::default().with_wrap(Wrap::No),
     ]
+}
+
+fn fuzz_option_fa_options() -> FmtOptions {
+    FmtOptions::default()
+        .with_wrap(Wrap::At(80))
+        .with_italic(ItalicStyle::Underscore)
+        .with_strong(StrongStyle::Underscore)
+        .with_list_marker(ListMarkerStyle::Dash)
+        .with_thematic_break(ThematicStyle::Dash)
+        .with_ordered_list(OrderedListStyle::Consistent)
+        .with_link_def_style(LinkDefStyle::Angle)
+}
+
+fn fuzz_option_7e_options() -> FmtOptions {
+    FmtOptions::default()
+        .with_wrap(Wrap::At(80))
+        .with_math(MathOptions {
+            normalise: true,
+            ..MathOptions::default()
+        })
+        .with_list_marker(ListMarkerStyle::Plus)
+}
+
+fn all_family_law_options() -> FmtOptions {
+    FmtOptions::mdformat()
+        .with_wrap(Wrap::At(64))
+        .with_italic(ItalicStyle::Underscore)
+        .with_strong(StrongStyle::Asterisk)
+        .with_link_def_style(LinkDefStyle::Angle)
+        .with_math(MathOptions {
+            normalise: true,
+            render: MathRender::Dollar,
+        })
+        .with_heading_attrs(HeadingAttrsStyle::Canonicalise)
+        .with_preserve_frontmatter(false)
+}
+
+fn rewrite_law_opts() -> Vec<(&'static str, FmtOptions)> {
+    vec![
+        ("preserve", FmtOptions::default()),
+        ("mdformat", FmtOptions::mdformat()),
+        ("fuzz_option_0xfa", fuzz_option_fa_options()),
+        ("fuzz_option_0x7e", fuzz_option_7e_options()),
+        ("all_families", all_family_law_options()),
+    ]
+}
+
+fn check_rewrite_law_profiles(label: &str, src: &str) -> Result<(), TestCaseError> {
+    for (profile, opts) in rewrite_law_opts() {
+        let doc = parse_prop(src)?;
+        let (once, first_report) = mdwright_format::format_document_with_report(&doc, &opts);
+        let once_doc = parse_prop(&once)?;
+        let (twice, second_report) = mdwright_format::format_document_with_report(&once_doc, &opts);
+        if once != twice {
+            dump_counterexample(&format!("{label}_{profile}"), src);
+        }
+        prop_assert_eq!(
+            first_report.rewrite_rejected_convergence,
+            0,
+            "rewrite convergence guard fired under {}",
+            profile,
+        );
+        prop_assert_eq!(
+            second_report.rewrite_rejected_convergence,
+            0,
+            "second pass convergence guard fired under {}",
+            profile,
+        );
+        prop_assert_eq!(
+            second_report.rewrite_committed,
+            0,
+            "second pass committed rewrites under {}: {:?}",
+            profile,
+            second_report,
+        );
+        prop_assert_eq!(&once, &twice, "format law failed under {}", profile);
+    }
+    Ok(())
+}
+
+fn check_source_convenience_rewrite_law(label: &str, src: &str) -> Result<(), TestCaseError> {
+    for (profile, opts) in rewrite_law_opts() {
+        let once = mdwright_format::format_source(src, &opts)
+            .map_err(|err| TestCaseError::reject(format!("source formatter rejected generated input: {err}")))?;
+        let twice = mdwright_format::format_source(&once, &opts)
+            .map_err(|err| TestCaseError::reject(format!("source formatter rejected its own output: {err}")))?;
+        if once != twice {
+            dump_counterexample(&format!("{label}_{profile}_source"), src);
+        }
+        prop_assert_eq!(&once, &twice, "source formatter law failed under {}", profile);
+    }
+    Ok(())
 }
 
 proptest! {
@@ -368,6 +459,61 @@ proptest! {
     #[test]
     fn footnote_fragments_html_preserving(s in generators::arb_footnote_src()) {
         check_html_preserving("footnote_fragments_html_preserving", &s)?;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Rewrite law gates.
+//
+// These properties target construct combinations that previously made
+// the rewrite engine return safe partial progress: nested markers,
+// nested inline slots, table parent rewrites with inline children,
+// terminal wrap with atomics, link destination slots, math, and
+// frontmatter. The oracle checks the public formatter law and also
+// asserts that the second pass commits no rewrites.
+// ---------------------------------------------------------------------------
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 96, .. ProptestConfig::default() })]
+
+    #[test]
+    fn rewrite_interactions_are_profile_idempotent(s in generators::arb_rewrite_interaction_src()) {
+        check_rewrite_law_profiles("rewrite_interactions_profile_idem", &s)?;
+    }
+
+    #[test]
+    fn rewrite_interactions_source_api_is_profile_idempotent(s in generators::arb_rewrite_interaction_src()) {
+        check_source_convenience_rewrite_law("rewrite_interactions_source_idem", &s)?;
+    }
+
+    #[test]
+    fn nested_list_interactions_are_profile_idempotent(s in generators::arb_nested_list_interaction_src()) {
+        check_rewrite_law_profiles("nested_list_interactions_profile_idem", &s)?;
+    }
+
+    #[test]
+    fn nested_inline_interactions_are_profile_idempotent(s in generators::arb_nested_inline_interaction_src()) {
+        check_rewrite_law_profiles("nested_inline_interactions_profile_idem", &s)?;
+    }
+
+    #[test]
+    fn table_inline_interactions_are_profile_idempotent(s in generators::arb_table_inline_interaction_src()) {
+        check_rewrite_law_profiles("table_inline_interactions_profile_idem", &s)?;
+    }
+
+    #[test]
+    fn wrap_atomic_interactions_are_profile_idempotent(s in generators::arb_wrap_atomic_interaction_src()) {
+        check_rewrite_law_profiles("wrap_atomic_interactions_profile_idem", &s)?;
+    }
+
+    #[test]
+    fn link_destination_interactions_are_profile_idempotent(s in generators::arb_link_destination_interaction_src()) {
+        check_rewrite_law_profiles("link_destination_interactions_profile_idem", &s)?;
+    }
+
+    #[test]
+    fn math_frontmatter_interactions_are_profile_idempotent(s in generators::arb_math_frontmatter_interaction_src()) {
+        check_rewrite_law_profiles("math_frontmatter_interactions_profile_idem", &s)?;
     }
 }
 

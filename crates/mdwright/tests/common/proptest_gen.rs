@@ -209,6 +209,80 @@ fn arb_construct_fragment() -> impl Strategy<Value = String> {
     ]
 }
 
+/// Construct interactions that used to expose rewrite ownership bugs.
+///
+/// These are not broad random Markdown. They intentionally combine
+/// parent and child normalizers: nested list markers, inline delimiter
+/// slots, table cells containing inline syntax, terminal wrap with
+/// atomics, link destination slots, math regions, and frontmatter.
+pub fn arb_rewrite_interaction_src() -> impl Strategy<Value = String> {
+    prop_oneof![
+        arb_nested_list_interaction_src(),
+        arb_nested_inline_interaction_src(),
+        arb_table_inline_interaction_src(),
+        arb_wrap_atomic_interaction_src(),
+        arb_link_destination_interaction_src(),
+        arb_math_frontmatter_interaction_src(),
+    ]
+}
+
+pub fn arb_nested_list_interaction_src() -> impl Strategy<Value = String> {
+    (
+        prop_oneof![Just('-'), Just('*'), Just('+')],
+        prop_oneof![Just('-'), Just('*'), Just('+')],
+        1usize..=9,
+        arb_inline_run(),
+        arb_inline_run(),
+        arb_inline_run(),
+    )
+        .prop_map(|(outer, inner, start, parent, child, tail)| {
+            format!("{outer} {parent}\n  {inner} {child}\n{start}. {tail}\n")
+        })
+}
+
+pub fn arb_nested_inline_interaction_src() -> impl Strategy<Value = String> {
+    prop_oneof![
+        (arb_word(), arb_word(), arb_word(), arb_word())
+            .prop_map(|(a, b, c, d)| { format!("_{a} **{b} _{c}_** {d}_\n") }),
+        (arb_word(), arb_word(), arb_word(), arb_word())
+            .prop_map(|(a, b, c, d)| { format!("*{a} [_{b}_](https://example.com/{c}) **{d}***\n") }),
+        (arb_word(), arb_word(), arb_word(), arb_word())
+            .prop_map(|(a, b, c, d)| { format!("__{a} *{b} [{c}](https://example.com/{d})*__\n") }),
+    ]
+}
+
+pub fn arb_table_inline_interaction_src() -> impl Strategy<Value = String> {
+    (arb_word(), arb_word(), arb_word(), arb_word()).prop_map(|(a, b, c, d)| {
+        format!(
+            "| term | link | code |\n| :-- | :-: | --: |\n| _{a}_ | [{b}](https://example.com/{c}) | `x|{d}` |\n| **{b}** | $x_{{{c}}}$ | escaped \\| pipe |\n"
+        )
+    })
+}
+
+pub fn arb_wrap_atomic_interaction_src() -> impl Strategy<Value = String> {
+    (arb_word(), arb_word(), arb_word(), arb_word(), arb_word()).prop_map(|(a, b, c, d, e)| {
+        format!(
+            "{a} {b} [{c}](https://example.com/{d}) _{e}_ `code span` <https://example.com/{a}> $x_{{{b}}}$ {c} {d} {e} {a} {b} {c} {d} {e}\n"
+        )
+    })
+}
+
+pub fn arb_link_destination_interaction_src() -> impl Strategy<Value = String> {
+    (arb_word(), arb_word(), arb_word(), arb_word()).prop_map(|(a, b, c, d)| {
+        format!(
+            "[{a}](https://example.com/{b}) and ![{c}](https://example.com/{d})\n\n[{a}]: https://example.com/{c} \"{d}\"\n"
+        )
+    })
+}
+
+pub fn arb_math_frontmatter_interaction_src() -> impl Strategy<Value = String> {
+    (arb_word(), arb_word(), arb_word()).prop_map(|(title, a, b)| {
+        format!(
+            "---\ntitle: {title}\n---\n\n# {title} {{#intro .class}}\n\n{a} $x_{{{b}}}$ before display math.\n\n\\[\n{a}_{{{b}}}\n\\]\n\n- _{a}_ and **{b}**\n"
+        )
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Phase R: construct-biased fragment generators.
 //

@@ -108,6 +108,18 @@ fn terminal_wrap_options() -> FmtOptions {
         .with_link_def_style(LinkDefStyle::Angle)
 }
 
+fn assert_fixture_idempotent(path: &Path, opts: &FmtOptions, profile: &str) {
+    let src = fs::read_to_string(path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
+    let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), opts);
+    let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), opts);
+    assert_eq!(
+        once,
+        twice,
+        "non-idempotent fixture under {profile}: {}",
+        path.display()
+    );
+}
+
 /// Every regression input must round-trip under the HTML-equivalence
 /// gate that `mdwright fmt --check` enforces in production. A new
 /// `.in` fixture is the canonical way to lock in a previously broken
@@ -171,11 +183,7 @@ fn regression_inputs_are_idempotent() {
 #[test]
 fn regression_formfeed_thematic_break_is_idempotent_under_fuzz_profile() {
     let path = regressions_dir().join("fuzz_thematic_formfeed.idem.in");
-    let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-    let opts = fuzz_option_fa_options();
-    let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
-    let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
-    assert_eq!(once, twice);
+    assert_fixture_idempotent(&path, &fuzz_option_fa_options(), "fuzz-option-0xfa");
 }
 
 #[test]
@@ -187,10 +195,7 @@ fn regression_nested_list_markers_are_idempotent_under_fuzz_profile() {
         "fuzz_nested_list_marker_round3.in",
     ] {
         let path = regressions_dir().join(name);
-        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
-        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
-        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+        assert_fixture_idempotent(&path, &opts, "fuzz-option-0x7e");
     }
 }
 
@@ -205,10 +210,7 @@ fn regression_inline_slot_canonicalisers_are_idempotent() {
         "inline_slot_math_adjacent.in",
     ] {
         let path = regressions_dir().join(name);
-        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
-        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
-        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+        assert_fixture_idempotent(&path, &opts, "inline-slots");
     }
 }
 
@@ -223,10 +225,7 @@ fn regression_table_normal_form_is_idempotent_after_child_normalisers() {
         "table_normal_form_ragged_and_padded.in",
     ] {
         let path = regressions_dir().join(name);
-        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
-        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
-        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+        assert_fixture_idempotent(&path, &opts, "table-normal-form");
     }
 }
 
@@ -240,9 +239,6 @@ fn regression_terminal_wrap_is_idempotent_after_child_normalisers() {
         "wrap_terminal_math_adjacency.in",
     ] {
         let path = regressions_dir().join(name);
-        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
-        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
-        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
-        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+        assert_fixture_idempotent(&path, &opts, "terminal-wrap");
     }
 }
