@@ -33,7 +33,8 @@ use mdwright_format::{
     MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline,
     Wrap,
 };
-use serde::Deserialize;
+use serde::de::{Error as DeError, Visitor};
+use serde::{Deserialize, Deserializer};
 
 // ============================================================
 // Public surface
@@ -641,11 +642,67 @@ enum LinkDefStyleSchema {
     Preserve,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
+#[derive(Debug)]
 enum WrapSchema {
     Mode(WrapMode),
     Columns(u32),
+}
+
+impl<'de> Deserialize<'de> for WrapSchema {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct WrapVisitor;
+
+        impl Visitor<'_> for WrapVisitor {
+            type Value = WrapSchema;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str(r#""keep", "no", or an integer column width"#)
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: DeError,
+            {
+                match value {
+                    "keep" => Ok(WrapSchema::Mode(WrapMode::Keep)),
+                    "no" => Ok(WrapSchema::Mode(WrapMode::No)),
+                    _ => Err(E::custom(format!(
+                        r#"invalid wrap value {value:?}; expected "keep", "no", or an integer column width"#
+                    ))),
+                }
+            }
+
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+            where
+                E: DeError,
+            {
+                let columns = u32::try_from(value).map_err(|_| {
+                    E::custom(format!(
+                        "wrap column width {value} is too large; expected an integer from 0 to {}",
+                        u32::MAX
+                    ))
+                })?;
+                Ok(WrapSchema::Columns(columns))
+            }
+
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E>
+            where
+                E: DeError,
+            {
+                let columns = u32::try_from(value).map_err(|_| {
+                    E::custom(format!(
+                        r#"invalid wrap value {value}; expected "keep", "no", or a non-negative integer column width"#
+                    ))
+                })?;
+                Ok(WrapSchema::Columns(columns))
+            }
+        }
+
+        deserializer.deserialize_any(WrapVisitor)
+    }
 }
 
 #[derive(Debug, Deserialize)]

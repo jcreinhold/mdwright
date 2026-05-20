@@ -138,7 +138,7 @@ enum Command {
     /// Reformat Markdown files.
     Fmt(FmtArgs),
     /// Verify formatting without writing.
-    FmtCheck(FmtArgs),
+    FmtCheck(FmtCheckArgs),
     /// Print the rule catalogue.
     ListRules,
     /// Print the long-form explanation of one lint rule.
@@ -263,6 +263,91 @@ struct FmtArgs {
     /// in the config file.
     #[arg(long, value_enum)]
     math_render: Option<MathRenderArg>,
+}
+
+#[derive(Args, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+struct FmtCheckArgs {
+    /// Files and directories to check. If omitted, `.` is used. A
+    /// literal `-` reads stdin and checks whether it would change.
+    paths: Vec<PathBuf>,
+
+    /// Write a unified diff to stdout for files that would change.
+    #[arg(long)]
+    diff: bool,
+
+    /// File name to report when reading from stdin. Defaults to
+    /// `<stdin>`. Useful when integrating with editors that pipe
+    /// the buffer through.
+    #[arg(long)]
+    stdin_filename: Option<PathBuf>,
+
+    /// Skip the HTML-equivalence safety check that runs by default.
+    /// The check parses both source and formatted output to HTML and
+    /// refuses to write when they differ. Use this only if you have
+    /// independent verification that the formatter is safe for the
+    /// input, for example, a CI pipeline that already runs the
+    /// check elsewhere.
+    #[arg(long)]
+    no_validate: bool,
+
+    /// When the HTML-equivalence gate rejects a file, print a unified
+    /// diff of the source's HTML against the formatted output's HTML
+    /// to stderr. Diagnostic surface for triaging gate failures; does
+    /// not change the gate's pass/fail decision.
+    #[arg(long)]
+    explain_divergence: bool,
+
+    /// Delimiter rewrite policy for math regions at emit time.
+    /// Overrides `[fmt.math] render` in the config file.
+    #[arg(long, value_enum)]
+    math_render: Option<MathRenderArg>,
+}
+
+#[derive(Debug)]
+#[allow(clippy::struct_excessive_bools)]
+struct FmtRunArgs {
+    paths: Vec<PathBuf>,
+    check: bool,
+    diff: bool,
+    stdin_filename: Option<PathBuf>,
+    no_validate: bool,
+    explain_divergence: bool,
+    range: Option<RangeArg>,
+    math_render: Option<MathRenderArg>,
+    check_command: bool,
+}
+
+impl From<FmtArgs> for FmtRunArgs {
+    fn from(args: FmtArgs) -> Self {
+        Self {
+            paths: args.paths,
+            check: args.check,
+            diff: args.diff,
+            stdin_filename: args.stdin_filename,
+            no_validate: args.no_validate,
+            explain_divergence: args.explain_divergence,
+            range: args.range,
+            math_render: args.math_render,
+            check_command: false,
+        }
+    }
+}
+
+impl From<FmtCheckArgs> for FmtRunArgs {
+    fn from(args: FmtCheckArgs) -> Self {
+        Self {
+            paths: args.paths,
+            check: true,
+            diff: args.diff,
+            stdin_filename: args.stdin_filename,
+            no_validate: args.no_validate,
+            explain_divergence: args.explain_divergence,
+            range: None,
+            math_render: args.math_render,
+            check_command: true,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -399,10 +484,13 @@ fn run(available: RuleSet) -> Result<ExitCode> {
         Command::Explain { rule } => run_explain(&available, &rule),
         Command::Check(args) => run_lint(&args, false, config_path.as_deref(), policy, available),
         Command::Fix(args) => run_lint(&args, true, config_path.as_deref(), policy, available),
-        Command::Fmt(args) => run_fmt(&args, false, config_path.as_deref(), policy),
-        Command::FmtCheck(mut args) => {
-            args.check = true;
-            run_fmt(&args, true, config_path.as_deref(), policy)
+        Command::Fmt(args) => {
+            let args = FmtRunArgs::from(args);
+            run_fmt(&args, config_path.as_deref(), policy)
+        }
+        Command::FmtCheck(args) => {
+            let args = FmtRunArgs::from(args);
+            run_fmt(&args, config_path.as_deref(), policy)
         }
         Command::Render(args) => run_render(&args, config_path.as_deref(), policy),
         Command::Lsp => run_lsp(),
@@ -589,19 +677,29 @@ fn has_stdin_operand(paths: &[PathBuf]) -> bool {
     paths.iter().any(|p| p.as_os_str() == "-")
 }
 
-fn run_fmt(
-    args: &FmtArgs,
-    force_check: bool,
-    config_path: Option<&std::path::Path>,
-    policy: InputPolicy,
-) -> Result<ExitCode> {
+fn summary_label(use_color: bool) -> String {
+    if use_color {
+        format!("{}", "summary:".bold())
+    } else {
+        "summary:".to_owned()
+    }
+}
+
+fn format_drift_hint(check_command: bool) -> &'static str {
+    if check_command {
+        "mdwright fmt-check --diff"
+    } else {
+        "mdwright fmt --diff"
+    }
+}
+
+fn run_fmt(args: &FmtRunArgs, config_path: Option<&std::path::Path>, policy: InputPolicy) -> Result<ExitCode> {
     let cfg = resolve_config(config_path)?;
     let mut opts = cfg.fmt_options().clone();
     let parse_options = cfg.parse_options();
     if let Some(mr) = args.math_render {
         opts = opts.with_math_render(mr.into());
     }
-    let check = args.check || force_check;
 
     if let Some(range_arg) = args.range {
         if !(args.paths.is_empty() || has_stdin_operand(&args.paths)) {
@@ -611,7 +709,7 @@ fn run_fmt(
     }
 
     if has_stdin_operand(&args.paths) {
-        return run_fmt_stdin(&opts, parse_options, args, check, policy);
+        return run_fmt_stdin(&opts, parse_options, args, policy);
     }
 
     let mut files: Vec<PathBuf> = Vec::new();
@@ -692,7 +790,7 @@ fn run_fmt(
                 let mut out = stdout.lock();
                 write_unified_diff(&mut out, &path.display().to_string(), &source, &formatted)?;
                 drop(guard);
-            } else if !check {
+            } else if !args.check {
                 fs::write(path, &formatted).with_context(|| format!("write {}", path.display()))?;
             }
             Ok(())
@@ -707,7 +805,15 @@ fn run_fmt(
     let parse_errors = parse_errors.load(Ordering::Relaxed);
     if parse_errors > 0 || divergent > 0 {
         Ok(ExitCode::from(2))
-    } else if check && changed > 0 {
+    } else if args.check && changed > 0 {
+        if !args.diff {
+            let mut stderr = io::stderr().lock();
+            writeln!(
+                stderr,
+                "mdwright: {changed} file(s) would be reformatted; run `{}` to inspect.",
+                format_drift_hint(args.check_command),
+            )?;
+        }
         Ok(ExitCode::from(1))
     } else {
         Ok(ExitCode::SUCCESS)
@@ -718,7 +824,7 @@ fn run_fmt_range_stdin(
     opts: &FmtOptions,
     parse_options: ParseOptions,
     range_arg: RangeArg,
-    args: &FmtArgs,
+    args: &FmtRunArgs,
     policy: InputPolicy,
 ) -> Result<ExitCode> {
     let name = args
@@ -763,8 +869,7 @@ fn run_fmt_range_stdin(
 fn run_fmt_stdin(
     opts: &FmtOptions,
     parse_options: ParseOptions,
-    args: &FmtArgs,
-    check: bool,
+    args: &FmtRunArgs,
     policy: InputPolicy,
 ) -> Result<ExitCode> {
     let name = args
@@ -790,8 +895,20 @@ fn run_fmt_stdin(
             }
         }
     };
-    if check {
+    if args.check {
         if formatted != buf {
+            if args.diff {
+                let stdout = io::stdout();
+                let mut out = stdout.lock();
+                write_unified_diff(&mut out, &name, &buf, &formatted)?;
+            } else {
+                let mut stderr = io::stderr().lock();
+                writeln!(
+                    stderr,
+                    "mdwright: stdin would be reformatted; run `{}` to inspect.",
+                    format_drift_hint(args.check_command),
+                )?;
+            }
             return Ok(ExitCode::from(1));
         }
         return Ok(ExitCode::SUCCESS);
@@ -975,17 +1092,16 @@ fn run_lint(
     if matches!(args.format, OutputFormat::Pretty) {
         let stdout = io::stdout();
         let mut out = stdout.lock();
+        let summary = summary_label(use_color);
         if apply_fixes {
             writeln!(
                 out,
-                "{} {applied} fix(es) applied; {total} diagnostic(s) remain ({non_adv} non-advisory).",
-                "summary:".bold(),
+                "{summary} {applied} fix(es) applied; {total} diagnostic(s) remain ({non_adv} non-advisory).",
             )?;
         } else {
             writeln!(
                 out,
-                "{} {total} diagnostic(s) over {} file(s); {non_adv} non-advisory.",
-                "summary:".bold(),
+                "{summary} {total} diagnostic(s) over {} file(s); {non_adv} non-advisory.",
                 files.len(),
             )?;
         }
