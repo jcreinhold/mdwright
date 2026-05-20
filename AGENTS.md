@@ -15,8 +15,8 @@ Library users depend directly on component crates:
 - `mdwright-document`: source canonicalisation, pulldown invocation, parser panic containment, document facts, ranges,
   references, frontmatter, lists, code/HTML exclusions, and parse options.
 - `mdwright-math`: pure TeX/math span recognition, render conversion, and body normalisation.
-- `mdwright-format`: identity structural emit plus transactional, verified byte rewrites for opt-in canonicalisation and
-  wrapping.
+- `mdwright-format`: identity structural emit plus rewrite-family planning, explicit ownership checks, semantic
+  verification, and wrapping.
 - `mdwright-lint`: diagnostics, suppression handling, safe fixes, rule execution, and standard rules.
 - `mdwright-config`: TOML schema, config discovery, and raw config to parse/format/lint policy.
 - `mdwright-lsp`: editor delivery over LSP.
@@ -55,6 +55,10 @@ Spec-coverage sweep: `cargo test --release -p mdwright --test gfm_spec gfm_spec_
 - `unsafe` is forbidden crate-wide. Keep it that way.
 - Fix bugs at their owning boundary. Parser panics are contained in `mdwright-document`; formatter rewrite mistakes are
   rejected by `mdwright-format` verification; lint bugs belong in `mdwright-lint`.
+- Formatter rewrites must start from document facts. Add or narrow facts in `mdwright-document` before adding a
+  formatter rewrite, use family-local plans, and never widen owner ranges to make an edit fit.
+- Semantic verification is a safety gate, not a convergence strategy. A formatter family must produce its normal-form
+  plan or skip; it must not rely on later format passes to finish the same logical rewrite.
 - Do not add a crate boundary, public facade, trait, or option unless it hides a real volatile decision behind a small
   interface.
 
@@ -68,5 +72,7 @@ Spec-coverage sweep: `cargo test --release -p mdwright --test gfm_spec gfm_spec_
   snapshot / allowlist mechanism documented in `docs/deviations.md`.
 - For fuzz-found bugs, land the minimised repro under `crates/mdwright/tests/regressions/` in the same change as the
   fix.
+- For formatter bugs, add an idempotence fixture or property that checks `format(format(input)) == format(input)` under
+  the exact options that exposed the bug.
 - `fuzz/artifacts/**` must be empty before commit. Diagnose, minimise, promote to a regression, or delete stale
   non-reproducing artifacts.

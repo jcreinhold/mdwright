@@ -13,8 +13,8 @@ agreements between consumers:
    panics convert to `ParseError` at this boundary.
 2. **Structural emit is identity.** `format_document` starts from the parsed document's canonical source bytes; default
    formatting reaches only document-boundary normalisation.
-3. **Style canonicalisation and wrapping are verified transactions.** Opt-in rewrites run as ordered families. Each
-   family builds a locally non-overlapping plan, verifies the whole plan, and commits all edits or none.
+3. **Style canonicalisation and wrapping are rewrite-family operations.** Opt-in rewrites run as ordered families. Each
+   family builds a locally non-overlapping normal-form plan, verifies the whole plan, and commits all edits or none.
 
 The bug class that motivated this design—formatter mutations that perturb their own parse context—survives only as
 private rewrite-family edits. A family cannot commit unless the document-level verification predicate accepts it.
@@ -38,7 +38,7 @@ committing.
 
 ```
 source → CanonicalSource → pulldown::Parser → typed IR
-       → structural emit (per-construct .pretty(), source-preserving)
+       → structural emit (source-preserving)
        → normalize_line_endings_lf
        → [if opts enables rewrites: rewrite-family pipeline]
        → normalize_trailing_newline → apply_end_of_line → out
@@ -46,8 +46,9 @@ source → CanonicalSource → pulldown::Parser → typed IR
 
 Only document-owned canonicalisation can produce a `CanonicalSource`; only `mdwright-document` invokes `pulldown-cmark`.
 Parser panics become `ParseError` at that boundary. The rewrite-family pipeline reparses after each committed family so
-later families see current document facts. Reaching the guard pass count rejects the pipeline and leaves the original
-source bytes unchanged; mdwright does not return a partially normalized buffer as success.
+later families see current document facts. Success means a full pass over enabled families commits nothing. If the guard
+pass count trips first, mdwright leaves the original source bytes unchanged rather than returning a partially normalized
+buffer as success.
 
 ## Public API
 
@@ -68,10 +69,10 @@ source bytes unchanged; mdwright does not return a partially normalized buffer a
 | Risk                                                                | Bound                                                                                  | Evidence                                                                                          |
 | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | A rewrite family contains overlapping local edits.                  | The family plan rejects before verification; no individual edit is selected out of the overlap.             | Unit tests in `mdwright-format` cover local-overlap rejection.                                      |
-| The rewrite-family pipeline fails to reach a fixed point.           | The guard pass count logs `tracing::warn!` and returns the original source bytes unchanged.                 | Idempotence regressions and fuzz replay cover known sustained-fuzz failures.                        |
+| The rewrite-family pipeline never reaches a no-commit pass.         | The guard pass count logs `tracing::warn!` and returns the original source bytes unchanged.                 | Idempotence regressions and fuzz replay cover known sustained-fuzz failures.                        |
 | Verification misses a cross-paragraph effect.                       | Families verify the whole document and skip if the document or math signature diverges.                    | Skips are logged; high-skip-rate documents surface in production traces.                            |
 | Structural emit edge cases the 4096-case sweep doesn't reach.       | `FmtOptions::default()` regressions tracked in `docs/architecture/round-4-findings/` (empty list item at EOF; ATX trailing-hash). | Both reproduce; both are pre-existing structural-emit bugs surfaced by broader option-space fuzz coverage. |
-| Pulldown behaviour drifts between releases.                         | `docs/architecture/pulldown-model.md` documents the invariants; `tests/pulldown_model.rs` fails when pulldown disagrees. | One chokepoint at `src/parse.rs` is the single site any drift mitigation lands.                   |
+| Pulldown behaviour drifts between releases.                         | `docs/architecture/pulldown-model.md` documents the invariants; `tests/pulldown_model.rs` fails when pulldown disagrees. | One chokepoint at `crates/mdwright-document/src/parse.rs` is the single site any drift mitigation lands. |
 
 ## Out of scope
 
@@ -88,13 +89,14 @@ source bytes unchanged; mdwright does not return a partially normalized buffer a
 
 Two `rg` invariants guard against regression of the design above:
 
-- `rg 'opts\.(italic|strong|list_marker|thematic|link_def|ordered_list)' src/` returns only the call sites in
-  `src/format/canonicalise.rs`. Structural emit does not read style knobs.
+- `rg 'opts\.(italic|strong|list_marker|thematic|link_def|ordered_list)' crates/mdwright-format/src/` returns only the
+  style-policy call sites in `crates/mdwright-format/src/format/canonicalise.rs`. Structural emit does not read style
+  knobs.
 - Every production `pulldown_cmark::Parser` invocation routes through the document parse boundary; `#[cfg(test)]`
   exceptions carry an inline justification.
 
 The `normalize_*` post-passes (`normalize_trailing_newline`, `source_has_effective_trailing_newline`,
-`normalize_line_endings_lf`, `apply_end_of_line`) all live in `src/format/mod.rs` and are wired in
-`src/format/document.rs`. They are boundary-policy transforms, not perturbation sources: `normalize_trailing_newline`
-reads source bytes to decide whether the output ends with `\n`; the LF normaliser is a cheap belt-and-braces over the
-invariant carried by `Doc::Text` construction.
+`normalize_line_endings_lf`, `apply_end_of_line`) live in `crates/mdwright-format/src/format/mod.rs` and are wired
+through the public formatting entry points. They are boundary-policy transforms, not perturbation sources:
+`normalize_trailing_newline` reads source bytes to decide whether the output ends with `\n`; the LF normaliser checks
+the invariant carried by document construction.

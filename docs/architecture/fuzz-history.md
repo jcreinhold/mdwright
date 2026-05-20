@@ -5,13 +5,15 @@ it belongs to. Patterns are numbered to match the concerns enumerated in [`stabi
 
 The dominant pattern, by a wide margin, is **#2: an output decision consulted source bytes to choose a representation.**
 9 of 22 classified fixes fall here. That concentration is the evidence the structural-preserve redesign rests on:
-removing the read-to-decide site removes the bug class.
+removing the read-to-decide site removes the bug class. Later rewrite-family hardening tightened the remaining opt-in
+canonicalisation path: families now own normal-form plans with explicit byte ownership, and verification checks safety
+before commit.
 
 ## Histogram
 
 | Pattern | Fixes | Resolution                                                                                                |
 | ------- | ----- | --------------------------------------------------------------------------------------------------------- |
-| #2 output decision consults source bytes | 9 | `.pretty()` methods read source bytes only to copy them; never to decide a representation. |
+| #2 output decision consults source bytes | 9 | Source-preserving emit reads source bytes only to copy them; style choices live in verified rewrite families. |
 | #1 chokepoint missing (`Parser::new_ext` scattered) | 5 | Every call site routes through `CanonicalSource`.                                  |
 | #3 post-pass at wrong layer              | 3 | Subsumed by structural-preserve; perturbation concern is moot.                                  |
 | #6 safety-ladder fallback redundancy     | 1 | Safety ladder deleted; structural emit is byte-preserving by construction.                       |

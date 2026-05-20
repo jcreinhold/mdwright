@@ -38,7 +38,7 @@ pub struct FmtOptions {
 ///   between the rendered inline body and the line terminator. Matches
 ///   the preserve-by-default ethos every other style knob defaults to.
 /// - [`Self::Canonicalise`]: emit `{#id .class₁ .class₂ k=val}` in a
-///   fixed order — id first, then classes in source order, then
+///   fixed order: id first, then classes in source order, then
 ///   key=value pairs in source order. Matches mdformat-mkdocs canonical.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum HeadingAttrsStyle {
@@ -82,7 +82,7 @@ pub struct MathOptions {
 ///   and `MathJax` v3 auto-renderers without rewriting.
 /// - [`Self::Dollar`]: rewrite `\[ … \]` to `$$ … $$` and `\( … \)`
 ///   to `$ … $` at emit time. LaTeX environments
-///   (`\begin{align*}…\end{align*}`) are not rewritten — there is no
+///   (`\begin{align*}…\end{align*}`) are not rewritten; there is no
 ///   dollar form of an environment.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum MathRender {
@@ -499,7 +499,7 @@ impl FmtOptions {
 /// trailing `\n`, the output has none either. This is what
 /// formatter validation needs to hold: pulldown-cmark's HTML render of
 /// `\t\x10` is `<pre><code>\x10</code></pre>` while its
-/// render of `\t\x10\n` is `<pre><code>\x10\n</code></pre>` — the
+/// render of `\t\x10\n` is `<pre><code>\x10\n</code></pre>`; the
 /// trailing LF lives inside the code body for any document ending in
 /// an indented code block. An unconditional "ensure trailing `\n`"
 /// post-pass cannot avoid that class of HTML-divergence; `Preserve`

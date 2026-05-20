@@ -171,7 +171,7 @@ impl Document {
 
     /// Contiguous runs of prose text, with backslash escapes
     /// preserved. Each chunk is bounded by inline code, inline HTML,
-    /// or a soft/hard line break — never crosses a code span.
+    /// or a soft/hard line break; never crosses a code span.
     #[must_use]
     pub fn prose_chunks(&self) -> &[TextSlice] {
         &self.ir.prose_chunks
@@ -194,7 +194,7 @@ impl Document {
     /// `\( … \)`, `\begin{env} … \end{env}`, optionally
     /// `$$ … $$` / `$ … $`). Lint rules that operate on prose
     /// (e.g., `latex-command`) consult this slice to skip
-    /// diagnostics that fire inside math content — `\alpha` is
+    /// diagnostics that fire inside math content. `\alpha` is
     /// intentional inside `\[ … \]` and a bug outside it.
     #[must_use]
     pub fn math_regions(&self) -> &[MathRegion] {

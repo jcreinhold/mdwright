@@ -18,7 +18,7 @@ Math          mdwright-math
 - `mdwright-math`: pure TeX / math scanning and normalisation.
 - `mdwright-document`: source coordinates, pulldown invocation, parse options, recognised Markdown facts.
 - `mdwright-config`: interprets user config files into document, format, and lint policy.
-- `mdwright-format`: formatting options and the transactional rewrite engine.
+- `mdwright-format`: formatting options, rewrite-family planning, and verification.
 - `mdwright-lint`: diagnostics, rule execution, suppression, safe fixes.
 - `mdwright`: the command-line binary: file discovery, terminal output, process exit policy.
 - `mdwright-lsp`: editor-state delivery over LSP.
@@ -47,9 +47,9 @@ user-facing view.
 Default formatting is identity emit: source bytes survive unchanged except for document-boundary policies. Opt-in style
 canonicalisation and wrapping run through private rewrite families owned by the current document snapshot.
 
-Only the private rewrite engine in `mdwright-format` may apply formatter byte edits. It runs rewrite families in a fixed
-order, rejects local overlaps within each family, applies a family plan to a scratch buffer, and verifies Markdown and
-math signatures before committing the whole plan. It does not expose partial family progress as successful formatting.
+Only private rewrite-family code in `mdwright-format` may apply formatter byte edits. It runs families in a fixed order,
+rejects local overlaps within each family, applies a family plan to a scratch buffer, and verifies Markdown and math
+signatures before committing the whole plan. It does not expose partial family progress as successful formatting.
 
 ## Linting
 

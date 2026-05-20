@@ -49,7 +49,7 @@ impl std::error::Error for LineIndexError {}
 
 impl LineIndex {
     /// Build from `source` bytes. The index does not hold the
-    /// reference — it captures only the newline offsets.
+    /// reference; it captures only the newline offsets.
     #[must_use]
     pub fn new(source: &str) -> Self {
         let mut line_starts: Vec<u32> = Vec::with_capacity(source.len() / 40);
@@ -134,7 +134,7 @@ impl LineIndex {
             cursor = cursor.saturating_add(ch.len_utf8());
             remaining = remaining.saturating_sub(1);
         }
-        // Column lands at — or past — the end of the visible line text.
+        // Column lands at, or past, the end of the visible line text.
         // LSP convention permits "one past last codepoint" (end-of-line
         // cursor), so accept column == codepoint_count by returning the
         // visible-end byte. Larger columns are out of range.

@@ -24,14 +24,15 @@ The rewrite subsystem uses ordered families:
 Each canonical family sees a parsed snapshot of the current bytes. If it produces edits, the family plan checks that
 those edits do not overlap within the family. A local overlap rejects the family; it does not drop one edit and keep
 another. If the plan verifies, the whole plan commits and the pipeline starts again from the first canonical family on a
-fresh parse. If verification fails, the family skips.
+fresh parse. If verification fails, the family skips; verification never repairs an incomplete plan.
 
 Terminal wrap is not a peer canonical family. It runs only after a full canonical-family scan commits nothing for the
 current snapshot. If wrap commits paragraph edits, the pipeline starts again from the first canonical family so any
 newly exposed syntactic slots are normalized before wrap runs again.
 
-If the full family pipeline cannot reach a fixed point within the guard pass count, the formatter leaves the original
-source bytes unchanged. It does not return the last verified partial output as successful formatting.
+The successful terminal state is a full pass with no family commits. If the guard pass count trips before that state,
+the formatter leaves the original source bytes unchanged. It does not return the last verified partial output as
+successful formatting.
 
 ## Design comparison
 

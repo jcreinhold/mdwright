@@ -2,14 +2,14 @@
 //!
 //! Editor latency requires that a one-paragraph edit format in time
 //! proportional to the paragraph, not the document. The mechanism is a
-//! *checkpoint table* — a sorted list of byte offsets, one per
-//! top-level Markdown block — that lets a caller-supplied byte range
+//! *checkpoint table*: a sorted list of byte offsets, one per
+//! top-level Markdown block, that lets a caller-supplied byte range
 //! be snapped to the smallest covering whole-block slice. The slice is
 //! then parsed and formatted independently through the document and
 //! formatter entry points.
 //!
 //! A checkpoint sits at column 0 of a line that opens a **top-level**
-//! block (container depth zero — not inside a blockquote, list,
+//! block (container depth zero, not inside a blockquote, list,
 //! footnote, or table). Both conditions are load-bearing: slicing two
 //! checkpoints must yield a syntactically self-contained Markdown
 //! sub-document, otherwise the substring contract in
@@ -41,7 +41,7 @@ pub(crate) struct BlockCheckpoint {
     /// Always column 0 of its line, always at container depth 0.
     pub(crate) byte: u32,
     /// Cheap snapshot of the parser walk state at this point. Reserved
-    /// for the incremental-rebuild work in the LSP session — the
+    /// for the incremental-rebuild work in the LSP session. The
     /// current resumption logic doesn't read it, but recording it now
     /// lets that session diff two tables for "did anything before this
     /// boundary actually change?".
@@ -159,7 +159,7 @@ impl CheckpointTable {
         self.points.len()
     }
 
-    /// `true` iff the table has only its two bookends — the document
+    /// `true` iff the table has only its two bookends; the document
     /// contains no top-level block.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -185,7 +185,7 @@ mod tests {
     fn three_paragraphs() {
         let src = "a\n\nb\n\nc\n";
         let t = CheckpointTable::build(src).expect("checkpoint source parses");
-        // 0, start-of-a, start-of-b, start-of-c, sentinel — but
+        // 0, start-of-a, start-of-b, start-of-c, sentinel; but
         // start-of-a coincides with 0 so it's deduplicated.
         assert!(t.len() >= 4);
         // Range hitting `b` snaps to start-of-b..start-of-c.
@@ -201,7 +201,7 @@ mod tests {
         let two_at = src.find("two").unwrap_or(0);
         let snapped = t.snap_to_block_boundaries(two_at as u32..two_at as u32 + 1);
         let slice = &src[snapped.start as usize..snapped.end as usize];
-        // The slice must contain the full list, not just one item —
+        // The slice must contain the full list, not just one item;
         // otherwise renumber would diverge from whole-document output.
         assert!(slice.contains("1. one"), "slice should include list start: {slice:?}");
         assert!(slice.contains("3. three"), "slice should include list end: {slice:?}");

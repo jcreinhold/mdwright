@@ -1,10 +1,10 @@
-//! Style canonicalisation — opt-in byte-to-byte rewrites of structural
+//! Style canonicalisation: opt-in byte-to-byte rewrites of structural
 //! output.
 //!
 //! # Contract
 //!
 //! This module recognises opt-in style edits for one rewrite family at
-//! a time and submits parse-owned edits to the rewrite engine. It does
+//! a time and submits parse-owned edits to the rewrite-family pipeline. It does
 //! not edit the formatter buffer directly.
 //!
 //! # Why a separate pass
@@ -14,20 +14,20 @@
 //! idempotent and perturbation-free by construction. Style
 //! canonicalisation is the opposite concern: deliberately rewrite
 //! source bytes per user preference. Keeping it in its own pass
-//! localises the perturbation — the rewrite engine owns family order,
-//! local-overlap rejection, verification, and commit.
+//! localises the perturbation: the rewrite-family pipeline owns family
+//! order, local-overlap rejection, verification, and commit.
 //!
 //! # Performance
 //!
 //! Default config (every knob `Preserve`) triggers the early-out in
 //! [`FmtOptions::has_any_canonicalisation`], so structural callers
-//! pay zero. With canonicalisation enabled, the rewrite engine
+//! pay zero. With canonicalisation enabled, the rewrite-family pipeline
 //! reparses after committed family plans so later families see fresh
 //! document facts. A family that cannot produce a verified local plan
 //! skips instead of committing partial progress.
 //!
-//! Family order lives in the rewrite engine. This module owns only the
-//! style-specific policy for constructing a family's edits.
+//! Family order lives in the rewrite-family pipeline. This module owns
+//! only the style-specific policy for constructing a family's edits.
 
 use crate::format::rewrite::{Candidate, OwnerKind, RewriteFamily, Snapshot, Verification};
 use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender, OrderedListStyle, ThematicStyle};
@@ -635,11 +635,11 @@ fn collect_strip_frontmatter(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candi
 /// Apply the configured math rewrites to every recognised math
 /// region in `out`. Two transformations are supported:
 ///
-/// 1. `MathRender::Dollar` — rewrite `\[…\]` / `\(…\)` regions to
+/// 1. `MathRender::Dollar`: rewrite `\[…\]` / `\(…\)` regions to
 ///    `$$…$$` / `$…$`. Environments (`\begin{env}…\end{env}`) are
 ///    passed through unchanged because there is no dollar form of a
 ///    LaTeX environment.
-/// 2. `math.normalise = true` — pad columns of aligning environments.
+/// 2. `math.normalise = true`: pad columns of aligning environments.
 fn collect_math(snapshot: &Snapshot<'_>, opts: &FmtOptions, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
     for region in snapshot.document().math_regions() {
@@ -668,7 +668,7 @@ fn compute_math_replacement(source: &str, region: &MathRegion, opts: &FmtOptions
     let span = region.span();
     let render_mode = opts.math().render;
 
-    // Dollar rewrite takes precedence — and only applies to non-
+    // Dollar rewrite takes precedence and only applies to non-
     // environment math (there is no dollar form of an environment).
     if matches!(render_mode, MathRender::Dollar) && !matches!(span, MathSpan::Environment { .. }) {
         let cow = convert_for_dollar(source, &region.range, span);
@@ -679,7 +679,7 @@ fn compute_math_replacement(source: &str, region: &MathRegion, opts: &FmtOptions
         return None;
     }
 
-    // Only aligning environments need a byte-level rewrite —
+    // Only aligning environments need a byte-level rewrite;
     // everything else already round-trips through the identity emit.
     let body = span.body().as_str(source);
     if body_braces_balanced(body.as_ref()).is_err() {

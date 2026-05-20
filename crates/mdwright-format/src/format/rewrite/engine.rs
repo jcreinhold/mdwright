@@ -53,7 +53,7 @@ pub(crate) fn apply_rewrites(doc: &Document, opts: &FmtOptions) -> Result<(Strin
     tracing::warn!(
         target: "mdwright::rewrite",
         steps = MAX_REWRITE_STEPS,
-        "rewrite engine did not reach a fixed point; leaving original source bytes unchanged",
+        "rewrite-family pipeline did not reach a no-commit pass; leaving original source bytes unchanged",
     );
     Ok((original, report))
 }

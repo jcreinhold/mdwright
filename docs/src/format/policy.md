@@ -15,15 +15,14 @@ You opt out of preservation by setting the rewrite knobs below. There is no "sem
 
 ## 2. Verified Rewrite Families: Opt In
 
-The formatter crate runs style-canonicalisation and wrapping through one private transactional rewrite engine. The
-engine is organized as ordered rewrite families: inline delimiters, list markers, thematic breaks, link destinations,
-heading attributes, tables, math, frontmatter, and terminal wrap. Each canonical family builds a local edit plan, proves
-its edits do not overlap within the family, applies the plan to a scratch buffer, and verifies the result before it can
-commit.
+The formatter crate runs style-canonicalisation and wrapping through private rewrite families: inline delimiters, list
+markers, thematic breaks, link destinations, heading attributes, tables, math, frontmatter, and terminal wrap. Each
+canonical family builds a local normal-form edit plan, proves its edits do not overlap within the family, applies the
+plan to a scratch buffer, and verifies the result before it can commit.
 
 If verification fails, the whole family skips. The engine never commits half of a family plan. If the family pipeline
-cannot reach a fixed point within its guard pass count, mdwright leaves the original source bytes unchanged instead of
-returning a partial normal form.
+cannot reach a pass with no commits before its guard trips, mdwright leaves the original source bytes unchanged instead
+of returning a partial normal form.
 
 Tables are parent normal forms. The table family runs after inline canonicalisers, reads cell contents from the current
 snapshot, and rewrites each table block only when document-owned table facts account for the full table shape. It does
@@ -33,7 +32,7 @@ Wrap is terminal. It runs only after a full canonical-family scan commits no edi
 commits paragraph edits, the engine returns to the first canonical family on a fresh parse before wrapping again.
 Paragraph shapes the wrap pass cannot model stay unchanged and are counted in the formatter report.
 
-Default: every style knob is `Preserve` and wrapping is `Keep`. With the default config the rewrite engine
+Default: every style knob is `Preserve` and wrapping is `Keep`. With the default config the rewrite-family pipeline
 short-circuits before running. Set per-knob targets in `.mdwright.toml` to opt in.
 
 ## Why the separation
@@ -42,8 +41,8 @@ Earlier mdwright designs canonicalised while synthesising structural output. The
 decision perturbed the context for another. Rewriting `_foo_` to `*foo*`, for example, can change an adjacent site's
 emphasis-flanking class.
 
-Identity emit removes that perturbation source. The transactional rewrite engine keeps the remaining byte changes in
-formatter-owned rewrite families, so stale local string edits cannot commit without reparsing and verification.
+Identity emit removes that perturbation source. Rewrite families keep the remaining byte changes in formatter-owned
+normal-form plans, so stale local string edits cannot commit without reparsing and verification.
 
 ## How to opt in
 

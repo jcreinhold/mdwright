@@ -21,17 +21,20 @@ about. This is where new features and bugfixes land their single load-bearing ex
 
 **Location:** `tests/properties.rs`, generators at `tests/common/proptest_gen.rs`.
 
-Three families:
+Four families:
 
 | Family | Properties | Cases | Sweep gate |
 |---|---|---|---|
 | Whole-document, default opts | `idempotent`, `html_preserving`, `lint_preserving`, `reference_resolver_round_trips` | 256 | `*_sweep` at 4096, `#[ignore]` |
 | Per-construct, default opts | `<construct>_fragments_idempotent`, `<construct>_fragments_html_preserving` for emphasis, strong, link-inline, link-reference, autolink, code-span, heading, fenced-code, quote, list, table, thematic, footnote | 256 each | none |
 | Canonicalisation, 15 modes | `canonicalise_<construct>_semantic_equivalence`, `canonicalise_<construct>_idempotent`, `canonicalise_document_*`. Each iterates `canon_opts()` (preserve + per-knob × variants + 2 all-knobs-together). | 256 × 15 modes | `canonicalise_document_*_sweep` at 4096, `#[ignore]` |
+| Rewrite-law interactions | `*_interactions_are_profile_idempotent` for nested lists, nested inline slots, tables with inline content, wrapped paragraphs with atomics, link destinations, math, and frontmatter. Each iterates preserve, mdformat, known fuzz profiles, and an all-family profile. | 96 × 5 profiles | none |
 
 **Invariants tested:**
 
 - **Idempotence:** `format(format(s)) == format(s)`: strict byte equality.
+- **Rewrite-law completion:** the second pass over generated rewrite-interaction inputs commits no rewrites; family
+  planning must reach its normal form in the first public format call.
 - **HTML preservation / semantic equivalence:** `semantically_equivalent(s, format(s))`: canonical pulldown event
   streams agree.
 - **Lint preservation:** `format` does not introduce new default-on diagnostics (modulo `bare-url`, which the formatter

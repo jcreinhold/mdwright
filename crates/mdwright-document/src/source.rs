@@ -16,7 +16,7 @@
 //! source it round-trips against agree on byte classes. Owning the
 //! original buffer here, too, means user-facing diagnostics and
 //! `apply_safe_fixes` edits land at the byte positions the caller's
-//! file actually has — CRLF endings, original NULs, and every other
+//! file actually has: CRLF endings, original NULs, and every other
 //! byte the canonical pass would mask are preserved verbatim in the
 //! output for spans the formatter didn't touch.
 //!
@@ -120,7 +120,7 @@ impl OriginalSpan {
 /// consumed. Between rewrites, mapping is identity-with-shift.
 ///
 /// Identity is the common case (modern LF UTF-8 with no NUL) and is
-/// represented by an empty `events` vector — `to_original` returns
+/// represented by an empty `events` vector; `to_original` returns
 /// the input span unchanged in O(1).
 #[derive(Clone, Debug, Default)]
 pub(crate) struct OffsetMap {
@@ -163,14 +163,14 @@ impl OffsetMap {
         // Find the last event whose canonical.start <= p.
         let idx = match self.events.binary_search_by_key(&p, |e| e.canonical.start) {
             Ok(i) => i,
-            Err(0) => return p, // p sits before any rewrite — identity
+            Err(0) => return p, // p sits before any rewrite: identity
             Err(i) => i.saturating_sub(1),
         };
         let Some(e) = self.events.get(idx).copied() else {
             return p;
         };
         if p < e.canonical.end {
-            // p sits inside the rewrite's canonical range — round
+            // p sits inside the rewrite's canonical range; round
             // down to the original event's start.
             e.original.start
         } else {
@@ -193,17 +193,17 @@ impl OffsetMap {
         // consistent.
         let idx = match self.events.binary_search_by_key(&p, |e| e.canonical.start) {
             // p == e.canonical.start: the bound sits at the rewrite's
-            // canonical start — bound encloses zero rewritten bytes,
+            // canonical start. The bound encloses zero rewritten bytes,
             // so the original bound also sits at e.original.start.
             Ok(i) => return self.events.get(i).map_or(p, |e| e.original.start),
-            Err(0) => return p, // p sits before any rewrite — identity
+            Err(0) => return p, // p sits before any rewrite: identity
             Err(i) => i.saturating_sub(1),
         };
         let Some(e) = self.events.get(idx).copied() else {
             return p;
         };
         if p <= e.canonical.end {
-            // p is inside or right at the end of the rewrite — round
+            // p is inside or right at the end of the rewrite; round
             // up to include the entire original event.
             e.original.end
         } else {
@@ -279,8 +279,8 @@ impl Source {
     }
 
     /// Translate a canonical-byte span to the corresponding original
-    /// span. The output is rounded outward — start floored, end
-    /// ceilinged across change points — so the original span always
+    /// span. The output is rounded outward: start floored, end
+    /// ceilinged across change points, so the original span always
     /// covers at least the bytes the canonical span covered. This
     /// matters at two boundaries:
     ///
@@ -430,7 +430,7 @@ fn canonicalise(raw: &str) -> (String, OffsetMap) {
             });
         } else {
             // Copy this UTF-8 codepoint verbatim. Stepping byte-by-
-            // byte is safe — pushing each byte as char would mangle
+            // byte is safe; pushing each byte as char would mangle
             // non-ASCII; instead, locate the codepoint boundary and
             // push the &str slice.
             let cp_end = utf8_codepoint_end(bytes, i);
@@ -445,7 +445,7 @@ fn canonicalise(raw: &str) -> (String, OffsetMap) {
 }
 
 /// Length of the UTF-8 codepoint starting at `bytes[i]`. Assumes
-/// well-formed UTF-8 — `raw` arrived as `&str`, so this holds.
+/// well-formed UTF-8; `raw` arrived as `&str`, so this holds.
 fn utf8_codepoint_end(bytes: &[u8], i: usize) -> usize {
     let Some(&b) = bytes.get(i) else {
         return i;
@@ -563,7 +563,7 @@ mod tests {
     #[test]
     fn mixed_canonicalisation_roundtrip() {
         let src = Source::new("x\r\n\0y\r\n");
-        // Canonical: "x\n\u{FFFD}y\n" — bytes: 'x'(1) '\n'(1)
+        // Canonical bytes for "x\n\u{FFFD}y\n": 'x'(1) '\n'(1)
         // FFFD(3) 'y'(1) '\n'(1) = 7 bytes
         assert_eq!(src.canonical(), "x\n\u{FFFD}y\n");
         // Canonical 'y' is at byte 5; original 'y' at byte 4.

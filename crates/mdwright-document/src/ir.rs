@@ -15,7 +15,7 @@
 //!
 //! The data-carrier types ([`TextSlice`], [`InlineCode`], [`Heading`],
 //! [`ListGroup`], etc.) are also the public types returned by
-//! `Document`'s accessors. Their fields are public — they're value
+//! `Document`'s accessors. Their fields are public because they are value
 //! objects, not abstractions, and information-hiding on a position
 //! record buys nothing.
 
@@ -158,16 +158,16 @@ pub struct LinkDef<'a> {
 ///
 /// Recognised forms:
 ///
-/// - `<!-- mdwright: allow rule-a[, rule-b] -->` — silences the
+/// - `<!-- mdwright: allow rule-a[, rule-b] -->`: silences the
 ///   listed rules on the *next block*.
-/// - `<!-- mdwright: allow-next-line rule-a[, rule-b] -->` —
+/// - `<!-- mdwright: allow-next-line rule-a[, rule-b] -->`:
 ///   silences on the immediately following source line.
-/// - `<!-- mdwright: disable [rule-a, ...] -->` — opens a region
+/// - `<!-- mdwright: disable [rule-a, ...] -->`: opens a region
 ///   ending at the matching `enable` (or end of file). An empty
 ///   rule list means every known rule.
-/// - `<!-- mdwright: enable [rule-a, ...] -->` — closes a region.
+/// - `<!-- mdwright: enable [rule-a, ...] -->`: closes a region.
 /// - `<!-- mdwright: disable-all -->` / `<!-- mdwright: enable-all -->`
-///   — convenience aliases for `disable` / `enable` with no names.
+///   convenience aliases for `disable` / `enable` with no names.
 #[derive(Clone, Debug)]
 pub struct Suppression {
     pub kind: SuppressionKind,
@@ -257,7 +257,7 @@ impl Ir {
         // own §4.7 resolution is authoritative); the flat IR is built
         // first (the math scanner depends on the exclusion zones it
         // collects), then math regions are computed, then the tree
-        // is built — the tree builder needs math regions so it can
+        // is built. The tree builder needs math regions so it can
         // splice `NodeKind::Math` leaves at recognised positions.
         let events: Vec<(Event<'_>, Range<usize>)> = parse::collect_events_with_offsets(body, parse::options(opts))?
             .into_iter()
@@ -531,7 +531,7 @@ impl Builder<'_> {
             Event::Html(_) => self.push_html_block(range),
             Event::InlineHtml(_) => self.push_inline_html(range),
             // SoftBreak, HardBreak, Rule, FootnoteReference,
-            // TaskListMarker, InlineMath, DisplayMath — none carry
+            // TaskListMarker, InlineMath, DisplayMath: none carry
             // bytes we lint as their own chunks. Math events are
             // disabled in Options; if they appear, ignore them.
             _ => {}
@@ -850,7 +850,7 @@ fn compute_transparent_runs(
 /// Strip ATX `#` markers and surrounding whitespace from a heading's
 /// raw source range. Returns the trimmed text plus the byte offset of
 /// the first text byte relative to the range start. Handles ATX
-/// (`## Foo`) and setext (`Foo\n---`) shapes — for setext, take the
+/// (`## Foo`) and setext (`Foo\n---`) shapes. For setext, take the
 /// text up to the first newline.
 fn trim_heading(raw: &str) -> (&str, usize) {
     let body = raw.strip_suffix('\n').unwrap_or(raw);
@@ -882,8 +882,8 @@ fn trim_heading(raw: &str) -> (&str, usize) {
 ///
 /// Accepts two delimiters:
 ///
-/// - `---\n…\n---\n` (or `…\n...\n`) — YAML.
-/// - `+++\n…\n+++\n` — TOML.
+/// - `---\n…\n---\n` (or `…\n...\n`): YAML.
+/// - `+++\n…\n+++\n`: TOML.
 fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter>) {
     let first_line_end = source.find('\n');
     let first_line = first_line_end.map_or(source, |n| source.get(..n).unwrap_or(""));
@@ -939,7 +939,7 @@ fn split_frontmatter(source: &str) -> (usize, Option<Frontmatter>) {
         }
         cursor = end_excl.saturating_add(1);
     }
-    // No closing delimiter — the opener is a thematic break (`---`)
+    // No closing delimiter: the opener is a thematic break (`---`)
     // or just plain text (`+++`), not a frontmatter fence. Returning
     // the whole source as frontmatter would byte-preserve the document
     // by short-circuiting the tree builder, which masks the structural
@@ -1009,7 +1009,7 @@ fn suppression_regex() -> &'static Regex {
 }
 
 /// Parse suppression directives from HTML comments. Only block-level
-/// HTML is consulted — pulldown-cmark already distinguishes a comment
+/// HTML is consulted; pulldown-cmark already distinguishes a comment
 /// on its own line (`HtmlBlock`) from an inline comment (`InlineHtml`),
 /// which gives us the "own source line" requirement for free.
 fn scan_suppressions(html_blocks: &[HtmlBlock]) -> Vec<Suppression> {
@@ -1125,7 +1125,7 @@ mod tests {
     #[test]
     fn frontmatter_opener_without_close_is_thematic_break() -> Result<(), String> {
         // `---\n` is a YAML opener, but with no closing `---` the
-        // document is not a frontmatter — it's a thematic break
+        // document is not frontmatter; it is a thematic break
         // followed by Markdown. Confirming this via `prose_chunks`:
         // body text after the opener must surface as prose, not be
         // swallowed into a stub frontmatter.

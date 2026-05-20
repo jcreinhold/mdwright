@@ -1,9 +1,9 @@
-//! Transactional byte-rewrite engine for formatter passes.
+//! Rewrite-family pipeline for formatter passes.
 //!
 //! Structural formatting is identity emit. Every opt-in byte rewrite
 //! enters through this module as a member of one rewrite family. A
 //! family commits only after its local edits are non-overlapping and
-//! the engine verifies the resulting document.
+//! verification accepts the resulting document.
 
 mod candidate;
 mod engine;

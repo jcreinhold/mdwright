@@ -19,7 +19,7 @@
 //! event, with the original raw label in the `id` field.
 //!
 //! Harvesting those resolved events is the single source of truth for
-//! "which labels are defined and what they point to" — and cheaper
+//! "which labels are defined and what they point to," and cheaper
 //! than re-implementing the CM §4.7 grammar (multi-line defs, escaped
 //! brackets, blockquote-nested defs, defs interrupted by paragraph
 //! text). A regex scanner gets the simple shapes right and the hard
@@ -61,7 +61,7 @@ impl NormalisedLabel {
     /// 3. Collapse internal whitespace runs to a single U+0020.
     /// 4. Lowercase (CM defers to Unicode case folding; the standard
     ///    `to_lowercase` is `String::to_lowercase` which performs
-    ///    Unicode-aware case folding — sufficient for the labels CM
+    ///    Unicode-aware case folding, sufficient for the labels CM
     ///    normalises in practice).
     /// 5. Reject if the result is empty.
     pub(crate) fn from_raw(raw: &str) -> Option<Self> {
@@ -203,7 +203,7 @@ impl ReferenceTable {
 /// Pulldown is the source of truth for *which* labels are resolved
 /// (correct under multi-line defs, escaped brackets, blockquote nesting,
 /// and the "no def after paragraph text" rule), but its `id` field on
-/// a `Tag::Link` carries the *link's* bracketed text — not the
+/// a `Tag::Link` carries the *link's* bracketed text, not the
 /// definition's source casing. To preserve user casing (`[Foo]: …`
 /// emits as `[Foo]: …` rather than `[foo]: …` even when the link says
 /// `[FOO]`), we scan the source for definition-label prefixes and
@@ -268,7 +268,7 @@ pub(crate) fn build_reference_table(events: &[Event<'_>], source: &str) -> Refer
 }
 
 /// Scan source for `[label]:` prefixes and return a normalised→raw
-/// label map. Captures only the label, not the dest/title — those
+/// label map. Captures only the label, not the dest/title; those
 /// come from pulldown's resolution. The first occurrence wins so the
 /// behaviour matches CM §4.7's "first definition" tie-breaker even
 /// for the casing.
@@ -295,7 +295,7 @@ fn scan_def_label_casings(source: &str) -> FxHashMap<NormalisedLabel, String> {
 fn label_prefix_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     // Group 1: label text. Supports `\]` and other escaped chars
-    // inside the label. We do not validate dest / title here —
+    // inside the label. We do not validate dest / title here;
     // pulldown does that.
     RE.get_or_init(|| compile_static(r"^ {0,3}\[((?:[^\]\\\n]|\\.)+)\]:"))
 }

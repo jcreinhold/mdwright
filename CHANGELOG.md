@@ -37,8 +37,8 @@ All notable changes to mdwright are listed here. The format follows
   facts, reference/frontmatter/list/code/html inventories, and document queries. Formatter and lint crates consume
   domain facts rather than pulldown parser events.
 - `mdwright-math` owns pure TeX/math span recognition, renderer conversion helpers, and body normalisation helpers.
-- `mdwright-format` owns `FmtOptions`, range formatting, semantic formatter oracles, and the private transactional
-  rewrite engine.
+- `mdwright-format` owns `FmtOptions`, range formatting, semantic formatter oracles, and the private rewrite-family
+  pipeline.
 - `mdwright-lint` owns diagnostics, lint rules, suppression, standard-rule registry construction, and safe-fix
   application.
 - `mdwright-config`, `mdwright`, and `mdwright-lsp` own configuration interpretation and delivery surfaces without
@@ -70,6 +70,9 @@ All notable changes to mdwright are listed here. The format follows
   transactional verification preserves document semantics. Explicit `[fmt]` keys override profile defaults.
 - Added `fmt.tables.style = "preserve" | "pad"` for verified GFM table cell padding.
 - Fixed dogfood lint false positives for inline-code plural suffixes, `jsonc` code fences, and MyST directive fences.
+- Reworked formatter canonicalisation around rewrite families with explicit ownership. Inline delimiters and link
+  destinations are slot-owned, list markers are marker-owned, table padding is a parent normal form, wrap is terminal,
+  and idempotence is now checked by regression and property-law gates.
 
 ### Performance
 

@@ -9,7 +9,7 @@ Cargo.toml               # virtual workspace root, no package targets
 crates/mdwright          # command-line package and `mdwright` binary
 crates/mdwright-document # parsed Markdown facts with stable source coords
 crates/mdwright-math     # TeX/math span recognition, rendering, normalisation
-crates/mdwright-format   # formatter policy, transactional rewrite engine, oracles
+crates/mdwright-format   # formatter policy, rewrite-family planning, oracles
 crates/mdwright-lint     # diagnostics, rule execution, suppression, safe fixes
 crates/mdwright-config   # TOML schema, discovery, resolved option construction
 crates/mdwright-lsp      # tower-lsp server and editor-state bridge

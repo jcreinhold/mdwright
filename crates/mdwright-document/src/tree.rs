@@ -5,7 +5,7 @@
 //! that lives three list items deep inside a blockquote looks identical
 //! to a top-level paragraph in the flat IR. The tree IR is an owned arena of
 //! [`Node`] values rooted at a Document node, built during the *same*
-//! pulldown-cmark event walk as the flat IR — two IRs, one parse pass.
+//! pulldown-cmark event walk as the flat IR: two IRs, one parse pass.
 //!
 //! ## Storage
 //!
@@ -13,12 +13,12 @@
 //!
 //! - `arena: Vec<Node>` in pre-order DFS. Each node carries
 //!   `subtree_end` so `descendants(id)` is the contiguous range
-//!   `arena[id+1 .. subtree_end]` — no recursion, no allocation.
-//! - `child_ids: Vec<NodeId>` — a parent's *direct* children are not
+//!   `arena[id+1 .. subtree_end]`: no recursion, no allocation.
+//! - `child_ids: Vec<NodeId>`: a parent's *direct* children are not
 //!   contiguous in the arena (between them sit each child's whole
 //!   subtree), so direct children are stored separately. Each node's
 //!   `children: Range<u32>` indexes into this table.
-//! - `parents: Vec<Option<NodeId>>` — parallel to `arena` for O(1)
+//! - `parents: Vec<Option<NodeId>>`: parallel to `arena` for O(1)
 //!   parent lookup without bloating `Node`.
 //!
 //! ## Two IRs, one walk
@@ -489,7 +489,7 @@ impl<'a> TreeBuilder<'a> {
     pub(crate) fn handle(&mut self, event: &Event<'a>, range: Range<usize>) {
         // Math-overlay swallow guard. Any event whose bytes were
         // already covered by a previously-emitted `NodeKind::Math`
-        // leaf is dropped — its content is part of the math region's
+        // leaf is dropped; its content is part of the math region's
         // outer range and will be rendered via `MathSpan::pretty`.
         // Multi-line display math (`$$\nx=1\n$$`) emits several
         // `Event::Text` / `Event::SoftBreak` events whose ranges all
@@ -505,7 +505,7 @@ impl<'a> TreeBuilder<'a> {
                 // Pulldown's event range for an indented code block
                 // starts at the first content byte (after the 4-space
                 // / tab prefix). Walk back to the start of the line
-                // so `raw_text` includes the indent — the block's
+                // so `raw_text` includes the indent. The block's
                 // identity depends on it.
                 //
                 // HtmlBlock gets the same widening (limited to
@@ -540,7 +540,7 @@ impl<'a> TreeBuilder<'a> {
                 // a decoded `)` and `extend_for_backslash` would pull
                 // the range back into the leaf), trim the leading
                 // in-math portion and re-derive the trailing prose
-                // from source bytes — the decoded `cow` doesn't align
+                // from source bytes; the decoded `cow` doesn't align
                 // with the trimmed range.
                 if range.start < self.math_emitted_until {
                     let trimmed = self.math_emitted_until..range.end;
@@ -650,7 +650,7 @@ impl<'a> TreeBuilder<'a> {
     /// (no decoding happens for `$`), and (b) for backslash-delimited
     /// math (`\(` / `\[`) pulldown emits the decoded delimiter as a
     /// separate, single-character event whose bytes lie fully inside
-    /// the math region — that event is dropped by the swallow guard
+    /// the math region. That event is dropped by the swallow guard
     /// at the top of `handle`, never reaching this splice.
     ///
     /// `extend_for_backslash` can pull an event's start back to the
@@ -954,7 +954,7 @@ fn downgrade_unresolved_links(arena: &mut [Node], refs: &ReferenceTable) {
         node.kind = NodeKind::Unknown { tag };
         // Drop the subtree's structural children: `Unknown` is emitted
         // verbatim from `raw_text`, so the children must not be
-        // rendered separately. Clearing the children range is enough —
+        // rendered separately. Clearing the children range is enough;
         // the arena entries linger but become unreachable from the
         // root.
         node.children = 0..0;
@@ -1159,7 +1159,7 @@ mod tests {
     #[test]
     fn raw_range_covers_leading_sigil_per_block_kind() {
         // Verbatim emission relies on `raw_text(id)` containing every
-        // block's full lexical extent — including the opening sigil
+        // block's full lexical extent, including the opening sigil
         // (`#`, `>`, `-`, fence markers, indented-code prefix). A
         // regression that drops the sigil would cause verbatim
         // emission to silently lose information.

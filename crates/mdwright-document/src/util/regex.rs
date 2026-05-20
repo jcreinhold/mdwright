@@ -10,7 +10,7 @@ use regex::Regex;
 
 /// Compile a regular expression from a source-literal pattern.
 ///
-/// The pattern must be a `&'static str` — in practice every call site
+/// The pattern must be a `&'static str`; in practice every call site
 /// passes a raw string literal embedded in the binary. Compilation
 /// failure indicates a malformed literal in this crate's source, not
 /// runtime input, so it is treated as a build-time bug surfaced

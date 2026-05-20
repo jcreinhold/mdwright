@@ -62,8 +62,9 @@ Unicode default case folding. Two labels resolve to the same definition iff thei
 
 Pulldown 0.13 does **not** emit a `LinkReferenceDefinition` event. Definitions are resolved internally during parse,
 and reference uses surface as `Tag::Link { id: ".." }` where `id` is the *raw label bytes* the source used (not the
-normalised form). The mdwright-side authoritative scan for definitions lives in `src/cm/refs.rs::build_reference_table`;
-that module is the sole site that runs CM §4.7 normalisation.
+normalised form). The mdwright-side authoritative scan for definitions lives in
+`crates/mdwright-document/src/refs.rs::build_reference_table`; that module is the sole site that runs CM §4.7
+normalisation.
 
 Test: `reference_label_normalisation_matches`.
 
@@ -93,9 +94,9 @@ of the closing delimiter.
 - `range.end` of `End(Emphasis)`: index *after* the last `*` or `_` of the closing run.
 - The body bytes occupy `[start_range.end, end_range.start)`.
 
-Same convention for `Strong`. The canonicalisation pass identifies candidate runs by `range.start == target_open` and
-`range.end == target_close`. A pulldown change to either convention would silently break that test; the model test
-catches the drift first.
+Same convention for `Strong`. `mdwright-document` turns these ranges into inline delimiter-slot facts that name only the
+opening and closing delimiter bytes. A pulldown change to either range convention would silently change those facts; the
+model test catches the drift first.
 
 Test: `emphasis_event_range_spans_delimiters`.
 
@@ -109,8 +110,8 @@ CM §6.5 disambiguates runs of two through six `*` / `_` characters:
 - `*_foo_*` → `Start(Emphasis)`, `Start(Emphasis)`, `Text("foo")`, `End(Emphasis)`, `End(Emphasis)`. Two distinct
   delimiter characters pair independently.
 
-Canonicalisation must keep these distinct: any candidate whose body or neighbour byte change would let pulldown
-re-segment them differently is rejected by per-rewrite verification.
+Canonicalisation must keep these distinct. Inline delimiter families edit only delimiter slots and verify the resulting
+document before commit; a rewrite that would let pulldown re-segment the construct differently is skipped.
 
 Test: `strong_distinct_from_nested_emphasis`.
 
@@ -128,9 +129,9 @@ emits the nested triple `Start(DefinitionList)` → `Start(DefinitionListTitle)`
 body is opened/closed independently, so a definition containing multiple paragraphs emits multiple `Start(Paragraph)` /
 `End(Paragraph)` pairs inside one `DefinitionListDefinition`.
 
-The tree builder's `kind_for_start` arm relies on this nesting shape to construct `NodeKind::DefinitionList` /
-`NodeKind::DefinitionTerm` / `NodeKind::DefinitionDescription` and on `close_container`'s child draining to thread terms
-and definitions into the typed `DefinitionList` block at `src/cm/block/definition_list.rs`.
+The private document tree relies on this nesting shape to construct definition-list nodes in
+`crates/mdwright-document/src/tree.rs`. Public callers consume document facts and signatures; they do not see pulldown's
+event nesting directly.
 
 Test: `definition_list_emits_tag_triple`.
 
@@ -141,42 +142,34 @@ populates the `id: Option<CowStr>`, `classes: Vec<CowStr>`, and `attrs: Vec<(Cow
 `Tag::Heading`. With the flag unset, those fields are `None` / empty regardless of source content (the trailer remains
 in the heading text).
 
-`Heading::pretty` reads these fields out of `NodeKind::Heading` and emits the canonical trailer (`#id` first, then
-classes in source order, then `key=val` pairs in source order) when `FmtOptions::heading_attrs` is `Canonicalise`. Under
-`Preserve` (the default), the source bytes round-trip verbatim via the source-tail read after the inline body.
+`mdwright-document` records the parsed trailer as a `HeadingAttrSite`. The `mdwright-format` heading-attribute family
+emits the canonical trailer (`#id` first, then classes in source order, then `key=val` pairs in source order) when
+`FmtOptions::heading_attrs` is `Canonicalise`. Under `Preserve` (the default), the source bytes round-trip unchanged.
 
 Test: `heading_attributes_populate_tag_fields`.
 
 ## §10 MyST / Pandoc directives, roles, substitutions, comments
 
-pulldown-cmark v0.13.3 emits **no** events for any of the following constructs; they are recognised entirely through
-scan-and-preserve overlays in `src/ir.rs`:
+pulldown-cmark v0.13.3 emits **no** events for any of the following constructs; mdwright treats them as source-owned
+extension regions under document parse policy:
 
-| Construct                          | Scanner                  | Overlay site                                    |
-| ---------------------------------- | ------------------------ | ----------------------------------------------- |
-| MyST / Pandoc directive containers | `scan_directives`        | `pretty_block_sequence` (block arm)             |
-| MyST `%` line comments             | `scan_comments`          | `pretty_block_sequence` (block arm)             |
-| MyST inline roles                  | `scan_inline_overlays`   | `apply_inline_overlay` in `src/format/inline.rs` |
-| MyST substitution references       | `scan_inline_overlays`   | `apply_inline_overlay` in `src/format/inline.rs` |
-| Pandoc inline attribute spans      | `scan_inline_overlays`   | `apply_inline_overlay` in `src/format/inline.rs` |
+| Construct                          | Owning policy                                  |
+| ---------------------------------- | ---------------------------------------------- |
+| MyST / Pandoc directive containers | `ParseOptions::extensions.myst.directive_containers` |
+| MyST `%` line comments             | `ParseOptions::extensions.myst.comments`       |
+| MyST inline roles                  | `ParseOptions::extensions.myst.inline_roles`   |
+| MyST substitution references       | `ParseOptions::extensions.myst.substitution_references` |
+| Pandoc inline attribute spans      | `ParseOptions::extensions.pandoc.inline_attribute_spans` |
 
-Pulldown sees these as plain paragraph / text events, so each scanner consults the same exclusion vectors (code blocks,
-inline code, HTML blocks, inline HTML; the inline scanner also excludes math regions and the block-level directive
-regions) to avoid eating bytes that are already classified as something else.
+Pulldown sees these as plain paragraph / text events. mdwright therefore treats their source bytes as opaque unless a
+document-owned fact proves a narrower rewrite slot nearby.
 
-A directive opener whose colon count is *n* matches the next colon-only line of count ≥ *n*. The scanner records the
-outermost directive only; nested directives sit inside the outer region's bytes and are preserved implicitly. The block
-overlay arm matches **by byte-range overlap** (not exact-range equality), so pulldown's definition-list / paragraph
-misclassification of malformed MyST source still emits the directive bytes correctly: when the tree node containing the
-bytes spans more than the directive itself, mdwright emits the union of the tree-node range and the directive-region
-range verbatim.
+For directive containers, an opener whose colon count is *n* matches the next colon-only line of count ≥ *n*. Nested
+directive bytes are preserved by source identity.
 
-The inline overlay (`apply_inline_overlay`) splices into both `walk_paragraph_inline` (paragraph context, with
-`ParagraphSafetyState`) and `pretty_inline_children_for_ids` (emphasis / link bodies, heading inlines, list-item virtual
-paragraphs) before the per-node `match`. A child whose `raw_range.start` lies inside a previously-emitted overlay region
-is silently swallowed. This is the multi-child-swallow logic that handles `` {term}`payload` ``, where the role spans
-both the `{term}` literal-text node and the following code-span node.
+The formatter starts from source bytes, so unknown extension syntax is preserved by default. Opt-in rewrite families
+must use document-owned facts and exclusion regions before touching bytes near these constructs.
 
-There is no drift-test for these constructs because pulldown emits nothing to drift on; the scanner's per-fixture
-regression coverage in `tests/regressions/{directive_*,inline_role_*,myst_*}.in` plus the vendored jupyter-book
-round-trip at `tests/external_corpora.rs` is the safety net.
+There is no drift test for these constructs because pulldown emits nothing to drift on. Per-fixture regression coverage
+in `crates/mdwright/tests/regressions/{directive_*,inline_role_*,myst_*}.in` plus the vendored jupyter-book round trip
+at `crates/mdwright/tests/external_corpora.rs` is the safety net.

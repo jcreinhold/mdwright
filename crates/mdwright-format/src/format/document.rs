@@ -2,9 +2,9 @@
 //!
 //! Structural emit is the identity function: the canonicalised source bytes
 //! are the round-trip-safe baseline by construction. The formatter exists to
-//! apply opt-in transformations on top of that baseline — style
+//! apply opt-in transformations on top of that baseline: style
 //! canonicalisation, line wrap, end-of-line conversion, trailing-newline
-//! policy — each of which lives in the canonicalise pass (see
+//! policy. Each one lives in the canonicalise pass (see
 //! [`crate::format::canonicalise`]) or in a post-pass on the rendered
 //! bytes.
 
