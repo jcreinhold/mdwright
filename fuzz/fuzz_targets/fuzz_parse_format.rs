@@ -15,8 +15,11 @@
 //! point in the wrap × mode × math × canonicalisation space.
 
 use libfuzzer_sys::fuzz_target;
-use mdwright_document::{Document, contains_rejected_control_chars};
-use mdwright_format::{FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle, Wrap, semantically_equivalent};
+use mdwright_document::{Document, contains_rejected_control_chars, markdown_signature};
+use mdwright_format::{
+    FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle,
+    Wrap,
+};
 
 /// Per-iter input cap: 64 KiB. Larger inputs eat fuzz budget without
 /// reaching deeper structural coverage; the CLI enforces the same
@@ -93,7 +96,11 @@ fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::parse(s) else {
         return;
     };
+    let Ok(source_sig) = markdown_signature(s, doc.parse_options()) else {
+        return;
+    };
     let formatted = mdwright_format::format_document(&doc, &opts);
-    let equivalent = semantically_equivalent(s, &formatted).expect("formatter output parses");
+    let formatted_sig = markdown_signature(&formatted, doc.parse_options()).expect("formatter output parses");
+    let equivalent = source_sig == formatted_sig;
     assert!(equivalent, "format changes meaning (opt byte {option_byte:#04x})");
 });
