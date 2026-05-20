@@ -28,13 +28,13 @@ version = "0.1.0"
 anyhow = "1"
 clap = { version = "4", features = ["color", "derive"] }
 ignore = "0.4"
-mdwright = { version = "0.1.0", path = "crates/mdwright" }
-mdwright-config = { version = "0.1.0", path = "crates/mdwright-config" }
-mdwright-document = { version = "0.1.0", path = "crates/mdwright-document" }
-mdwright-format = { version = "0.1.0", path = "crates/mdwright-format" }
-mdwright-lint = { version = "0.1.0", path = "crates/mdwright-lint" }
-mdwright-lsp = { version = "0.1.0", path = "crates/mdwright-lsp" }
-mdwright-math = { version = "0.1.0", path = "crates/mdwright-math" }
+mdwright = { path = "crates/mdwright" }
+mdwright-config = { path = "crates/mdwright-config" }
+mdwright-document = { path = "crates/mdwright-document" }
+mdwright-format = { path = "crates/mdwright-format" }
+mdwright-lint = { path = "crates/mdwright-lint" }
+mdwright-lsp = { path = "crates/mdwright-lsp" }
+mdwright-math = { path = "crates/mdwright-math" }
 owo-colors = "4"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
 rayon = "1"
@@ -43,6 +43,7 @@ rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 strsim = "0.11"
+tempfile = "3"
 tokio = { version = "1", default-features = false, features = ["io-std", "macros", "rt-multi-thread", "sync", "time"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 tower-lsp = { version = "0.20", default-features = false, features = ["runtime-tokio"] }
@@ -54,6 +55,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
   "tracing-log",
 ] }
 unicode-width = "0.2"
+xtask = { path = "xtask" }
 
 [patch.crates-io]
 mdwright = { path = "crates/mdwright" }

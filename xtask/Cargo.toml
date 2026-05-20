@@ -13,15 +13,15 @@ name = "xtask"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1"
-clap = { version = "4", features = ["derive"] }
+anyhow = { workspace = true }
+clap = { workspace = true }
 comrak = { version = "0.52", default-features = false }
-mdwright-config = { path = "../crates/mdwright-config" }
-mdwright-document = { path = "../crates/mdwright-document" }
-mdwright-format = { path = "../crates/mdwright-format" }
-mdwright-lint = { path = "../crates/mdwright-lint" }
-regex = "1"
+mdwright-config = { workspace = true }
+mdwright-document = { workspace = true }
+mdwright-format = { workspace = true }
+mdwright-lint = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tempfile = "3"
-toml = { version = "0.8", default-features = false, features = ["parse"] }
+tempfile = { workspace = true }
+toml = { workspace = true }
