@@ -12,9 +12,9 @@
 `mdwright` is built to be safe on untrusted Markdown input. The following classes of bug qualify as security issues:
 
 - **Panics** on any UTF-8 input (parse, lint, or format paths).
-- **Unbounded memory** — inputs that allocate proportionally to anything other than `O(input length)`.
-- **Hangs or non-termination** — inputs that fail to complete in a time budget linear in their size.
-- **Out-of-tree filesystem access** — `mdwright fmt` writing to or reading from files outside the user-supplied roots.
+- **Unbounded memory**—inputs that allocate proportionally to anything other than `O(input length)`.
+- **Hangs or non-termination**—inputs that fail to complete in a time budget linear in their size.
+- **Out-of-tree filesystem access**—`mdwright fmt` writing to or reading from files outside the user-supplied roots.
 
 Please report privately via email to **5241441+jcreinhold@users.noreply.github.com** with:
 

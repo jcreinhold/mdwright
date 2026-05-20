@@ -4,10 +4,11 @@ Catalogue of every fuzz-driven fix landed since the first `fuzz`-zero milestone,
 it belongs to. Patterns are numbered to match the concerns enumerated in [`stability.md`](stability.md).
 
 The dominant pattern, by a wide margin, is **#2: an output decision consulted source bytes to choose a representation.**
-9 of 22 classified fixes fall here. That concentration is the evidence the structural-preserve redesign rests on:
-removing the read-to-decide site removes the bug class. Later rewrite-family hardening tightened the remaining opt-in
-canonicalisation path: families now own normal-form plans with explicit byte ownership, and verification checks safety
-before commit.
+9 of 22 classified fixes fall here. That concentration is why structural emit is now identity (the formatter copies
+source bytes for the structural skeleton instead of re-deriving them): removing the read-to-decide site removes the
+bug class. The opt-in canonicalisation path is hardened separately — rewrite families own normal-form plans with
+explicit byte ownership, and verification checks safety before commit. See
+[`formatter-rewrite-boundary.md`](formatter-rewrite-boundary.md) for the current emit shape.
 
 ## Histogram
 
@@ -15,9 +16,9 @@ before commit.
 | ------- | ----- | --------------------------------------------------------------------------------------------------------- |
 | #2 output decision consults source bytes | 9 | Source-preserving emit reads source bytes only to copy them; style choices live in verified rewrite families. |
 | #1 chokepoint missing (`Parser::new_ext` scattered) | 5 | Every call site routes through `CanonicalSource`.                                  |
-| #3 post-pass at wrong layer              | 3 | Subsumed by structural-preserve; perturbation concern is moot.                                  |
+| #3 post-pass at wrong layer              | 3 | Subsumed by identity structural emit; perturbation concern is moot.                              |
 | #6 safety-ladder fallback redundancy     | 1 | Safety ladder deleted; structural emit is byte-preserving by construction.                       |
-| #4 runtime gate weaker than tests        | 0 (CI fuzz only) | Subsumed by structural-preserve; preserve-by-emit is idempotent by construction.      |
+| #4 runtime gate weaker than tests        | 0 (CI fuzz only) | Subsumed by identity structural emit; preserve-by-emit is idempotent by construction.     |
 
 The histogram excludes three classes as "not a sweep target": `upstream-pulldown-panic` (external, contained at the
 document boundary), `list-marker-derivation` (local recogniser fix), and a handful of paragraph-continuation IR fixes.
@@ -39,7 +40,7 @@ message bodies.
 | `77db28b`                   | `code: fix code-span padding inflation`              | Encoded round-trip invariant.                                  |
 | `5c21892`                   | `src/format/emit_safety.rs` (widen flank)            | Widened flank to enclosing block.                              |
 | `0b5eaf7`                   | `src/format/inline.rs` (ambient threading)           | `emphasis-flank-oscillation`.                                  |
-| Round-3 fixtures (`_*/*_`, `**u*~***~`) | structural-preserve sweep                | Both byte-preserve under current defaults; promoted to `tests/regressions/`. |
+| Round-3 fixtures (`_*/*_`, `**u*~***~`) | identity structural emit                 | Both byte-preserve under current defaults; promoted to `tests/regressions/`. |
 
 ### #1 chokepoint missing (5)
 

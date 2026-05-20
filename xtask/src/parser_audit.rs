@@ -322,17 +322,9 @@ fn corpus_cases(workspace: &Path, release_corpus_root: Option<&Path>) -> Result<
         ("mdwright-docs".to_owned(), workspace.join("docs")),
         ("external".to_owned(), workspace.join("crates/mdwright/tests/external")),
     ];
-    let kan_docs = PathBuf::from("/Users/jcreinhold/Code/kan/docs");
-    if kan_docs.exists() {
-        roots.push(("kan-docs".to_owned(), kan_docs));
-    }
     let release_root = release_corpus_root
         .map(Path::to_path_buf)
-        .or_else(|| std::env::var_os("MDWRIGHT_CORPUS_ROOT").map(PathBuf::from))
-        .or_else(|| {
-            let fallback = PathBuf::from("/Users/jcreinhold/Code/kan");
-            fallback.exists().then_some(fallback)
-        });
+        .or_else(|| std::env::var_os("MDWRIGHT_CORPUS_ROOT").map(PathBuf::from));
     if let Some(root) = release_root {
         roots.push(("release-corpus".to_owned(), root));
     }

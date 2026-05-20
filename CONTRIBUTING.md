@@ -34,7 +34,7 @@ The minimum supported Rust version is declared in `Cargo.toml` as `rust-version 
 matrix.
 
 **Bumping the MSRV is a minor-version change.** Bump it only in a `0.minor` (pre-1.0) or `1.minor` (post-1.0) release.
-Never bump the MSRV in a patch release — downstream users rely on patches being safe to take.
+Never bump the MSRV in a patch release—downstream users rely on patches being safe to take.
 
 When bumping, update both:
 
@@ -45,7 +45,7 @@ When bumping, update both:
 
 Every change must show green on:
 
-- All `test` matrix jobs: `{ubuntu-latest, macos-latest, windows-latest} × {stable, MSRV}` — six jobs total.
+- All `test` matrix jobs: `{ubuntu-latest, macos-latest, windows-latest} × {stable, MSRV}`—six jobs total.
 - `clippy` (`cargo clippy --all-targets --locked -- -D warnings` on Linux/stable).
 - `fmt` (`cargo fmt --check` on Linux/stable).
 
@@ -55,7 +55,7 @@ maintainers will.
 
 ## House rules worth knowing
 
-- No backward compatibility shims — mdwright is pre-1.0 with a single primary consumer; delete old paths rather than
+- No backward compatibility shims—mdwright is pre-1.0 with a single primary consumer; delete old paths rather than
   deprecate them.
 - `unsafe` is forbidden crate-wide. Keep it that way.
 - Add fixtures before code for block-level formatter work (`tests/golden_block/` and friends).

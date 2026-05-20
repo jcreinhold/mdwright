@@ -3,7 +3,7 @@
 //! The default-options gate (`regression_inputs_preserve_html` /
 //! `regression_inputs_are_idempotent` in `tests/regressions.rs`) picks
 //! up `extension_heading_attrs.in` under
-//! [`HeadingAttrsStyle::Preserve`] (the default). This file additionally
+//! [`HeadingAttrsStyle::Preserve`] (the default). This file also
 //! exercises [`HeadingAttrsStyle::Canonicalise`]:
 //!
 //! 1. **Shape** — the canonical render uses `{#id .class₁ .class₂

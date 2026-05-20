@@ -14,8 +14,8 @@
 //! | 4-7  | canonicalisation mode (16 enumerated)  |
 //!
 //! The canonicalisation enumeration covers Preserve, each style knob
-//! pinned individually, and two "all knobs combined" variants. This
-//! is the per-mode coverage prompt 54 requires.
+//! pinned individually, and two "all knobs combined" variants, so
+//! every public formatting mode is exercised.
 
 use libfuzzer_sys::fuzz_target;
 use mdwright_document::{Document, contains_rejected_control_chars};

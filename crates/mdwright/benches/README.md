@@ -41,10 +41,10 @@ cargo bench -- --quick
 cargo bench
 
 # Save a named baseline:
-cargo bench -- --save-baseline phase2
+cargo bench -- --save-baseline current
 
 # Compare a later run against a baseline:
-cargo bench -- --baseline phase2
+cargo bench -- --baseline current
 
 # Point the corpus benches at an explicit checkout:
 MDWRIGHT_CORPUS_ROOT=/path/to/corpus cargo bench --bench format_bench -- format/corpus
@@ -57,8 +57,7 @@ run.
 
 Baselines are not committed. They depend on the host machine, thermal state, and rayon thread count. The convention:
 
-- Capture a fresh `phase2` baseline on your machine before any optimisation work that claims to beat phase 2.
-- Save a new named baseline after each intentional perf change (e.g. `--save-baseline phase3-formatter`).
+- Capture a fresh named baseline on your machine before any optimisation work that claims a speedup.
+- Save a new named baseline after each intentional perf change (e.g. `--save-baseline formatter-rewrite`).
 
-The phrasing "no change vs phase2" is meaningful only relative to a baseline you captured on the same host in the recent
-past.
+A "no change" claim is meaningful only relative to a baseline you captured on the same host in the recent past.

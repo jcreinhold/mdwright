@@ -1,8 +1,7 @@
 # Vendored MyST sample sources
 
 The four `.md` files in this directory are copies from the [`jupyter-book/mystmd`](https://github.com/jupyter-book/mystmd) repository
-(MIT license, cloned from `main` on 2026-05-18). They exercise the four MyST/Pandoc constructs that
-`prompt 41 — MyST + Pandoc directives` is shipping support for:
+(MIT license, cloned from `main` on 2026-05-18). They exercise the MyST/Pandoc constructs mdwright recognises:
 
 | File                | Constructs exercised                                                              | Upstream path                                                                                                         |
 | ------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -11,11 +10,11 @@ The four `.md` files in this directory are copies from the [`jupyter-book/mystmd
 | `blocks.md`         | `+++` block separators (out of scope this session), `%` line comments             | [`docs/blocks.md`](https://github.com/jupyter-book/mystmd/blob/main/docs/blocks.md)                                   |
 | `admonitions.md`    | `:::{note}` / `:::{tip}` / etc. directives, options, inline roles, list-table     | [`docs/admonitions.md`](https://github.com/jupyter-book/mystmd/blob/main/docs/admonitions.md)                         |
 
-Total size: ~12.7 KB (under the 50 KB cap in prompt 41 §6).
+Total size: ~12.7 KB (kept under a 50 KB cap so the corpus stays cheap to vendor).
 
 ## How the parity test uses these
 
-`tests/external_corpora.rs` (added in prompt 41) walks every `.md` under `tests/external/` and runs
+`tests/external_corpora.rs` walks every `.md` under `tests/external/` and runs
 `mdwright fmt --check` against each. The expectation: idempotence-on-mode under
 `FmtOptions::default()` (which has all the directive / inline-role overlays enabled).
 
@@ -24,7 +23,7 @@ Either:
 
 1. Land the missing recogniser in mdwright, or
 2. Record the divergence in `docs/src/deviations.md` under the MyST-Pandoc parity section
-   (analogous to the mdformat-mkdocs parity rows added in prompt 40).
+   (analogous to the mdformat-mkdocs parity rows).
 
 ## Updating the vendored copy
 

@@ -1176,9 +1176,9 @@ fn emit<W: Write>(
         OutputFormat::Compact => emit_compact(out, path, diags),
         OutputFormat::Json => emit_json_v2(out, path, source, line_index, diags, rules),
         OutputFormat::JsonV1 => {
-            // Deprecation warning per phase-4 plan; printed before the
-            // first record so downstream tools that stream output see
-            // the warning even when stdout is not flushed.
+            // Print the deprecation warning before the first record so
+            // downstream tools that stream output see it even when
+            // stdout is not flushed.
             let mut stderr = io::stderr().lock();
             writeln!(
                 stderr,

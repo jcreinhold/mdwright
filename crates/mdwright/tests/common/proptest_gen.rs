@@ -284,13 +284,13 @@ pub fn arb_math_frontmatter_interaction_src() -> impl Strategy<Value = String> {
 }
 
 // ---------------------------------------------------------------------------
-// Phase R: construct-biased fragment generators.
+// Construct-biased fragment generators.
 //
 // Each `arb_<construct>_src` returns a Markdown *string* (not an IR
 // value) shaped like a single occurrence of one CM/GFM construct,
-// biased toward the boundary cases that have historically broken the
-// formatter or the parser. Fragments include trailing newlines so they
-// concatenate cleanly into a document with blank-line separators.
+// biased toward the boundary cases that tend to break the formatter or
+// the parser. Fragments include trailing newlines so they concatenate
+// cleanly into a document with blank-line separators.
 //
 // The contract these generators serve is document-level (idempotence +
 // html-preservation through `Document::parse + format`); they exist so

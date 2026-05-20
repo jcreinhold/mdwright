@@ -630,9 +630,8 @@ fn check_canon_semantic_equivalence(label: &str, src: &str) -> Result<(), TestCa
 }
 
 /// Strict byte idempotence: `format(format(s)) == format(s)` under
-/// any canonicalisation mode. After the escape-policy + frontmatter
-/// fixes alongside prompt 54, this holds for every input the
-/// generators emit (no need to weaken to semantic equivalence).
+/// any canonicalisation mode. Holds for every input the generators
+/// emit (no need to weaken to semantic equivalence).
 fn check_canon_idempotent(label: &str, src: &str) -> Result<(), TestCaseError> {
     for (name, opts) in canon_opts() {
         let once = mdwright_format::format_document(&parse_prop(src)?, &opts);

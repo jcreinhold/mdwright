@@ -145,13 +145,11 @@ pub fn scan_math_regions(
                 // is only backslashes, brackets, or whitespace is
                 // almost certainly a sequence of CM backslash escapes
                 // — GFM §6.1 ex. 308's `\!\"...\(\)...\[\\\]...` is
-                // the canonical case. Without this guard, the block-
-                // overlay deletion in phase 4 would regress that
-                // example: the recogniser would treat `\(\)` (empty)
-                // and `\[\\\]` (body `\\`) as math, the formatter
-                // would normalise them, and the round-trip HTML
-                // would diverge from the source's escape-sequence
-                // rendering.
+                // the canonical case. Without this guard, the
+                // recogniser would treat `\(\)` (empty) and `\[\\\]`
+                // (body `\\`) as math, the formatter would normalise
+                // them, and the round-trip HTML would diverge from
+                // the source's escape-sequence rendering.
                 let body_slice = bytes.get(content_start..close_start).unwrap_or(&[]);
                 if !body_slice.iter().any(u8::is_ascii_alphanumeric) {
                     i = i.saturating_add(1);

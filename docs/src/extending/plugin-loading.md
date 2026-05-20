@@ -11,7 +11,7 @@ it would cost, and what would have to change for the decision to flip.
 | ----------------------------------------------------- | --------- | ------------ |
 | **A.** Component crates + custom binary               | Supported | today        |
 | **B.** Dynamic `cdylib` loading via `libloading`      | Rejected  | never        |
-| **C.** WASM plugins via `wasmtime`                    | Deferred  | Phase 5+     |
+| **C.** WASM plugins via `wasmtime`                    | Not planned | —          |
 
 The same trio shipped in `ruff`, which is mdwright's closest analogue in spirit. ruff thrives without a plugin runtime;
 the trait surface plus a documented "ship your own binary" path covers every adopter who hits the limits of the stdlib.
@@ -70,7 +70,7 @@ mdwright would load each `cdylib` at startup and look up a `extern "Rust" fn mdw
 in-process load), and Rust's lack of a stable ABI makes the contract perpetually fragile. Linking a single `cdylib` into
 the official binary buys *nothing* a custom binary doesn't already give you.
 
-## Architecture C: WASM via `wasmtime` (Deferred)
+## Architecture C: WASM via `wasmtime` (Not planned)
 
 `.mdwright.toml`:
 
@@ -90,9 +90,9 @@ across the boundary.
 | **Cost to maintainer**  | Maintain the WASM API forever, plus a reference implementation, plus a performance story (parsing each file twice, once natively and once through the boundary, is not free). |
 | **Semver implications** | The WASM API is its own semver surface, parallel to the native `LintRule` trait. |
 
-**Verdict:** deferred to Phase 5+. The cost is real and the demand is hypothetical. We will revisit when a concrete
-adopter has tried Architecture A, hit a specific limit (sandbox isolation, language diversity, hot reload), and
-articulated what the WASM contract would need to address.
+**Verdict:** not planned. The cost is real and the demand is hypothetical. Revisit only when a concrete adopter has
+tried Architecture A, hit a specific limit (sandbox isolation, language diversity, hot reload), and articulated what
+the WASM contract would need to address.
 
 ## What would change this decision
 
