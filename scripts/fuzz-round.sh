@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Run one round of every fuzz target and tally new artifacts.
+# Run every fuzz target and save inspectable release evidence.
 #
-# Usage: scripts/fuzz-round.sh [seconds_per_target]
-#   seconds_per_target — defaults to 600 (10 min). Use 300 during
-#   fix-discovery rounds, 900 for the final three zero-rounds.
+# Usage: scripts/fuzz-round.sh [seconds_per_target] [rounds]
+#   seconds_per_target  defaults to 600 (10 min).
+#   rounds              defaults to 1. Use 3 for release evidence.
 #
-# Exit code: 0 if every target ended clean (no new artifact under
-# fuzz/artifacts/<target>/), 1 otherwise.
+# Evidence:
+#   target/mdwright/release/fuzz-sustained.md
+#   target/mdwright/release/fuzz-sustained/logs/*.log
+#
+# Exit code: 0 if every target exits cleanly and fuzz/artifacts is empty,
+# 1 otherwise.
 
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
 SECS="${1:-600}"
+ROUNDS="${2:-1}"
+OUT_DIR="target/mdwright/release/fuzz-sustained"
+SUMMARY="target/mdwright/release/fuzz-sustained.md"
 TARGETS=(
 	fuzz_parse_format
 	fuzz_idempotence
@@ -22,29 +29,60 @@ TARGETS=(
 
 fail=0
 
-for t in "${TARGETS[@]}"; do
-	echo "=== ${t}: ${SECS}s ==="
-	cargo +nightly fuzz run "${t}" -- -max_total_time="${SECS}" 2>&1 | tail -8
+mkdir -p "${OUT_DIR}/logs"
+
+{
+	echo "# Sustained fuzz rounds"
+	echo
+	echo "Started: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+	echo "Commit: $(git rev-parse HEAD)"
+	echo "Rounds: ${ROUNDS}"
+	echo "Seconds per target: ${SECS}"
+	echo
+} >"${SUMMARY}"
+
+for round in $(seq 1 "${ROUNDS}"); do
+	echo "## Round ${round}" | tee -a "${SUMMARY}"
+
+	for t in "${TARGETS[@]}"; do
+		log="${OUT_DIR}/logs/round-${round}-${t}.log"
+		echo "- Running ${t}" | tee -a "${SUMMARY}"
+
+		cargo +nightly fuzz run "${t}" -- -max_total_time="${SECS}" 2>&1 | tee "${log}"
+		status="${PIPESTATUS[0]}"
+
+		{
+			echo "  - exit: ${status}"
+			echo "  - log: ${log}"
+		} >>"${SUMMARY}"
+
+		if [ "${status}" -ne 0 ]; then
+			fail=1
+		fi
+	done
 done
 
+{
+	echo
+	echo "Finished: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+	echo
+	echo "## Artifact check"
+} >>"${SUMMARY}"
+
 echo
-echo "=== artifact tally ==="
-for t in "${TARGETS[@]}"; do
-	if [ -d "fuzz/artifacts/${t}" ]; then
-		n=$(find "fuzz/artifacts/${t}" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')
-	else
-		n=0
-	fi
-	echo "${t}: ${n}"
-	if [ "${n}" -gt 0 ]; then
-		fail=1
-	fi
-done
+echo "=== artifact tally ===" | tee -a "${SUMMARY}"
+if find fuzz/artifacts -type f 2>/dev/null | sort | tee -a "${SUMMARY}" | grep -q .; then
+	fail=1
+else
+	echo "No fuzz artifacts found." | tee -a "${SUMMARY}"
+fi
 
 echo
 if [ "${fail}" -eq 0 ]; then
-	echo "round CLEAN — zero artifacts across all targets"
+	echo "round CLEAN - zero artifacts across all targets"
+	echo "Evidence written to ${SUMMARY}"
 	exit 0
 fi
-echo "round DIRTY — triage required"
+echo "round DIRTY - triage required"
+echo "Evidence written to ${SUMMARY}"
 exit 1

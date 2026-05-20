@@ -55,6 +55,15 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
 ] }
 unicode-width = "0.2"
 
+[patch.crates-io]
+mdwright = { path = "crates/mdwright" }
+mdwright-config = { path = "crates/mdwright-config" }
+mdwright-document = { path = "crates/mdwright-document" }
+mdwright-format = { path = "crates/mdwright-format" }
+mdwright-lint = { path = "crates/mdwright-lint" }
+mdwright-lsp = { path = "crates/mdwright-lsp" }
+mdwright-math = { path = "crates/mdwright-math" }
+
 [workspace.lints.rust]
 future-incompatible = "warn"
 let-underscore = "warn"
