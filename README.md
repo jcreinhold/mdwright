@@ -62,7 +62,7 @@ mdwright fix docs/
 mdwright fmt docs/
 
 # Read a single file from stdin.
-cat note.md | mdwright check
+cat note.md | mdwright check -
 ```
 
 A diagnostic looks like:

@@ -52,7 +52,7 @@ Usage: mdwright check [OPTIONS] [PATHS]...
 
 Arguments:
   [PATHS]...
-          Files and directories to scan. Directories are searched recursively; if empty, stdin is read (path reported as `<stdin>`)
+          Files and directories to scan. Directories are searched recursively. If omitted, `.` is scanned. A literal `-` reads stdin as `<stdin>`
 
 Options:
       --check
@@ -113,7 +113,7 @@ Usage: mdwright fix [OPTIONS] [PATHS]...
 
 Arguments:
   [PATHS]...
-          Files and directories to scan. Directories are searched recursively; if empty, stdin is read (path reported as `<stdin>`)
+          Files and directories to scan. Directories are searched recursively. If omitted, `.` is scanned. A literal `-` reads stdin as `<stdin>`
 
 Options:
       --check
@@ -174,7 +174,7 @@ Usage: mdwright fmt [OPTIONS] [PATHS]...
 
 Arguments:
   [PATHS]...
-          Files and directories to reformat. A literal `-` element (or an empty list) reads from stdin and writes to stdout
+          Files and directories to reformat. If omitted, `.` is used. A literal `-` reads from stdin and writes to stdout
 
 Options:
       --check
@@ -229,7 +229,7 @@ Usage: mdwright fmt-check [OPTIONS] [PATHS]...
 
 Arguments:
   [PATHS]...
-          Files and directories to reformat. A literal `-` element (or an empty list) reads from stdin and writes to stdout
+          Files and directories to reformat. If omitted, `.` is used. A literal `-` reads from stdin and writes to stdout
 
 Options:
       --check

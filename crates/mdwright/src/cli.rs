@@ -161,8 +161,8 @@ enum Command {
 #[derive(Args, Debug)]
 struct LintArgs {
     /// Files and directories to scan. Directories are searched
-    /// recursively; if empty, stdin is read (path reported as
-    /// `<stdin>`).
+    /// recursively. If omitted, `.` is scanned. A literal `-` reads
+    /// stdin as `<stdin>`.
     paths: Vec<PathBuf>,
 
     /// Exit with status 1 if any non-advisory diagnostic is found.
@@ -206,8 +206,8 @@ enum ColorChoice {
 #[derive(Args, Debug)]
 #[allow(clippy::struct_excessive_bools)]
 struct FmtArgs {
-    /// Files and directories to reformat. A literal `-` element
-    /// (or an empty list) reads from stdin and writes to stdout.
+    /// Files and directories to reformat. If omitted, `.` is used.
+    /// A literal `-` reads from stdin and writes to stdout.
     paths: Vec<PathBuf>,
 
     /// Exit 1 if any file would change; never write. Same shape as
@@ -577,6 +577,18 @@ fn read_stdin_capped(buf: &mut String, policy: InputPolicy, label: &str) -> Resu
     enforce_no_rejected_controls(label, buf, policy.reject_controls)
 }
 
+fn path_operands_or_current(paths: &[PathBuf]) -> Vec<PathBuf> {
+    if paths.is_empty() {
+        vec![PathBuf::from(".")]
+    } else {
+        paths.to_vec()
+    }
+}
+
+fn has_stdin_operand(paths: &[PathBuf]) -> bool {
+    paths.iter().any(|p| p.as_os_str() == "-")
+}
+
 fn run_fmt(
     args: &FmtArgs,
     force_check: bool,
@@ -592,22 +604,22 @@ fn run_fmt(
     let check = args.check || force_check;
 
     if let Some(range_arg) = args.range {
-        if !(args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-")) {
+        if !(args.paths.is_empty() || has_stdin_operand(&args.paths)) {
             bail!("--range reads from stdin; pass `-` for paths or omit them");
         }
         return run_fmt_range_stdin(&opts, parse_options, range_arg, args, policy);
     }
 
-    if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
+    if has_stdin_operand(&args.paths) {
         return run_fmt_stdin(&opts, parse_options, args, check, policy);
     }
 
     let mut files: Vec<PathBuf> = Vec::new();
-    for p in &args.paths {
+    for p in path_operands_or_current(&args.paths) {
         if !p.exists() {
             bail!("path does not exist: {}", p.display());
         }
-        files.extend(discover_markdown(p));
+        files.extend(discover_markdown(&p));
     }
     files.sort();
     files.dedup();
@@ -852,7 +864,7 @@ fn run_lint(
         respect_suppressions: !args.no_suppress,
     };
 
-    if args.paths.is_empty() {
+    if has_stdin_operand(&args.paths) {
         return run_stdin(
             &rules,
             lint_opts,
@@ -866,11 +878,11 @@ fn run_lint(
     }
 
     let mut files: Vec<PathBuf> = Vec::new();
-    for p in &args.paths {
+    for p in path_operands_or_current(&args.paths) {
         if !p.exists() {
             bail!("path does not exist: {}", p.display());
         }
-        files.extend(discover_markdown(p));
+        files.extend(discover_markdown(&p));
     }
     files.sort();
     files.dedup();

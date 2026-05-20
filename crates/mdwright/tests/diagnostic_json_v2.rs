@@ -21,7 +21,7 @@ fn mdwright() -> &'static str {
 
 fn run_json(input: &str, fmt: &str) -> (String, String) {
     let mut child = Command::new(mdwright())
-        .args(["check", &format!("--format={fmt}")])
+        .args(["check", &format!("--format={fmt}"), "-"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())

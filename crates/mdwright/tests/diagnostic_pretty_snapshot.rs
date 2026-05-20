@@ -18,7 +18,7 @@ fn mdwright() -> &'static str {
 
 fn run_pretty(input: &str) -> String {
     let mut child = Command::new(mdwright())
-        .args(["check", "--format=pretty", "--color=never"])
+        .args(["check", "--format=pretty", "--color=never", "-"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
