@@ -11,11 +11,11 @@ wrap = 120
 exclude = [
   ".claude/**",
   "CLAUDE.md",
+  "crates/mdwright-lint/src/stdlib/explain/**",
   "crates/mdwright/benches/fixtures/**",
   "crates/mdwright/tests/external/**",
   "crates/mdwright/tests/fixtures/**",
   "crates/mdwright/tests/gfm-spec/**",
-  "crates/mdwright-lint/src/stdlib/explain/**",
   "docs/src/configuration.md",
   "docs/src/reference/cli.md",
   "docs/src/reference/diagnostic-schema.md",
@@ -31,11 +31,11 @@ exclude = [
   # their "Example (bad)" sections — linting them is incoherent.
   ".claude/**",
   "CLAUDE.md",
+  "crates/mdwright-lint/src/stdlib/explain/**",
   "crates/mdwright/benches/fixtures/**",
   "crates/mdwright/tests/external/**",
   "crates/mdwright/tests/fixtures/**",
   "crates/mdwright/tests/gfm-spec/**",
-  "crates/mdwright-lint/src/stdlib/explain/**",
   "docs/src/rules/**",
   "examples/downstream/docs/bad.md",
 ]

@@ -3,10 +3,10 @@ authors.workspace = true
 categories.workspace = true
 description = "Recognised Markdown document facts with stable source coordinates"
 edition.workspace = true
-license.workspace = true
 keywords.workspace = true
-readme.workspace = true
+license.workspace = true
 name = "mdwright-document"
+readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
@@ -20,3 +20,6 @@ tracing = { workspace = true }
 
 [lints]
 workspace = true
+
+[lib]
+doctest = false

@@ -3,10 +3,10 @@ authors.workspace = true
 categories.workspace = true
 description = "Lint diagnostics, rule execution, suppressions, and standard rules for mdwright"
 edition.workspace = true
-license.workspace = true
 keywords.workspace = true
-readme.workspace = true
+license.workspace = true
 name = "mdwright-lint"
+readme.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
@@ -14,10 +14,12 @@ version.workspace = true
 [dependencies]
 mdwright-document = { workspace = true }
 regex = { workspace = true }
-strsim = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
 
 [lints]
 workspace = true
+
+[lib]
+doctest = false

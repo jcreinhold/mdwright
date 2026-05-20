@@ -17,8 +17,8 @@ resolver = "3"
 authors = ["Jacob Reinhold <jcreinhold@gmail.com>"]
 categories = ["command-line-utilities", "text-processing"]
 edition = "2024"
-license = "MIT OR Apache-2.0"
 keywords = ["documentation", "linter", "markdown", "math"]
+license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/jcreinhold/mdwright"
 rust-version = "1.91"
@@ -43,7 +43,7 @@ rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 strsim = "0.11"
-tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "macros", "io-std", "sync", "time"] }
+tokio = { version = "1", default-features = false, features = ["io-std", "macros", "rt-multi-thread", "sync", "time"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }
 tower-lsp = { version = "0.20", default-features = false, features = ["runtime-tokio"] }
 tracing = "0.1"

@@ -1,13 +1,5 @@
-exclude = [
-  "**/target/**/*.toml",
-]
-include = [
-  "*.toml",
-  "crates/**/*.toml",
-  "docs/**/*.toml",
-  "fuzz/Cargo.toml",
-  "xtask/Cargo.toml",
-]
+exclude = ["**/target/**/*.toml"]
+include = ["*.toml", "crates/**/*.toml", "docs/**/*.toml", "fuzz/Cargo.toml", "xtask/Cargo.toml"]
 
 [formatting]
 column_width = 120

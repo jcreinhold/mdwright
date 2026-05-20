@@ -838,7 +838,6 @@ dependencies = [
  "anyhow",
  "clap",
  "criterion",
- "futures",
  "ignore",
  "mdwright-config",
  "mdwright-document",
@@ -855,8 +854,6 @@ dependencies = [
  "tempfile",
  "tokio",
  "toml",
- "tower",
- "tower-lsp",
  "tracing",
  "tracing-subscriber",
  "walkdir",
@@ -870,9 +867,7 @@ dependencies = [
  "anyhow",
  "mdwright-document",
  "mdwright-format",
- "mdwright-lint",
  "serde",
- "tempfile",
  "toml",
 ]
 
@@ -900,7 +895,6 @@ dependencies = [
 name = "mdwright-format"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "mdwright-document",
  "mdwright-math",
  "tracing",
@@ -914,7 +908,6 @@ dependencies = [
  "anyhow",
  "mdwright-document",
  "regex",
- "strsim",
 ]
 
 [[package]]
@@ -939,7 +932,6 @@ dependencies = [
 name = "mdwright-math"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "tracing",
  "unicode-width",
 ]

@@ -1,10 +1,11 @@
 [package]
-name = "xtask"
-version = "0.0.0"
 edition = "2024"
+name = "xtask"
 publish = false
+version = "0.0.0"
 
 [lib]
+doctest = false
 path = "src/lib.rs"
 
 [[bin]]
@@ -15,10 +16,10 @@ path = "src/main.rs"
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 comrak = { version = "0.52", default-features = false }
+mdwright-config = { path = "../crates/mdwright-config" }
 mdwright-document = { path = "../crates/mdwright-document" }
 mdwright-format = { path = "../crates/mdwright-format" }
 mdwright-lint = { path = "../crates/mdwright-lint" }
-mdwright-config = { path = "../crates/mdwright-config" }
 regex = "1"
 serde = { workspace = true }
 serde_json = { workspace = true }
