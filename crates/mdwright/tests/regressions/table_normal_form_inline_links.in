@@ -1,0 +1,6 @@
+| item | target |
+| --- | --- |
+| inline | [site](https://example.com/path) |
+| reference | [ref][docs] |
+
+[docs]: https://example.com/docs

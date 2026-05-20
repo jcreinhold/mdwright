@@ -1,0 +1,4 @@
+| code | escaped |
+| --- | --- |
+| `a\|b` | left\|right |
+| `x` | y |

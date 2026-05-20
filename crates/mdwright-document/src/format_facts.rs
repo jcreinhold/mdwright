@@ -1456,4 +1456,19 @@ mod tests {
 
         assert_eq!(slots, vec![4..23, 32..55]);
     }
+
+    #[test]
+    fn table_cell_facts_preserve_escaped_pipes_inside_cells() {
+        let doc =
+            Document::parse("| code | escaped |\n| --- | --- |\n| `a\\|b` | left\\|right |\n").expect("fixture parses");
+        let table = doc.table_sites().first().expect("table fact");
+        let body = table.rows().get(2).expect("body row");
+        let cells: Vec<_> = body.cells().iter().map(TableCellSite::raw_range).collect();
+
+        assert_eq!(cells.len(), 2);
+        let first = cells.first().expect("first cell");
+        let second = cells.get(1).expect("second cell");
+        assert_eq!(doc.source().get(first.clone()), Some(" `a\\|b` "));
+        assert_eq!(doc.source().get(second.clone()), Some(" left\\|right "));
+    }
 }

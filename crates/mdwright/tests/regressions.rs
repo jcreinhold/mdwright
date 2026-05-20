@@ -93,6 +93,13 @@ fn inline_slot_options() -> FmtOptions {
         .with_link_def_style(LinkDefStyle::Angle)
 }
 
+fn table_normal_form_options() -> FmtOptions {
+    FmtOptions::mdformat()
+        .with_italic(ItalicStyle::Asterisk)
+        .with_strong(StrongStyle::Asterisk)
+        .with_link_def_style(LinkDefStyle::Angle)
+}
+
 /// Every regression input must round-trip under the HTML-equivalence
 /// gate that `mdwright fmt --check` enforces in production. A new
 /// `.in` fixture is the canonical way to lock in a previously broken
@@ -188,6 +195,24 @@ fn regression_inline_slot_canonicalisers_are_idempotent() {
         "inline_slot_adjacent_links.in",
         "inline_slot_container_destinations.in",
         "inline_slot_math_adjacent.in",
+    ] {
+        let path = regressions_dir().join(name);
+        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
+        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
+        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
+        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+    }
+}
+
+#[test]
+fn regression_table_normal_form_is_idempotent_after_child_normalisers() {
+    let opts = table_normal_form_options();
+    for name in [
+        "table_normal_form_inline_delimiters.in",
+        "table_normal_form_inline_links.in",
+        "table_normal_form_code_and_escaped_pipes.in",
+        "table_normal_form_math_and_alignments.in",
+        "table_normal_form_ragged_and_padded.in",
     ] {
         let path = regressions_dir().join(name);
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));

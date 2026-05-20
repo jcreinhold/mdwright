@@ -24,6 +24,10 @@ If verification fails, the whole family skips. The engine never commits half of 
 cannot reach a fixed point within its guard pass count, mdwright leaves the original source bytes unchanged instead of
 returning a partial normal form.
 
+Tables are parent normal forms. The table family runs after inline canonicalisers, reads cell contents from the current
+snapshot, and rewrites each table block only when document-owned table facts account for the full table shape. It does
+not emit row- or cell-level edits that could race inline rewrites.
+
 Default: every style knob is `Preserve` and wrapping is `Keep`. With the default config the rewrite engine
 short-circuits before running. Set per-knob targets in `.mdwright.toml` to opt in.
 

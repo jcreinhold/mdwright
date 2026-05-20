@@ -305,20 +305,20 @@ fn collect_thematic(snapshot: &Snapshot<'_>, target: ThematicStyle, candidates: 
 fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
     for table in snapshot.document().table_sites() {
-        let Some(replacement) = padded_table(out, table) else {
+        let Some(normal_form) = TableNormalForm::from_current_snapshot(out, table) else {
             continue;
         };
         let raw_range = table.raw_range();
         let Some(existing) = out.get(raw_range.clone()) else {
             continue;
         };
-        if existing == replacement {
+        if existing == normal_form.replacement {
             continue;
         }
         if let Some(candidate) = snapshot.candidate(
             OwnerKind::Table,
             raw_range,
-            replacement,
+            normal_form.replacement,
             Verification::PreserveMarkdownAndMath,
             "table-pad",
         ) {
@@ -327,26 +327,64 @@ fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
     }
 }
 
-fn padded_table(source: &str, table: &TableSite) -> Option<String> {
+struct TableNormalForm {
+    replacement: String,
+}
+
+impl TableNormalForm {
+    fn from_current_snapshot(source: &str, table: &TableSite) -> Option<Self> {
+        let column_count = table_column_count(table)?;
+        let rows = table_source_rows(source, table, column_count)?;
+        let widths = table_column_widths(&rows, column_count);
+        let had_trailing_newline = source.get(table.raw_range()).is_some_and(|slice| slice.ends_with('\n'));
+
+        // The table family runs after inline families. Cell contents
+        // therefore come from the current snapshot, not the original
+        // document, and the replacement owns only the table block.
+        let mut replacement = String::new();
+        for (row_idx, row) in rows.iter().enumerate() {
+            if row_idx == 1 {
+                push_table_delimiter(&mut replacement, &widths, table.alignments());
+            } else {
+                push_table_row(&mut replacement, row, &widths, table.alignments());
+            }
+            if row_idx.saturating_add(1) < rows.len() || had_trailing_newline {
+                replacement.push('\n');
+            }
+        }
+
+        Some(Self { replacement })
+    }
+}
+
+fn table_column_count(table: &TableSite) -> Option<usize> {
     if table.rows().len() < 2 {
         return None;
     }
-    let column_count = table
-        .rows()
-        .iter()
-        .map(|row| row.cells().len())
-        .max()
-        .unwrap_or(0)
-        .min(table.alignments().len().max(1));
+    let column_count = table.alignments().len();
     if column_count == 0 {
         return None;
     }
+    if table.rows().iter().any(|row| row.cells().len() > column_count) {
+        return None;
+    }
+    Some(column_count)
+}
 
+fn table_source_rows(source: &str, table: &TableSite, column_count: usize) -> Option<Vec<Vec<String>>> {
     let mut rows: Vec<Vec<String>> = Vec::with_capacity(table.rows().len());
     for row in table.rows() {
+        let row_range = row.raw_range();
+        if row_range.start < table.raw_range().start || row_range.end > table.raw_range().end {
+            return None;
+        }
         let mut cells = Vec::with_capacity(column_count);
-        for cell in row.cells().iter().take(column_count) {
-            let raw = source.get(cell.raw_range())?;
+        for cell in row.cells() {
+            let cell_range = cell.raw_range();
+            if cell_range.start < row_range.start || cell_range.end > row_range.end {
+                return None;
+            }
+            let raw = source.get(cell_range)?;
             cells.push(raw.trim().to_owned());
         }
         while cells.len() < column_count {
@@ -354,7 +392,10 @@ fn padded_table(source: &str, table: &TableSite) -> Option<String> {
         }
         rows.push(cells);
     }
+    Some(rows)
+}
 
+fn table_column_widths(rows: &[Vec<String>], column_count: usize) -> Vec<usize> {
     let mut widths = vec![3usize; column_count];
     for (row_idx, row) in rows.iter().enumerate() {
         if row_idx == 1 {
@@ -366,20 +407,7 @@ fn padded_table(source: &str, table: &TableSite) -> Option<String> {
             }
         }
     }
-
-    let had_trailing_newline = source.get(table.raw_range()).is_some_and(|slice| slice.ends_with('\n'));
-    let mut out = String::new();
-    for (row_idx, row) in rows.iter().enumerate() {
-        if row_idx == 1 {
-            push_table_delimiter(&mut out, &widths, table.alignments());
-        } else {
-            push_table_row(&mut out, row, &widths, table.alignments());
-        }
-        if row_idx.saturating_add(1) < rows.len() || had_trailing_newline {
-            out.push('\n');
-        }
-    }
-    Some(out)
+    widths
 }
 
 fn push_table_row(out: &mut String, row: &[String], widths: &[usize], alignments: &[TableAlign]) {
@@ -751,6 +779,34 @@ mod tests {
             &mut candidates,
         );
         assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn table_padding_skips_rows_with_unmodelled_extra_cells() {
+        let snapshot = Snapshot::parse_owned("| a | b |\n| - | - |\n| x | y | z |\n", ParseOptions::default())
+            .expect("snapshot parses");
+        let mut candidates = Vec::new();
+        collect_family_candidates(
+            &snapshot,
+            &FmtOptions::mdformat(),
+            RewriteFamily::Table,
+            &mut candidates,
+        );
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn table_padding_uses_current_inline_normal_form() {
+        let src = "| item | value |\n| --- | --- |\n| _em_ | [x](https://example.com/a) |\n";
+        let opts = FmtOptions::mdformat()
+            .with_italic(ItalicStyle::Asterisk)
+            .with_link_def_style(LinkDefStyle::Angle);
+        let once = format_with(src, &opts);
+        let twice = format_with(&once, &opts);
+
+        assert_eq!(once, twice);
+        assert!(once.contains("*em*"));
+        assert!(once.contains("[x](<https://example.com/a>)"));
     }
 
     #[test]

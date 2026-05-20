@@ -1,0 +1,4 @@
+| left | center | right | none |
+| :--- | :---: | ---: | --- |
+| \(a + b\) | \(x_y\) | value | text |
+| after | math-adjacent \(z\) | 123 | ok |

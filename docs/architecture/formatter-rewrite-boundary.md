@@ -49,10 +49,19 @@ This follows the pattern established by list marker and inline slot facts. `mdwr
 facts, delimiter slots, and link destination slots, so nested constructs cannot be represented as one enclosing rewrite
 that accidentally covers child bytes.
 
+## Table Normal Forms
+
+Table padding is a parent operation. It runs after inline delimiter and link-destination families, reads cell bytes from
+the current snapshot, and rewrites the whole table block as one verified operation. Row and cell edits are not exposed
+as candidates.
+
+The table family uses document-owned table facts: source ranges for the table, rows, cells, and alignments. If a row has
+source cells beyond the recognised table column count, or a cell range is not contained in its row, the table family
+skips that table instead of dropping bytes it cannot model.
+
 ## Remaining hardening
 
 This boundary removes the global selector and partial-success failure mode. Later passes should deepen the remaining
-parent and terminal families:
+terminal family:
 
-- table padding should compute a parent table normal form after child canonicalisers run;
 - wrap should remain terminal and skip unsupported paragraph shapes rather than racing inline canonicalisation.

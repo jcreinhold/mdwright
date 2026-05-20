@@ -1,0 +1,4 @@
+| kind | text |
+| --- | --- |
+| emphasis | _inner_ |
+| strong | __outer _inner___ |

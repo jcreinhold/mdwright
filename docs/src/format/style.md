@@ -119,6 +119,10 @@ style = "angle"
 | `"preserve"` (default) | GFM table spacing round-trips from source. |
 | `"pad"` | Pad cells and delimiter rows to mdformat-compatible widths when verification preserves the parse. |
 
+Padding is a table-level operation. Inline delimiter and link destination rewrites run first; table padding then reads
+the current cell bytes and rewrites the table block as one verified replacement. Tables with source cells the document
+facts cannot account for are left unchanged rather than partially rewritten.
+
 ```toml
 [fmt.tables]
 style = "pad"
