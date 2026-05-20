@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 
 use mdwright_document::Document;
 use mdwright_format::{
-    FmtOptions, FormatError, ItalicStyle, LinkDefStyle, ListMarkerStyle, OrderedListStyle, StrongStyle, ThematicStyle,
-    Wrap,
+    FmtOptions, FormatError, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
+    ThematicStyle, Wrap,
 };
 
 fn regressions_dir() -> PathBuf {
@@ -74,6 +74,16 @@ fn fuzz_option_fa_options() -> FmtOptions {
         .with_thematic_break(ThematicStyle::Dash)
         .with_ordered_list(OrderedListStyle::Consistent)
         .with_link_def_style(LinkDefStyle::Angle)
+}
+
+fn fuzz_option_7e_options() -> FmtOptions {
+    FmtOptions::default()
+        .with_wrap(Wrap::At(80))
+        .with_math(MathOptions {
+            normalise: true,
+            ..MathOptions::default()
+        })
+        .with_list_marker(ListMarkerStyle::Plus)
 }
 
 /// Every regression input must round-trip under the HTML-equivalence
@@ -144,4 +154,20 @@ fn regression_formfeed_thematic_break_is_idempotent_under_fuzz_profile() {
     let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
     let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
     assert_eq!(once, twice);
+}
+
+#[test]
+fn regression_nested_list_markers_are_idempotent_under_fuzz_profile() {
+    let opts = fuzz_option_7e_options();
+    for name in [
+        "fuzz_nested_list_marker_round1.in",
+        "fuzz_nested_list_marker_round2.in",
+        "fuzz_nested_list_marker_round3.in",
+    ] {
+        let path = regressions_dir().join(name);
+        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
+        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
+        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
+        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+    }
 }

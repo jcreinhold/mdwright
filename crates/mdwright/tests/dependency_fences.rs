@@ -337,6 +337,9 @@ fn document_does_not_reexport_deleted_helpers() {
         "NodeKind",
         "Tree",
         "top_level_block_checkpoints",
+        "UnorderedListSite",
+        "OrderedListSite",
+        "OrderedItemSite",
     ] {
         assert!(
             !lib.contains(forbidden),

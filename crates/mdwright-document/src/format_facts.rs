@@ -87,54 +87,42 @@ impl InlineDelimiterSpan {
     }
 }
 
-/// One unordered list and the byte offsets of its item markers.
+/// One unordered list item marker.
 #[derive(Clone, Debug)]
-pub struct UnorderedListSite {
-    raw_range: Range<usize>,
-    bullets: Vec<usize>,
+pub struct UnorderedListMarkerSite {
+    marker: usize,
 }
 
-impl UnorderedListSite {
+impl UnorderedListMarkerSite {
     #[must_use]
-    pub fn raw_range(&self) -> Range<usize> {
-        self.raw_range.clone()
-    }
-
-    #[must_use]
-    pub fn bullets(&self) -> &[usize] {
-        &self.bullets
+    pub fn marker_range(&self) -> Range<usize> {
+        self.marker..self.marker.saturating_add(1)
     }
 }
 
-/// One ordered list and the digit ranges of its item markers.
+/// One ordered list item marker.
 #[derive(Clone, Debug)]
-pub struct OrderedListSite {
-    raw_range: Range<usize>,
-    items: Vec<OrderedItemSite>,
-}
-
-impl OrderedListSite {
-    #[must_use]
-    pub fn raw_range(&self) -> Range<usize> {
-        self.raw_range.clone()
-    }
-
-    #[must_use]
-    pub fn items(&self) -> &[OrderedItemSite] {
-        &self.items
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct OrderedItemSite {
+pub struct OrderedListMarkerSite {
     marker_lo: usize,
     marker_hi: usize,
+    start_number: u64,
+    ordinal: usize,
 }
 
-impl OrderedItemSite {
+impl OrderedListMarkerSite {
     #[must_use]
     pub fn marker_range(&self) -> Range<usize> {
         self.marker_lo..self.marker_hi
+    }
+
+    #[must_use]
+    pub fn start_number(&self) -> u64 {
+        self.start_number
+    }
+
+    #[must_use]
+    pub fn ordinal(&self) -> usize {
+        self.ordinal
     }
 }
 
@@ -321,8 +309,8 @@ pub(crate) struct FormatFacts {
     structural_spans: Vec<StructuralSpan>,
     emphasis_delimiters: Vec<InlineDelimiterSpan>,
     strong_delimiters: Vec<InlineDelimiterSpan>,
-    unordered_list_sites: Vec<UnorderedListSite>,
-    ordered_list_sites: Vec<OrderedListSite>,
+    unordered_list_marker_sites: Vec<UnorderedListMarkerSite>,
+    ordered_list_marker_sites: Vec<OrderedListMarkerSite>,
     thematic_break_ranges: Vec<Range<usize>>,
     heading_attr_sites: Vec<HeadingAttrSite>,
     inline_link_destination_sites: Vec<InlineLinkDestinationSite>,
@@ -344,8 +332,8 @@ impl FormatFacts {
             structural_spans: structural_spans(events),
             emphasis_delimiters: inline_delimiter_spans(source, events, InlineDelimiterKind::Emphasis),
             strong_delimiters: inline_delimiter_spans(source, events, InlineDelimiterKind::Strong),
-            unordered_list_sites: unordered_list_sites(source, events),
-            ordered_list_sites: ordered_list_sites(source, events),
+            unordered_list_marker_sites: unordered_list_marker_sites(source, events),
+            ordered_list_marker_sites: ordered_list_marker_sites(source, events),
             thematic_break_ranges: thematic_break_ranges(source, events),
             heading_attr_sites: heading_attr_sites(source, events),
             inline_link_destination_sites: inline_link_destination_sites(source, events),
@@ -372,16 +360,16 @@ impl Document {
         }
     }
 
-    /// Unordered list marker sites.
+    /// Unordered list item marker sites.
     #[must_use]
-    pub fn unordered_list_sites(&self) -> &[UnorderedListSite] {
-        &self.format_facts().unordered_list_sites
+    pub fn unordered_list_marker_sites(&self) -> &[UnorderedListMarkerSite] {
+        &self.format_facts().unordered_list_marker_sites
     }
 
-    /// Ordered list marker digit sites.
+    /// Ordered list item marker digit sites.
     #[must_use]
-    pub fn ordered_list_sites(&self) -> &[OrderedListSite] {
-        &self.format_facts().ordered_list_sites
+    pub fn ordered_list_marker_sites(&self) -> &[OrderedListMarkerSite] {
+        &self.format_facts().ordered_list_marker_sites
     }
 
     /// Thematic break source line ranges.
@@ -517,34 +505,24 @@ fn inline_delimiter_spans(
     spans
 }
 
-fn unordered_list_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<UnorderedListSite> {
+fn unordered_list_marker_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<UnorderedListMarkerSite> {
     let bytes = source.as_bytes();
-    let mut stack: Vec<(bool, UnorderedListSite)> = Vec::new();
+    let mut stack: Vec<bool> = Vec::new();
     let mut completed = Vec::new();
     for (ev, range) in events {
         match ev {
             Event::Start(Tag::List(start)) => {
-                stack.push((
-                    start.is_none(),
-                    UnorderedListSite {
-                        raw_range: range.clone(),
-                        bullets: Vec::new(),
-                    },
-                ));
+                stack.push(start.is_none());
             }
             Event::End(TagEnd::List(_)) => {
-                if let Some((unordered, sites)) = stack.pop()
-                    && unordered
-                {
-                    completed.push(sites);
-                }
+                stack.pop();
             }
             Event::Start(Tag::Item) => {
-                let Some((unordered, sites)) = stack.last_mut() else {
+                let Some(unordered) = stack.last().copied() else {
                     continue;
                 };
-                if *unordered && let Some(p) = find_unordered_bullet(bytes, range.start, range.end) {
-                    sites.bullets.push(p);
+                if unordered && let Some(marker) = find_unordered_bullet(bytes, range.start, range.end) {
+                    completed.push(UnorderedListMarkerSite { marker });
                 }
             }
             _ => {}
@@ -553,36 +531,39 @@ fn unordered_list_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> V
     completed
 }
 
-fn ordered_list_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<OrderedListSite> {
+#[derive(Clone, Debug)]
+struct OrderedListFrame {
+    start_number: u64,
+    next_ordinal: usize,
+}
+
+fn ordered_list_marker_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<OrderedListMarkerSite> {
     let bytes = source.as_bytes();
-    let mut stack: Vec<(bool, OrderedListSite)> = Vec::new();
+    let mut stack: Vec<Option<OrderedListFrame>> = Vec::new();
     let mut completed = Vec::new();
     for (ev, range) in events {
         match ev {
             Event::Start(Tag::List(start)) => {
-                stack.push((
-                    start.is_some(),
-                    OrderedListSite {
-                        raw_range: range.clone(),
-                        items: Vec::new(),
-                    },
-                ));
+                stack.push(start.map(|start_number| OrderedListFrame {
+                    start_number,
+                    next_ordinal: 0,
+                }));
             }
             Event::End(TagEnd::List(_)) => {
-                if let Some((ordered, sites)) = stack.pop()
-                    && ordered
-                {
-                    completed.push(sites);
-                }
+                stack.pop();
             }
             Event::Start(Tag::Item) => {
-                let Some((ordered, sites)) = stack.last_mut() else {
+                let Some(Some(frame)) = stack.last_mut() else {
                     continue;
                 };
-                if *ordered
-                    && let Some((marker_lo, marker_hi)) = find_ordered_marker_digits(bytes, range.start, range.end)
-                {
-                    sites.items.push(OrderedItemSite { marker_lo, marker_hi });
+                if let Some((marker_lo, marker_hi)) = find_ordered_marker_digits(bytes, range.start, range.end) {
+                    completed.push(OrderedListMarkerSite {
+                        marker_lo,
+                        marker_hi,
+                        start_number: frame.start_number,
+                        ordinal: frame.next_ordinal,
+                    });
+                    frame.next_ordinal = frame.next_ordinal.saturating_add(1);
                 }
             }
             _ => {}
@@ -1380,5 +1361,31 @@ mod tests {
             .next()
             .expect("definition list paragraph");
         assert_eq!(paragraph.cont_prefix, "    ");
+    }
+
+    #[test]
+    fn unordered_nested_list_marker_facts_are_marker_local() {
+        let src = " *   * * *   * *   * *   *   * \\\\*";
+        let doc = Document::parse(src).expect("fixture parses");
+        let markers: Vec<_> = doc
+            .unordered_list_marker_sites()
+            .iter()
+            .map(UnorderedListMarkerSite::marker_range)
+            .collect();
+        assert_eq!(
+            markers,
+            vec![1..2, 5..6, 7..8, 9..10, 13..14, 15..16, 19..20, 21..22, 25..26, 29..30]
+        );
+    }
+
+    #[test]
+    fn ordered_list_marker_facts_carry_list_start_and_ordinal() {
+        let doc = Document::parse("3. alpha\n4. beta\n").expect("fixture parses");
+        let markers: Vec<_> = doc
+            .ordered_list_marker_sites()
+            .iter()
+            .map(|site| (site.marker_range(), site.start_number(), site.ordinal()))
+            .collect();
+        assert_eq!(markers, vec![(0..1, 3, 0), (9..10, 3, 1)]);
     }
 }

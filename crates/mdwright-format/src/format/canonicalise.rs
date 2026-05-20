@@ -195,38 +195,21 @@ fn collect_emphasis_delim(snapshot: &Snapshot<'_>, kind: EmphasisKind, target: u
 
 fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let lists = snapshot.document().unordered_list_sites();
-    for list in lists {
-        if list.bullets().is_empty() {
+    let bytes = out.as_bytes();
+    for marker in snapshot.document().unordered_list_marker_sites() {
+        let range = marker.marker_range();
+        if bytes.get(range.start).copied() == Some(target) {
             continue;
         }
-        let bytes = out.as_bytes();
-        let already_target = list.bullets().iter().all(|p| bytes.get(*p).copied() == Some(target));
-        if already_target {
+        if !matches!(bytes.get(range.start).copied(), Some(b'-' | b'*' | b'+')) {
             continue;
-        }
-        let raw_range = list.raw_range();
-        let lo = raw_range.start;
-        let hi = raw_range.end;
-        let Some(slice) = bytes.get(lo..hi) else {
-            continue;
-        };
-        let mut rewrite = slice.to_vec();
-        for &p in list.bullets() {
-            if p < lo {
-                continue;
-            }
-            let local = p.saturating_sub(lo);
-            if let Some(byte) = rewrite.get_mut(local) {
-                *byte = target;
-            }
         }
         push_utf8_candidate(
             snapshot,
             Phase::UnorderedList,
-            OwnerKind::List,
-            lo..hi,
-            rewrite,
+            OwnerKind::ListItem,
+            range,
+            vec![target],
             Verification::PreserveMarkdownAndMath,
             "unordered-list-marker",
             candidates,
@@ -238,58 +221,26 @@ fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates
 
 fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, target: OrderedListStyle, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let lists = snapshot.document().ordered_list_sites();
+    let bytes_view = out.as_bytes();
 
-    for list in lists {
-        let Some(first) = list.items().first() else {
-            continue;
+    for item in snapshot.document().ordered_list_marker_sites() {
+        let marker = item.marker_range();
+        let want = match target {
+            OrderedListStyle::One => 1,
+            OrderedListStyle::Consistent => item.start_number().saturating_add(item.ordinal() as u64),
+            OrderedListStyle::Preserve => continue,
         };
-        let bytes_view = out.as_bytes();
-        let first_marker = first.marker_range();
-        let Some(start_num) = scan_ordered_marker_number(bytes_view, first_marker.start, first_marker.end) else {
-            continue;
-        };
-        let raw_range = list.raw_range();
-        let lo = raw_range.start;
-        let hi = raw_range.end;
-        let Some(slice) = bytes_view.get(lo..hi) else {
-            continue;
-        };
-        let mut rewrite = slice.to_vec();
-        let mut needs_change = false;
-        // Renumber items in reverse so local offsets within `rewrite`
-        // stay valid as marker widths grow or shrink.
-        for (k, item) in list.items().iter().enumerate().rev() {
-            let want = match target {
-                OrderedListStyle::One => 1,
-                OrderedListStyle::Consistent => start_num.saturating_add(k as u64),
-                OrderedListStyle::Preserve => continue,
-            };
-            let marker = item.marker_range();
-            if marker.start < lo || marker.end > hi {
-                continue;
-            }
-            let cur = scan_ordered_marker_number(bytes_view, marker.start, marker.end);
-            if cur == Some(want) {
-                continue;
-            }
-            needs_change = true;
-            let want_bytes = want.to_string().into_bytes();
-            let local_lo = marker.start.saturating_sub(lo);
-            let local_hi = marker.end.saturating_sub(lo);
-            if local_hi <= rewrite.len() && local_lo <= local_hi {
-                rewrite.splice(local_lo..local_hi, want_bytes);
-            }
-        }
-        if !needs_change {
+        let cur = scan_ordered_marker_number(bytes_view, marker.start, marker.end);
+        if cur == Some(want) {
             continue;
         }
+        let want_bytes = want.to_string().into_bytes();
         push_utf8_candidate(
             snapshot,
             Phase::OrderedList,
-            OwnerKind::List,
-            lo..hi,
-            rewrite,
+            OwnerKind::ListItem,
+            marker,
+            want_bytes,
             Verification::PreserveMarkdownAndMath,
             "ordered-list-renumber",
             candidates,
