@@ -126,12 +126,11 @@ for that version.
 
 ## Range-formatting caveats
 
-`textDocument/rangeFormatting` and `textDocument/onTypeFormatting` snap the
-requested range out to the nearest whole top-level block before formatting. For sources without document-scope
-reorderable constructs the snapped output is a verbatim substring of the whole-document format; link definitions
-(`[label]: dest`) and footnote definitions (`[^label]: …`) are document-scope, so a range format may leave them in place
-where a whole-document format would have moved them to the canonical location. Save the file (or invoke whole-document
-formatting) periodically to reconcile.
+`textDocument/rangeFormatting` and `textDocument/onTypeFormatting` snap the requested range out to the nearest whole
+top-level block before formatting. For sources without document-scope reorderable constructs the snapped output
+is a verbatim substring of the whole-document format; link definitions (`[label]: dest`) and footnote definitions
+(`[^label]: …`) are document-scope, so a range format may leave them in place where a whole-document format would have
+moved them to the canonical location. Save the file (or invoke whole-document formatting) periodically to reconcile.
 
 ## Smoke test
 
@@ -139,8 +138,8 @@ Before publishing an editor integration, run this manual check:
 
 1. Start the server with `mdwright lsp`.
 2. Open a Markdown file that contains `https://example.com` and confirm the `bare-url` diagnostic appears.
-3. Insert `- [n]:Z` followed by a carriage return, newline, and two tabs. The server should publish one parser diagnostic
-   at the start of the file and keep running.
+3. Insert `- [n]:Z` followed by a carriage return, newline, and two tabs. The server should publish one parser
+   diagnostic at the start of the file and keep running.
 4. Replace the file contents with valid Markdown. Normal diagnostics should return without restarting the server.
 5. Run whole-document formatting and range formatting on a paragraph that mdwright changes.
 6. Edit `.mdwright.toml` and trigger your editor's LSP config reload or file-watcher refresh. Open buffers should be

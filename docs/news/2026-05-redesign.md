@@ -1,4 +1,4 @@
-# mdwright 0.3.0 — the spec-alignment redesign
+# mdwright 0.3.0: the spec-alignment redesign
 
 **2026-05-16.** mdwright 0.3.0 replaces the formatter's per-byte sieve with a typed intermediate representation. Each
 CommonMark/GFM construct is now a Rust value whose constructor enforces the spec's well-formedness rules, and each value
@@ -19,8 +19,8 @@ the IR, and the IR knows how to print itself.
 - Spec conformance is now a *construction-time* property of each IR value rather than a 672-case runtime sieve. Bugs
   that previously hid inside the sieve's accumulated state surface as constructor-precondition failures.
 - The GFM 0.29-gfm spec round-trips 605 of 672 examples; the remaining 67 are tracked in `tests/gfm-spec/snapshot.txt`
-  and summarised in [`docs/deviations.md`](../deviations.md). The editorial-deviation allowlist is empty at launch — we
-  are deliberately conservative about declaring a divergence permanent.
+  and summarised in [`docs/deviations.md`](../deviations.md). The editorial-deviation allowlist is empty at launch:
+  declaring a divergence permanent should be the last resort.
 - Per-construct round-trip property tests replace most of the whole-document sieve runner.
 
 ## Performance
@@ -40,11 +40,10 @@ I/O and parse, so the regression is not visible at that level. A follow-up relea
 
 ## Lines of code
 
-The redesign added ~5 k lines net: the typed IR modules (`mdwright::cm::{inline, block, refs}`), per-construct
-round-trip proptests, and `docs/deviations.md` together more than offset the ~3 k lines deleted from the sieve. This is
-the explicit trade we wanted: more code, but each piece is *local* — the constructor for a typed value is the only thing
-that decides how that value round-trips, and the proptest for that constructor is the only thing that needs to change
-when the rule changes.
+The redesign added ~5k lines net: typed IR modules (`mdwright::cm::{inline, block, refs}`), per-construct round-trip
+proptests, and `docs/deviations.md` more than offset the ~3k lines deleted from the sieve. The trade is explicit. Each
+piece is *local*: the constructor for a typed value is the only thing that decides how that value round-trips, and the
+proptest for that constructor is the only thing that needs to change when the rule changes.
 
 ## Where to read next
 

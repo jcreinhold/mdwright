@@ -1,8 +1,7 @@
 # Test matrix
 
-mdwright's correctness story sits on five test surfaces. This document maps each surface to the invariant it
-defends, where it lives in the tree, and what it does NOT cover. It exists so a future change to the formatter (or
-canonicalisation pass) can be assessed against the right gates without re-deriving them.
+mdwright's correctness sits on these test surfaces. For each: the invariant it defends, where it lives, and what it does
+NOT cover. Use this to decide which gate(s) a change to the formatter or canonicalisation pass needs to clear.
 
 ## Per-construct golden suites
 

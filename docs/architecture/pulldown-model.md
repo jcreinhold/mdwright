@@ -3,10 +3,10 @@
 Reference for the per-construct behaviours of `pulldown-cmark` 0.13 that mdwright depends on. Every emit-site decision
 in `crates/mdwright-format` either matches a rule on this page or contradicts pulldown. A contradiction is a bug.
 
-This file is paired with `crates/mdwright/tests/pulldown_model.rs`. Each rule below has one test in that file that
-feeds the documented example to pulldown and asserts the documented event-stream shape. When pulldown changes upstream
-(a release bump, a bug fix on their side), the test fails and **this document must be updated before any mdwright code
-is changed in response**.
+This file is paired with `crates/mdwright/tests/pulldown_model.rs`. Each rule below has one test in that file that feeds
+the documented example to pulldown and asserts the documented event-stream shape. When pulldown changes upstream (a
+release bump, a bug fix on their side), the test fails and **this document must be updated before any mdwright code is
+changed in response**.
 
 Every production parse flows through private helpers in `crates/mdwright-document/src/parse.rs`, which take a private
 `CanonicalSource<'_>`. Construction routes through the document crate's source canonicalisation, so pulldown's input is
@@ -45,8 +45,8 @@ CM §6.2 / §6.3: emphasis delimiters pair *within their enclosing pairing conta
 pulldown observes: paragraph, heading, table cell, link body, image body, footnote definition.
 
 Strikethrough (`~~…~~`) is **not** a pairing container: emphasis delimiters can open inside one strikethrough run and
-close inside another, or across a strikethrough boundary entirely. The safety ladder's per-construct reparse takes this
-into account by including the surrounding bytes in its flanking-context window.
+close inside another, or across a strikethrough boundary entirely. The canonicalisation pass's per-rewrite verification
+window includes surrounding bytes so a candidate that would re-pair across a strikethrough boundary is rejected.
 
 Link bodies *are* a pairing boundary because CM §6.5 gives link text grouping higher precedence than emphasis grouping.
 The two are not symmetric: `*[foo*](bar)` parses with the `*` not pairing (it's outside the link, the link doesn't
@@ -93,9 +93,9 @@ of the closing delimiter.
 - `range.end` of `End(Emphasis)`: index *after* the last `*` or `_` of the closing run.
 - The body bytes occupy `[start_range.end, end_range.start)`.
 
-Same convention for `Strong`. The safety ladder (`src/format/emit_safety.rs::parses_with_outer_run_at`) tests
-`range.start == target_open` and `range.end == target_close` to identify the candidate run. A pulldown change to either
-convention would silently break the test, which is exactly the kind of drift the model test catches.
+Same convention for `Strong`. The canonicalisation pass identifies candidate runs by `range.start == target_open` and
+`range.end == target_close`. A pulldown change to either convention would silently break that test; the model test
+catches the drift first.
 
 Test: `emphasis_event_range_spans_delimiters`.
 
@@ -109,8 +109,8 @@ CM §6.5 disambiguates runs of two through six `*` / `_` characters:
 - `*_foo_*` → `Start(Emphasis)`, `Start(Emphasis)`, `Text("foo")`, `End(Emphasis)`, `End(Emphasis)`. Two distinct
   delimiter characters pair independently.
 
-The safety ladder predicate exists to keep the formatter from collapsing these into each other when a body or neighbour
-byte change would let pulldown re-segment differently.
+Canonicalisation must keep these distinct: any candidate whose body or neighbour byte change would let pulldown
+re-segment them differently is rejected by per-rewrite verification.
 
 Test: `strong_distinct_from_nested_emphasis`.
 
@@ -171,12 +171,11 @@ misclassification of malformed MyST source still emits the directive bytes corre
 bytes spans more than the directive itself, mdwright emits the union of the tree-node range and the directive-region
 range verbatim.
 
-The inline overlay (`apply_inline_overlay`) is the **first inline-level overlay** in the formatter. It splices into
-both `walk_paragraph_inline` (paragraph context, with `ParagraphSafetyState`) and `pretty_inline_children_for_ids`
-(emphasis / link bodies, heading inlines, list-item virtual paragraphs) before the per-node `match`. A child whose
-`raw_range.start` lies inside a previously-emitted overlay region is silently swallowed. This is the multi-child-swallow
-logic that handles `` {term}`payload` ``, where the role spans both the `{term}` literal-text node and the following
-code-span node.
+The inline overlay (`apply_inline_overlay`) splices into both `walk_paragraph_inline` (paragraph context, with
+`ParagraphSafetyState`) and `pretty_inline_children_for_ids` (emphasis / link bodies, heading inlines, list-item virtual
+paragraphs) before the per-node `match`. A child whose `raw_range.start` lies inside a previously-emitted overlay region
+is silently swallowed. This is the multi-child-swallow logic that handles `` {term}`payload` ``, where the role spans
+both the `{term}` literal-text node and the following code-span node.
 
 There is no drift-test for these constructs because pulldown emits nothing to drift on; the scanner's per-fixture
 regression coverage in `tests/regressions/{directive_*,inline_role_*,myst_*}.in` plus the vendored jupyter-book

@@ -58,8 +58,8 @@ learning pulldown event shapes.
 | Math | `MathRegion`, `MathSpan`, `MathError` |
 | Formatter facts | `StructuralSpan`, `StructuralKind`, `InlineDelimiterSpan`, `InlineDelimiterKind`, `UnorderedListSite`, `OrderedListSite`, `OrderedItemSite`, `HeadingAttrSite`, `InlineLinkDestinationSite`, `ReferenceDefinitionSite`, `TableSite`, `TableRowSite`, `TableCellSite`, `TableAlign`, `WrappableParagraph`, `ParagraphHardBreak` |
 
-Formatter-facing facts expose accessors instead of public fields where practical. That keeps invalid construction out
-of downstream code while preserving stable ranges for rule authors and diagnostic tooling.
+Formatter-facing facts expose accessors instead of public fields where practical. That keeps invalid construction out of
+downstream code while preserving stable ranges for rule authors and diagnostic tooling.
 
 ## Not Public Surface
 

@@ -4,16 +4,16 @@ Criterion benches that measure parse and lint cost for the `mdwright` crate. Run
 
 ## What is measured
 
-- `parse/{small, medium}` — `Document::parse` only, single file.
-- `lint/{defaults, all}/{small, medium}` — lint rule loop, with parse hoisted outside the timed region.
-- `parse_plus_lint/defaults/{small, medium}` — full pipeline.
-- `corpus/{none, defaults, all}` — rayon-parallel sweep over every file in `corpus.list`. File contents are pre-loaded
-  so the benchmark times CPU work, not disk I/O.
+- `parse/{small, medium}`—`Document::parse` only, single file.
+- `lint/{defaults, all}/{small, medium}`—lint rule loop, with parse hoisted outside the timed region.
+- `parse_plus_lint/defaults/{small, medium}`—full pipeline.
+- `corpus/{none, defaults, all}`—rayon-parallel sweep over every file in `corpus.list`. File contents are pre-loaded so
+  the benchmark times CPU work, not disk I/O.
 
 Fixtures live in `fixtures/`:
 
-- `small.md` — a ~75-line single page.
-- `medium.md` — a ~960-line single page (largest in the corpus).
+- `small.md`—a ~75-line single page.
+- `medium.md`—a ~960-line single page (largest in the corpus).
 
 `corpus.list` enumerates Markdown files under the documentation corpus, relative to the corpus root rather than to this
 crate. Refresh it only when files are added or removed (run from the corpus checkout):

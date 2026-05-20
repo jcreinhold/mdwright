@@ -7,7 +7,7 @@ comments) plus your rule.
 
 ## Walkthrough
 
-`src/no_todo.rs` implements `NoTodoInProse` — a rule that flags literal `TODO` markers in paragraph text, leaving fenced
+`src/no_todo.rs` implements `NoTodoInProse`—a rule that flags literal `TODO` markers in paragraph text, leaving fenced
 code blocks and inline code untouched (because [`Document::prose_chunks`] only yields prose). The rule body is ~25 lines
 and does no event-stream work; the typed `Document` accessor handles the math/code/HTML skipping for you.
 
@@ -31,7 +31,7 @@ cargo run -p mdwright-extra-example -- explain no-todo-in-prose   # prints expla
 ```
 
 Because `NoTodoInProse::is_default()` defaults to `true`, the rule also fires under `--rules default` (the implicit
-selector) — exactly as it would if it were a stdlib rule.
+selector)—exactly as it would if it were a stdlib rule.
 
 ## Publishing your own custom binary
 
@@ -48,9 +48,9 @@ Downstream users install your binary and run it exactly as they would the offici
 
 ## See also
 
-- `docs/src/extending/lint-rules.md` — the writing-a-rule guide, including the `LintRule` trait signature and design
+- `docs/src/extending/lint-rules.md`—the writing-a-rule guide, including the `LintRule` trait signature and design
   notes.
-- `docs/src/extending/plugin-loading.md` — why this is the supported extension path (and why mdwright does not load
+- `docs/src/extending/plugin-loading.md`—why this is the supported extension path (and why mdwright does not load
   plugins at runtime).
 
 [`mdwright_lint::LintRule`]: https://docs.rs/mdwright-lint/latest/mdwright_lint/trait.LintRule.html

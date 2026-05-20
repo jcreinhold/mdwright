@@ -1,39 +1,39 @@
-# mdformat Parity
+# mdformat parity
 
-`cargo xtask mdformat-parity` compares mdwright against mdformat with the GFM, frontmatter, footnote, and MkDocs
-plugins over an isolated corpus copy. The goal is classified compatibility, not byte-for-byte identity. Every observed
-mdwright/mdformat output difference must be fixed, configured, or recorded here as intentional before the command can
-serve as release evidence.
+`cargo xtask mdformat-parity` compares mdwright against mdformat (with the GFM, frontmatter, footnote, and MkDocs
+plugins) over an isolated corpus copy. The goal is classified compatibility, not byte identity. Every mdwright/mdformat
+output difference is either fixed, configured, or recorded below as intentional; otherwise the command fails as a
+release gate.
 
-Use `[fmt] profile = "mdformat"` when the parity question is "how close can mdwright get to mdformat while keeping
-verified rewrites?" The profile keeps mdformat's default `wrap = keep`; a project that wants mdformat with a column
-limit must set `wrap` explicitly.
+Use `[fmt] profile = "mdformat"` to ask "how close can mdwright get to mdformat while keeping verified rewrites?"
+The profile keeps mdformat's default `wrap = keep`; a project that wants mdformat with a column limit must set `wrap`
+explicitly.
 
-Allowed status values:
+## Status values
 
-- `fixed`: the difference should no longer appear; the xtask fails if it does.
-- `configured`: the difference is caused by mdwright project configuration, usually generated-doc excludes.
+- `open-bug`: known unresolved gap; reported as a failing release gate.
 - `intentional-divergence`: mdwright deliberately keeps a different byte style while preserving semantics.
-- `upstream-parser-limitation`: the difference is pinned to parser behavior outside mdwright.
-- `open-bug`: a known unresolved gap; the xtask reports it as a failing release gate.
+- `upstream-parser-limitation`: difference pinned to parser behaviour outside mdwright.
+- `configured`: caused by mdwright project configuration, usually generated-doc excludes.
+- `fixed`: should no longer appear; the xtask fails if it does.
 
-The Class column is free-text and groups rows by root cause. Values in use: `style-option-mismatch` (wrap or indentation
-policy differs), `mdformat-semantic-drift` (mdformat output is not semantically equivalent to the source), and
-`intentional-policy` (file is generated and excluded from parity by configuration).
+`Class` is free-text and groups rows by root cause. `style-option-mismatch` covers wrap or indentation policy
+differences; `mdformat-semantic-drift` covers cases where mdformat's output is not semantically equivalent to the
+source; `intentional-policy` covers generated files excluded by configuration.
 
-Path patterns support `*`, `**`, and `prefix/**` globs. `find_classification` returns the first matching row, so
-specific paths must precede catch-all `**` entries.
+## Classifications
 
-## Current Classifications
-
-Rows are evaluated in order; specific paths come first, catch-all `**` rows last.
+The table below is parsed by `xtask::mdformat_parity::load_classifications`: each row must have exactly seven cells.
+Path patterns support `*`, `**`, and `prefix/**` globs; `find_classification` returns the first matching row, so
+specific paths come first and catch-all `**` rows last. Formatter divergences are owned by the formatter team;
+generated-doc exclusions are owned by docs.
 
 | Corpus | Path | Construct | Class | Status | Owner | Resolution |
 | --- | --- | --- | --- | --- | --- | --- |
 | external | `jupyter_book_minimal/admonitions.md` | MyST directives | mdformat-semantic-drift | intentional-divergence | formatter | mdwright preserves MyST directive structure; mdformat with `--no-validate` rewrites this fixture in a way mdwright's semantic oracle rejects. |
-| external | `jupyter_book_minimal/asides.md` | MyST directives | mdformat-semantic-drift | intentional-divergence | formatter | Same as `admonitions.md`. |
+| external | `jupyter_book_minimal/asides.md` | MyST directives | mdformat-semantic-drift | intentional-divergence | formatter | Same shape as `admonitions.md`. |
+| external | `jupyter_book_minimal/directives.md` | MyST directives | mdformat-semantic-drift | intentional-divergence | formatter | Same shape as `admonitions.md`. |
 | external | `jupyter_book_minimal/blocks.md` | MyST and Pandoc blocks | mdformat-semantic-drift | intentional-divergence | formatter | mdwright preserves MyST and Pandoc block structure; mdformat with `--no-validate` rewrites this fixture in a way mdwright's semantic oracle rejects. |
-| external | `jupyter_book_minimal/directives.md` | MyST directives | mdformat-semantic-drift | intentional-divergence | formatter | Same as `admonitions.md`. |
 | mdwright-docs | `src/SUMMARY.md` | nested list indentation | style-option-mismatch | intentional-divergence | formatter | mdwright preserves the existing two-space mdBook summary nesting; mdformat rewrites nested bullets to four spaces. |
 | mdwright-docs | `src/extending/lint-rules.md` | list continuation indentation | style-option-mismatch | intentional-divergence | formatter | mdwright keeps two-space continuation under existing list bullets; mdformat rewrites continuation lines to four spaces. |
 | mdwright-docs | `src/configuration.md` | generated docs | intentional-policy | configured | docs | Generated by `cargo xtask doc-config`; excluded so source docs and generator drift checks do not fight. |
@@ -43,9 +43,9 @@ Rows are evaluated in order; specific paths come first, catch-all `**` rows last
 | mdwright-docs | `**` | prose wrap | style-option-mismatch | intentional-divergence | formatter | mdwright uses verified paragraph wrapping and keeps stable source-local choices instead of chasing mdformat line breaks. |
 | external | `**` | prose wrap | style-option-mismatch | intentional-divergence | formatter | Same as the `mdwright-docs` catch-all. |
 
-## Release Use
+## Release use
 
-Run the parity gate against the pinned mdformat baseline:
+Run against the pinned mdformat baseline:
 
 ```bash
 cargo xtask mdformat-parity \
@@ -55,9 +55,6 @@ cargo xtask mdformat-parity \
   --mdformat-config xtask/fixtures/mdformat-parity/mdformat.toml
 ```
 
-The mdformat config lives under `xtask/fixtures/` because it is an oracle fixture for this command. The repository root
-does not contain `.mdformat.toml`; mdwright remains the formatter used for this checkout.
-
-The command writes `target/mdwright/parity/mdformat-parity.json` and `target/mdwright/parity/mdformat-parity.md`. A
-clean release run has no unclassified differences, no semantic drift, no parse errors, no idempotence failures, and no
-rows marked `open-bug`.
+The mdformat config lives under `xtask/fixtures/` because it is an oracle fixture, not the repository's own formatter.
+Output lands at `target/mdwright/parity/mdformat-parity.{json,md}`. A clean release run has no unclassified differences,
+no semantic drift, no parse errors, no idempotence failures, and no rows marked `open-bug`.

@@ -21,8 +21,8 @@ The command writes:
 - `target/mdwright/release/release-evidence.json`
 - `target/mdwright/release/release-evidence.md`
 
-The command does not rerun every expensive gate. It records git state and tool versions, reads existing machine reports,
-points at manual evidence notes, and lists blockers when evidence is missing. This keeps the command narrow: it
+The command does not rerun every expensive gate. It records git state and tool versions, reads existing machine
+reports, points at manual evidence notes, and lists blockers when evidence is missing. This keeps the command narrow: it
 summarizes release evidence instead of duplicating parser audit, mdformat parity, production soak, fuzzing, packaging,
 or benchmarks.
 
@@ -52,8 +52,8 @@ cargo xtask production-soak \
 Record the fast-check result in `target/mdwright/release/fast-checks.md`. The aggregator treats that file as the manual
 proof that the local workspace gate was refreshed.
 
-If the Kan checkout lives elsewhere, pass the actual corpus root to `production-soak` and record the path in the
-release notes.
+If the Kan checkout lives elsewhere, pass the actual corpus root to `production-soak` and record the path in the release
+notes.
 
 ## Refresh packaging evidence
 
