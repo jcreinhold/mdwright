@@ -3,9 +3,9 @@
 //!
 //! # Contract
 //!
-//! This module recognises opt-in style edits and submits them as
-//! parse-owned candidates to the rewrite engine. It does not edit the
-//! formatter buffer directly.
+//! This module recognises opt-in style edits for one rewrite family at
+//! a time and submits parse-owned edits to the rewrite engine. It does
+//! not edit the formatter buffer directly.
 //!
 //! # Why a separate pass
 //!
@@ -14,33 +14,22 @@
 //! idempotent and perturbation-free by construction. Style
 //! canonicalisation is the opposite concern: deliberately rewrite
 //! source bytes per user preference. Keeping it in its own pass
-//! localises the perturbation — the rewrite engine owns ordering,
-//! overlap handling, verification, and commit.
+//! localises the perturbation — the rewrite engine owns family order,
+//! local-overlap rejection, verification, and commit.
 //!
 //! # Performance
 //!
 //! Default config (every knob `Preserve`) triggers the early-out in
 //! [`FmtOptions::has_any_canonicalisation`], so structural callers
-//! pay zero. With any knob set the pass reparses `out` per knob to
-//! collect rewrite sites; the convergence loop caps iterations at
-//! [`MAX_CANONICALISE_ITERS`], which is enough for every input in
-//! the property sweep.
+//! pay zero. With canonicalisation enabled, the rewrite engine
+//! reparses after committed family plans so later families see fresh
+//! document facts. A family that cannot produce a verified local plan
+//! skips instead of committing partial progress.
 //!
-//! # Order of rewrites
-//!
-//! Inline knobs first (most flank-sensitive), block-level after
-//! (insensitive to inline changes):
-//!
-//! 1. italic — flanking-sensitive `_`/`*` swap.
-//! 2. strong — flanking-sensitive `**`/`__` swap.
-//! 3. unordered list marker — atomic per list; partial bullet
-//!    rewrites would split the list at the parse layer.
-//! 4. ordered list renumber — atomic per list.
-//! 5. thematic break — trivial; any well-formed break survives all
-//!    three byte choices.
-//! 6. link destination style — angle/bare toggle, per definition.
+//! Family order lives in the rewrite engine. This module owns only the
+//! style-specific policy for constructing a family's edits.
 
-use crate::format::rewrite::{Candidate, OwnerKind, Phase, Snapshot, Verification};
+use crate::format::rewrite::{Candidate, OwnerKind, RewriteFamily, Snapshot, Verification};
 use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender, OrderedListStyle, ThematicStyle};
 use mdwright_document::{InlineDelimiterKind, TableAlign, TableSite};
 use mdwright_math::MathRegion;
@@ -48,36 +37,64 @@ use mdwright_math::MathSpan;
 use mdwright_math::normalise::{align_env_body, body_braces_balanced};
 use mdwright_math::render::convert_for_dollar;
 
-pub(crate) fn collect_candidates(snapshot: &Snapshot<'_>, opts: &FmtOptions, candidates: &mut Vec<Candidate>) {
-    if let Some(target) = opts.italic_target_byte() {
-        collect_emphasis_delim(snapshot, EmphasisKind::Italic, target, candidates);
-    }
-    if let Some(target) = opts.strong_target_byte() {
-        collect_emphasis_delim(snapshot, EmphasisKind::Strong, target, candidates);
-    }
-    if let Some(target) = opts.list_marker_target_byte() {
-        collect_unordered_list_marker(snapshot, target, candidates);
-    }
-    if let Some(target) = opts.ordered_list_target() {
-        collect_ordered_list_renumber(snapshot, target, candidates);
-    }
-    if let Some(target) = opts.thematic_target() {
-        collect_thematic(snapshot, target, candidates);
-    }
-    if opts.should_pad_tables() {
-        collect_table_padding(snapshot, candidates);
-    }
-    if let Some(target) = opts.link_def_target() {
-        collect_link_def_style(snapshot, target, candidates);
-    }
-    if matches!(opts.heading_attrs(), HeadingAttrsStyle::Canonicalise) {
-        collect_heading_attrs(snapshot, candidates);
-    }
-    if needs_math_rewrite(opts) {
-        collect_math(snapshot, opts, candidates);
-    }
-    if !opts.preserve_frontmatter() {
-        collect_strip_frontmatter(snapshot, candidates);
+pub(crate) fn collect_family_candidates(
+    snapshot: &Snapshot<'_>,
+    opts: &FmtOptions,
+    family: RewriteFamily,
+    candidates: &mut Vec<Candidate>,
+) {
+    match family {
+        RewriteFamily::Italic => {
+            if let Some(target) = opts.italic_target_byte() {
+                collect_emphasis_delim(snapshot, EmphasisKind::Italic, target, candidates);
+            }
+        }
+        RewriteFamily::Strong => {
+            if let Some(target) = opts.strong_target_byte() {
+                collect_emphasis_delim(snapshot, EmphasisKind::Strong, target, candidates);
+            }
+        }
+        RewriteFamily::UnorderedList => {
+            if let Some(target) = opts.list_marker_target_byte() {
+                collect_unordered_list_marker(snapshot, target, candidates);
+            }
+        }
+        RewriteFamily::OrderedList => {
+            if let Some(target) = opts.ordered_list_target() {
+                collect_ordered_list_renumber(snapshot, target, candidates);
+            }
+        }
+        RewriteFamily::ThematicBreak => {
+            if let Some(target) = opts.thematic_target() {
+                collect_thematic(snapshot, target, candidates);
+            }
+        }
+        RewriteFamily::Table => {
+            if opts.should_pad_tables() {
+                collect_table_padding(snapshot, candidates);
+            }
+        }
+        RewriteFamily::LinkDestination => {
+            if let Some(target) = opts.link_def_target() {
+                collect_link_def_style(snapshot, target, candidates);
+            }
+        }
+        RewriteFamily::HeadingAttrs => {
+            if matches!(opts.heading_attrs(), HeadingAttrsStyle::Canonicalise) {
+                collect_heading_attrs(snapshot, candidates);
+            }
+        }
+        RewriteFamily::Math => {
+            if needs_math_rewrite(opts) {
+                collect_math(snapshot, opts, candidates);
+            }
+        }
+        RewriteFamily::Frontmatter => {
+            if !opts.preserve_frontmatter() {
+                collect_strip_frontmatter(snapshot, candidates);
+            }
+        }
+        RewriteFamily::Wrap => {}
     }
 }
 
@@ -87,7 +104,6 @@ fn needs_math_rewrite(opts: &FmtOptions) -> bool {
 
 fn push_utf8_candidate(
     snapshot: &Snapshot<'_>,
-    phase: Phase,
     owner: OwnerKind,
     range: std::ops::Range<usize>,
     rewrite: Vec<u8>,
@@ -98,7 +114,7 @@ fn push_utf8_candidate(
     let Ok(replacement) = String::from_utf8(rewrite) else {
         return;
     };
-    if let Some(candidate) = snapshot.candidate(phase, owner, range, replacement, verification, label) {
+    if let Some(candidate) = snapshot.candidate(owner, range, replacement, verification, label) {
         candidates.push(candidate);
     }
 }
@@ -126,13 +142,6 @@ impl EmphasisKind {
         }
     }
 
-    fn phase(self) -> Phase {
-        match self {
-            Self::Italic => Phase::Italic,
-            Self::Strong => Phase::Strong,
-        }
-    }
-
     fn document_kind(self) -> InlineDelimiterKind {
         match self {
             Self::Italic => InlineDelimiterKind::Emphasis,
@@ -143,51 +152,43 @@ impl EmphasisKind {
 
 fn collect_emphasis_delim(snapshot: &Snapshot<'_>, kind: EmphasisKind, target: u8, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
-    let spans = snapshot.document().inline_delimiter_spans(kind.document_kind());
+    let slots = snapshot.document().inline_delimiter_slots(kind.document_kind());
     let delim_len = kind.delim_len();
+    let replacement = std::iter::repeat_n(target, delim_len).collect::<Vec<_>>();
 
-    for span in spans {
-        let open_range = span.open_range();
-        let close_range = span.close_range();
-        let open_lo = open_range.start;
-        let open_hi = open_range.end;
-        let close_lo = close_range.start;
-        let close_hi = close_range.end;
+    for slot in slots {
         let bytes = out.as_bytes();
-        let Some(open) = bytes.get(open_lo..open_hi) else {
+        let open_range = slot.open_range();
+        let Some(open) = bytes.get(open_range.clone()) else {
             continue;
         };
-        let Some(close) = bytes.get(close_lo..close_hi) else {
+        let close_range = slot.close_range();
+        let Some(close) = bytes.get(close_range.clone()) else {
             continue;
         };
-        let Some(inner) = bytes.get(open_hi..close_lo) else {
-            continue;
-        };
-        let already_target = open.iter().all(|&b| b == target) && close.iter().all(|&b| b == target);
-        if already_target {
-            continue;
+
+        if !open.iter().all(|&b| b == target) {
+            push_utf8_candidate(
+                snapshot,
+                OwnerKind::InlineDelimiterSlot,
+                open_range,
+                replacement.clone(),
+                Verification::PreserveMarkdownAndMath,
+                kind.label(),
+                candidates,
+            );
         }
-        let total = delim_len
-            .saturating_mul(2)
-            .saturating_add(close_lo.saturating_sub(open_hi));
-        let mut rewrite: Vec<u8> = Vec::with_capacity(total);
-        for _ in 0..delim_len {
-            rewrite.push(target);
+        if !close.iter().all(|&b| b == target) {
+            push_utf8_candidate(
+                snapshot,
+                OwnerKind::InlineDelimiterSlot,
+                close_range,
+                replacement.clone(),
+                Verification::PreserveMarkdownAndMath,
+                kind.label(),
+                candidates,
+            );
         }
-        rewrite.extend_from_slice(inner);
-        for _ in 0..delim_len {
-            rewrite.push(target);
-        }
-        push_utf8_candidate(
-            snapshot,
-            kind.phase(),
-            OwnerKind::Paragraph,
-            open_lo..close_hi,
-            rewrite,
-            Verification::PreserveMarkdownAndMath,
-            kind.label(),
-            candidates,
-        );
     }
 }
 
@@ -206,7 +207,6 @@ fn collect_unordered_list_marker(snapshot: &Snapshot<'_>, target: u8, candidates
         }
         push_utf8_candidate(
             snapshot,
-            Phase::UnorderedList,
             OwnerKind::ListItem,
             range,
             vec![target],
@@ -237,7 +237,6 @@ fn collect_ordered_list_renumber(snapshot: &Snapshot<'_>, target: OrderedListSty
         let want_bytes = want.to_string().into_bytes();
         push_utf8_candidate(
             snapshot,
-            Phase::OrderedList,
             OwnerKind::ListItem,
             marker,
             want_bytes,
@@ -291,7 +290,6 @@ fn collect_thematic(snapshot: &Snapshot<'_>, target: ThematicStyle, candidates: 
         }
         push_utf8_candidate(
             snapshot,
-            Phase::ThematicBreak,
             OwnerKind::ThematicBreak,
             lo..hi,
             rewrite,
@@ -318,7 +316,6 @@ fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
             continue;
         }
         if let Some(candidate) = snapshot.candidate(
-            Phase::Table,
             OwnerKind::Table,
             raw_range,
             replacement,
@@ -464,7 +461,6 @@ fn collect_heading_attrs(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
             continue;
         }
         if let Some(candidate) = snapshot.candidate(
-            Phase::HeadingAttrs,
             OwnerKind::Heading,
             trailer_lo..trailer_hi,
             canonical,
@@ -488,21 +484,25 @@ fn collect_link_def_style(snapshot: &Snapshot<'_>, target: LinkDefStyle, candida
         let Some(slice) = bytes.get(lo..hi) else {
             continue;
         };
-        let is_angle = slice.starts_with(b"<") && slice.ends_with(b">") && slice.len() >= 2;
-        let bare_slice: &[u8] = if is_angle {
-            let inner_hi = slice.len().saturating_sub(1);
-            slice.get(1..inner_hi).unwrap_or_default()
-        } else {
-            slice
-        };
         let want_angle = match target {
             LinkDefStyle::Bare => false,
             LinkDefStyle::Angle => true,
             LinkDefStyle::Preserve => continue,
         };
+        let is_angle = slice.starts_with(b"<") && slice.ends_with(b">") && slice.len() >= 2;
         if want_angle == is_angle {
             continue;
         }
+        let Some(bare_slice) = safe_link_destination_body(slice, want_angle) else {
+            tracing::debug!(
+                target: "mdwright::rewrite",
+                label = "link-destination-style",
+                span_lo = lo,
+                span_hi = hi,
+                "skipped link destination: destination slot is not safe to rewrite",
+            );
+            continue;
+        };
         let rewrite: Vec<u8> = if want_angle {
             let mut v = Vec::with_capacity(bare_slice.len().saturating_add(2));
             v.push(b'<');
@@ -518,7 +518,6 @@ fn collect_link_def_style(snapshot: &Snapshot<'_>, target: LinkDefStyle, candida
         if let Some(owner) = site.owner {
             if let Some(candidate) = snapshot.candidate_for_owner(
                 owner,
-                Phase::LinkDestination,
                 lo..hi,
                 replacement,
                 Verification::PreserveMarkdownAndMath,
@@ -527,8 +526,7 @@ fn collect_link_def_style(snapshot: &Snapshot<'_>, target: LinkDefStyle, candida
                 candidates.push(candidate);
             }
         } else if let Some(candidate) = snapshot.candidate(
-            Phase::LinkDestination,
-            OwnerKind::Paragraph,
+            OwnerKind::InlineLinkDestination,
             lo..hi,
             replacement,
             Verification::PreserveMarkdownAndMath,
@@ -546,7 +544,7 @@ struct LinkDestinationSite {
 
 fn collect_link_destination_sites(snapshot: &Snapshot<'_>) -> Vec<LinkDestinationSite> {
     let mut sites: Vec<LinkDestinationSite> = Vec::new();
-    for site in snapshot.document().inline_link_destination_sites() {
+    for site in snapshot.document().inline_link_destination_slots() {
         sites.push(LinkDestinationSite {
             range: site.range(),
             owner: None,
@@ -559,6 +557,23 @@ fn collect_link_destination_sites(snapshot: &Snapshot<'_>) -> Vec<LinkDestinatio
         });
     }
     sites
+}
+
+fn safe_link_destination_body(slice: &[u8], want_angle: bool) -> Option<&[u8]> {
+    let is_angle = slice.starts_with(b"<") && slice.ends_with(b">") && slice.len() >= 2;
+    let body = if is_angle {
+        let inner_hi = slice.len().saturating_sub(1);
+        slice.get(1..inner_hi)?
+    } else {
+        slice
+    };
+    if body.iter().any(|&b| matches!(b, b'\\' | b'(' | b')' | b'\n' | b'\r')) {
+        return None;
+    }
+    if !want_angle && body.iter().any(|&b| matches!(b, b' ' | b'\t')) {
+        return None;
+    }
+    Some(body)
 }
 
 // ----- Frontmatter strip ---------------------------------------
@@ -578,7 +593,6 @@ fn collect_strip_frontmatter(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candi
         cut = cut.saturating_add(1);
     }
     if let Some(candidate) = snapshot.candidate(
-        Phase::Frontmatter,
         OwnerKind::Frontmatter,
         0..cut,
         String::new(),
@@ -612,7 +626,6 @@ fn collect_math(snapshot: &Snapshot<'_>, opts: &FmtOptions, candidates: &mut Vec
             continue;
         }
         if let Some(candidate) = snapshot.candidate(
-            Phase::Math,
             OwnerKind::MathRegion,
             region.range.clone(),
             replacement,
@@ -660,7 +673,9 @@ fn compute_math_replacement(source: &str, region: &MathRegion, opts: &FmtOptions
 #[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+    use crate::format::rewrite::Snapshot;
     use crate::{FmtOptions, ItalicStyle, ListMarkerStyle, OrderedListStyle, StrongStyle, ThematicStyle};
+    use mdwright_document::ParseOptions;
 
     fn format_with(src: &str, opts: &FmtOptions) -> String {
         crate::format_document(&mdwright_document::Document::parse(src).expect("fixture parses"), opts)
@@ -691,6 +706,51 @@ mod tests {
     fn strong_double_underscore_to_asterisk() {
         let out = format_with("__foo__\n", &FmtOptions::default().with_strong(StrongStyle::Asterisk));
         assert_eq!(out, "**foo**\n");
+    }
+
+    #[test]
+    fn italic_rewrite_edits_delimiter_slots_only() {
+        let snapshot = Snapshot::parse_owned("_outer _inner__\n", ParseOptions::default()).expect("snapshot parses");
+        let mut candidates = Vec::new();
+        collect_family_candidates(
+            &snapshot,
+            &FmtOptions::default().with_italic(ItalicStyle::Asterisk),
+            RewriteFamily::Italic,
+            &mut candidates,
+        );
+        let mut ranges: Vec<_> = candidates.iter().map(|candidate| candidate.range().clone()).collect();
+        ranges.sort_by_key(|range| range.start);
+        assert_eq!(ranges, vec![0..1, 7..8, 13..14, 14..15]);
+        assert!(ranges.iter().all(|range| range.len() == 1));
+    }
+
+    #[test]
+    fn link_destination_rewrite_uses_inline_slots() {
+        let snapshot =
+            Snapshot::parse_owned("[x](https://example.com)\n", ParseOptions::default()).expect("snapshot parses");
+        let mut candidates = Vec::new();
+        collect_family_candidates(
+            &snapshot,
+            &FmtOptions::default().with_link_def_style(LinkDefStyle::Angle),
+            RewriteFamily::LinkDestination,
+            &mut candidates,
+        );
+        let ranges: Vec<_> = candidates.iter().map(|candidate| candidate.range().clone()).collect();
+        assert_eq!(ranges, vec![4..23]);
+    }
+
+    #[test]
+    fn link_destination_rewrite_skips_unproven_slots() {
+        let snapshot = Snapshot::parse_owned("[x](https://example.com/a\\)b)\n", ParseOptions::default())
+            .expect("snapshot parses");
+        let mut candidates = Vec::new();
+        collect_family_candidates(
+            &snapshot,
+            &FmtOptions::default().with_link_def_style(LinkDefStyle::Angle),
+            RewriteFamily::LinkDestination,
+            &mut candidates,
+        );
+        assert!(candidates.is_empty());
     }
 
     #[test]

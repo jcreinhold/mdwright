@@ -61,16 +61,28 @@ pub enum InlineDelimiterKind {
     Strong,
 }
 
-/// Delimiter byte ranges for one inline span.
+/// Delimiter byte slots for one inline span.
 #[derive(Clone, Debug)]
-pub struct InlineDelimiterSpan {
+pub struct InlineDelimiterSlot {
+    pair: usize,
+    kind: InlineDelimiterKind,
     open_lo: usize,
     open_hi: usize,
     close_lo: usize,
     close_hi: usize,
 }
 
-impl InlineDelimiterSpan {
+impl InlineDelimiterSlot {
+    #[must_use]
+    pub fn pair(&self) -> usize {
+        self.pair
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> InlineDelimiterKind {
+        self.kind
+    }
+
     #[must_use]
     pub fn open_range(&self) -> Range<usize> {
         self.open_lo..self.open_hi
@@ -79,11 +91,6 @@ impl InlineDelimiterSpan {
     #[must_use]
     pub fn close_range(&self) -> Range<usize> {
         self.close_lo..self.close_hi
-    }
-
-    #[must_use]
-    pub fn full_range(&self) -> Range<usize> {
-        self.open_lo..self.close_hi
     }
 }
 
@@ -145,13 +152,13 @@ impl HeadingAttrSite {
     }
 }
 
-/// An inline link destination byte range.
+/// An inline link or image destination byte slot.
 #[derive(Clone, Debug)]
-pub struct InlineLinkDestinationSite {
+pub struct InlineLinkDestinationSlot {
     range: Range<usize>,
 }
 
-impl InlineLinkDestinationSite {
+impl InlineLinkDestinationSlot {
     #[must_use]
     pub fn range(&self) -> Range<usize> {
         self.range.clone()
@@ -241,6 +248,7 @@ pub struct WrappableParagraph {
     line_hi: usize,
     content_lo: usize,
     content_hi: usize,
+    owner_kind: StructuralKind,
     first_prefix: String,
     cont_prefix: String,
     atomics: Vec<Range<usize>>,
@@ -256,6 +264,11 @@ impl WrappableParagraph {
     #[must_use]
     pub fn content_range(&self) -> Range<usize> {
         self.content_lo..self.content_hi
+    }
+
+    #[must_use]
+    pub fn owner_kind(&self) -> StructuralKind {
+        self.owner_kind
     }
 
     #[must_use]
@@ -307,13 +320,13 @@ impl ParagraphHardBreak {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct FormatFacts {
     structural_spans: Vec<StructuralSpan>,
-    emphasis_delimiters: Vec<InlineDelimiterSpan>,
-    strong_delimiters: Vec<InlineDelimiterSpan>,
+    emphasis_delimiter_slots: Vec<InlineDelimiterSlot>,
+    strong_delimiter_slots: Vec<InlineDelimiterSlot>,
     unordered_list_marker_sites: Vec<UnorderedListMarkerSite>,
     ordered_list_marker_sites: Vec<OrderedListMarkerSite>,
     thematic_break_ranges: Vec<Range<usize>>,
     heading_attr_sites: Vec<HeadingAttrSite>,
-    inline_link_destination_sites: Vec<InlineLinkDestinationSite>,
+    inline_link_destination_slots: Vec<InlineLinkDestinationSlot>,
     reference_definition_sites: Vec<ReferenceDefinitionSite>,
     table_sites: Vec<TableSite>,
     wrappable_paragraphs: Vec<WrappableParagraph>,
@@ -330,13 +343,13 @@ impl FormatFacts {
     ) -> Self {
         Self {
             structural_spans: structural_spans(events),
-            emphasis_delimiters: inline_delimiter_spans(source, events, InlineDelimiterKind::Emphasis),
-            strong_delimiters: inline_delimiter_spans(source, events, InlineDelimiterKind::Strong),
+            emphasis_delimiter_slots: inline_delimiter_slots(source, events, InlineDelimiterKind::Emphasis),
+            strong_delimiter_slots: inline_delimiter_slots(source, events, InlineDelimiterKind::Strong),
             unordered_list_marker_sites: unordered_list_marker_sites(source, events),
             ordered_list_marker_sites: ordered_list_marker_sites(source, events),
             thematic_break_ranges: thematic_break_ranges(source, events),
             heading_attr_sites: heading_attr_sites(source, events),
-            inline_link_destination_sites: inline_link_destination_sites(source, events),
+            inline_link_destination_slots: inline_link_destination_slots(source, events),
             reference_definition_sites: reference_definition_sites(source, code_blocks, html_blocks),
             table_sites: table_sites(source, tree),
             wrappable_paragraphs: wrappable_paragraphs(source, events, autolinks),
@@ -351,12 +364,12 @@ impl Document {
         &self.format_facts().structural_spans
     }
 
-    /// Inline emphasis/strong delimiter ranges.
+    /// Inline emphasis/strong delimiter slots.
     #[must_use]
-    pub fn inline_delimiter_spans(&self, kind: InlineDelimiterKind) -> &[InlineDelimiterSpan] {
+    pub fn inline_delimiter_slots(&self, kind: InlineDelimiterKind) -> &[InlineDelimiterSlot] {
         match kind {
-            InlineDelimiterKind::Emphasis => &self.format_facts().emphasis_delimiters,
-            InlineDelimiterKind::Strong => &self.format_facts().strong_delimiters,
+            InlineDelimiterKind::Emphasis => &self.format_facts().emphasis_delimiter_slots,
+            InlineDelimiterKind::Strong => &self.format_facts().strong_delimiter_slots,
         }
     }
 
@@ -384,10 +397,10 @@ impl Document {
         &self.format_facts().heading_attr_sites
     }
 
-    /// Inline link destination ranges.
+    /// Inline link/image destination slots.
     #[must_use]
-    pub fn inline_link_destination_sites(&self) -> &[InlineLinkDestinationSite] {
-        &self.format_facts().inline_link_destination_sites
+    pub fn inline_link_destination_slots(&self) -> &[InlineLinkDestinationSlot] {
+        &self.format_facts().inline_link_destination_slots
     }
 
     /// Reference-definition destination ranges.
@@ -459,13 +472,13 @@ fn structural_spans(events: &[(Event<'_>, Range<usize>)]) -> Vec<StructuralSpan>
     out
 }
 
-fn inline_delimiter_spans(
+fn inline_delimiter_slots(
     source: &str,
     events: &[(Event<'_>, Range<usize>)],
     kind: InlineDelimiterKind,
-) -> Vec<InlineDelimiterSpan> {
+) -> Vec<InlineDelimiterSlot> {
     let mut starts: Vec<usize> = Vec::new();
-    let mut spans: Vec<InlineDelimiterSpan> = Vec::new();
+    let mut slots: Vec<InlineDelimiterSlot> = Vec::new();
     let delim_len = match kind {
         InlineDelimiterKind::Emphasis => 1,
         InlineDelimiterKind::Strong => 2,
@@ -494,7 +507,9 @@ fn inline_delimiter_spans(
             if !is_emphasis_delim_run(open) || !is_emphasis_delim_run(close) {
                 continue;
             }
-            spans.push(InlineDelimiterSpan {
+            slots.push(InlineDelimiterSlot {
+                pair: slots.len(),
+                kind,
                 open_lo,
                 open_hi,
                 close_lo,
@@ -502,7 +517,7 @@ fn inline_delimiter_spans(
             });
         }
     }
-    spans
+    slots
 }
 
 fn unordered_list_marker_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<UnorderedListMarkerSite> {
@@ -621,17 +636,17 @@ fn heading_attr_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec
     sites
 }
 
-fn inline_link_destination_sites(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<InlineLinkDestinationSite> {
+fn inline_link_destination_slots(source: &str, events: &[(Event<'_>, Range<usize>)]) -> Vec<InlineLinkDestinationSlot> {
     let bytes = source.as_bytes();
     let mut sites = Vec::new();
     let mut link_stack = Vec::new();
     for (ev, range) in events {
         match ev {
-            Event::Start(Tag::Link { .. }) => link_stack.push(range.start),
-            Event::End(TagEnd::Link) => {
+            Event::Start(Tag::Link { .. } | Tag::Image { .. }) => link_stack.push(range.start),
+            Event::End(TagEnd::Link | TagEnd::Image) => {
                 let Some(open) = link_stack.pop() else { continue };
                 if let Some((lo, hi)) = find_inline_dest_range(bytes, open, range.end) {
-                    sites.push(InlineLinkDestinationSite { range: lo..hi });
+                    sites.push(InlineLinkDestinationSlot { range: lo..hi });
                 }
             }
             _ => {}
@@ -972,11 +987,16 @@ fn find_ordered_marker_digits(bytes: &[u8], start: usize, end: usize) -> Option<
 
 fn find_inline_dest_range(bytes: &[u8], start: usize, end: usize) -> Option<(usize, usize)> {
     let end = end.min(bytes.len());
-    if bytes.get(start).copied()? != b'[' {
+    let bracket = if bytes.get(start).copied()? == b'!' {
+        start.saturating_add(1)
+    } else {
+        start
+    };
+    if bytes.get(bracket).copied()? != b'[' {
         return None;
     }
     let mut depth: i32 = 1;
-    let mut i = start.saturating_add(1);
+    let mut i = bracket.saturating_add(1);
     while i < end {
         let b = bytes.get(i).copied()?;
         match b {
@@ -1147,6 +1167,7 @@ impl PartialParagraph {
             return None;
         }
         let cont_prefix = derive_continuation_prefix(&first_prefix)?;
+        let owner_kind = paragraph_owner_kind(&first_prefix);
         for autolink in extra_atomics {
             let raw_range = autolink.raw_range();
             if raw_range.start >= self.content_lo && raw_range.end <= self.content_hi {
@@ -1162,11 +1183,27 @@ impl PartialParagraph {
             line_hi,
             content_lo: self.content_lo,
             content_hi: self.content_hi,
+            owner_kind,
             first_prefix,
             cont_prefix,
             atomics,
             hard_breaks,
         })
+    }
+}
+
+fn paragraph_owner_kind(first_prefix: &str) -> StructuralKind {
+    let trimmed = first_prefix.trim_start_matches([' ', '\t']);
+    if trimmed.starts_with('>') {
+        StructuralKind::BlockQuote
+    } else if trimmed.starts_with("[^") {
+        StructuralKind::FootnoteDefinition
+    } else if trimmed.starts_with(':') {
+        StructuralKind::DefinitionDescription
+    } else if trimmed.starts_with(['-', '*', '+']) || trimmed.as_bytes().first().is_some_and(u8::is_ascii_digit) {
+        StructuralKind::ListItem
+    } else {
+        StructuralKind::Paragraph
     }
 }
 
@@ -1387,5 +1424,36 @@ mod tests {
             .map(|site| (site.marker_range(), site.start_number(), site.ordinal()))
             .collect();
         assert_eq!(markers, vec![(0..1, 3, 0), (9..10, 3, 1)]);
+    }
+
+    #[test]
+    fn inline_delimiter_slots_are_pair_local() {
+        let doc = Document::parse("__outer _inner___\n").expect("fixture parses");
+        let strong: Vec<_> = doc
+            .inline_delimiter_slots(InlineDelimiterKind::Strong)
+            .iter()
+            .map(|slot| (slot.pair(), slot.kind(), slot.open_range(), slot.close_range()))
+            .collect();
+        let emphasis: Vec<_> = doc
+            .inline_delimiter_slots(InlineDelimiterKind::Emphasis)
+            .iter()
+            .map(|slot| (slot.pair(), slot.kind(), slot.open_range(), slot.close_range()))
+            .collect();
+
+        assert_eq!(strong, vec![(0, InlineDelimiterKind::Strong, 0..2, 15..17)]);
+        assert_eq!(emphasis, vec![(0, InlineDelimiterKind::Emphasis, 8..9, 14..15)]);
+    }
+
+    #[test]
+    fn inline_link_destination_slots_include_links_and_images() {
+        let doc =
+            Document::parse("[x](https://example.com) ![alt](https://example.com/img)\n").expect("fixture parses");
+        let slots: Vec<_> = doc
+            .inline_link_destination_slots()
+            .iter()
+            .map(InlineLinkDestinationSlot::range)
+            .collect();
+
+        assert_eq!(slots, vec![4..23, 32..55]);
     }
 }

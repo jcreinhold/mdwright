@@ -35,7 +35,7 @@ mdwright-format   mdwright-lint
 | ------------------ | ------------------------------------------------------------------------------------------ |
 | `mdwright-math`    | TeX delimiter and environment recognition; math body normalisation.                        |
 | `mdwright-document`| CommonMark/pulldown quirks, GFM extension overlays, source-coordinate invariants, parser-panic containment. Owns the only production `pulldown-cmark` chokepoint. |
-| `mdwright-format`  | Byte-rewrite ordering, overlap rejection, fixed-point iteration, semantic verification.    |
+| `mdwright-format`  | Formatter style policy, rewrite-family planning, local ownership checks, semantic verification. |
 | `mdwright-lint`    | Rule dispatch, suppressions, diagnostic shape, safe-fix edit ordering, standard-rule registry. |
 | `mdwright-config`  | TOML schema and discovery rules; resolves into the per-crate option types.                 |
 | `mdwright`         | File discovery, argument parsing, terminal output, parallel execution, exit policy.        |
@@ -43,8 +43,9 @@ mdwright-format   mdwright-lint
 
 The document crate is a parse/query abstraction; formatting and linting are operations owned by the crates that hide
 their algorithms. Other crates consume document facts as domain records (structural spans, paragraphs, list-marker
-sites, heading attribute trailers, link destination ranges, math regions, frontmatter, code/HTML exclusions, top-level
-checkpoints) and do not couple to pulldown's event vocabulary, offset iterator, panic payloads, or backtraces.
+sites, inline delimiter slots, heading attribute trailers, link destination slots, math regions, frontmatter, code/HTML
+exclusions, top-level checkpoints) and do not couple to pulldown's event vocabulary, offset iterator, panic payloads, or
+backtraces.
 `pulldown_model` tests may import pulldown directly because they deliberately probe upstream drift.
 
 ## Public API entry points

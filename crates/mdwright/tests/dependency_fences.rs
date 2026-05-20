@@ -340,10 +340,29 @@ fn document_does_not_reexport_deleted_helpers() {
         "UnorderedListSite",
         "OrderedListSite",
         "OrderedItemSite",
+        "InlineDelimiterSpan",
+        "InlineLinkDestinationSite",
     ] {
         assert!(
             !lib.contains(forbidden),
             "mdwright-document must not re-export deleted helper `{forbidden}`"
+        );
+    }
+}
+
+#[test]
+fn formatter_inline_rewrites_use_slot_facts() {
+    let canonicalise =
+        fs::read_to_string(repo_file("crates/mdwright-format/src/format/canonicalise.rs")).expect("read canonicalise");
+    for forbidden in [
+        "inline_delimiter_spans",
+        "inline_link_destination_sites",
+        "open_lo..close_hi",
+        "open_hi..close_lo",
+    ] {
+        assert!(
+            !canonicalise.contains(forbidden),
+            "formatter inline canonicalisation must use document-owned slots, not broad inline ranges: `{forbidden}`"
         );
     }
 }

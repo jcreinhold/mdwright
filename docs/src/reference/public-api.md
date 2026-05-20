@@ -56,7 +56,7 @@ learning pulldown event shapes.
 | Suppressions | `Suppression`, `SuppressionKind`, `AllowScope` |
 | Positions | `LineIndex`, `LineIndexError`, `BlockCheckpointFact` |
 | Math | `MathRegion`, `MathSpan`, `MathError` |
-| Formatter facts | `StructuralSpan`, `StructuralKind`, `InlineDelimiterSpan`, `InlineDelimiterKind`, `UnorderedListMarkerSite`, `OrderedListMarkerSite`, `HeadingAttrSite`, `InlineLinkDestinationSite`, `ReferenceDefinitionSite`, `TableSite`, `TableRowSite`, `TableCellSite`, `TableAlign`, `WrappableParagraph`, `ParagraphHardBreak` |
+| Formatter facts | `StructuralSpan`, `StructuralKind`, `InlineDelimiterSlot`, `InlineDelimiterKind`, `UnorderedListMarkerSite`, `OrderedListMarkerSite`, `HeadingAttrSite`, `InlineLinkDestinationSlot`, `ReferenceDefinitionSite`, `TableSite`, `TableRowSite`, `TableCellSite`, `TableAlign`, `WrappableParagraph`, `ParagraphHardBreak` |
 
 Formatter-facing facts expose accessors instead of public fields where practical. That keeps invalid construction out of
 downstream code while preserving stable ranges for rule authors and diagnostic tooling.

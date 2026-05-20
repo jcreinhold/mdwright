@@ -86,6 +86,13 @@ fn fuzz_option_7e_options() -> FmtOptions {
         .with_list_marker(ListMarkerStyle::Plus)
 }
 
+fn inline_slot_options() -> FmtOptions {
+    FmtOptions::default()
+        .with_italic(ItalicStyle::Asterisk)
+        .with_strong(StrongStyle::Asterisk)
+        .with_link_def_style(LinkDefStyle::Angle)
+}
+
 /// Every regression input must round-trip under the HTML-equivalence
 /// gate that `mdwright fmt --check` enforces in production. A new
 /// `.in` fixture is the canonical way to lock in a previously broken
@@ -163,6 +170,24 @@ fn regression_nested_list_markers_are_idempotent_under_fuzz_profile() {
         "fuzz_nested_list_marker_round1.in",
         "fuzz_nested_list_marker_round2.in",
         "fuzz_nested_list_marker_round3.in",
+    ] {
+        let path = regressions_dir().join(name);
+        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
+        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
+        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
+        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+    }
+}
+
+#[test]
+fn regression_inline_slot_canonicalisers_are_idempotent() {
+    let opts = inline_slot_options();
+    for name in [
+        "inline_slot_nested_emphasis.in",
+        "inline_slot_emphasis_link_mix.in",
+        "inline_slot_adjacent_links.in",
+        "inline_slot_container_destinations.in",
+        "inline_slot_math_adjacent.in",
     ] {
         let path = regressions_dir().join(name);
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));

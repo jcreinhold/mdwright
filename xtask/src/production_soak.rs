@@ -53,6 +53,7 @@ struct SoakReport {
     rewrite_committed: usize,
     rewrite_rejected_overlap: usize,
     rewrite_rejected_verification: usize,
+    rewrite_rejected_convergence: usize,
     slowest_files: Vec<SlowFileReport>,
 }
 
@@ -200,6 +201,9 @@ fn merge_report(total: &mut FormatReport, report: &FormatReport) {
     total.rewrite_rejected_verification = total
         .rewrite_rejected_verification
         .saturating_add(report.rewrite_rejected_verification);
+    total.rewrite_rejected_convergence = total
+        .rewrite_rejected_convergence
+        .saturating_add(report.rewrite_rejected_convergence);
 }
 
 fn print_report(stats: &SoakStats) {
@@ -227,6 +231,10 @@ fn print_report(stats: &SoakStats) {
         "  rewrite candidates rejected by verification: {}",
         stats.rewrite_report.rewrite_rejected_verification
     );
+    println!(
+        "  rewrite families rejected by convergence: {}",
+        stats.rewrite_report.rewrite_rejected_convergence
+    );
     println!("  slowest files:");
     for (elapsed, path, len) in &stats.slowest {
         println!("    {:>8.3?}  {:>8} byte(s)  {}", elapsed, len, path.display());
@@ -248,6 +256,7 @@ fn report_for(corpus_root: &Path, stats: &SoakStats, success: bool) -> SoakRepor
         rewrite_committed: stats.rewrite_report.rewrite_committed,
         rewrite_rejected_overlap: stats.rewrite_report.rewrite_rejected_overlap,
         rewrite_rejected_verification: stats.rewrite_report.rewrite_rejected_verification,
+        rewrite_rejected_convergence: stats.rewrite_report.rewrite_rejected_convergence,
         slowest_files: stats
             .slowest
             .iter()
@@ -301,6 +310,10 @@ fn markdown_report(report: &SoakReport) -> String {
     out.push_str(&format!(
         "| Rejected by verification | {} |\n",
         report.rewrite_rejected_verification
+    ));
+    out.push_str(&format!(
+        "| Rejected by convergence | {} |\n",
+        report.rewrite_rejected_convergence
     ));
     out.push_str("\n## Slowest files\n\n");
     out.push_str("| Time | Bytes | Path |\n");

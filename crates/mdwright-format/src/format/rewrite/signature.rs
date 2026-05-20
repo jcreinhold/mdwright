@@ -28,6 +28,12 @@ pub(crate) fn verify_batch(
             _ => false,
         };
     }
+    if candidates
+        .iter()
+        .all(|c| matches!(c.verification(), Verification::MathRewrite))
+    {
+        return verify_math_family_rewrite(before, after, candidates, opts, parse_options);
+    }
     candidates
         .first()
         .is_some_and(|candidate| candidates.len() == 1 && verify_one(before, after, candidate, opts, parse_options))
@@ -97,6 +103,58 @@ fn math_signature(source: &str, parse_options: ParseOptions) -> Result<Vec<MathS
         .collect())
 }
 
+fn verify_math_family_rewrite(
+    before: &str,
+    after: &str,
+    candidates: &[Candidate],
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+) -> bool {
+    if !changed_only_at_candidate_ranges(before, after, candidates) {
+        return false;
+    }
+    if !candidates
+        .iter()
+        .all(|candidate| verify_math_candidate_replacement(before, candidate, opts, parse_options))
+    {
+        return false;
+    }
+    true
+}
+
+fn verify_math_candidate_replacement(
+    before: &str,
+    candidate: &Candidate,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+) -> bool {
+    let Ok(before_doc) = Document::parse_with_options(before, parse_options) else {
+        return false;
+    };
+    let Some(before_region) = before_doc
+        .math_regions()
+        .iter()
+        .find(|region| region.range.start <= candidate.range().start && region.range.end >= candidate.range().end)
+    else {
+        return false;
+    };
+    if matches!(opts.math().render, MathRender::Dollar)
+        && let MathSpan::Inline { .. } | MathSpan::Display { .. } = before_region.span()
+    {
+        return expected_dollar_math_replacement(before, before_region.span())
+            .is_some_and(|expected| expected == candidate.replacement());
+    }
+    let MathSpan::Environment { env, .. } = before_region.span() else {
+        return false;
+    };
+    if !opts.math().normalise {
+        return false;
+    }
+    let name = env.name(before);
+    candidate.replacement().contains(&format!("\\begin{{{name}}}"))
+        && candidate.replacement().contains(&format!("\\end{{{name}}}"))
+}
+
 fn verify_math_rewrite(
     before: &str,
     after: &str,
@@ -151,10 +209,14 @@ fn verify_dollar_math_replacement(before: &str, after: &str, range: &Range<usize
     let Some(replacement) = after.get(range.start..replacement_hi) else {
         return false;
     };
+    expected_dollar_math_replacement(before, span).is_some_and(|expected| replacement == expected)
+}
+
+fn expected_dollar_math_replacement(before: &str, span: &MathSpan) -> Option<String> {
     match span {
-        MathSpan::Inline { body, .. } => replacement == format!("${}$", body.as_str(before).trim()),
-        MathSpan::Display { body, .. } => replacement == format!("$$ {} $$", body.as_str(before).trim()),
-        MathSpan::Environment { .. } => false,
+        MathSpan::Inline { body, .. } => Some(format!("${}$", body.as_str(before).trim())),
+        MathSpan::Display { body, .. } => Some(format!("$$ {} $$", body.as_str(before).trim())),
+        MathSpan::Environment { .. } => None,
     }
 }
 
@@ -170,6 +232,30 @@ fn changed_only_at(before: &str, after: &str, range: &Range<usize>) -> bool {
     }
     let before_suffix = before.get(range.end..).unwrap_or("");
     after.ends_with(before_suffix)
+}
+
+fn changed_only_at_candidate_ranges(before: &str, after: &str, candidates: &[Candidate]) -> bool {
+    let mut sorted: Vec<&Candidate> = candidates.iter().collect();
+    sorted.sort_by_key(|candidate| candidate.range().start);
+    let mut expected = String::with_capacity(after.len());
+    let mut cursor = 0usize;
+    for candidate in sorted {
+        let range = candidate.range();
+        if range.start < cursor {
+            return false;
+        }
+        let Some(prefix) = before.get(cursor..range.start) else {
+            return false;
+        };
+        expected.push_str(prefix);
+        expected.push_str(candidate.replacement());
+        cursor = range.end;
+    }
+    let Some(suffix) = before.get(cursor..) else {
+        return false;
+    };
+    expected.push_str(suffix);
+    expected == after
 }
 
 fn verify_frontmatter_removal(before: &str, after: &str, range: &Range<usize>, parse_options: ParseOptions) -> bool {

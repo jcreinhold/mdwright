@@ -59,6 +59,7 @@ pub struct FormatReport {
     pub rewrite_committed: usize,
     pub rewrite_rejected_overlap: usize,
     pub rewrite_rejected_verification: usize,
+    pub rewrite_rejected_convergence: usize,
 }
 
 /// Format a parsed document.

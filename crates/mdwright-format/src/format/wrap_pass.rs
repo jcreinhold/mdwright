@@ -4,8 +4,8 @@
 //!
 //! ## Contract
 //!
-//! [`collect_wrap_candidates`] walks `out`'s pulldown event stream to find
-//! every `Tag::Paragraph` and rewrites the paragraph's bytes per
+//! [`collect_wrap_candidates`] walks the document's cached paragraph facts
+//! and rewrites each paragraph's bytes per
 //! [`Wrap`]:
 //!
 //! - `Wrap::Keep` — no-op (identity emit already preserved breaks).
@@ -28,8 +28,9 @@
 //! For each paragraph, the rewrite extracts inline atomics by source
 //! byte range, tokenises the remaining text on whitespace, applies
 //! the DP, and re-emits with `\n` + the continuation prefix between
-//! lines. The replacement is submitted as a parsed-owner candidate;
-//! the rewrite engine verifies it in document context before commit.
+//! lines. The replacement is submitted as a parsed-owner edit in the terminal
+//! wrap family; the rewrite engine verifies it in document context before
+//! commit.
 
 use std::ops::Range;
 use std::time::{Duration, Instant};
@@ -37,7 +38,8 @@ use std::time::{Duration, Instant};
 use unicode_width::UnicodeWidthStr;
 
 use crate::Wrap;
-use crate::format::rewrite::{Candidate, OwnerKind, Phase, Snapshot, Verification};
+use crate::format::rewrite::{Candidate, OwnerKind, Snapshot, Verification};
+use mdwright_document::StructuralKind;
 use mdwright_document::WrappableParagraph as Paragraph;
 
 /// Time budget per paragraph for the DP.
@@ -66,8 +68,7 @@ pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candi
             continue;
         }
         if let Some(candidate) = snapshot.candidate(
-            Phase::Wrap,
-            OwnerKind::Paragraph,
+            wrap_owner_kind(p.owner_kind()),
             line_range,
             replacement,
             Verification::PreserveMarkdownAndMath,
@@ -75,6 +76,21 @@ pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candi
         ) {
             candidates.push(candidate);
         }
+    }
+}
+
+fn wrap_owner_kind(kind: StructuralKind) -> OwnerKind {
+    match kind {
+        StructuralKind::Paragraph => OwnerKind::Paragraph,
+        StructuralKind::BlockQuote => OwnerKind::BlockQuote,
+        StructuralKind::ListItem => OwnerKind::ListItem,
+        StructuralKind::DefinitionDescription => OwnerKind::DefinitionDescription,
+        StructuralKind::FootnoteDefinition => OwnerKind::FootnoteDefinition,
+        StructuralKind::Heading
+        | StructuralKind::List
+        | StructuralKind::DefinitionList
+        | StructuralKind::ThematicBreak
+        | StructuralKind::Table => OwnerKind::Paragraph,
     }
 }
 

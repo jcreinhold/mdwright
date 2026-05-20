@@ -51,9 +51,9 @@ strong = "underscore"
 | `"asterisk"` | Rewrite each bullet to `*`. |
 | `"plus"` | Rewrite each bullet to `+`. |
 
-**Atomic per list.** The pass rewrites every bullet in a list together, not bullet by bullet. Partial rewrites would
-split the list at the parse layer (mixed-marker lists are two adjacent lists in pulldown's view). Nested lists are
-treated independently; the outer list and inner list each commit or skip.
+**Marker-local.** The document crate exposes one fact per list-item marker. The formatter rewrites those marker bytes
+only, then verifies the full document before committing the family plan. Nested list markers are separate facts, so an
+outer list rewrite cannot cover child markers accidentally.
 
 ```toml
 [fmt]
@@ -68,8 +68,9 @@ list-marker = "dash"
 | `"one"` | Rewrite markers to `1.` when verification preserves the list start. This matches mdformat's default spelling for ordinary lists that already start at `1.`. |
 | `"consistent"` | Renumber so item `k` (0-indexed) becomes `start_num + k`, where `start_num` is the source's first item's number. `3. a / 5. b / 9. c` → `3. a / 4. b / 5. c`. |
 
-Atomic per list: every marker in the list updates together, or none does. The starting number is preserved; only the
-increment is canonicalised.
+Marker-local: each ordered item exposes its digit range, list start, and ordinal. The family plan rewrites those digit
+ranges and commits only after full-document verification. The starting number is preserved; only the increment is
+canonicalised.
 
 ```toml
 [fmt]

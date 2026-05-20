@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::format::rewrite::candidate::{Candidate, Phase, Verification};
+use crate::format::rewrite::candidate::{Candidate, Verification};
 use mdwright_document::{Document, ParseError, ParseOptions, StructuralKind};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -16,6 +16,8 @@ pub(crate) enum OwnerKind {
     DefinitionList,
     DefinitionDescription,
     FootnoteDefinition,
+    InlineDelimiterSlot,
+    InlineLinkDestination,
     ReferenceDefinition,
     Table,
     Heading,
@@ -62,6 +64,7 @@ impl<'a> Snapshot<'a> {
         };
         snapshot.collect_event_owners();
         snapshot.collect_document_owners();
+        snapshot.collect_inline_slot_owners();
         snapshot.collect_reference_destination_sites();
         snapshot
     }
@@ -79,6 +82,7 @@ impl<'a> Snapshot<'a> {
         };
         snapshot.collect_event_owners();
         snapshot.collect_document_owners();
+        snapshot.collect_inline_slot_owners();
         snapshot.collect_reference_destination_sites();
         Ok(snapshot)
     }
@@ -100,8 +104,7 @@ impl<'a> Snapshot<'a> {
 
     pub(crate) fn candidate(
         &self,
-        phase: Phase,
-        preferred_owner: OwnerKind,
+        owner_kind: OwnerKind,
         range: Range<usize>,
         replacement: String,
         verification: Verification,
@@ -110,16 +113,13 @@ impl<'a> Snapshot<'a> {
         if !self.valid_range(&range) {
             return None;
         }
-        let owner = self
-            .find_owner(preferred_owner, &range)
-            .or_else(|| self.smallest_owner_containing(&range))?;
-        self.candidate_for_owner(owner, phase, range, replacement, verification, label)
+        let owner = self.find_owner(owner_kind, &range)?;
+        self.candidate_for_owner(owner, range, replacement, verification, label)
     }
 
     pub(crate) fn candidate_for_owner(
         &self,
         owner: OwnerId,
-        phase: Phase,
         range: Range<usize>,
         replacement: String,
         verification: Verification,
@@ -131,7 +131,7 @@ impl<'a> Snapshot<'a> {
         if !self.owner_allows(owner, verification, &range) {
             return None;
         }
-        Some(Candidate::new(phase, owner, range, replacement, verification, label))
+        Some(Candidate::new(owner, range, replacement, verification, label))
     }
 
     fn valid_range(&self, range: &Range<usize>) -> bool {
@@ -174,15 +174,6 @@ impl<'a> Snapshot<'a> {
             .map(|(idx, _)| OwnerId(idx))
     }
 
-    fn smallest_owner_containing(&self, range: &Range<usize>) -> Option<OwnerId> {
-        self.owners
-            .iter()
-            .enumerate()
-            .filter(|(_, owner)| owner.range.start <= range.start && owner.range.end >= range.end)
-            .min_by_key(|(_, owner)| owner.range.end.saturating_sub(owner.range.start))
-            .map(|(idx, _)| OwnerId(idx))
-    }
-
     fn collect_event_owners(&mut self) {
         let spans: Vec<_> = self.document().structural_spans().to_vec();
         for span in spans {
@@ -207,6 +198,33 @@ impl<'a> Snapshot<'a> {
                 end = end.saturating_add(1);
             }
             self.push_owner(OwnerKind::Frontmatter, frontmatter.slice.raw_range.start..end);
+        }
+    }
+
+    fn collect_inline_slot_owners(&mut self) {
+        let delimiter_ranges: Vec<Range<usize>> = self
+            .document()
+            .inline_delimiter_slots(mdwright_document::InlineDelimiterKind::Emphasis)
+            .iter()
+            .chain(
+                self.document()
+                    .inline_delimiter_slots(mdwright_document::InlineDelimiterKind::Strong)
+                    .iter(),
+            )
+            .flat_map(|slot| [slot.open_range(), slot.close_range()])
+            .collect();
+        for range in delimiter_ranges {
+            self.push_owner(OwnerKind::InlineDelimiterSlot, range);
+        }
+
+        let link_ranges: Vec<Range<usize>> = self
+            .document()
+            .inline_link_destination_slots()
+            .iter()
+            .map(mdwright_document::InlineLinkDestinationSlot::range)
+            .collect();
+        for range in link_ranges {
+            self.push_owner(OwnerKind::InlineLinkDestination, range);
         }
     }
 
@@ -240,7 +258,7 @@ fn owner_kind_from_structural(kind: StructuralKind) -> OwnerKind {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use crate::format::rewrite::{Phase, Verification};
+    use crate::format::rewrite::Verification;
 
     use super::*;
 
@@ -258,11 +276,65 @@ mod tests {
             snapshot
                 .candidate_for_owner(
                     owner,
-                    Phase::HeadingAttrs,
                     0..6,
                     "# h\n\n".to_owned(),
                     Verification::PreserveMarkdownAndMath,
                     "heading",
+                )
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn candidate_requires_requested_owner_kind() {
+        let snapshot =
+            Snapshot::parse_owned("[x](https://example.com)\n", ParseOptions::default()).expect("snapshot parses");
+        assert!(
+            snapshot
+                .candidate(
+                    OwnerKind::ReferenceDefinition,
+                    4..23,
+                    "<https://example.com>".to_owned(),
+                    Verification::PreserveMarkdownAndMath,
+                    "inline-link",
+                )
+                .is_none()
+        );
+        assert!(
+            snapshot
+                .candidate(
+                    OwnerKind::InlineLinkDestination,
+                    4..23,
+                    "<https://example.com>".to_owned(),
+                    Verification::PreserveMarkdownAndMath,
+                    "inline-link",
+                )
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn inline_delimiter_slot_owner_covers_only_the_slot() {
+        let snapshot = Snapshot::parse_owned("_x_\n", ParseOptions::default()).expect("snapshot parses");
+        assert!(
+            snapshot
+                .candidate(
+                    OwnerKind::InlineDelimiterSlot,
+                    0..1,
+                    "*".to_owned(),
+                    Verification::PreserveMarkdownAndMath,
+                    "italic",
+                )
+                .is_some()
+        );
+        assert!(
+            snapshot
+                .candidate(
+                    OwnerKind::InlineDelimiterSlot,
+                    0..3,
+                    "*x*".to_owned(),
+                    Verification::PreserveMarkdownAndMath,
+                    "italic",
                 )
                 .is_none()
         );

@@ -4,7 +4,7 @@
 /// `link_def_style`, `thematic_break_style`) default to `Preserve`;
 /// the structural-emit pipeline never consults them, so the defaults
 /// round-trip source bytes verbatim. Style rewrites are applied by the
-/// formatter's canonicalisation candidate producer. Structural defaults:
+/// formatter's rewrite-family pipeline. Structural defaults:
 /// `wrap = keep`, `trailing-newline = preserve`, `end-of-line = lf`,
 /// empty exclude list.
 #[derive(Debug, Clone)]
@@ -313,7 +313,7 @@ impl FmtOptions {
     //
     // Each accessor below maps a style knob to `Some(target)` when the
     // user opted into canonicalisation and `None` when the knob is
-    // `Preserve`. Canonicalisation candidate producers are the only
+    // `Preserve`. Rewrite-family producers are the only
     // consumers; identity emit never reads these.
 
     /// Italic-delimiter target byte. `None` keeps source bytes.

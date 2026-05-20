@@ -85,7 +85,7 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         key: "fmt.list-marker",
         ty: "\"dash\" | \"asterisk\" | \"plus\" | \"preserve\"",
         default: "\"preserve\"",
-        description: "Unordered-list bullet canonicalisation. Every bullet in one list rewrites together or none do.",
+        description: "Unordered-list bullet canonicalisation. Each marker is rewritten through a marker-local fact and the family commits only after verification.",
         cli_override: None,
     },
     FieldDoc {

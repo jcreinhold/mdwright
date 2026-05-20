@@ -45,11 +45,11 @@ user-facing view.
 ## Formatting
 
 Default formatting is identity emit: source bytes survive unchanged except for document-boundary policies. Opt-in style
-canonicalisation and wrapping are represented as rewrite candidates owned by the current document snapshot.
+canonicalisation and wrapping run through private rewrite families owned by the current document snapshot.
 
-Only the private rewrite engine in `mdwright-format` may apply formatter byte edits. It orders candidates, rejects
-overlaps, applies a batch to a scratch buffer, verifies Markdown and math signatures, falls back to single-candidate
-isolation when needed, and iterates to a fixed point.
+Only the private rewrite engine in `mdwright-format` may apply formatter byte edits. It runs rewrite families in a fixed
+order, rejects local overlaps within each family, applies a family plan to a scratch buffer, and verifies Markdown and
+math signatures before committing the whole plan. It does not expose partial family progress as successful formatting.
 
 ## Linting
 

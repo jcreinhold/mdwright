@@ -1,7 +1,7 @@
 use std::ops::Range;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Phase {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RewriteFamily {
     Italic,
     Strong,
     UnorderedList,
@@ -24,7 +24,6 @@ pub(crate) enum Verification {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Candidate {
-    phase: Phase,
     owner: super::snapshot::OwnerId,
     range: Range<usize>,
     replacement: String,
@@ -34,7 +33,6 @@ pub(crate) struct Candidate {
 
 impl Candidate {
     pub(super) fn new(
-        phase: Phase,
         owner: super::snapshot::OwnerId,
         range: Range<usize>,
         replacement: String,
@@ -42,17 +40,12 @@ impl Candidate {
         label: &'static str,
     ) -> Self {
         Self {
-            phase,
             owner,
             range,
             replacement,
             verification,
             label,
         }
-    }
-
-    pub(crate) fn phase(&self) -> Phase {
-        self.phase
     }
 
     pub(crate) fn owner(&self) -> super::snapshot::OwnerId {

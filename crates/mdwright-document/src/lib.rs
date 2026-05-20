@@ -18,7 +18,7 @@ mod util;
 pub use document::{Document, render_html, render_html_with_options, render_html_with_render_options};
 pub use error::ParseError;
 pub use format_facts::{
-    HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSpan, InlineLinkDestinationSite, OrderedListMarkerSite,
+    HeadingAttrSite, InlineDelimiterKind, InlineDelimiterSlot, InlineLinkDestinationSlot, OrderedListMarkerSite,
     ParagraphHardBreak, ReferenceDefinitionSite, StructuralKind, StructuralSpan, TableCellSite, TableRowSite,
     TableSite, UnorderedListMarkerSite, WrappableParagraph,
 };
