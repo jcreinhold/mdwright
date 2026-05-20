@@ -100,6 +100,14 @@ fn table_normal_form_options() -> FmtOptions {
         .with_link_def_style(LinkDefStyle::Angle)
 }
 
+fn terminal_wrap_options() -> FmtOptions {
+    FmtOptions::default()
+        .with_wrap(Wrap::At(64))
+        .with_italic(ItalicStyle::Underscore)
+        .with_strong(StrongStyle::Asterisk)
+        .with_link_def_style(LinkDefStyle::Angle)
+}
+
 /// Every regression input must round-trip under the HTML-equivalence
 /// gate that `mdwright fmt --check` enforces in production. A new
 /// `.in` fixture is the canonical way to lock in a previously broken
@@ -213,6 +221,23 @@ fn regression_table_normal_form_is_idempotent_after_child_normalisers() {
         "table_normal_form_code_and_escaped_pipes.in",
         "table_normal_form_math_and_alignments.in",
         "table_normal_form_ragged_and_padded.in",
+    ] {
+        let path = regressions_dir().join(name);
+        let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));
+        let once = mdwright_format::format_document(&Document::parse(&src).expect("fixture parses"), &opts);
+        let twice = mdwright_format::format_document(&Document::parse(&once).expect("fixture parses"), &opts);
+        assert_eq!(once, twice, "non-idempotent fixture: {}", path.display());
+    }
+}
+
+#[test]
+fn regression_terminal_wrap_is_idempotent_after_child_normalisers() {
+    let opts = terminal_wrap_options();
+    for name in [
+        "wrap_terminal_inline_atoms.in",
+        "wrap_terminal_containers.in",
+        "wrap_terminal_hardbreak_suffix.in",
+        "wrap_terminal_math_adjacency.in",
     ] {
         let path = regressions_dir().join(name);
         let src = fs::read_to_string(&path).unwrap_or_else(|e| panic!("regression {} unreadable: {e}", path.display()));

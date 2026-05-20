@@ -9,9 +9,9 @@ use crate::format::wrap_pass;
 use crate::{FmtOptions, FormatReport, Wrap};
 use mdwright_document::{Document, ParseError, ParseOptions};
 
-const MAX_REWRITE_PASSES: u32 = 8;
+const MAX_REWRITE_STEPS: u32 = 64;
 
-const FAMILY_ORDER: [RewriteFamily; 11] = [
+const CANONICAL_FAMILY_ORDER: [RewriteFamily; 10] = [
     RewriteFamily::Italic,
     RewriteFamily::Strong,
     RewriteFamily::UnorderedList,
@@ -22,7 +22,6 @@ const FAMILY_ORDER: [RewriteFamily; 11] = [
     RewriteFamily::Table,
     RewriteFamily::Math,
     RewriteFamily::Frontmatter,
-    RewriteFamily::Wrap,
 ];
 
 pub(crate) fn apply_rewrites(doc: &Document, opts: &FmtOptions) -> Result<(String, FormatReport), ParseError> {
@@ -31,75 +30,29 @@ pub(crate) fn apply_rewrites(doc: &Document, opts: &FmtOptions) -> Result<(Strin
     let mut out = original.clone();
     let mut report = FormatReport::default();
 
-    for _ in 0..MAX_REWRITE_PASSES {
-        let mut changed_in_pass = false;
-        let mut family_idx = 0usize;
+    for _ in 0..MAX_REWRITE_STEPS {
+        let snapshot = snapshot_for(doc, &out, parse_options)?;
+        if let Some(candidate) = commit_first_canonical_family(&snapshot, opts, parse_options, &mut report) {
+            out = candidate;
+            continue;
+        }
 
-        while family_idx < FAMILY_ORDER.len() {
-            let committed = {
-                let snapshot = snapshot_for(doc, &out, parse_options)?;
-                let mut committed = None;
-
-                while family_idx < FAMILY_ORDER.len() {
-                    let Some(&family) = FAMILY_ORDER.get(family_idx) else {
-                        break;
-                    };
-                    family_idx = family_idx.saturating_add(1);
-                    let mut candidates = collect_family(&snapshot, opts, family);
-                    candidates.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));
-                    report.rewrite_candidates = report.rewrite_candidates.saturating_add(candidates.len());
-
-                    let outcome = FamilyPlan::build(family, candidates);
-                    let FamilyPlanBuild::Ready(plan) = outcome else {
-                        if let FamilyPlanBuild::RejectedOverlap { rejected } = outcome {
-                            report.rewrite_rejected_overlap = report.rewrite_rejected_overlap.saturating_add(rejected);
-                        }
-                        continue;
-                    };
-
-                    let before = out.clone();
-                    let candidate = apply_plan(&before, &plan);
-                    if candidate == before {
-                        continue;
-                    }
-                    if verify_batch(&before, &candidate, plan.edits(), opts, parse_options) {
-                        report.rewrite_committed = report.rewrite_committed.saturating_add(plan.len());
-                        committed = Some(candidate);
-                        break;
-                    }
-
-                    let first = plan.edits().first();
-                    report.rewrite_rejected_verification =
-                        report.rewrite_rejected_verification.saturating_add(plan.len());
-                    tracing::warn!(
-                        target: "mdwright::rewrite",
-                        family = ?plan.family(),
-                        edits = plan.len(),
-                        first_label = first.map_or("", Candidate::label),
-                        first_owner = ?first.map(Candidate::owner),
-                        "skipped rewrite family: verification failed",
-                    );
-                }
-
-                committed
-            };
-
-            if let Some(candidate) = committed {
+        if !matches!(opts.wrap(), Wrap::Keep) {
+            let snapshot = snapshot_for(doc, &out, parse_options)?;
+            if let Some(candidate) = commit_terminal_wrap(&snapshot, opts, parse_options, &mut report) {
                 out = candidate;
-                changed_in_pass = true;
+                continue;
             }
         }
 
-        if !changed_in_pass {
-            return Ok((out, report));
-        }
+        return Ok((out, report));
     }
 
     report.rewrite_committed = 0;
     report.rewrite_rejected_convergence = report.rewrite_rejected_convergence.saturating_add(1);
     tracing::warn!(
         target: "mdwright::rewrite",
-        passes = MAX_REWRITE_PASSES,
+        steps = MAX_REWRITE_STEPS,
         "rewrite engine did not reach a fixed point; leaving original source bytes unchanged",
     );
     Ok((original, report))
@@ -113,21 +66,106 @@ fn snapshot_for<'a>(doc: &'a Document, out: &'a str, parse_options: ParseOptions
     }
 }
 
+fn commit_first_canonical_family(
+    snapshot: &Snapshot<'_>,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+    report: &mut FormatReport,
+) -> Option<String> {
+    if !opts.has_any_canonicalisation() {
+        return None;
+    }
+    for family in CANONICAL_FAMILY_ORDER {
+        let mut candidates = collect_family(snapshot, opts, family);
+        candidates.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));
+        if let Some(committed) = verify_plan(
+            snapshot.source(),
+            opts,
+            parse_options,
+            PlanKind::Family(family),
+            candidates,
+            report,
+        ) {
+            return Some(committed);
+        }
+    }
+    None
+}
+
+fn commit_terminal_wrap(
+    snapshot: &Snapshot<'_>,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+    report: &mut FormatReport,
+) -> Option<String> {
+    let outcome = wrap_pass::collect_terminal_wrap_edits(snapshot, opts.wrap());
+    report.rewrite_skipped_wrap = report.rewrite_skipped_wrap.saturating_add(outcome.skipped_unsupported);
+    let mut edits = outcome.edits;
+    edits.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));
+    verify_plan(
+        snapshot.source(),
+        opts,
+        parse_options,
+        PlanKind::TerminalWrap,
+        edits,
+        report,
+    )
+}
+
+fn verify_plan(
+    before: &str,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+    kind: PlanKind,
+    candidates: Vec<Candidate>,
+    report: &mut FormatReport,
+) -> Option<String> {
+    report.rewrite_candidates = report.rewrite_candidates.saturating_add(candidates.len());
+    let outcome = FamilyPlan::build(kind, candidates);
+    let FamilyPlanBuild::Ready(plan) = outcome else {
+        if let FamilyPlanBuild::RejectedOverlap { rejected } = outcome {
+            report.rewrite_rejected_overlap = report.rewrite_rejected_overlap.saturating_add(rejected);
+        }
+        return None;
+    };
+
+    let candidate = apply_plan(before, &plan);
+    if candidate == before {
+        return None;
+    }
+    if verify_batch(before, &candidate, plan.edits(), opts, parse_options) {
+        report.rewrite_committed = report.rewrite_committed.saturating_add(plan.len());
+        return Some(candidate);
+    }
+
+    let first = plan.edits().first();
+    report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(plan.len());
+    tracing::warn!(
+        target: "mdwright::rewrite",
+        family = ?plan.kind(),
+        edits = plan.len(),
+        first_label = first.map_or("", Candidate::label),
+        first_owner = ?first.map(Candidate::owner),
+        "skipped rewrite family: verification failed",
+    );
+    None
+}
+
 fn collect_family(snapshot: &Snapshot<'_>, opts: &FmtOptions, family: RewriteFamily) -> Vec<Candidate> {
     let mut candidates = Vec::new();
-    if matches!(family, RewriteFamily::Wrap) {
-        if !matches!(opts.wrap(), Wrap::Keep) {
-            wrap_pass::collect_wrap_candidates(snapshot, opts.wrap(), &mut candidates);
-        }
-    } else if opts.has_any_canonicalisation() {
-        canonicalise::collect_family_candidates(snapshot, opts, family, &mut candidates);
-    }
+    canonicalise::collect_family_candidates(snapshot, opts, family, &mut candidates);
     candidates
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlanKind {
+    Family(RewriteFamily),
+    TerminalWrap,
 }
 
 #[derive(Clone, Debug)]
 struct FamilyPlan {
-    family: RewriteFamily,
+    kind: PlanKind,
     edits: Vec<Candidate>,
 }
 
@@ -138,7 +176,7 @@ enum FamilyPlanBuild {
 }
 
 impl FamilyPlan {
-    fn build(family: RewriteFamily, mut edits: Vec<Candidate>) -> FamilyPlanBuild {
+    fn build(kind: PlanKind, mut edits: Vec<Candidate>) -> FamilyPlanBuild {
         if edits.is_empty() {
             return FamilyPlanBuild::Noop;
         }
@@ -152,7 +190,7 @@ impl FamilyPlan {
         if rejected > 0 {
             tracing::debug!(
                 target: "mdwright::rewrite",
-                family = ?family,
+                family = ?kind,
                 rejected,
                 first_label = first_overlap.map_or("", Candidate::label),
                 first_owner = ?first_overlap.map(Candidate::owner),
@@ -160,11 +198,11 @@ impl FamilyPlan {
             );
             return FamilyPlanBuild::RejectedOverlap { rejected };
         }
-        FamilyPlanBuild::Ready(Self { family, edits })
+        FamilyPlanBuild::Ready(Self { kind, edits })
     }
 
-    fn family(&self) -> RewriteFamily {
-        self.family
+    fn kind(&self) -> PlanKind {
+        self.kind
     }
 
     fn edits(&self) -> &[Candidate] {
@@ -239,7 +277,7 @@ mod tests {
             .expect("candidate");
 
         assert!(matches!(
-            FamilyPlan::build(RewriteFamily::Italic, vec![a, b]),
+            FamilyPlan::build(PlanKind::Family(RewriteFamily::Italic), vec![a, b]),
             FamilyPlanBuild::RejectedOverlap { rejected: 1 }
         ));
     }
@@ -265,7 +303,9 @@ mod tests {
                 "b",
             )
             .expect("candidate");
-        let FamilyPlanBuild::Ready(plan) = FamilyPlan::build(RewriteFamily::UnorderedList, vec![a, b]) else {
+        let FamilyPlanBuild::Ready(plan) =
+            FamilyPlan::build(PlanKind::Family(RewriteFamily::UnorderedList), vec![a, b])
+        else {
             panic!("plan should be ready");
         };
 
@@ -295,7 +335,9 @@ mod tests {
                 "merge",
             )
             .expect("candidate");
-        let FamilyPlanBuild::Ready(plan) = FamilyPlan::build(RewriteFamily::UnorderedList, vec![candidate]) else {
+        let FamilyPlanBuild::Ready(plan) =
+            FamilyPlan::build(PlanKind::Family(RewriteFamily::UnorderedList), vec![candidate])
+        else {
             panic!("plan should be ready");
         };
         let before = snapshot.source();

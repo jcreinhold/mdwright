@@ -17,8 +17,9 @@ You opt out of preservation by setting the rewrite knobs below. There is no "sem
 
 The formatter crate runs style-canonicalisation and wrapping through one private transactional rewrite engine. The
 engine is organized as ordered rewrite families: inline delimiters, list markers, thematic breaks, link destinations,
-heading attributes, tables, math, frontmatter, and terminal wrap. Each family builds a local edit plan, proves its edits
-do not overlap within the family, applies the plan to a scratch buffer, and verifies the result before it can commit.
+heading attributes, tables, math, frontmatter, and terminal wrap. Each canonical family builds a local edit plan, proves
+its edits do not overlap within the family, applies the plan to a scratch buffer, and verifies the result before it can
+commit.
 
 If verification fails, the whole family skips. The engine never commits half of a family plan. If the family pipeline
 cannot reach a fixed point within its guard pass count, mdwright leaves the original source bytes unchanged instead of
@@ -27,6 +28,10 @@ returning a partial normal form.
 Tables are parent normal forms. The table family runs after inline canonicalisers, reads cell contents from the current
 snapshot, and rewrites each table block only when document-owned table facts account for the full table shape. It does
 not emit row- or cell-level edits that could race inline rewrites.
+
+Wrap is terminal. It runs only after a full canonical-family scan commits no edits for the current snapshot. If wrap
+commits paragraph edits, the engine returns to the first canonical family on a fresh parse before wrapping again.
+Paragraph shapes the wrap pass cannot model stay unchanged and are counted in the formatter report.
 
 Default: every style knob is `Preserve` and wrapping is `Keep`. With the default config the rewrite engine
 short-circuits before running. Set per-knob targets in `.mdwright.toml` to opt in.

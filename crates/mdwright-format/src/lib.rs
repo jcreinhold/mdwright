@@ -60,6 +60,7 @@ pub struct FormatReport {
     pub rewrite_rejected_overlap: usize,
     pub rewrite_rejected_verification: usize,
     pub rewrite_rejected_convergence: usize,
+    pub rewrite_skipped_wrap: usize,
 }
 
 /// Format a parsed document.

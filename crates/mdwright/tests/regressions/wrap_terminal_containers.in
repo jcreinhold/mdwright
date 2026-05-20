@@ -1,0 +1,5 @@
+> A quoted paragraph starts with *emphasis* and __strong text__ then keeps going with [a quoted link](https://example.com/quoted) so the continuation prefix has to survive after delimiter and link destination normalisation.
+
+- A list item paragraph starts with *emphasis* and __strong text__ then keeps going with [a list link](https://example.com/list) so the continuation indentation has to survive after earlier canonicalisers.
+
+1. An ordered item paragraph starts with *emphasis* and __strong text__ then keeps going with [an ordered link](https://example.com/ordered) so terminal wrapping sees normalized child slots.

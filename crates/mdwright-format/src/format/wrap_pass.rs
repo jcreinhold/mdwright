@@ -1,18 +1,17 @@
-//! Paragraph wrap as a post-pass over rendered output bytes.
+//! Terminal paragraph wrap over normalized source bytes.
 //!
 //! Knuth-Plass-lite squared-slack DP targeting byte ranges.
 //!
 //! ## Contract
 //!
-//! [`collect_wrap_candidates`] walks the document's cached paragraph facts
-//! and rewrites each paragraph's bytes per
-//! [`Wrap`]:
+//! [`collect_terminal_wrap_edits`] walks the document's cached paragraph
+//! facts and rewrites each paragraph's bytes per [`Wrap`]:
 //!
-//! - `Wrap::Keep` — no-op (identity emit already preserved breaks).
-//! - `Wrap::No` — collapse every soft break inside a paragraph to a
+//! - `Wrap::Keep`: no-op (identity emit already preserved breaks).
+//! - `Wrap::No`: collapse every soft break inside a paragraph to a
 //!   single space; hard breaks (CM `\` or two-trailing-space) keep
 //!   the line boundary.
-//! - `Wrap::At(n)` — reflow each paragraph so no line exceeds `n`
+//! - `Wrap::At(n)`: reflow each paragraph so no line exceeds `n`
 //!   columns. Inline atomics (code spans, links, images, raw inline
 //!   HTML, inline math) are unbreakable; hard breaks force a line
 //!   boundary; container prefixes (`> ` for blockquotes, indent for
@@ -25,12 +24,12 @@
 //!
 //! ## Safety
 //!
-//! For each paragraph, the rewrite extracts inline atomics by source
-//! byte range, tokenises the remaining text on whitespace, applies
-//! the DP, and re-emits with `\n` + the continuation prefix between
-//! lines. The replacement is submitted as a parsed-owner edit in the terminal
-//! wrap family; the rewrite engine verifies it in document context before
-//! commit.
+//! For each paragraph, the rewrite extracts inline atomics by source byte
+//! range, tokenises the remaining text on whitespace, applies the DP, and
+//! re-emits with `\n` + the continuation prefix between lines. The rewrite
+//! engine calls this module only after earlier rewrite families have reached
+//! local normal form for the current snapshot, then verifies the paragraph
+//! batch in document context before commit.
 
 use std::ops::Range;
 use std::time::{Duration, Instant};
@@ -48,20 +47,35 @@ const TIME_CHECK_STRIDE: usize = 1 << 10;
 const MAX_WRAP_TOKENS: usize = 100_000;
 const OVERFLOW_PENALTY: u64 = 1_000_000;
 
-/// Collect wrap candidates for every paragraph in `out`. No-op when
-/// `mode` is [`Wrap::Keep`].
-pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candidates: &mut Vec<Candidate>) {
+pub(crate) struct TerminalWrapEdits {
+    pub(crate) edits: Vec<Candidate>,
+    pub(crate) skipped_unsupported: usize,
+}
+
+/// Collect terminal wrap edits for every paragraph in `out`. No-op
+/// when `mode` is [`Wrap::Keep`].
+pub(crate) fn collect_terminal_wrap_edits(snapshot: &Snapshot<'_>, mode: Wrap) -> TerminalWrapEdits {
+    let mut collected = TerminalWrapEdits {
+        edits: Vec::new(),
+        skipped_unsupported: 0,
+    };
     if matches!(mode, Wrap::Keep) {
-        return;
+        return collected;
     }
-    let out = snapshot.source();
+    let source = snapshot.source();
     let paragraphs = snapshot.document().wrappable_paragraphs();
     for p in paragraphs {
-        let Some(replacement) = rewrap_paragraph(out, p, mode) else {
-            continue;
+        let replacement = match rewrap_paragraph(source, p, mode) {
+            ParagraphWrap::Edit(replacement) => replacement,
+            ParagraphWrap::Noop => continue,
+            ParagraphWrap::Unsupported => {
+                collected.skipped_unsupported = collected.skipped_unsupported.saturating_add(1);
+                continue;
+            }
         };
         let line_range = p.line_range();
-        let Some(existing) = out.get(line_range.clone()) else {
+        let Some(existing) = source.get(line_range.clone()) else {
+            collected.skipped_unsupported = collected.skipped_unsupported.saturating_add(1);
             continue;
         };
         if replacement == existing {
@@ -74,9 +88,12 @@ pub(crate) fn collect_wrap_candidates(snapshot: &Snapshot<'_>, mode: Wrap, candi
             Verification::PreserveMarkdownAndMath,
             "paragraph-wrap",
         ) {
-            candidates.push(candidate);
+            collected.edits.push(candidate);
+        } else {
+            collected.skipped_unsupported = collected.skipped_unsupported.saturating_add(1);
         }
     }
+    collected
 }
 
 fn wrap_owner_kind(kind: StructuralKind) -> OwnerKind {
@@ -94,21 +111,32 @@ fn wrap_owner_kind(kind: StructuralKind) -> OwnerKind {
     }
 }
 
-/// Re-emit a paragraph per `mode`. Returns `None` if the rewrite
-/// would either be a no-op or run into a degenerate edge case (empty
-/// paragraph, oversize token cap, time budget exceeded).
-fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
+enum ParagraphWrap {
+    Noop,
+    Edit(String),
+    Unsupported,
+}
+
+/// Re-emit a paragraph per `mode`.
+fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> ParagraphWrap {
     let bytes = out.as_bytes();
     let content_range = p.content_range();
     let line_range = p.line_range();
     let content_hi = content_range.end;
-    let content = bytes.get(content_range)?;
+    let Some(content) = bytes.get(content_range) else {
+        return ParagraphWrap::Unsupported;
+    };
     let trailing_suffix = if content_hi <= line_range.end {
-        let suffix = bytes.get(content_hi..line_range.end)?;
+        let Some(suffix) = bytes.get(content_hi..line_range.end) else {
+            return ParagraphWrap::Unsupported;
+        };
         if suffix.is_empty() && content.last().copied() == Some(b'\n') {
             "\n"
         } else {
-            std::str::from_utf8(suffix).ok()?
+            let Ok(suffix) = std::str::from_utf8(suffix) else {
+                return ParagraphWrap::Unsupported;
+            };
+            suffix
         }
     } else {
         ""
@@ -117,7 +145,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
     let first_prefix_width = display_width(p.first_prefix());
     let cont_prefix_width = display_width(p.cont_prefix());
     let target = match mode {
-        Wrap::Keep => return None,
+        Wrap::Keep => return ParagraphWrap::Noop,
         Wrap::No => u32::MAX,
         Wrap::At(n) => n.max(1),
     };
@@ -127,7 +155,9 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
 
     let start = Instant::now();
     for (seg_idx, seg) in segments.iter().enumerate() {
-        let tokens = tokenize_segment(bytes, seg, p.atomics(), p.cont_prefix())?;
+        let Some(tokens) = tokenize_segment(bytes, seg, p.atomics(), p.cont_prefix()) else {
+            return ParagraphWrap::Unsupported;
+        };
         let first_target = if seg_idx == 0 {
             target.saturating_sub(first_prefix_width).max(1)
         } else {
@@ -135,7 +165,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
         };
         let cont_target = target.saturating_sub(cont_prefix_width).max(1);
         // Non-terminal segments end with a hard-break marker (`\` or
-        // `  `) appended to the last line — the marker has to fit
+        // `  `) appended to the last line; the marker has to fit
         // inside the wrap budget too. Shrink the per-segment last-
         // line target by the marker's display width.
         let last_line_extra = if seg_idx.saturating_add(1) < segments.len() {
@@ -148,8 +178,13 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
         } else {
             match mode {
                 Wrap::No => vec![tokens],
-                Wrap::At(_) => layout_lines(&tokens, first_target, cont_target, last_line_extra, start)?,
-                Wrap::Keep => return None,
+                Wrap::At(_) => {
+                    let Some(lines) = layout_lines(&tokens, first_target, cont_target, last_line_extra, start) else {
+                        return ParagraphWrap::Unsupported;
+                    };
+                    lines
+                }
+                Wrap::Keep => return ParagraphWrap::Noop,
             }
         };
         for (line_idx, line) in lines.iter().enumerate() {
@@ -175,14 +210,20 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
         // content (e.g. source `\\\nx` has an empty leading segment
         // before the hard break).
         if seg_idx.saturating_add(1) < segments.len() {
-            let hb = p.hard_breaks().get(seg_idx)?;
+            let Some(hb) = p.hard_breaks().get(seg_idx) else {
+                return ParagraphWrap::Unsupported;
+            };
             emitted.push_str(hb.marker());
             emitted.push('\n');
             emitted.push_str(p.cont_prefix());
         }
     }
     emitted.push_str(trailing_suffix);
-    Some(emitted)
+    if out.get(line_range).is_some_and(|existing| existing == emitted) {
+        ParagraphWrap::Noop
+    } else {
+        ParagraphWrap::Edit(emitted)
+    }
 }
 
 /// A wrap-token: either a verbatim slice of source bytes (atomic or
@@ -245,7 +286,7 @@ fn tokenize_segment<'a>(
     // the token; atomic ranges extend it without splitting.
     //
     // Continuation prefix bytes immediately after a `\n` inside the
-    // segment are transparent — they're the container's prefix on
+    // segment are transparent: they're the container's prefix on
     // continuation lines, not paragraph content. If the bytes after
     // a `\n` don't match `cont_prefix`, the paragraph has a shape
     // the derivation logic doesn't model and we bail out so the
@@ -328,7 +369,7 @@ fn display_width(s: &str) -> u32 {
 
 /// Knuth-Plass-lite: minimise total squared slack across lines.
 /// Returns `None` if the time budget is exceeded or the token cap is
-/// blown — caller falls back to one-line emission.
+/// blown. Caller falls back to one-line emission.
 fn layout_lines<'a>(
     tokens: &[Token<'a>],
     first_target: u32,
@@ -513,5 +554,14 @@ mod tests {
     fn hard_break_rewrite_skips_when_list_context_would_change() {
         let s = "* \\\n|\\\n  *";
         assert_eq!(wrap(s, Wrap::No), s);
+    }
+
+    #[test]
+    fn unsupported_wrap_shapes_are_reported() {
+        let s = "* \\\n|\\\n  *";
+        let doc = mdwright_document::Document::parse(s).expect("fixture parses");
+        let (out, report) = crate::format_document_with_report(&doc, &FmtOptions::default().with_wrap(Wrap::No));
+        assert_eq!(out, s);
+        assert!(report.rewrite_skipped_wrap > 0, "{report:?}");
     }
 }

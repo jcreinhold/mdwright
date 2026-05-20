@@ -54,6 +54,7 @@ struct SoakReport {
     rewrite_rejected_overlap: usize,
     rewrite_rejected_verification: usize,
     rewrite_rejected_convergence: usize,
+    rewrite_skipped_wrap: usize,
     slowest_files: Vec<SlowFileReport>,
 }
 
@@ -204,6 +205,7 @@ fn merge_report(total: &mut FormatReport, report: &FormatReport) {
     total.rewrite_rejected_convergence = total
         .rewrite_rejected_convergence
         .saturating_add(report.rewrite_rejected_convergence);
+    total.rewrite_skipped_wrap = total.rewrite_skipped_wrap.saturating_add(report.rewrite_skipped_wrap);
 }
 
 fn print_report(stats: &SoakStats) {
@@ -257,6 +259,7 @@ fn report_for(corpus_root: &Path, stats: &SoakStats, success: bool) -> SoakRepor
         rewrite_rejected_overlap: stats.rewrite_report.rewrite_rejected_overlap,
         rewrite_rejected_verification: stats.rewrite_report.rewrite_rejected_verification,
         rewrite_rejected_convergence: stats.rewrite_report.rewrite_rejected_convergence,
+        rewrite_skipped_wrap: stats.rewrite_report.rewrite_skipped_wrap,
         slowest_files: stats
             .slowest
             .iter()
@@ -314,6 +317,10 @@ fn markdown_report(report: &SoakReport) -> String {
     out.push_str(&format!(
         "| Rejected by convergence | {} |\n",
         report.rewrite_rejected_convergence
+    ));
+    out.push_str(&format!(
+        "| Wrap paragraphs skipped | {} |\n",
+        report.rewrite_skipped_wrap
     ));
     out.push_str("\n## Slowest files\n\n");
     out.push_str("| Time | Bytes | Path |\n");

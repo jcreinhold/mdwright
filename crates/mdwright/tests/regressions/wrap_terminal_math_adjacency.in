@@ -1,0 +1,7 @@
+This prose has *emphasis* near inline math $a_b + c_d$ and a bare autolink https://example.com/math-adjacent with enough surrounding words that wrapping has to preserve the math and autolink atomics.
+
+$$
+x^2 + y^2 = z^2
+$$
+
+After the display math, __strong text__ and [a link](https://example.com/after-display) should still normalize before terminal wrapping runs.

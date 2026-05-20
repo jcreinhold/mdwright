@@ -21,9 +21,14 @@ The rewrite subsystem uses ordered families:
 8. frontmatter;
 9. terminal wrap.
 
-Each family sees a parsed snapshot of the current bytes. If it produces edits, the family plan checks that those edits
-do not overlap within the family. A local overlap rejects the family; it does not drop one edit and keep another. If the
-plan verifies, the whole plan commits and the next family sees a fresh parse. If verification fails, the family skips.
+Each canonical family sees a parsed snapshot of the current bytes. If it produces edits, the family plan checks that
+those edits do not overlap within the family. A local overlap rejects the family; it does not drop one edit and keep
+another. If the plan verifies, the whole plan commits and the pipeline starts again from the first canonical family on a
+fresh parse. If verification fails, the family skips.
+
+Terminal wrap is not a peer canonical family. It runs only after a full canonical-family scan commits nothing for the
+current snapshot. If wrap commits paragraph edits, the pipeline starts again from the first canonical family so any
+newly exposed syntactic slots are normalized before wrap runs again.
 
 If the full family pipeline cannot reach a fixed point within the guard pass count, the formatter leaves the original
 source bytes unchanged. It does not return the last verified partial output as successful formatting.
@@ -59,9 +64,11 @@ The table family uses document-owned table facts: source ranges for the table, r
 source cells beyond the recognised table column count, or a cell range is not contained in its row, the table family
 skips that table instead of dropping bytes it cannot model.
 
-## Remaining hardening
+## Terminal Wrap
 
-This boundary removes the global selector and partial-success failure mode. Later passes should deepen the remaining
-terminal family:
+Paragraph wrapping is a terminal operation. It reads document-owned paragraph facts from the current snapshot: line
+ranges, content ranges, prefixes, hard breaks, and inline atomics. It computes paragraph replacements after all earlier
+canonicalizers have reached local normal form, verifies the paragraph batch, and commits the batch or none of it.
 
-- wrap should remain terminal and skip unsupported paragraph shapes rather than racing inline canonicalisation.
+Unsupported paragraph shapes stay unchanged. They are counted in the formatter report rather than widened into
+paragraph edits whose safety depends on later passes.

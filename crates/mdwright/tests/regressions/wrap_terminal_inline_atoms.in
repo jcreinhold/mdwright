@@ -1,0 +1,3 @@
+This paragraph has *italic words* and __strong words__ around `inline code that should stay together` plus [a link](https://example.com/a-long-path) and [a ref][terminal-ref] beside https://example.org/autolink and $x + y$ so wrapping and inline style canonicalisation both have work to do in one formatter call.
+
+[terminal-ref]: https://example.net/reference-destination

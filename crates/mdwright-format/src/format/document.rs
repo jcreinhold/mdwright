@@ -99,4 +99,28 @@ mod tests {
         );
         assert_eq!(once, twice);
     }
+
+    #[test]
+    fn terminal_wrap_runs_after_canonical_families() {
+        let src = "This paragraph has *italic text* and __strong text__ with [a link](https://example.com/path) and enough words to wrap.\n";
+        let opts = crate::FmtOptions::default()
+            .with_wrap(Wrap::At(45))
+            .with_italic(ItalicStyle::Underscore)
+            .with_strong(StrongStyle::Asterisk)
+            .with_link_def_style(LinkDefStyle::Angle);
+        let doc = mdwright_document::Document::parse(src).expect("source parses");
+        let (once, report) = crate::format_document_with_report(&doc, &opts);
+        let twice = crate::format_document(
+            &mdwright_document::Document::parse(&once).expect("output parses"),
+            &opts,
+        );
+
+        assert_eq!(once, twice);
+        assert!(once.contains("_italic"), "{once}");
+        assert!(once.contains("text_"), "{once}");
+        assert!(once.contains("**strong text**"), "{once}");
+        assert!(once.contains("[a link](<https://example.com/path>)"), "{once}");
+        assert!(once.contains('\n'));
+        assert!(report.rewrite_committed >= 4, "{report:?}");
+    }
 }

@@ -1,0 +1,2 @@
+This paragraph has *emphasis* before a hard break\
+and __strong text__ after the hard break with [a link](https://example.com/hardbreak) and enough prose to force wrapping while preserving the hard-break marker and final suffix.

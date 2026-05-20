@@ -94,7 +94,6 @@ pub(crate) fn collect_family_candidates(
                 collect_strip_frontmatter(snapshot, candidates);
             }
         }
-        RewriteFamily::Wrap => {}
     }
 }
 
