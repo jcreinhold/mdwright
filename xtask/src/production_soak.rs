@@ -150,6 +150,15 @@ fn collect_inputs(workspace: &Path, corpus_root: &Path) -> Result<Vec<PathBuf>> 
         }
         files.push(resolve_corpus_path(corpus_root, trimmed));
     }
+    if !files.iter().all(|path| path.is_file()) {
+        let mut walked = Vec::new();
+        collect_markdown_files(corpus_root, &mut walked)?;
+        if !walked.is_empty() {
+            walked.sort();
+            walked.dedup();
+            return Ok(walked);
+        }
+    }
     collect_markdown_files(&workspace.join("crates/mdwright/tests/external"), &mut files)?;
     files.sort();
     files.dedup();
@@ -336,4 +345,53 @@ fn markdown_report(report: &SoakReport) -> String {
 
 fn yes_no(value: bool) -> &'static str {
     if value { "yes" } else { "no" }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::PathBuf;
+
+    use tempfile::tempdir;
+
+    use super::collect_inputs;
+
+    #[test]
+    fn collect_inputs_walks_arbitrary_markdown_directory_when_corpus_list_does_not_resolve() {
+        let workspace = tempdir().expect("workspace tempdir");
+        let corpus = tempdir().expect("corpus tempdir");
+        let list_dir = workspace.path().join("crates/mdwright/benches");
+        fs::create_dir_all(&list_dir).expect("create corpus list dir");
+        fs::write(list_dir.join("corpus.list"), "docs/books/gentle-sga/i/missing.md\n").expect("write corpus list");
+
+        fs::write(corpus.path().join("a.md"), "# A\n").expect("write markdown");
+        fs::write(corpus.path().join("skip.txt"), "# not markdown\n").expect("write non-markdown");
+        fs::create_dir_all(corpus.path().join("nested")).expect("create nested dir");
+        fs::write(corpus.path().join("nested/b.md"), "# B\n").expect("write nested markdown");
+
+        let files = collect_inputs(workspace.path(), corpus.path()).expect("collect inputs");
+        let rels: Vec<_> = files
+            .iter()
+            .map(|path| path.strip_prefix(corpus.path()).expect("under corpus").to_path_buf())
+            .collect();
+
+        assert_eq!(rels, vec![PathBuf::from("a.md"), PathBuf::from("nested/b.md")]);
+    }
+
+    #[test]
+    fn collect_inputs_keeps_benchmark_list_when_it_resolves() {
+        let workspace = tempdir().expect("workspace tempdir");
+        let corpus = tempdir().expect("corpus tempdir");
+        let list_dir = workspace.path().join("crates/mdwright/benches");
+        fs::create_dir_all(&list_dir).expect("create corpus list dir");
+        fs::write(list_dir.join("corpus.list"), "docs/books/gentle-sga/i/a.md\n").expect("write corpus list");
+        fs::create_dir_all(corpus.path().join("gentle-sga/i")).expect("create resolved corpus dir");
+        fs::write(corpus.path().join("gentle-sga/i/a.md"), "# A\n").expect("write listed markdown");
+        fs::write(corpus.path().join("other.md"), "# other\n").expect("write unlisted markdown");
+
+        let files = collect_inputs(workspace.path(), corpus.path()).expect("collect inputs");
+
+        assert!(files.iter().any(|path| path.ends_with("gentle-sga/i/a.md")));
+        assert!(!files.iter().any(|path| path.ends_with("other.md")));
+    }
 }

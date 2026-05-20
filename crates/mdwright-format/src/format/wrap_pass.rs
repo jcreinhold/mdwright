@@ -25,19 +25,23 @@
 //! ## Safety
 //!
 //! For each paragraph, the rewrite extracts inline atomics by source byte
-//! range, tokenises the remaining text on whitespace, applies the DP, and
-//! re-emits with `\n` + the continuation prefix between lines. The rewrite
-//! engine calls this module only after earlier rewrite families have reached
-//! local normal form for the current snapshot, then verifies the paragraph
-//! batch in document context before commit.
+//! range and tokenises the remaining text on whitespace. The default
+//! strategy applies the DP to the paragraph segment; the mdformat-compatible
+//! strategy first converts physical source lines inside a hard-break-bounded
+//! segment into a soft-break run, then applies the same line-budget planner.
+//! Both paths re-emit with `\n` + the continuation prefix between lines. The
+//! rewrite engine calls this module only after earlier rewrite families have
+//! reached local normal form for the current snapshot, then verifies the
+//! paragraph batch in document context before commit.
 
 use std::ops::Range;
 use std::time::{Duration, Instant};
 
 use unicode_width::UnicodeWidthStr;
 
-use crate::Wrap;
 use crate::format::rewrite::{Candidate, OwnerKind, Snapshot, Verification};
+use crate::options::WrapStrategy;
+use crate::{FmtOptions, ListContinuationIndent, Wrap};
 use mdwright_document::StructuralKind;
 use mdwright_document::WrappableParagraph as Paragraph;
 
@@ -54,18 +58,19 @@ pub(crate) struct TerminalWrapEdits {
 
 /// Collect terminal wrap edits for every paragraph in `out`. No-op
 /// when `mode` is [`Wrap::Keep`].
-pub(crate) fn collect_terminal_wrap_edits(snapshot: &Snapshot<'_>, mode: Wrap) -> TerminalWrapEdits {
+pub(crate) fn collect_terminal_wrap_edits(snapshot: &Snapshot<'_>, opts: &FmtOptions) -> TerminalWrapEdits {
     let mut collected = TerminalWrapEdits {
         edits: Vec::new(),
         skipped_unsupported: 0,
     };
+    let mode = opts.wrap();
     if matches!(mode, Wrap::Keep) {
         return collected;
     }
     let source = snapshot.source();
     let paragraphs = snapshot.document().wrappable_paragraphs();
     for p in paragraphs {
-        let replacement = match rewrap_paragraph(source, p, mode) {
+        let replacement = match rewrap_paragraph(source, p, opts) {
             ParagraphWrap::Edit(replacement) => replacement,
             ParagraphWrap::Noop => continue,
             ParagraphWrap::Unsupported => {
@@ -118,7 +123,8 @@ enum ParagraphWrap {
 }
 
 /// Re-emit a paragraph per `mode`.
-fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> ParagraphWrap {
+fn rewrap_paragraph(out: &str, p: &Paragraph, opts: &FmtOptions) -> ParagraphWrap {
+    let mode = opts.wrap();
     let bytes = out.as_bytes();
     let content_range = p.content_range();
     let line_range = p.line_range();
@@ -143,7 +149,8 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> ParagraphWrap {
     };
     let segments = split_at_hard_breaks(p, bytes);
     let first_prefix_width = display_width(p.first_prefix());
-    let cont_prefix_width = display_width(p.cont_prefix());
+    let cont_prefix = selected_cont_prefix(p, opts.list_continuation_indent());
+    let cont_prefix_width = display_width(cont_prefix);
     let target = match mode {
         Wrap::Keep => return ParagraphWrap::Noop,
         Wrap::No => u32::MAX,
@@ -155,36 +162,72 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> ParagraphWrap {
 
     let start = Instant::now();
     for (seg_idx, seg) in segments.iter().enumerate() {
-        let Some(tokens) = tokenize_segment(bytes, seg, p.atomics(), p.cont_prefix()) else {
-            return ParagraphWrap::Unsupported;
-        };
-        let first_target = if seg_idx == 0 {
-            target.saturating_sub(first_prefix_width).max(1)
-        } else {
-            target.saturating_sub(cont_prefix_width).max(1)
-        };
-        let cont_target = target.saturating_sub(cont_prefix_width).max(1);
-        // Non-terminal segments end with a hard-break marker (`\` or
-        // `  `) appended to the last line; the marker has to fit
-        // inside the wrap budget too. Shrink the per-segment last-
-        // line target by the marker's display width.
-        let last_line_extra = if seg_idx.saturating_add(1) < segments.len() {
-            p.hard_breaks().get(seg_idx).map_or(0, |h| display_width(h.marker()))
-        } else {
-            0
-        };
-        let lines = if tokens.is_empty() {
-            Vec::new()
-        } else {
-            match mode {
-                Wrap::No => vec![tokens],
-                Wrap::At(_) => {
-                    let Some(lines) = layout_lines(&tokens, first_target, cont_target, last_line_extra, start) else {
-                        return ParagraphWrap::Unsupported;
-                    };
-                    lines
+        let lines = match opts.wrap_strategy() {
+            WrapStrategy::Balanced => {
+                let Some(tokens) = tokenize_segment(bytes, seg, p.atomics(), p.cont_prefix()) else {
+                    return ParagraphWrap::Unsupported;
+                };
+                let first_target = if seg_idx == 0 {
+                    target.saturating_sub(first_prefix_width).max(1)
+                } else {
+                    target.saturating_sub(cont_prefix_width).max(1)
+                };
+                let cont_target = target.saturating_sub(cont_prefix_width).max(1);
+                let last_line_extra = if seg_idx.saturating_add(1) < segments.len() {
+                    p.hard_breaks().get(seg_idx).map_or(0, |h| display_width(h.marker()))
+                } else {
+                    0
+                };
+                if tokens.is_empty() {
+                    Vec::new()
+                } else {
+                    match mode {
+                        Wrap::No => vec![tokens],
+                        Wrap::At(_) => {
+                            let Some(lines) = layout_lines(&tokens, first_target, cont_target, last_line_extra, start)
+                            else {
+                                return ParagraphWrap::Unsupported;
+                            };
+                            if !lines_fit_budget(&lines, first_target, cont_target, last_line_extra) {
+                                return ParagraphWrap::Unsupported;
+                            }
+                            lines
+                        }
+                        Wrap::Keep => return ParagraphWrap::Noop,
+                    }
                 }
-                Wrap::Keep => return ParagraphWrap::Noop,
+            }
+            WrapStrategy::MdformatReflow => {
+                let Some(physical) = tokenize_physical_lines(bytes, seg, p.atomics(), p.cont_prefix()) else {
+                    return ParagraphWrap::Unsupported;
+                };
+                let run = SoftBreakRun::from_physical(physical);
+                let first_target = if seg_idx == 0 {
+                    target.saturating_sub(first_prefix_width).max(1)
+                } else {
+                    target.saturating_sub(cont_prefix_width).max(1)
+                };
+                let cont_target = target.saturating_sub(cont_prefix_width).max(1);
+                let last_line_extra = if seg_idx.saturating_add(1) < segments.len() {
+                    p.hard_breaks().get(seg_idx).map_or(0, |h| display_width(h.marker()))
+                } else {
+                    0
+                };
+                match mode {
+                    Wrap::No => collapse_soft_break_run(run),
+                    Wrap::At(_) => {
+                        let Some(lines) =
+                            layout_mdformat_reflow(run, first_target, cont_target, last_line_extra, start)
+                        else {
+                            return ParagraphWrap::Unsupported;
+                        };
+                        if !lines_fit_budget(&lines, first_target, cont_target, last_line_extra) {
+                            return ParagraphWrap::Unsupported;
+                        }
+                        lines
+                    }
+                    Wrap::Keep => return ParagraphWrap::Noop,
+                }
             }
         };
         for (line_idx, line) in lines.iter().enumerate() {
@@ -196,7 +239,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> ParagraphWrap {
             // soft-broken lines within the same segment.
             if line_idx > 0 {
                 emitted.push('\n');
-                emitted.push_str(p.cont_prefix());
+                emitted.push_str(cont_prefix);
             }
             for (k, tok) in line.iter().enumerate() {
                 if k > 0 {
@@ -215,7 +258,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> ParagraphWrap {
             };
             emitted.push_str(hb.marker());
             emitted.push('\n');
-            emitted.push_str(p.cont_prefix());
+            emitted.push_str(cont_prefix);
         }
     }
     emitted.push_str(trailing_suffix);
@@ -226,11 +269,51 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> ParagraphWrap {
     }
 }
 
+fn selected_cont_prefix(p: &Paragraph, indent: ListContinuationIndent) -> &str {
+    if matches!(indent, ListContinuationIndent::FourSpace)
+        && let Some(prefix) = p.list_four_space_cont_prefix()
+    {
+        return prefix;
+    }
+    p.cont_prefix()
+}
+
 /// A wrap-token: either a verbatim slice of source bytes (atomic or
 /// word).
+#[derive(Clone, Copy)]
 struct Token<'a> {
     text: &'a str,
     width: u32,
+}
+
+struct SourceLine<'a> {
+    tokens: Vec<Token<'a>>,
+}
+
+impl<'a> SourceLine<'a> {
+    fn new(tokens: Vec<Token<'a>>) -> Option<Self> {
+        if tokens.is_empty() { None } else { Some(Self { tokens }) }
+    }
+}
+
+struct SoftBreakRun<'a> {
+    lines: Vec<SourceLine<'a>>,
+}
+
+impl<'a> SoftBreakRun<'a> {
+    fn from_physical(physical: Vec<Vec<Token<'a>>>) -> Self {
+        Self {
+            lines: physical.into_iter().filter_map(SourceLine::new).collect(),
+        }
+    }
+
+    fn into_joined_tokens(self) -> Vec<Token<'a>> {
+        let mut tokens = Vec::new();
+        for mut line in self.lines {
+            tokens.append(&mut line.tokens);
+        }
+        tokens
+    }
 }
 
 fn split_at_hard_breaks(p: &Paragraph, bytes: &[u8]) -> Vec<Range<usize>> {
@@ -341,6 +424,41 @@ fn tokenize_segment<'a>(
     Some(tokens)
 }
 
+fn tokenize_physical_lines<'a>(
+    bytes: &'a [u8],
+    seg: &Range<usize>,
+    atomics: &[Range<usize>],
+    source_cont_prefix: &str,
+) -> Option<Vec<Vec<Token<'a>>>> {
+    let mut lines = Vec::new();
+    let mut lo = seg.start;
+    let prefix = source_cont_prefix.as_bytes();
+    while lo <= seg.end {
+        let hi = bytes
+            .get(lo..seg.end)
+            .and_then(|tail| tail.iter().position(|&b| b == b'\n'))
+            .map_or(seg.end, |p| lo.saturating_add(p));
+        let mut content_lo = lo;
+        if lo != seg.start && !prefix.is_empty() {
+            let upper = content_lo.saturating_add(prefix.len());
+            if upper <= hi && bytes.get(content_lo..upper) == Some(prefix) {
+                content_lo = upper;
+            } else {
+                return None;
+            }
+        }
+        lines.push(tokenize_segment(bytes, &(content_lo..hi), atomics, "")?);
+        if hi == seg.end {
+            break;
+        }
+        lo = hi.saturating_add(1);
+    }
+    if lines.is_empty() {
+        lines.push(Vec::new());
+    }
+    Some(lines)
+}
+
 fn flush_token<'a>(bytes: &'a [u8], tok_start: &mut Option<usize>, end: usize, tokens: &mut Vec<Token<'a>>) {
     if let Some(start) = tok_start.take()
         && end > start
@@ -365,6 +483,42 @@ fn push_slice<'a>(bytes: &'a [u8], range: Range<usize>, tokens: &mut Vec<Token<'
 
 fn display_width(s: &str) -> u32 {
     u32::try_from(UnicodeWidthStr::width(s)).unwrap_or(u32::MAX)
+}
+
+fn collapse_soft_break_run(run: SoftBreakRun<'_>) -> Vec<Vec<Token<'_>>> {
+    let line = run.into_joined_tokens();
+    if line.is_empty() { Vec::new() } else { vec![line] }
+}
+
+fn layout_mdformat_reflow(
+    run: SoftBreakRun<'_>,
+    first_target: u32,
+    cont_target: u32,
+    last_line_extra: u32,
+    start: Instant,
+) -> Option<Vec<Vec<Token<'_>>>> {
+    let tokens = run.into_joined_tokens();
+    if tokens.is_empty() {
+        return Some(Vec::new());
+    }
+    if line_width(&tokens, 0, tokens.len()).saturating_add(last_line_extra) <= first_target {
+        return Some(vec![tokens]);
+    }
+    layout_lines(&tokens, first_target, cont_target, last_line_extra, start)
+}
+
+fn lines_fit_budget(lines: &[Vec<Token<'_>>], first_target: u32, cont_target: u32, last_line_extra: u32) -> bool {
+    for (idx, line) in lines.iter().enumerate() {
+        let mut target = if idx == 0 { first_target } else { cont_target };
+        if idx.saturating_add(1) == lines.len() {
+            target = target.saturating_sub(last_line_extra).max(1);
+        }
+        let width = line_width(line, 0, line.len());
+        if width > target && line.len() > 1 {
+            return false;
+        }
+    }
+    true
 }
 
 /// Knuth-Plass-lite: minimise total squared slack across lines.
@@ -479,13 +633,17 @@ fn badness(line_w: u32, target: u32, is_last_line: bool, boxes_on_line: usize) -
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use crate::{FmtOptions, Wrap};
+    use crate::{FmtOptions, ListContinuationIndent, Wrap};
 
-    fn wrap(input: &str, mode: Wrap) -> String {
+    fn wrap_with(input: &str, opts: &FmtOptions) -> String {
         crate::format_document(
             &mdwright_document::Document::parse(input).expect("fixture parses"),
-            &FmtOptions::default().with_wrap(mode),
+            opts,
         )
+    }
+
+    fn wrap(input: &str, mode: Wrap) -> String {
+        wrap_with(input, &FmtOptions::default().with_wrap(mode))
     }
 
     #[test]
@@ -540,6 +698,72 @@ mod tests {
             if !line.is_empty() {
                 assert!(line.starts_with("  "), "got {line:?}");
             }
+        }
+    }
+
+    #[test]
+    fn list_item_continuation_can_use_four_spaces() {
+        let s = "- alpha beta gamma delta epsilon zeta eta theta\n";
+        let opts = FmtOptions::default()
+            .with_wrap(Wrap::At(15))
+            .with_list_continuation_indent(ListContinuationIndent::FourSpace);
+        let out = wrap_with(s, &opts);
+        let mut iter = out.lines();
+        let first = iter.next().unwrap_or("");
+        assert!(first.starts_with("- "), "got {first:?}");
+        for line in iter {
+            if !line.is_empty() {
+                assert!(line.starts_with("    "), "got {line:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn blockquoted_list_item_continuation_can_use_four_spaces() {
+        let s = "> - alpha beta gamma delta epsilon zeta eta theta\n";
+        let opts = FmtOptions::default()
+            .with_wrap(Wrap::At(18))
+            .with_list_continuation_indent(ListContinuationIndent::FourSpace);
+        let out = wrap_with(s, &opts);
+        let mut iter = out.lines();
+        let first = iter.next().unwrap_or("");
+        assert!(first.starts_with("> - "), "got {first:?}");
+        for line in iter {
+            if !line.is_empty() {
+                assert!(line.starts_with(">     "), "got {line:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn mdformat_wrap_reflows_joinable_soft_breaks() {
+        let s = "alpha\ngamma delta\n";
+        let opts = FmtOptions::mdformat().with_wrap(Wrap::At(12));
+        assert_eq!(wrap_with(s, &opts), "alpha gamma\ndelta\n");
+    }
+
+    #[test]
+    fn mdformat_wrap_enforces_breakable_line_budget() {
+        let s = concat!(
+            "This line already fits and should remain exactly where it is.\n",
+            "This line contains enough ordinary words to exceed the configured sixty-four column target and therefore needs wrapping.\n",
+            "The final line fits too.\n",
+        );
+        let opts = FmtOptions::mdformat().with_wrap(Wrap::At(64));
+        let out = wrap_with(s, &opts);
+        for line in out.lines() {
+            assert!(line.len() <= 64, "{line:?} in {out:?}");
+        }
+        assert!(out.contains("This line already fits and should remain exactly where it"));
+        assert!(out.contains("wrapping. The final line fits too."));
+    }
+
+    #[test]
+    fn wrap_at_enforces_breakable_line_budget_without_mdformat_profile() {
+        let s = "This line contains enough ordinary words to exceed the configured forty column target and therefore needs wrapping.\n";
+        let out = wrap(s, Wrap::At(40));
+        for line in out.lines() {
+            assert!(line.len() <= 40, "{line:?} in {out:?}");
         }
     }
 

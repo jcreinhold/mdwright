@@ -128,6 +128,46 @@ facts cannot account for are left unchanged rather than partially rewritten.
 style = "pad"
 ```
 
+## `[fmt] wrap`
+
+| Value | Effect |
+|---|---|
+| `"keep"` (default) | Preserve existing paragraph line breaks. |
+| `"no"` | Collapse soft line breaks inside paragraphs where verification preserves the parse. |
+| integer | Wrap breakable prose lines at that display-column width. |
+
+`wrap = 120` means breakable output lines should fit within 120 columns in every formatter profile. The accepted
+exception is an indivisible atomic token, such as a long code span, URL, math atom, or single long word. Those tokens
+are left intact rather than split into invalid Markdown.
+
+The default profile uses mdwright's balanced paragraph planner for explicit wrapping. The mdformat profile treats
+ordinary source newlines inside a paragraph as soft breaks, reflows each hard-break-bounded run, and uses the same final
+line-budget check.
+
+```toml
+[fmt]
+wrap = 120
+```
+
+## `[fmt.lists] continuation-indent`
+
+| Value | Effect |
+|---|---|
+| `"marker-width"` (default) | Continuation lines align under the source list marker width. |
+| `"four-space"` | Continuation lines use four spaces after the containing block prefix. |
+
+This setting only affects paragraphs that are wrapped inside list items. It is separate from `list-marker` because the
+bullet character and continuation indentation are independent style decisions. The mdformat profile defaults this key
+to `"four-space"`; explicit config overrides that default.
+
+```toml
+[fmt]
+wrap = 120
+
+[fmt.lists]
+continuation-indent = "four-space"
+```
+
 ## Combined example
 
 ```toml
@@ -135,12 +175,16 @@ style = "pad"
 profile = "mdformat"
 ```
 
-This keeps mdformat's default `wrap = keep`. Explicit keys override the profile:
+This keeps mdformat's default `wrap = keep`, sets list continuation indentation to four spaces, and applies mdformat
+spelling for supported style knobs. Explicit keys override the profile:
 
 ```toml
 [fmt]
 profile = "mdformat"
 wrap = 120
+
+[fmt.lists]
+continuation-indent = "marker-width"
 ```
 
 A per-knob spelling can also be written without the profile:

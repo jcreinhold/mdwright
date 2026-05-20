@@ -1,0 +1,3 @@
+[fmt]
+profile = "mdformat"
+wrap = 12

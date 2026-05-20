@@ -251,6 +251,7 @@ pub struct WrappableParagraph {
     owner_kind: StructuralKind,
     first_prefix: String,
     cont_prefix: String,
+    list_four_space_cont_prefix: Option<String>,
     atomics: Vec<Range<usize>>,
     hard_breaks: Vec<ParagraphHardBreak>,
 }
@@ -279,6 +280,11 @@ impl WrappableParagraph {
     #[must_use]
     pub fn cont_prefix(&self) -> &str {
         &self.cont_prefix
+    }
+
+    #[must_use]
+    pub fn list_four_space_cont_prefix(&self) -> Option<&str> {
+        self.list_four_space_cont_prefix.as_deref()
     }
 
     #[must_use]
@@ -1167,6 +1173,7 @@ impl PartialParagraph {
             return None;
         }
         let cont_prefix = derive_continuation_prefix(&first_prefix)?;
+        let list_four_space_cont_prefix = derive_list_four_space_continuation_prefix(&first_prefix);
         let owner_kind = paragraph_owner_kind(&first_prefix);
         for autolink in extra_atomics {
             let raw_range = autolink.raw_range();
@@ -1186,6 +1193,7 @@ impl PartialParagraph {
             owner_kind,
             first_prefix,
             cont_prefix,
+            list_four_space_cont_prefix,
             atomics,
             hard_breaks,
         })
@@ -1370,6 +1378,48 @@ fn derive_continuation_prefix(first: &str) -> Option<String> {
     Some(out)
 }
 
+fn derive_list_four_space_continuation_prefix(first: &str) -> Option<String> {
+    let bytes = first.as_bytes();
+    let mut out = String::with_capacity(first.len().saturating_add(2));
+    let mut i = 0usize;
+    while let Some(b) = bytes.get(i).copied() {
+        match b {
+            b'>' => {
+                out.push('>');
+                i = i.saturating_add(1);
+                if bytes.get(i).copied() == Some(b' ') {
+                    out.push(' ');
+                    i = i.saturating_add(1);
+                }
+            }
+            b' ' | b'\t' => {
+                out.push(b as char);
+                i = i.saturating_add(1);
+            }
+            b'-' | b'*' | b'+' => {
+                i = i.saturating_add(1);
+                let _has_marker_space = bytes.get(i).copied() == Some(b' ');
+                out.push_str("    ");
+                return Some(out);
+            }
+            b'0'..=b'9' => {
+                while bytes.get(i).copied().is_some_and(|c| c.is_ascii_digit()) {
+                    i = i.saturating_add(1);
+                }
+                if !matches!(bytes.get(i).copied(), Some(b'.' | b')')) {
+                    return None;
+                }
+                i = i.saturating_add(1);
+                let _has_marker_space = bytes.get(i).copied() == Some(b' ');
+                out.push_str("    ");
+                return Some(out);
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 #[allow(
     clippy::expect_used,
@@ -1398,6 +1448,14 @@ mod tests {
             .next()
             .expect("definition list paragraph");
         assert_eq!(paragraph.cont_prefix, "    ");
+    }
+
+    #[test]
+    fn list_paragraph_exposes_four_space_continuation_prefix() {
+        let doc = Document::parse("> - alpha beta gamma\n").expect("fixture parses");
+        let paragraph = doc.wrappable_paragraphs().iter().next().expect("list paragraph");
+        assert_eq!(paragraph.cont_prefix, ">   ");
+        assert_eq!(paragraph.list_four_space_cont_prefix.as_deref(), Some(">     "));
     }
 
     #[test]

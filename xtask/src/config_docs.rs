@@ -64,7 +64,7 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         key: "fmt.wrap",
         ty: "\"keep\" | \"no\" | int",
         default: "\"keep\"",
-        description: "Wrap mode for prose paragraphs. `keep` leaves existing breaks alone; `no` forbids new breaks; an integer wraps at that column.",
+        description: "Wrap mode for prose paragraphs. `keep` leaves existing breaks alone; `no` forbids new breaks; an integer enforces that column for breakable lines in every formatter profile.",
         cli_override: None,
     },
     FieldDoc {
@@ -86,6 +86,13 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         ty: "\"dash\" | \"asterisk\" | \"plus\" | \"preserve\"",
         default: "\"preserve\"",
         description: "Unordered-list bullet canonicalisation. Each marker is rewritten through a marker-local fact and the family commits only after verification.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.lists.continuation-indent",
+        ty: "\"marker-width\" | \"four-space\"",
+        default: "\"marker-width\"",
+        description: "Continuation indentation for wrapped list-item paragraphs. `marker-width` aligns to the source marker width; `four-space` matches mdformat's list continuation spelling. The mdformat profile defaults this key to `four-space`.",
         cli_override: None,
     },
     FieldDoc {

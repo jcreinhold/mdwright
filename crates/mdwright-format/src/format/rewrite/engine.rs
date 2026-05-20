@@ -98,7 +98,7 @@ fn commit_terminal_wrap(
     parse_options: ParseOptions,
     report: &mut FormatReport,
 ) -> Option<String> {
-    let outcome = wrap_pass::collect_terminal_wrap_edits(snapshot, opts.wrap());
+    let outcome = wrap_pass::collect_terminal_wrap_edits(snapshot, opts);
     report.rewrite_skipped_wrap = report.rewrite_skipped_wrap.saturating_add(outcome.skipped_unsupported);
     let mut edits = outcome.edits;
     edits.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));

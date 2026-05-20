@@ -29,8 +29,9 @@ use mdwright_document::{
     RenderProfile,
 };
 use mdwright_format::{
-    EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
-    OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
+    EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent, ListMarkerStyle,
+    MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline,
+    Wrap,
 };
 use serde::Deserialize;
 
@@ -282,6 +283,8 @@ struct FmtSchema {
     #[serde(default)]
     tables: Option<TablesSchema>,
     #[serde(default)]
+    lists: Option<ListsSchema>,
+    #[serde(default)]
     frontmatter: Option<FrontmatterSchema>,
     #[serde(default)]
     math: Option<MathSchema>,
@@ -293,6 +296,7 @@ fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
     let refs = schema.refs.unwrap_or_default();
     let footnotes = schema.footnotes.unwrap_or_default();
     let tables = schema.tables.unwrap_or_default();
+    let lists = schema.lists.unwrap_or_default();
     let frontmatter = schema.frontmatter.unwrap_or_default();
     let default = match schema.profile.unwrap_or(FmtProfileSchema::Preserve) {
         FmtProfileSchema::Preserve => FmtOptions::default(),
@@ -313,6 +317,11 @@ fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
         );
     opts = opts.with_preserve_frontmatter(frontmatter.preserve.unwrap_or_else(|| default.preserve_frontmatter()));
     opts = opts.with_table(tables.style.map_or_else(|| default.table(), TableStyle::from));
+    opts = opts.with_list_continuation_indent(
+        lists
+            .continuation_indent
+            .map_or_else(|| default.list_continuation_indent(), ListContinuationIndent::from),
+    );
     if let Some(wrap) = schema.wrap {
         opts = opts.with_wrap(Wrap::from(wrap));
     }
@@ -592,6 +601,29 @@ struct FootnotesSchema {
 struct TablesSchema {
     #[serde(default)]
     style: Option<TableStyleSchema>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ListsSchema {
+    #[serde(default, rename = "continuation-indent")]
+    continuation_indent: Option<ListContinuationIndentSchema>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum ListContinuationIndentSchema {
+    MarkerWidth,
+    FourSpace,
+}
+
+impl From<ListContinuationIndentSchema> for ListContinuationIndent {
+    fn from(s: ListContinuationIndentSchema) -> Self {
+        match s {
+            ListContinuationIndentSchema::MarkerWidth => Self::MarkerWidth,
+            ListContinuationIndentSchema::FourSpace => Self::FourSpace,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -887,8 +919,8 @@ mod tests {
     use anyhow::{Result, anyhow};
 
     use super::{
-        Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListMarkerStyle, OrderedListStyle,
-        RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
+        Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListContinuationIndent, ListMarkerStyle,
+        OrderedListStyle, RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -1035,6 +1067,7 @@ inline-attribute-spans = false
         assert_eq!(fmt.italic(), ItalicStyle::Preserve);
         assert_eq!(fmt.strong(), StrongStyle::Preserve);
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
+        assert_eq!(fmt.list_continuation_indent(), ListContinuationIndent::FourSpace);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::One);
         assert_eq!(fmt.thematic_break_style(), ThematicStyle::Underscore70);
         assert_eq!(fmt.table(), TableStyle::Pad);
@@ -1053,6 +1086,9 @@ list-marker = "plus"
 ordered-list = "consistent"
 thematic-break = "dash"
 
+[fmt.lists]
+continuation-indent = "marker-width"
+
 [fmt.tables]
 style = "preserve"
 "#,
@@ -1061,8 +1097,33 @@ style = "preserve"
         assert_eq!(fmt.wrap(), Wrap::At(120));
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Plus);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::Consistent);
+        assert_eq!(fmt.list_continuation_indent(), ListContinuationIndent::MarkerWidth);
         assert_eq!(fmt.thematic_break_style(), ThematicStyle::Dash);
         assert_eq!(fmt.table(), TableStyle::Preserve);
+        Ok(())
+    }
+
+    #[test]
+    fn fmt_lists_continuation_indent_accepts_supported_styles() -> Result<()> {
+        let marker_width = config_from_str("[fmt.lists]\ncontinuation-indent = \"marker-width\"\n")?;
+        assert_eq!(
+            marker_width.fmt_options().list_continuation_indent(),
+            ListContinuationIndent::MarkerWidth
+        );
+
+        let four_space = config_from_str("[fmt.lists]\ncontinuation-indent = \"four-space\"\n")?;
+        assert_eq!(
+            four_space.fmt_options().list_continuation_indent(),
+            ListContinuationIndent::FourSpace
+        );
+
+        let err = config_from_str("[fmt.lists]\ncontinuation-indent = \"tab\"\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected continuation-indent error"))?;
+        assert!(
+            err.to_string().contains("continuation-indent"),
+            "error should name rejected continuation-indent: {err}"
+        );
         Ok(())
     }
 

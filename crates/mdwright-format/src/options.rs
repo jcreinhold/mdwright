@@ -10,9 +10,11 @@
 #[derive(Debug, Clone)]
 pub struct FmtOptions {
     wrap: Wrap,
+    wrap_strategy: WrapStrategy,
     italic: ItalicStyle,
     strong: StrongStyle,
     list_marker: ListMarkerStyle,
+    list_continuation_indent: ListContinuationIndent,
     ordered_list: OrderedListStyle,
     table: TableStyle,
     trailing_newline: TrailingNewline,
@@ -104,6 +106,12 @@ impl FmtOptions {
         self.wrap
     }
 
+    /// Paragraph wrap strategy.
+    #[must_use]
+    pub(crate) fn wrap_strategy(&self) -> WrapStrategy {
+        self.wrap_strategy
+    }
+
     /// Italic delimiter normalisation policy.
     #[must_use]
     pub fn italic(&self) -> ItalicStyle {
@@ -120,6 +128,12 @@ impl FmtOptions {
     #[must_use]
     pub fn list_marker(&self) -> ListMarkerStyle {
         self.list_marker
+    }
+
+    /// List continuation indentation used when wrapping list-item paragraphs.
+    #[must_use]
+    pub fn list_continuation_indent(&self) -> ListContinuationIndent {
+        self.list_continuation_indent
     }
 
     /// Ordered-list number normalisation policy.
@@ -247,6 +261,14 @@ impl FmtOptions {
         self
     }
 
+    /// Override the wrap strategy. Kept crate-private because user-facing
+    /// selection happens through formatter profiles.
+    #[must_use]
+    pub(crate) fn with_wrap_strategy(mut self, strategy: WrapStrategy) -> Self {
+        self.wrap_strategy = strategy;
+        self
+    }
+
     /// Override the italic style. Used by callers that build options
     /// programmatically (property tests, CLI overrides).
     #[must_use]
@@ -266,6 +288,13 @@ impl FmtOptions {
     #[must_use]
     pub fn with_list_marker(mut self, list_marker: ListMarkerStyle) -> Self {
         self.list_marker = list_marker;
+        self
+    }
+
+    /// Override list continuation indentation for wrapped list items.
+    #[must_use]
+    pub fn with_list_continuation_indent(mut self, indent: ListContinuationIndent) -> Self {
+        self.list_continuation_indent = indent;
         self
     }
 
@@ -448,12 +477,14 @@ impl Default for FmtOptions {
     fn default() -> Self {
         Self {
             wrap: Wrap::Keep,
+            wrap_strategy: WrapStrategy::Balanced,
             // Style knobs default to Preserve so structural emit
             // round-trips source bytes. Canonicalisation reads these
             // knobs to opt in to rewrites.
             italic: ItalicStyle::Preserve,
             strong: StrongStyle::Preserve,
             list_marker: ListMarkerStyle::Preserve,
+            list_continuation_indent: ListContinuationIndent::MarkerWidth,
             ordered_list: OrderedListStyle::Preserve,
             table: TableStyle::Preserve,
             trailing_newline: TrailingNewline::Preserve,
@@ -484,7 +515,9 @@ impl FmtOptions {
     #[must_use]
     pub fn mdformat() -> Self {
         Self::default()
+            .with_wrap_strategy(WrapStrategy::MdformatReflow)
             .with_list_marker(ListMarkerStyle::Dash)
+            .with_list_continuation_indent(ListContinuationIndent::FourSpace)
             .with_ordered_list(OrderedListStyle::One)
             .with_thematic_break(ThematicStyle::Underscore70)
             .with_table(TableStyle::Pad)
@@ -577,6 +610,15 @@ impl Wrap {
     }
 }
 
+/// Internal paragraph-wrap planner.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum WrapStrategy {
+    /// Rebalance the whole paragraph with the existing squared-slack planner.
+    Balanced,
+    /// Reflow each hard-break-bounded run with mdformat-compatible soft breaks.
+    MdformatReflow,
+}
+
 /// Italic delimiter normalisation policy. Defaults to `Preserve`:
 /// structural emit preserves each run's source delimiter. Fixed
 /// variants are consumed only by the canonicalisation post-pass.
@@ -605,6 +647,15 @@ pub enum ListMarkerStyle {
     Asterisk,
     Plus,
     Preserve,
+}
+
+/// Continuation indentation for wrapped list-item paragraphs.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ListContinuationIndent {
+    /// Continue at the marker width: `- text` wraps to `  text`.
+    MarkerWidth,
+    /// Continue with four spaces after the containing block prefix.
+    FourSpace,
 }
 
 /// Ordered-list number normalisation policy.

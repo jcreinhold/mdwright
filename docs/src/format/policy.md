@@ -32,6 +32,13 @@ Wrap is terminal. It runs only after a full canonical-family scan commits no edi
 commits paragraph edits, the engine returns to the first canonical family on a fresh parse before wrapping again.
 Paragraph shapes the wrap pass cannot model stay unchanged and are counted in the formatter report.
 
+An integer wrap setting is a line-budget contract, not a profile-specific preference. With `wrap = 120`, breakable
+paragraph lines are kept at or below 120 display columns in both the default formatter profile and the mdformat profile.
+The only accepted overflow is one indivisible atomic token, such as a code span, URL, math atom, or single long word.
+The mdformat profile changes the planner from balanced reflow to mdformat-compatible soft-break reflow: ordinary source
+newlines inside a paragraph may be joined, hard breaks stay hard boundaries, and overlong breakable runs are wrapped to
+the configured budget.
+
 Default: every style knob is `Preserve` and wrapping is `Keep`. With the default config the rewrite-family pipeline
 short-circuits before running. Set per-knob targets in `.mdwright.toml` to opt in.
 
