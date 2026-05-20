@@ -597,7 +597,12 @@ fn thematic_break_ranges(source: &str, events: &[(Event<'_>, Range<usize>)]) -> 
     for (ev, range) in events {
         if matches!(ev, Event::Rule) {
             let mut hi = range.end.min(bytes.len());
-            while hi > range.start && matches!(bytes.get(hi.saturating_sub(1)).copied(), Some(b'\n' | b'\r')) {
+            while hi > range.start
+                && matches!(
+                    bytes.get(hi.saturating_sub(1)).copied(),
+                    Some(b' ' | b'\t' | 0x0c | b'\n' | b'\r')
+                )
+            {
                 hi = hi.saturating_sub(1);
             }
             sites.push(range.start..hi);

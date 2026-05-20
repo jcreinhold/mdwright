@@ -101,8 +101,15 @@ cargo +nightly fuzz run fuzz_verbatim_identity -- -runs=0
 
 Write the replay result to `target/mdwright/release/fuzz-replay.md`.
 
-Run sustained fuzz rounds manually and write the result to `target/mdwright/release/fuzz-sustained.md`. The standard
-release target is three clean 10-minute rounds for every fuzz target.
+Run sustained fuzz rounds with the helper script. The standard release target is three clean 10-minute rounds for every
+fuzz target:
+
+```sh
+scripts/fuzz-round.sh 600 3
+```
+
+The script writes `target/mdwright/release/fuzz-sustained.md` and per-target logs under
+`target/mdwright/release/fuzz-sustained/logs/`.
 
 Run the Criterion comparison and write the result to `target/mdwright/release/benchmarks.md`:
 

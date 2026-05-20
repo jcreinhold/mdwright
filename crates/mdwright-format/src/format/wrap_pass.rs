@@ -85,9 +85,18 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
     let bytes = out.as_bytes();
     let content_range = p.content_range();
     let line_range = p.line_range();
+    let content_hi = content_range.end;
     let content = bytes.get(content_range)?;
-    let source_had_trailing_nl =
-        line_range.end > 0 && bytes.get(line_range.end.saturating_sub(1)).copied() == Some(b'\n');
+    let trailing_suffix = if content_hi <= line_range.end {
+        let suffix = bytes.get(content_hi..line_range.end)?;
+        if suffix.is_empty() && content.last().copied() == Some(b'\n') {
+            "\n"
+        } else {
+            std::str::from_utf8(suffix).ok()?
+        }
+    } else {
+        ""
+    };
     let segments = split_at_hard_breaks(p, bytes);
     let first_prefix_width = display_width(p.first_prefix());
     let cont_prefix_width = display_width(p.cont_prefix());
@@ -156,9 +165,7 @@ fn rewrap_paragraph(out: &str, p: &Paragraph, mode: Wrap) -> Option<String> {
             emitted.push_str(p.cont_prefix());
         }
     }
-    if source_had_trailing_nl {
-        emitted.push('\n');
-    }
+    emitted.push_str(trailing_suffix);
     Some(emitted)
 }
 

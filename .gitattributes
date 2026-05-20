@@ -11,6 +11,9 @@
 
 tests/gfm-spec/spec.txt text eol=lf
 
+# This regression fixture intentionally contains FF followed by CRLF.
+crates/mdwright/tests/regressions/fuzz_thematic_formfeed.idem.in binary
+
 # Fuzz corpus entries are byte-exact reproducers; never transform them.
 fuzz/corpus/** binary
 fuzz/artifacts/** binary
