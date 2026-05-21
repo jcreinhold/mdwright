@@ -31,6 +31,83 @@ pub struct SourceMigration {
     pub edit_count: usize,
 }
 
+// Inline migration was designed three ways. A boolean whole-span check was
+// small but lost the review reason for every skip. Splitting one Markdown code
+// span into several Markdown constructs would reduce some false negatives, but
+// it changes prose structure and makes delimiter ownership hard to audit.
+// This classifier keeps whole-span edits and carries the decision evidence
+// downward so target application does not recompute translation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum InlineCodeEligibility {
+    Convert(InlineConversionCandidate),
+    Skip(InlineSkip),
+    Ignore,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct InlineConversionCandidate {
+    class: InlineCodeClass,
+    translated_body: String,
+    detail: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct InlineSkip {
+    reason: InlineSkipReason,
+    detail: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InlineCodeClass {
+    HighConfidenceFormula,
+    AlreadyLatexMathFragment,
+    TranslatedUnicodeFormula,
+}
+
+impl InlineCodeClass {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::HighConfidenceFormula => "high-confidence formula",
+            Self::AlreadyLatexMathFragment => "already-LaTeX math fragment",
+            Self::TranslatedUnicodeFormula => "translated Unicode formula",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InlineSkipReason {
+    ProseLikeCode,
+    ShortLabel,
+    DiagramLikeNotation,
+    UnsupportedButVisibleMath,
+    MixedFormulaAndProse,
+    UnsafeTranslationDiagnostics,
+}
+
+impl InlineSkipReason {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::ProseLikeCode => "prose-like code",
+            Self::ShortLabel => "short label",
+            Self::DiagramLikeNotation => "diagram-like notation",
+            Self::UnsupportedButVisibleMath => "unsupported but visible math",
+            Self::MixedFormulaAndProse => "mixed formula and prose",
+            Self::UnsafeTranslationDiagnostics => "unsafe translation diagnostics",
+        }
+    }
+
+    const fn evidence_class(self) -> EvidenceClass {
+        match self {
+            Self::ProseLikeCode => EvidenceClass::SkippedInlineProseLike,
+            Self::ShortLabel => EvidenceClass::SkippedInlineShortLabel,
+            Self::DiagramLikeNotation => EvidenceClass::SkippedInlineDiagramLike,
+            Self::UnsupportedButVisibleMath => EvidenceClass::SkippedInlineUnsupportedMathVisible,
+            Self::MixedFormulaAndProse => EvidenceClass::SkippedInlineMixedFormulaProse,
+            Self::UnsafeTranslationDiagnostics => EvidenceClass::SkippedInlineUnsafeTranslationDiagnostics,
+        }
+    }
+}
+
 // Evidence is collected during migration planning, not by grepping the
 // rendered diff. Keeping the report at this layer preserves document
 // facts, target kinds, translation outcomes, and skip decisions; parsing
@@ -84,8 +161,11 @@ enum EvidenceClass {
     MigratedInlineCode,
     MigratedCodeBlock,
     SkippedInlineProseLike,
+    SkippedInlineShortLabel,
     SkippedInlineDiagramLike,
     SkippedInlineUnsupportedMathVisible,
+    SkippedInlineMixedFormulaProse,
+    SkippedInlineUnsafeTranslationDiagnostics,
     SkippedBlockDiagramLayout,
     SkippedBlockMixedProse,
     SurroundingProseHit,
@@ -100,8 +180,13 @@ impl EvidenceClass {
             Self::MigratedInlineCode => "migrated inline code",
             Self::MigratedCodeBlock => "migrated code block",
             Self::SkippedInlineProseLike => "skipped inline code: prose-like",
+            Self::SkippedInlineShortLabel => "skipped inline code: short label",
             Self::SkippedInlineDiagramLike => "skipped inline code: diagram-like",
             Self::SkippedInlineUnsupportedMathVisible => "skipped inline code: unsupported math remains visible",
+            Self::SkippedInlineMixedFormulaProse => "skipped inline code: mixed formula and prose",
+            Self::SkippedInlineUnsafeTranslationDiagnostics => {
+                "skipped inline code: unsafe translation diagnostics"
+            }
             Self::SkippedBlockDiagramLayout => "skipped block: diagram/layout",
             Self::SkippedBlockMixedProse => "skipped block: mixed prose",
             Self::SurroundingProseHit => "surrounding prose hit",
@@ -206,7 +291,11 @@ struct Edit {
 
 enum MathMigrationTarget {
     ExistingMathBody { body: Range<usize> },
-    InlineCodeToMath { raw: Range<usize>, body: Range<usize> },
+    InlineCodeToMath {
+        raw: Range<usize>,
+        body: Range<usize>,
+        candidate: InlineConversionCandidate,
+    },
     CodeBlockToDisplayMath { raw: Range<usize>, body: Range<usize> },
 }
 
@@ -216,11 +305,16 @@ impl MathMigrationTarget {
         Ok(Self::ExistingMathBody { body })
     }
 
-    fn inline_code_to_math(source: &str, raw: Range<usize>, body: Range<usize>) -> Result<Self> {
+    fn inline_code_to_math(
+        source: &str,
+        raw: Range<usize>,
+        body: Range<usize>,
+        candidate: InlineConversionCandidate,
+    ) -> Result<Self> {
         ensure_valid_range(source, &raw)?;
         ensure_valid_range(source, &body)?;
         ensure_contained(&raw, &body)?;
-        Ok(Self::InlineCodeToMath { raw, body })
+        Ok(Self::InlineCodeToMath { raw, body, candidate })
     }
 
     fn code_block_to_display_math(source: &str, raw: Range<usize>, body: Range<usize>) -> Result<Self> {
@@ -324,18 +418,22 @@ fn migrate_source_collecting_evidence(
         if overlaps_any(&code.raw_range, &occupied) {
             continue;
         }
-        if is_inline_math_like(&code.text) {
-            targets.push(inline_code_target(source, code)?);
-        } else if let Some(class) = skipped_inline_class(&code.text)
-            && let Some(collector) = evidence.as_deref_mut()
-        {
-            collector.record(
-                path,
-                source,
-                code.raw_range.clone(),
-                class,
-                "inline code was not converted",
-            );
+        match classify_inline_code(&code.text) {
+            InlineCodeEligibility::Convert(candidate) => {
+                targets.push(inline_code_target(source, code, candidate)?);
+            }
+            InlineCodeEligibility::Skip(skip) => {
+                if let Some(collector) = evidence.as_deref_mut() {
+                    collector.record(
+                        path,
+                        source,
+                        code.raw_range.clone(),
+                        skip.reason.evidence_class(),
+                        inline_skip_detail(&skip),
+                    );
+                }
+            }
+            InlineCodeEligibility::Ignore => {}
         }
     }
 
@@ -379,9 +477,13 @@ fn overlaps_any(range: &Range<usize>, occupied: &[Range<usize>]) -> bool {
         .any(|other| range.start < other.end && other.start < range.end)
 }
 
-fn inline_code_target(source: &str, code: &InlineCode) -> Result<MathMigrationTarget> {
+fn inline_code_target(
+    source: &str,
+    code: &InlineCode,
+    candidate: InlineConversionCandidate,
+) -> Result<MathMigrationTarget> {
     let body = code.byte_offset..code.byte_offset.saturating_add(code.text.len());
-    MathMigrationTarget::inline_code_to_math(source, code.raw_range.clone(), body)
+    MathMigrationTarget::inline_code_to_math(source, code.raw_range.clone(), body, candidate)
 }
 
 #[cfg(test)]
@@ -466,20 +568,12 @@ fn target_to_edit_collecting_evidence(
                 Ok(None)
             }
         }
-        MathMigrationTarget::InlineCodeToMath { raw, body } => {
-            let Some(text) = source.get(body.clone()) else {
-                return Ok(None);
-            };
-            let translated = translate_unicode_to_latex(text);
-            if !translation_usable_for_conversion(&translated) {
-                if let Some(collector) = evidence.as_deref_mut() {
-                    let class = if has_diagram_layout(text) {
-                        EvidenceClass::SkippedInlineDiagramLike
-                    } else {
-                        EvidenceClass::SkippedInlineUnsupportedMathVisible
-                    };
-                    collector.record(path, source, raw.clone(), class, translation_detail(&translated));
-                }
+        MathMigrationTarget::InlineCodeToMath {
+            raw,
+            body,
+            candidate,
+        } => {
+            if source.get(body.clone()).is_none() {
                 return Ok(None);
             }
             if let Some(collector) = evidence {
@@ -488,12 +582,12 @@ fn target_to_edit_collecting_evidence(
                     source,
                     raw.clone(),
                     EvidenceClass::MigratedInlineCode,
-                    translation_detail(&translated),
+                    inline_conversion_detail(candidate),
                 );
             }
             Ok(Some(Edit {
                 range: raw.clone(),
-                replacement: format!(r"\({}\)", translated.text()),
+                replacement: format!(r"\({}\)", candidate.translated_body),
             }))
         }
         MathMigrationTarget::CodeBlockToDisplayMath { raw, body } => {
@@ -530,21 +624,70 @@ fn target_to_edit_collecting_evidence(
     }
 }
 
-fn skipped_inline_class(text: &str) -> Option<EvidenceClass> {
+fn classify_inline_code(text: &str) -> InlineCodeEligibility {
     let trimmed = text.trim();
     if trimmed.is_empty() {
-        return None;
+        return InlineCodeEligibility::Ignore;
     }
     if has_diagram_layout(trimmed) {
-        return Some(EvidenceClass::SkippedInlineDiagramLike);
+        return inline_skip(InlineSkipReason::DiagramLikeNotation, "diagram/layout glyphs are present");
     }
-    if has_strong_math_signal(trimmed) || has_script_syntax(trimmed) || has_tex_command(trimmed) {
-        return Some(EvidenceClass::SkippedInlineUnsupportedMathVisible);
+    if looks_like_short_label(trimmed) {
+        return inline_skip(InlineSkipReason::ShortLabel, "short all-caps label is preserved as code");
     }
-    if looks_prose_like(trimmed) || !trimmed.is_ascii() {
-        return Some(EvidenceClass::SkippedInlineProseLike);
+
+    let has_tex = has_tex_command(trimmed);
+    let has_signal = has_strong_math_signal(trimmed) || has_script_syntax(trimmed) || has_tex;
+    let translated = translate_unicode_to_latex(trimmed);
+    let changed = translated.text() != trimmed;
+
+    if has_signal && looks_like_mixed_formula_and_prose(trimmed) {
+        return inline_skip(
+            InlineSkipReason::MixedFormulaAndProse,
+            translation_detail(&translated),
+        );
     }
-    None
+    if !has_signal && (looks_prose_like(trimmed) || !trimmed.is_ascii()) {
+        return inline_skip(InlineSkipReason::ProseLikeCode, "no high-confidence math signal");
+    }
+    if translation_usable_for_conversion(&translated) && (has_signal || changed || has_tex) {
+        let class = if has_tex {
+            InlineCodeClass::AlreadyLatexMathFragment
+        } else if changed {
+            InlineCodeClass::TranslatedUnicodeFormula
+        } else {
+            InlineCodeClass::HighConfidenceFormula
+        };
+        return InlineCodeEligibility::Convert(InlineConversionCandidate {
+            class,
+            translated_body: translated.text().to_owned(),
+            detail: translation_detail(&translated),
+        });
+    }
+    if has_signal {
+        let reason = if !translated.text().is_ascii() {
+            InlineSkipReason::UnsupportedButVisibleMath
+        } else {
+            InlineSkipReason::UnsafeTranslationDiagnostics
+        };
+        return inline_skip(reason, translation_detail(&translated));
+    }
+    InlineCodeEligibility::Ignore
+}
+
+fn inline_skip(reason: InlineSkipReason, detail: impl Into<String>) -> InlineCodeEligibility {
+    InlineCodeEligibility::Skip(InlineSkip {
+        reason,
+        detail: detail.into(),
+    })
+}
+
+fn inline_conversion_detail(candidate: &InlineConversionCandidate) -> String {
+    format!("class={}, {}", candidate.class.label(), candidate.detail)
+}
+
+fn inline_skip_detail(skip: &InlineSkip) -> String {
+    format!("reason={}, {}", skip.reason.label(), skip.detail)
 }
 
 fn skipped_block_class(block: &CodeBlock, body: &str) -> Option<EvidenceClass> {
@@ -693,20 +836,6 @@ fn has_nonblank_line(text: &str) -> bool {
     nonblank_lines(text).next().is_some()
 }
 
-fn is_inline_math_like(text: &str) -> bool {
-    let trimmed = text.trim();
-    if trimmed.is_empty() || looks_like_short_label(trimmed) {
-        return false;
-    }
-    if has_strong_math_signal(trimmed) {
-        return true;
-    }
-    if has_tex_command(trimmed) {
-        return translation_changes_without_diagnostics(trimmed);
-    }
-    has_script_syntax(trimmed) && !looks_prose_like(trimmed)
-}
-
 fn is_math_like_line(line: &str) -> bool {
     is_high_confidence_math_line(line) || (has_script_syntax(line) && !looks_prose_like(line))
 }
@@ -775,6 +904,21 @@ fn looks_like_short_label(text: &str) -> bool {
         && bare
             .chars()
             .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '-' || ch == '_')
+}
+
+fn looks_like_mixed_formula_and_prose(text: &str) -> bool {
+    if !text.contains(char::is_whitespace) {
+        return false;
+    }
+    let prose_words = text
+        .split(|ch: char| !ch.is_alphabetic())
+        .filter(|word| {
+            word.len() >= 3
+                && word.chars().any(char::is_lowercase)
+                && word.chars().all(|ch| ch.is_ascii_alphabetic())
+        })
+        .count();
+    prose_words >= 3
 }
 
 fn looks_prose_like(text: &str) -> bool {
@@ -1031,6 +1175,28 @@ mod tests {
             .map_or(0, |count| count.count)
     }
 
+    fn test_inline_candidate() -> InlineConversionCandidate {
+        InlineConversionCandidate {
+            class: InlineCodeClass::TranslatedUnicodeFormula,
+            translated_body: r"\alpha_{i} \leq x^{2}".to_owned(),
+            detail: "test candidate".to_owned(),
+        }
+    }
+
+    fn assert_inline_class(source: &str, expected: InlineCodeClass) {
+        let InlineCodeEligibility::Convert(candidate) = classify_inline_code(source) else {
+            panic!("expected inline conversion for {source:?}");
+        };
+        assert_eq!(candidate.class, expected);
+    }
+
+    fn assert_inline_skip(source: &str, expected: InlineSkipReason) {
+        let InlineCodeEligibility::Skip(skip) = classify_inline_code(source) else {
+            panic!("expected inline skip for {source:?}");
+        };
+        assert_eq!(skip.reason, expected);
+    }
+
     #[test]
     fn inline_code_math_converts_to_inline_latex_math() -> Result<()> {
         let source = "Let `αᵢ ≤ x²` hold.\n";
@@ -1041,6 +1207,27 @@ mod tests {
         );
         assert_eq!(migrated.edit_count, 1);
         Ok(())
+    }
+
+    #[test]
+    fn inline_classifier_names_conversion_classes() {
+        assert_inline_class("αᵢ ≤ x²", InlineCodeClass::TranslatedUnicodeFormula);
+        assert_inline_class(r"\alpha_i", InlineCodeClass::AlreadyLatexMathFragment);
+        assert_inline_class("φ : B → C", InlineCodeClass::TranslatedUnicodeFormula);
+        assert_inline_class("B_t", InlineCodeClass::TranslatedUnicodeFormula);
+    }
+
+    #[test]
+    fn inline_classifier_names_skip_reasons() {
+        assert_inline_skip("préschéma", InlineSkipReason::ProseLikeCode);
+        assert_inline_skip("(TF)", InlineSkipReason::ShortLabel);
+        assert_inline_skip("A ↙ B", InlineSkipReason::DiagramLikeNotation);
+        assert_inline_skip("A ⧟ B", InlineSkipReason::UnsupportedButVisibleMath);
+        assert_inline_skip(
+            "this is a prose sentence with x²",
+            InlineSkipReason::MixedFormulaAndProse,
+        );
+        assert_inline_skip("((A'_i)_{𝔪'})^", InlineSkipReason::UnsafeTranslationDiagnostics);
     }
 
     #[test]
@@ -1120,6 +1307,31 @@ mod tests {
     }
 
     #[test]
+    fn inline_conversion_handles_high_confidence_formula_spans() -> Result<()> {
+        let source = "Use `B_t`, `φ : B → C`, `Spec(A)`, `Ω_{A/A_0}^1`, and `E₁₁ : y² + y = x³ − x²`.\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(
+            migrated.output,
+            concat!(
+                r"Use \(B_{t}\), \(\phi : B \to C\), \(\operatorname{Spec}(A)\), ",
+                r"\(\Omega_{A/A_{0}}^{1}\), and \(E_{11} : y^{2} + y = x^{3} - x^{2}\).",
+                "\n"
+            )
+        );
+        assert_eq!(migrated.edit_count, 5);
+        Ok(())
+    }
+
+    #[test]
+    fn mixed_prose_inline_code_remains_unchanged() -> Result<()> {
+        let source = "Do not convert `this is a prose sentence with x²` here.\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(migrated.output, source);
+        assert_eq!(migrated.edit_count, 0);
+        Ok(())
+    }
+
+    #[test]
     fn inline_conversion_uses_extended_unicode_normalization() -> Result<()> {
         let source = "Use `lim⃗ Mₙ`, `𝚪_*`, `𝐟𝐠`, and `f♯ ⊠ g♭`.\n";
         let migrated = migrate_source(source)?;
@@ -1186,7 +1398,8 @@ mod tests {
     fn overlapping_targets_are_rejected_before_edits_apply() {
         let source = "`αᵢ ≤ x²`\n";
         let targets = vec![
-            MathMigrationTarget::inline_code_to_math(source, 0..12, 1..11).expect("valid first target"),
+            MathMigrationTarget::inline_code_to_math(source, 0..12, 1..11, test_inline_candidate())
+                .expect("valid first target"),
             MathMigrationTarget::existing_math_body(source, 3..6).expect("valid second target"),
         ];
         let err = migrate_targets(source, targets).expect_err("overlap should be rejected");
@@ -1213,6 +1426,18 @@ mod tests {
     fn evidence_classifies_skipped_diagram_inline_code() -> Result<()> {
         let report = evidence_report_for_source("Map `A ↙ B` here.\n")?;
         assert_eq!(category_count(&report, EvidenceClass::SkippedInlineDiagramLike), 1);
+        assert_eq!(report.changed_files, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn evidence_classifies_short_labels_and_mixed_inline_code() -> Result<()> {
+        let report = evidence_report_for_source("Use `(TF)` and `this is prose with x²` here.\n")?;
+        assert_eq!(category_count(&report, EvidenceClass::SkippedInlineShortLabel), 1);
+        assert_eq!(
+            category_count(&report, EvidenceClass::SkippedInlineMixedFormulaProse),
+            1
+        );
         assert_eq!(report.changed_files, 0);
         Ok(())
     }
