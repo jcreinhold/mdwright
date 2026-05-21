@@ -66,6 +66,7 @@ pub(crate) enum Atom<'src> {
 pub(crate) struct Group<'src> {
     pub(crate) body: MathBody<'src>,
     pub(crate) delimiter: GroupDelimiter,
+    pub(crate) span: SourceSpan,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -351,6 +352,7 @@ impl<'stream, 'src> Parser<'stream, 'src> {
             NodeKind::Group(Group {
                 body,
                 delimiter: GroupDelimiter::Brace,
+                span,
             }),
             span,
         ))
@@ -410,7 +412,7 @@ impl<'stream, 'src> Parser<'stream, 'src> {
     fn parse_fraction(&mut self, name: &str, span: SourceSpan) -> Option<Node<'src>> {
         let numerator = self.parse_required_group("fraction numerator")?;
         let denominator = self.parse_required_group("fraction denominator")?;
-        let end = denominator.body.span;
+        let end = denominator.span;
         Some(Node::new(
             NodeKind::Fraction(Fraction {
                 command: match name {
@@ -428,13 +430,13 @@ impl<'stream, 'src> Parser<'stream, 'src> {
     fn parse_sqrt(&mut self, span: SourceSpan) -> Option<Node<'src>> {
         let degree = self.parse_optional_bracket_group();
         let body = self.parse_required_group("square-root body")?;
-        let end = body.body.span;
+        let end = body.span;
         Some(Node::new(NodeKind::Sqrt(Sqrt { degree, body }), join_spans(span, end)))
     }
 
     fn parse_accent(&mut self, name: &str, span: SourceSpan) -> Option<Node<'src>> {
         let body = self.parse_required_group("accent body")?;
-        let end = body.body.span;
+        let end = body.span;
         Some(Node::new(
             NodeKind::Accent(Accent {
                 accent: match name {
@@ -683,8 +685,9 @@ impl<'stream, 'src> Parser<'stream, 'src> {
         let body = self.parse_sequence(Stop::Group(GroupDelimiter::Brace));
         self.consume_group_close(GroupDelimiter::Brace, open.span())?;
         Some(Group {
-            body: MathBody::new(body.elements, join_spans(open.span(), self.previous_span())),
+            body,
             delimiter: GroupDelimiter::Brace,
+            span: join_spans(open.span(), self.previous_span()),
         })
     }
 
@@ -697,8 +700,9 @@ impl<'stream, 'src> Parser<'stream, 'src> {
         let body = self.parse_sequence(Stop::Group(GroupDelimiter::Bracket));
         let _ = self.consume_group_close(GroupDelimiter::Bracket, open.span())?;
         Some(Group {
-            body: MathBody::new(body.elements, join_spans(open.span(), self.previous_span())),
+            body,
             delimiter: GroupDelimiter::Bracket,
+            span: join_spans(open.span(), self.previous_span()),
         })
     }
 
@@ -855,7 +859,7 @@ impl ScriptArgument<'_> {
     pub(crate) fn span(&self) -> SourceSpan {
         match self {
             Self::Atom { span, .. } => *span,
-            Self::Group(group) => group.body.span,
+            Self::Group(group) => group.span,
         }
     }
 }

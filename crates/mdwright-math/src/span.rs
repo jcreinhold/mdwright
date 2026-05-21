@@ -120,6 +120,12 @@ impl MathBody {
         Self { range, transparent }
     }
 
+    /// Source byte range of the delimiter-excluded math body.
+    #[must_use]
+    pub fn source_range(&self) -> Range<usize> {
+        self.range.clone()
+    }
+
     /// Materialised body content with transparent runs removed.
     /// Borrows the source slice when no runs intersect; allocates a
     /// new `String` only when stripping is required.

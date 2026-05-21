@@ -884,6 +884,22 @@ mod tests {
     }
 
     #[test]
+    fn body_source_ranges_can_drive_latex_translation_without_markdown_parsing() {
+        let s = r"Inline \( \alpha_i \) and \[ x^{2} \].";
+        let regs = regions(s);
+        let ranges = regs
+            .iter()
+            .map(|region| region.span().body().source_range())
+            .collect::<Vec<_>>();
+
+        let translated = mdwright_latex::translate_latex_ranges_to_unicode(s, &ranges);
+
+        assert_eq!(translated.text(), r"Inline \( αᵢ \) and \[ x² \].");
+        assert_eq!(translated.edit_count(), 2);
+        assert!(translated.is_lossless());
+    }
+
+    #[test]
     fn transparent_run_protects_delim_match() {
         // `> $$ x\n> $$` — the close `$$` on line 2 is outside any
         // transparent run; the region must still be recognised

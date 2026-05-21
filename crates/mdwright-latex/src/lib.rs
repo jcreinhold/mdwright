@@ -31,4 +31,7 @@ pub use registry::{
     lookup_command, unicode_sub, unicode_sub_latex, unicode_sub_str, unicode_super, unicode_super_latex,
     unicode_super_str, unicode_symbol_latex,
 };
-pub use translation::{Translation, TranslationLoss};
+pub use translation::{
+    Translation, TranslationLoss, TranslationStatus, translate_latex_ranges_to_unicode, translate_latex_to_unicode,
+    translate_unicode_ranges_to_latex, translate_unicode_to_latex,
+};
