@@ -34,7 +34,7 @@ use crate::source::{CanonicalSource, Source};
 use crate::tree::TreeBuilder;
 use crate::util::regex::compile_static;
 use crate::{ParseError, ParseOptions};
-use mdwright_math::{MathConfig, MathError, MathRegion, scan_math_regions};
+use mdwright_math::{MathError, MathRegion, scan_math_regions};
 
 /// A borrowed slice of source bytes plus its absolute byte range.
 /// The minimal record every rule needs to emit a diagnostic.
@@ -287,8 +287,12 @@ impl Ir {
             .chain(builder.html_blocks.iter().map(|h| h.raw_range.clone()))
             .chain(builder.inline_html.iter().map(|h| h.raw_range.clone()))
             .collect();
-        let (math_regions, math_errors) =
-            scan_math_regions(source, &math_exclusions, &transparent_runs, MathConfig::default());
+        let (math_regions, math_errors) = scan_math_regions(
+            source,
+            &math_exclusions,
+            &transparent_runs,
+            opts.math().scanner_config(),
+        );
 
         let mut tree_builder = TreeBuilder::new(source, &math_regions);
         for (event, abs) in &events {
@@ -307,6 +311,7 @@ impl Ir {
             source,
             &events,
             &autolinks,
+            &math_regions,
             &builder.code_blocks,
             &builder.html_blocks,
             &tree,

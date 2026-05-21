@@ -26,8 +26,8 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use mdwright_document::{
-    ExtensionOptions, GfmAutolinkPolicy, GfmOptions, MystOptions, PandocOptions, ParseOptions, RenderOptions,
-    RenderProfile,
+    ExtensionOptions, GfmAutolinkPolicy, GfmOptions, MathDelimiterSet, MathParseOptions, MystOptions, PandocOptions,
+    ParseOptions, RenderOptions, RenderProfile,
 };
 use mdwright_format::{
     EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent, ListMarkerStyle,
@@ -598,12 +598,19 @@ fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
 struct ParseSchema {
     #[serde(default)]
     extensions: Option<ExtensionsSchema>,
+    #[serde(default)]
+    math: Option<ParseMathSchema>,
 }
 
 fn parse_options_from_schema(schema: ParseSchema) -> ParseOptions {
-    schema.extensions.map_or_else(ParseOptions::default, |extensions| {
-        ParseOptions::default().with_extensions(ExtensionOptions::from(extensions))
-    })
+    let mut opts = ParseOptions::default();
+    if let Some(extensions) = schema.extensions {
+        opts = opts.with_extensions(ExtensionOptions::from(extensions));
+    }
+    if let Some(math) = schema.math {
+        opts = opts.with_math(MathParseOptions::from(math));
+    }
+    opts
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -722,6 +729,38 @@ impl From<GfmAutolinkPolicySchema> for GfmAutolinkPolicy {
             GfmAutolinkPolicySchema::Disabled => Self::Disabled,
             GfmAutolinkPolicySchema::Urls => Self::Urls,
             GfmAutolinkPolicySchema::UrlsAndEmails => Self::UrlsAndEmails,
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ParseMathSchema {
+    #[serde(default)]
+    delimiters: Option<MathDelimiterSetSchema>,
+}
+
+impl From<ParseMathSchema> for MathParseOptions {
+    fn from(s: ParseMathSchema) -> Self {
+        let default = Self::default();
+        Self {
+            delimiters: s.delimiters.map_or(default.delimiters, MathDelimiterSet::from),
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum MathDelimiterSetSchema {
+    Tex,
+    Github,
+}
+
+impl From<MathDelimiterSetSchema> for MathDelimiterSet {
+    fn from(s: MathDelimiterSetSchema) -> Self {
+        match s {
+            MathDelimiterSetSchema::Tex => Self::Tex,
+            MathDelimiterSetSchema::Github => Self::Github,
         }
     }
 }
@@ -1234,8 +1273,8 @@ mod tests {
 
     use super::{
         Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, LintRulePreset, ListContinuationIndent,
-        ListMarkerStyle, MathRender, OrderedListStyle, RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle,
-        TrailingNewline, Wrap, WrapStrategy,
+        ListMarkerStyle, MathDelimiterSet, MathRender, OrderedListStyle, RenderProfile, Schema, StrongStyle,
+        TableStyle, ThematicStyle, TrailingNewline, Wrap, WrapStrategy,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -1439,8 +1478,24 @@ style = "pad"
         assert!(generated.contains("extra = []"));
         assert!(generated.contains("[fmt.math]"));
         assert!(generated.contains("render = \"none\""));
+        assert!(generated.contains("[parse.math]"));
+        assert!(generated.contains("delimiters = \"tex\""));
         assert!(generated.contains("[parse.extensions.gfm]"));
         assert!(generated.contains("autolinks = \"urls-and-emails\""));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_math_delimiters_default_to_tex() -> Result<()> {
+        let cfg = config_from_str("")?;
+        assert_eq!(cfg.parse_options().math().delimiters, MathDelimiterSet::Tex);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_math_delimiters_accept_github() -> Result<()> {
+        let cfg = config_from_str("[parse.math]\ndelimiters = \"github\"\n")?;
+        assert_eq!(cfg.parse_options().math().delimiters, MathDelimiterSet::Github);
         Ok(())
     }
 

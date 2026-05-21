@@ -282,6 +282,39 @@ fn fmt_explain_format_preserves_mutation_contract() {
 }
 
 #[test]
+fn fmt_wrap_respects_github_dollar_math_when_parse_policy_opts_in() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    fs::write(
+        dir.path().join(".mdwright.toml"),
+        "[fmt]\nwrap = 80\n[parse.math]\ndelimiters = \"github\"\n",
+    )
+    .expect("write config");
+    let note = dir.path().join("note.md");
+    fs::write(
+        &note,
+        "Let $(A_{\\alpha \\beta})_{(\\alpha,\\beta) \\in I \\times I}$ be two families of objects and suppose the surrounding prose is long enough to wrap.\n",
+    )
+    .expect("write markdown");
+
+    let out = command_in(dir.path(), &["fmt-check", "--diff", "--explain-format"]);
+    let (stdout, stderr) = output_text(&out);
+    assert_eq!(out.status.code(), Some(1), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert!(stdout.contains("@@"), "expected a wrapping diff:\n{stdout}");
+    assert!(
+        stdout.contains("$(A_{\\alpha \\beta})_{(\\alpha,\\beta) \\in I \\times I}$"),
+        "dollar math should remain one atomic span:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("$(A_{\\alpha\n"),
+        "formatter must not split inside dollar math:\n{stdout}"
+    );
+    assert!(
+        stderr.contains("paragraph-wrap"),
+        "expected committed wrap explanation:\n{stderr}"
+    );
+}
+
+#[test]
 fn fmt_diff_reviews_without_mutating_and_fmt_mutates_markdown_only() {
     let dir = tempfile::tempdir().expect("tempdir");
     write_wrap_no_config(dir.path());

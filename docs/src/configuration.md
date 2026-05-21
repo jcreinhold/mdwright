@@ -90,6 +90,7 @@ All `[fmt]` knobs are config-file-only.
 
 | Key | Type | Default | CLI override | Description |
 | --- | --- | --- | --- | --- |
+| `parse.math.delimiters` | "tex" \| "github" | `"tex"` | `none` | Math delimiter recognition policy. `tex` recognises `\(...\)`, `\[...\]`, and LaTeX environments; `github` also recognises `$...$` and `$$...$$`. |
 | `parse.extensions.definition-lists` | bool | `true` | `none` | Recognise `Term\n: definition\n` definition lists. Turn off on non-mkdocs corpora to suppress recognition. |
 | `parse.extensions.abbreviation-lists` | bool | `true` | `none` | Recognise `*[ABBR]: definition` abbreviation declarations as a scan-and-preserve overlay. mdwright does not expand occurrences; the downstream renderer does. |
 | `parse.extensions.heading-attribute-lists` | bool | `true` | `none` | Recognise `# Heading {#id .class}` trailers via pulldown's heading-attribute extension. When off, the trailer reads as plain text in the heading body. |

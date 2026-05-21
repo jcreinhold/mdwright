@@ -265,6 +265,14 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         description: "Math delimiter rendering policy for downstream renderers. `none` preserves source math regions; `commonmark-katex` records intent without rewriting; `dollar` rewrites bracket and paren math to dollar delimiters.",
         cli_override: None,
     },
+    // ---- [parse.math] -----------------------------------------------
+    FieldDoc {
+        key: "parse.math.delimiters",
+        ty: "\"tex\" | \"github\"",
+        default: "\"tex\"",
+        description: "Math delimiter recognition policy. `tex` recognises `\\(...\\)`, `\\[...\\]`, and LaTeX environments; `github` also recognises `$...$` and `$$...$$`.",
+        cli_override: None,
+    },
     // ---- [parse.extensions] -----------------------------------------
     FieldDoc {
         key: "parse.extensions.definition-lists",

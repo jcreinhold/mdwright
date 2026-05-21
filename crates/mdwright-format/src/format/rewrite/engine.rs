@@ -3,7 +3,7 @@ use std::ops::Range;
 
 use crate::format::canonicalise;
 use crate::format::rewrite::candidate::{Candidate, RewriteFamily};
-use crate::format::rewrite::signature::verify_batch;
+use crate::format::rewrite::signature::{verify_batch, verify_one};
 use crate::format::rewrite::snapshot::Snapshot;
 use crate::format::wrap_pass;
 use crate::{FmtOptions, FormatReport, Wrap};
@@ -102,6 +102,7 @@ fn commit_terminal_wrap(
     report.rewrite_skipped_wrap = report.rewrite_skipped_wrap.saturating_add(outcome.skipped_unsupported);
     let mut edits = outcome.edits;
     edits.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));
+    let edits = verified_terminal_wrap_edits(snapshot.source(), opts, parse_options, edits, report);
     verify_plan(
         snapshot.source(),
         opts,
@@ -110,6 +111,31 @@ fn commit_terminal_wrap(
         edits,
         report,
     )
+}
+
+fn verified_terminal_wrap_edits(
+    before: &str,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+    edits: Vec<Candidate>,
+    report: &mut FormatReport,
+) -> Vec<Candidate> {
+    if edits.len() <= 1 {
+        return edits;
+    }
+    let mut verified = Vec::with_capacity(edits.len());
+    let mut rejected = 0usize;
+    for candidate in edits {
+        let mut after = before.to_owned();
+        after.replace_range(candidate.range().clone(), candidate.replacement());
+        if verify_one(before, &after, &candidate, opts, parse_options) {
+            verified.push(candidate);
+        } else {
+            rejected = rejected.saturating_add(1);
+        }
+    }
+    report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(rejected);
+    verified
 }
 
 fn verify_plan(
@@ -357,5 +383,42 @@ mod tests {
             &FmtOptions::default(),
             ParseOptions::default(),
         ));
+    }
+
+    #[test]
+    fn terminal_wrap_filters_individually_invalid_candidates() {
+        let snapshot =
+            Snapshot::parse_owned("alpha beta gamma\n\nkeep me\n", ParseOptions::default()).expect("snapshot parses");
+        let good = snapshot
+            .candidate(
+                OwnerKind::Document,
+                0..17,
+                "alpha beta\ngamma\n".to_owned(),
+                Verification::PreserveMarkdownAndMath,
+                "wrap-good",
+            )
+            .expect("candidate");
+        let bad = snapshot
+            .candidate(
+                OwnerKind::Document,
+                18..25,
+                "drop me".to_owned(),
+                Verification::PreserveMarkdownAndMath,
+                "wrap-bad",
+            )
+            .expect("candidate");
+        let mut report = FormatReport::default();
+
+        let verified = verified_terminal_wrap_edits(
+            snapshot.source(),
+            &FmtOptions::default(),
+            ParseOptions::default(),
+            vec![good, bad],
+            &mut report,
+        );
+
+        assert_eq!(verified.len(), 1);
+        assert_eq!(verified.first().map(Candidate::label), Some("wrap-good"));
+        assert_eq!(report.rewrite_rejected_verification, 1);
     }
 }

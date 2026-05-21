@@ -38,6 +38,7 @@ pub use tree::TableAlign;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub struct ParseOptions {
     extensions: ExtensionOptions,
+    math: MathParseOptions,
 }
 
 impl ParseOptions {
@@ -47,12 +48,63 @@ impl ParseOptions {
         self.extensions
     }
 
+    /// Math-source recognition policy.
+    #[must_use]
+    pub fn math(&self) -> MathParseOptions {
+        self.math
+    }
+
     /// Override extension-recognition toggles.
     #[must_use]
     pub fn with_extensions(mut self, extensions: ExtensionOptions) -> Self {
         self.extensions = extensions;
         self
     }
+
+    /// Override math-source recognition policy.
+    #[must_use]
+    pub fn with_math(mut self, math: MathParseOptions) -> Self {
+        self.math = math;
+        self
+    }
+}
+
+/// Math delimiter recognition policy.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct MathParseOptions {
+    pub delimiters: MathDelimiterSet,
+}
+
+impl Default for MathParseOptions {
+    fn default() -> Self {
+        Self {
+            delimiters: MathDelimiterSet::Tex,
+        }
+    }
+}
+
+impl MathParseOptions {
+    pub(crate) fn scanner_config(self) -> mdwright_math::MathConfig {
+        let mut cfg = mdwright_math::MathConfig::default();
+        match self.delimiters {
+            MathDelimiterSet::Tex => {}
+            MathDelimiterSet::Github => {
+                cfg.double_dollar = true;
+                cfg.single_dollar = true;
+            }
+        }
+        cfg
+    }
+}
+
+/// Named math delimiter sets recognised by the Markdown parser.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+pub enum MathDelimiterSet {
+    /// TeX delimiters: `\(...\)`, `\[...\]`, and LaTeX environments.
+    #[default]
+    Tex,
+    /// GitHub-style dollar math, plus the TeX delimiters.
+    Github,
 }
 
 /// Per-extension recognition toggles.
@@ -170,7 +222,7 @@ pub fn contains_rejected_control_chars(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::contains_rejected_control_chars;
+    use super::{Document, MathDelimiterSet, MathParseOptions, ParseOptions, contains_rejected_control_chars};
 
     #[test]
     fn control_char_predicate_accepts_clean_text() {
@@ -187,5 +239,22 @@ mod tests {
         assert!(contains_rejected_control_chars("nul:\0"));
         assert!(contains_rejected_control_chars("bell:\x07"));
         assert!(contains_rejected_control_chars("unit-sep:\x1f"));
+    }
+
+    #[test]
+    fn default_parse_options_do_not_recognize_dollar_math() -> Result<(), Box<dyn std::error::Error>> {
+        let doc = Document::parse("x is $a + b$\n")?;
+        assert!(doc.math_regions().is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn github_math_delimiters_recognize_dollar_math() -> Result<(), Box<dyn std::error::Error>> {
+        let opts = ParseOptions::default().with_math(MathParseOptions {
+            delimiters: MathDelimiterSet::Github,
+        });
+        let doc = Document::parse_with_options("x is $a + b$ and $$c + d$$\n", opts)?;
+        assert_eq!(doc.math_regions().len(), 2);
+        Ok(())
     }
 }

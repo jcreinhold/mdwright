@@ -19,6 +19,7 @@ use crate::ir::{CodeBlock, HtmlBlock};
 use crate::refs::NormalisedLabel;
 use crate::tree::{NodeKind, TableAlign, Tree};
 use crate::{Document, HeadingAttrs};
+use mdwright_math::MathRegion;
 
 /// Structural owner kinds with source ranges.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -343,6 +344,7 @@ impl FormatFacts {
         source: &str,
         events: &[(Event<'_>, Range<usize>)],
         autolinks: &[AutolinkFact],
+        math_regions: &[MathRegion],
         code_blocks: &[CodeBlock],
         html_blocks: &[HtmlBlock],
         tree: &Tree,
@@ -358,7 +360,7 @@ impl FormatFacts {
             inline_link_destination_slots: inline_link_destination_slots(source, events),
             reference_definition_sites: reference_definition_sites(source, code_blocks, html_blocks),
             table_sites: table_sites(source, tree),
-            wrappable_paragraphs: wrappable_paragraphs(source, events, autolinks),
+            wrappable_paragraphs: wrappable_paragraphs(source, events, autolinks, math_regions),
         }
     }
 }
@@ -717,6 +719,7 @@ fn wrappable_paragraphs(
     source: &str,
     events: &[(Event<'_>, Range<usize>)],
     autolinks: &[AutolinkFact],
+    math_regions: &[MathRegion],
 ) -> Vec<WrappableParagraph> {
     let mut paragraphs = Vec::new();
     let bytes = source.as_bytes();
@@ -736,7 +739,7 @@ fn wrappable_paragraphs(
                 paragraph_depth = paragraph_depth.saturating_sub(1);
                 if paragraph_depth == 0
                     && let Some(p) = current.take()
-                    && let Some(finished) = p.finish(bytes, autolinks)
+                    && let Some(finished) = p.finish(bytes, autolinks, math_regions)
                 {
                     paragraphs.push(finished);
                 }
@@ -747,7 +750,7 @@ fn wrappable_paragraphs(
             Event::End(TagEnd::Item | TagEnd::DefinitionListDefinition | TagEnd::FootnoteDefinition) => {
                 prose_container_depth = prose_container_depth.saturating_sub(1);
                 if let Some(p) = current.take()
-                    && let Some(finished) = p.finish(bytes, autolinks)
+                    && let Some(finished) = p.finish(bytes, autolinks, math_regions)
                 {
                     paragraphs.push(finished);
                 }
@@ -764,7 +767,7 @@ fn wrappable_paragraphs(
                 | Tag::MetadataBlock(_),
             ) => {
                 if let Some(p) = current.take()
-                    && let Some(finished) = p.finish(bytes, autolinks)
+                    && let Some(finished) = p.finish(bytes, autolinks, math_regions)
                 {
                     paragraphs.push(finished);
                 }
@@ -1166,7 +1169,12 @@ impl PartialParagraph {
         }
     }
 
-    fn finish(mut self, bytes: &[u8], extra_atomics: &[crate::AutolinkFact]) -> Option<WrappableParagraph> {
+    fn finish(
+        mut self,
+        bytes: &[u8],
+        extra_atomics: &[crate::AutolinkFact],
+        math_regions: &[MathRegion],
+    ) -> Option<WrappableParagraph> {
         let (line_lo, first_prefix) = extract_first_prefix(bytes, self.content_lo)?;
         let line_hi = extract_line_hi(bytes, self.content_hi);
         if is_mkdocs_admonition_paragraph(bytes, line_lo, line_hi) {
@@ -1179,6 +1187,11 @@ impl PartialParagraph {
             let raw_range = autolink.raw_range();
             if raw_range.start >= self.content_lo && raw_range.end <= self.content_hi {
                 self.atomics.push(raw_range);
+            }
+        }
+        for region in math_regions {
+            if region.range.start >= self.content_lo && region.range.end <= self.content_hi {
+                self.atomics.push(region.range.clone());
             }
         }
         let mut atomics = self.atomics;
