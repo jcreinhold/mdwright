@@ -108,6 +108,102 @@ impl InlineSkipReason {
     }
 }
 
+// Code-block migration was checked three ways. A block-level boolean is too
+// opaque for corpus review; whole-block parsing alone loses which line made a
+// block unsafe. This classifier keeps the edit atomic at the block boundary,
+// but classifies lines first so evidence can name diagrams, prose, unsupported
+// math, and safe multiline formulas without moving language rules into xtask.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum CodeBlockEligibility {
+    Convert(CodeBlockConversionCandidate),
+    Skip(CodeBlockSkip),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CodeBlockConversionCandidate {
+    class: CodeBlockClass,
+    translated_body: String,
+    detail: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct CodeBlockSkip {
+    reason: CodeBlockSkipReason,
+    detail: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CodeBlockClass {
+    FormulaOnly,
+    MultilineFormula,
+    AlignmentLikeFormula,
+}
+
+impl CodeBlockClass {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::FormulaOnly => "formula-only block",
+            Self::MultilineFormula => "multiline formula block",
+            Self::AlignmentLikeFormula => "alignment-like formula block",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CodeBlockLineClass {
+    Blank,
+    Formula,
+    FormulaContinuation,
+    AlignmentSeparator,
+    Prose,
+    DiagramLayout,
+    UnsupportedVisibleMath,
+    UnsafeTranslationDiagnostics,
+}
+
+impl CodeBlockLineClass {
+    const fn is_convertible(self) -> bool {
+        matches!(
+            self,
+            Self::Formula | Self::FormulaContinuation | Self::AlignmentSeparator
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CodeBlockSkipReason {
+    MixedProse,
+    DiagramLayout,
+    LanguageTag,
+    UnsupportedVisibleMath,
+    UnsafeTranslationDiagnostics,
+    EmptyBlock,
+}
+
+impl CodeBlockSkipReason {
+    const fn label(self) -> &'static str {
+        match self {
+            Self::MixedProse => "mixed prose",
+            Self::DiagramLayout => "diagram/layout",
+            Self::LanguageTag => "language tag",
+            Self::UnsupportedVisibleMath => "unsupported visible math",
+            Self::UnsafeTranslationDiagnostics => "unsafe translation diagnostics",
+            Self::EmptyBlock => "empty block",
+        }
+    }
+
+    const fn evidence_class(self) -> EvidenceClass {
+        match self {
+            Self::MixedProse => EvidenceClass::SkippedBlockMixedProse,
+            Self::DiagramLayout => EvidenceClass::SkippedBlockDiagramLayout,
+            Self::LanguageTag => EvidenceClass::SkippedBlockLanguageTag,
+            Self::UnsupportedVisibleMath => EvidenceClass::SkippedBlockUnsupportedMathVisible,
+            Self::UnsafeTranslationDiagnostics => EvidenceClass::SkippedBlockUnsafeTranslationDiagnostics,
+            Self::EmptyBlock => EvidenceClass::SkippedBlockEmpty,
+        }
+    }
+}
+
 // Evidence is collected during migration planning, not by grepping the
 // rendered diff. Keeping the report at this layer preserves document
 // facts, target kinds, translation outcomes, and skip decisions; parsing
@@ -168,6 +264,10 @@ enum EvidenceClass {
     SkippedInlineUnsafeTranslationDiagnostics,
     SkippedBlockDiagramLayout,
     SkippedBlockMixedProse,
+    SkippedBlockLanguageTag,
+    SkippedBlockUnsupportedMathVisible,
+    SkippedBlockUnsafeTranslationDiagnostics,
+    SkippedBlockEmpty,
     SurroundingProseHit,
     ExistingLatexPassthrough,
     TrueBlocker,
@@ -187,6 +287,10 @@ impl EvidenceClass {
             Self::SkippedInlineUnsafeTranslationDiagnostics => "skipped inline code: unsafe translation diagnostics",
             Self::SkippedBlockDiagramLayout => "skipped block: diagram/layout",
             Self::SkippedBlockMixedProse => "skipped block: mixed prose",
+            Self::SkippedBlockLanguageTag => "skipped block: language tag",
+            Self::SkippedBlockUnsupportedMathVisible => "skipped block: unsupported math remains visible",
+            Self::SkippedBlockUnsafeTranslationDiagnostics => "skipped block: unsafe translation diagnostics",
+            Self::SkippedBlockEmpty => "skipped block: empty",
             Self::SurroundingProseHit => "surrounding prose hit",
             Self::ExistingLatexPassthrough => "existing LaTeX passthrough",
             Self::TrueBlocker => "true blocker",
@@ -299,6 +403,7 @@ enum MathMigrationTarget {
     CodeBlockToDisplayMath {
         raw: Range<usize>,
         body: Range<usize>,
+        candidate: CodeBlockConversionCandidate,
     },
 }
 
@@ -320,11 +425,16 @@ impl MathMigrationTarget {
         Ok(Self::InlineCodeToMath { raw, body, candidate })
     }
 
-    fn code_block_to_display_math(source: &str, raw: Range<usize>, body: Range<usize>) -> Result<Self> {
+    fn code_block_to_display_math(
+        source: &str,
+        raw: Range<usize>,
+        body: Range<usize>,
+        candidate: CodeBlockConversionCandidate,
+    ) -> Result<Self> {
         ensure_valid_range(source, &raw)?;
         ensure_valid_range(source, &body)?;
         ensure_contained(&raw, &body)?;
-        Ok(Self::CodeBlockToDisplayMath { raw, body })
+        Ok(Self::CodeBlockToDisplayMath { raw, body, candidate })
     }
 
     fn edit_range(&self) -> Range<usize> {
@@ -447,22 +557,26 @@ fn migrate_source_collecting_evidence(
         }
         if let Some(body) = code_block_body_range(source, block) {
             let body_text = source.get(body.clone()).unwrap_or("");
-            if is_convertible_math_block(block, body_text) {
-                targets.push(MathMigrationTarget::code_block_to_display_math(
-                    source,
-                    block.raw_range.clone(),
-                    body,
-                )?);
-            } else if let Some(class) = skipped_block_class(block, body_text)
-                && let Some(collector) = evidence.as_deref_mut()
-            {
-                collector.record(
-                    path,
-                    source,
-                    block.raw_range.clone(),
-                    class,
-                    "code block was not converted",
-                );
+            match classify_code_block(block, body_text) {
+                CodeBlockEligibility::Convert(candidate) => {
+                    targets.push(MathMigrationTarget::code_block_to_display_math(
+                        source,
+                        block.raw_range.clone(),
+                        body,
+                        candidate,
+                    )?);
+                }
+                CodeBlockEligibility::Skip(skip) => {
+                    if let Some(collector) = evidence.as_deref_mut() {
+                        collector.record(
+                            path,
+                            source,
+                            block.raw_range.clone(),
+                            skip.reason.evidence_class(),
+                            code_block_skip_detail(&skip),
+                        );
+                    }
+                }
             }
         }
     }
@@ -589,21 +703,8 @@ fn target_to_edit_collecting_evidence(
                 replacement: format!(r"\({}\)", candidate.translated_body),
             }))
         }
-        MathMigrationTarget::CodeBlockToDisplayMath { raw, body } => {
-            let Some(text) = source.get(body.clone()) else {
-                return Ok(None);
-            };
-            let translated = translate_unicode_to_latex(text);
-            if !translation_usable_for_conversion(&translated) {
-                if let Some(collector) = evidence.as_deref_mut() {
-                    collector.record(
-                        path,
-                        source,
-                        raw.clone(),
-                        EvidenceClass::TrueBlocker,
-                        translation_detail(&translated),
-                    );
-                }
+        MathMigrationTarget::CodeBlockToDisplayMath { raw, body, candidate } => {
+            if source.get(body.clone()).is_none() {
                 return Ok(None);
             }
             if let Some(collector) = evidence {
@@ -612,12 +713,12 @@ fn target_to_edit_collecting_evidence(
                     source,
                     raw.clone(),
                     EvidenceClass::MigratedCodeBlock,
-                    translation_detail(&translated),
+                    code_block_conversion_detail(candidate),
                 );
             }
             Ok(Some(Edit {
                 range: raw.clone(),
-                replacement: display_math_replacement(raw_ends_with_newline(source, raw), translated.text()),
+                replacement: display_math_replacement(raw_ends_with_newline(source, raw), &candidate.translated_body),
             }))
         }
     }
@@ -699,17 +800,151 @@ fn inline_skip_detail(skip: &InlineSkip) -> String {
     format!("reason={}, {}", skip.reason.label(), skip.detail)
 }
 
-fn skipped_block_class(block: &CodeBlock, body: &str) -> Option<EvidenceClass> {
-    if has_diagram_layout(body) {
-        return Some(EvidenceClass::SkippedBlockDiagramLayout);
-    }
+fn classify_code_block(block: &CodeBlock, body: &str) -> CodeBlockEligibility {
     if block.fenced && !is_plain_code_info(&block.info) {
-        return None;
+        return code_block_skip(
+            CodeBlockSkipReason::LanguageTag,
+            format!("info string {:?}", block.info),
+        );
     }
-    if has_nonblank_line(body) && nonblank_lines(body).any(looks_prose_like) {
-        return Some(EvidenceClass::SkippedBlockMixedProse);
+    if has_diagram_layout(body) {
+        return code_block_skip(CodeBlockSkipReason::DiagramLayout, "diagram/layout glyphs are present");
     }
-    None
+    if !has_nonblank_line(body) {
+        return code_block_skip(CodeBlockSkipReason::EmptyBlock, "code block has no nonblank lines");
+    }
+
+    let line_classes = body.lines().map(classify_code_block_line).collect::<Vec<_>>();
+    let first_skip = line_classes
+        .iter()
+        .copied()
+        .find(|class| matches!(class, CodeBlockLineClass::DiagramLayout))
+        .or_else(|| {
+            line_classes
+                .iter()
+                .copied()
+                .find(|class| matches!(class, CodeBlockLineClass::Prose))
+        })
+        .or_else(|| {
+            line_classes
+                .iter()
+                .copied()
+                .find(|class| matches!(class, CodeBlockLineClass::UnsupportedVisibleMath))
+        })
+        .or_else(|| {
+            line_classes
+                .iter()
+                .copied()
+                .find(|class| matches!(class, CodeBlockLineClass::UnsafeTranslationDiagnostics))
+        });
+
+    if let Some(class) = first_skip {
+        let reason = match class {
+            CodeBlockLineClass::DiagramLayout => CodeBlockSkipReason::DiagramLayout,
+            CodeBlockLineClass::Prose => CodeBlockSkipReason::MixedProse,
+            CodeBlockLineClass::UnsupportedVisibleMath => CodeBlockSkipReason::UnsupportedVisibleMath,
+            CodeBlockLineClass::UnsafeTranslationDiagnostics => CodeBlockSkipReason::UnsafeTranslationDiagnostics,
+            CodeBlockLineClass::Blank
+            | CodeBlockLineClass::Formula
+            | CodeBlockLineClass::FormulaContinuation
+            | CodeBlockLineClass::AlignmentSeparator => unreachable!("convertible lines are not skip reasons"),
+        };
+        return code_block_skip(reason, format!("line class {class:?}"));
+    }
+
+    if line_classes
+        .iter()
+        .copied()
+        .filter(|class| *class != CodeBlockLineClass::Blank)
+        .all(CodeBlockLineClass::is_convertible)
+    {
+        let translated = translate_unicode_to_latex(body);
+        if translation_usable_for_conversion(&translated) {
+            let nonblank_count = line_classes
+                .iter()
+                .filter(|class| **class != CodeBlockLineClass::Blank)
+                .count();
+            let class = if line_classes.iter().any(|class| {
+                matches!(
+                    class,
+                    CodeBlockLineClass::FormulaContinuation | CodeBlockLineClass::AlignmentSeparator
+                )
+            }) {
+                CodeBlockClass::AlignmentLikeFormula
+            } else if nonblank_count > 1 {
+                CodeBlockClass::MultilineFormula
+            } else {
+                CodeBlockClass::FormulaOnly
+            };
+            return CodeBlockEligibility::Convert(CodeBlockConversionCandidate {
+                class,
+                translated_body: translated.text().to_owned(),
+                detail: translation_detail(&translated),
+            });
+        }
+        let reason = if !translated.text().is_ascii() {
+            CodeBlockSkipReason::UnsupportedVisibleMath
+        } else {
+            CodeBlockSkipReason::UnsafeTranslationDiagnostics
+        };
+        return code_block_skip(reason, translation_detail(&translated));
+    }
+
+    code_block_skip(CodeBlockSkipReason::MixedProse, "block has no convertible math lines")
+}
+
+fn code_block_skip(reason: CodeBlockSkipReason, detail: impl Into<String>) -> CodeBlockEligibility {
+    CodeBlockEligibility::Skip(CodeBlockSkip {
+        reason,
+        detail: detail.into(),
+    })
+}
+
+fn classify_code_block_line(line: &str) -> CodeBlockLineClass {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return CodeBlockLineClass::Blank;
+    }
+    if has_diagram_layout(trimmed) {
+        return CodeBlockLineClass::DiagramLayout;
+    }
+    if trimmed.contains('&') {
+        return CodeBlockLineClass::UnsafeTranslationDiagnostics;
+    }
+
+    let translated = translate_unicode_to_latex(trimmed);
+    let changed = translated.text() != trimmed;
+    let formula_signal =
+        has_strong_math_signal(trimmed) || has_script_syntax(trimmed) || has_tex_command(trimmed) || changed;
+
+    if formula_signal && looks_like_mixed_formula_and_prose(trimmed) {
+        return CodeBlockLineClass::Prose;
+    }
+    if !formula_signal || looks_prose_like(trimmed) || looks_like_plain_word_code(trimmed) {
+        return CodeBlockLineClass::Prose;
+    }
+    if !translation_usable_for_conversion(&translated) {
+        return if !translated.text().is_ascii() {
+            CodeBlockLineClass::UnsupportedVisibleMath
+        } else {
+            CodeBlockLineClass::UnsafeTranslationDiagnostics
+        };
+    }
+    if is_alignment_separator_line(trimmed) {
+        return CodeBlockLineClass::AlignmentSeparator;
+    }
+    if is_formula_continuation_line(trimmed) {
+        return CodeBlockLineClass::FormulaContinuation;
+    }
+    CodeBlockLineClass::Formula
+}
+
+fn code_block_conversion_detail(candidate: &CodeBlockConversionCandidate) -> String {
+    format!("class={}, {}", candidate.class.label(), candidate.detail)
+}
+
+fn code_block_skip_detail(skip: &CodeBlockSkip) -> String {
+    format!("reason={}, {}", skip.reason.label(), skip.detail)
 }
 
 fn translation_detail(translation: &Translation) -> String {
@@ -780,19 +1015,6 @@ fn apply_edits(source: &str, edits: &[Edit]) -> String {
     out
 }
 
-fn is_convertible_math_block(block: &CodeBlock, body: &str) -> bool {
-    if has_diagram_layout(body) {
-        return false;
-    }
-    if block.fenced {
-        if !is_plain_code_info(&block.info) {
-            return false;
-        }
-        return has_nonblank_line(body) && nonblank_lines(body).all(is_math_like_line);
-    }
-    has_nonblank_line(body) && nonblank_lines(body).all(is_high_confidence_math_line)
-}
-
 fn has_diagram_layout(text: &str) -> bool {
     text.chars().any(is_diagram_layout_char) || has_long_ruler_run(text)
 }
@@ -849,25 +1071,6 @@ fn has_nonblank_line(text: &str) -> bool {
     nonblank_lines(text).next().is_some()
 }
 
-fn is_math_like_line(line: &str) -> bool {
-    is_high_confidence_math_line(line) || (has_script_syntax(line) && !looks_prose_like(line))
-}
-
-fn is_high_confidence_math_line(line: &str) -> bool {
-    let trimmed = line.trim();
-    !trimmed.is_empty()
-        && !looks_like_short_label(trimmed)
-        && (has_strong_math_signal(trimmed)
-            || has_tex_command(trimmed)
-            || translation_changes_without_diagnostics(trimmed))
-        && !looks_prose_like(trimmed)
-}
-
-fn translation_changes_without_diagnostics(text: &str) -> bool {
-    let translated = translate_unicode_to_latex(text);
-    translated.diagnostics().is_empty() && translated.text() != text
-}
-
 fn translation_usable_for_conversion(translation: &Translation) -> bool {
     translation.diagnostics().is_empty()
         && translation.text().is_ascii()
@@ -895,6 +1098,14 @@ fn has_strong_math_signal(text: &str) -> bool {
     text.chars().any(is_strong_math_char)
 }
 
+fn is_alignment_separator_line(text: &str) -> bool {
+    text.starts_with('=')
+}
+
+fn is_formula_continuation_line(text: &str) -> bool {
+    text.starts_with(['+', '-', '*', '/', '=', '<', '>', '≤', '≥', '∈', '∉', '⊂', '⊃'])
+}
+
 fn is_strong_math_char(ch: char) -> bool {
     matches!(
         ch,
@@ -904,6 +1115,7 @@ fn is_strong_math_char(ch: char) -> bool {
             | '\u{2100}'..='\u{214f}'
             | '\u{2190}'..='\u{22ff}'
             | '\u{27c0}'..='\u{27ff}'
+            | '\u{2900}'..='\u{297f}'
             | '\u{2980}'..='\u{29ff}'
             | '\u{2a00}'..='\u{2aff}'
             | '\u{1d400}'..='\u{1d7ff}'
@@ -1215,6 +1427,10 @@ mod tests {
         assert_eq!(skip.reason, expected);
     }
 
+    fn assert_block_line_class(source: &str, expected: CodeBlockLineClass) {
+        assert_eq!(classify_code_block_line(source), expected, "line {source:?}");
+    }
+
     #[test]
     fn inline_code_math_converts_to_inline_latex_math() -> Result<()> {
         let source = "Let `αᵢ ≤ x²` hold.\n";
@@ -1294,9 +1510,39 @@ mod tests {
     }
 
     #[test]
+    fn code_block_line_classifier_names_line_classes() {
+        assert_block_line_class("", CodeBlockLineClass::Blank);
+        assert_block_line_class("αᵢ ≤ x²", CodeBlockLineClass::Formula);
+        assert_block_line_class("= z²", CodeBlockLineClass::AlignmentSeparator);
+        assert_block_line_class("+ w²", CodeBlockLineClass::FormulaContinuation);
+        assert_block_line_class("this is a prose sentence with x²", CodeBlockLineClass::Prose);
+        assert_block_line_class("A ↙ B", CodeBlockLineClass::DiagramLayout);
+        assert_block_line_class("A ⧟ B", CodeBlockLineClass::UnsupportedVisibleMath);
+        assert_block_line_class("((A'_i)_{𝔪'})^", CodeBlockLineClass::UnsafeTranslationDiagnostics);
+    }
+
+    #[test]
+    fn multiline_formula_code_block_becomes_display_math() -> Result<()> {
+        let source = "```text\nx² + y²\n= z²\n+ w²\n```\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(migrated.output, "\\[\nx^{2} + y^{2}\n= z^{2}\n+ w^{2}\n\\]\n");
+        assert_eq!(migrated.edit_count, 1);
+        Ok(())
+    }
+
+    #[test]
     fn diagram_like_plain_code_blocks_are_skipped() -> Result<()> {
         let source =
             "```text\n                  S_α⁻¹A\n                ρ_α ↙ ↘ φ_α\n              A′ ────φ──── S⁻¹A\n```\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(migrated.output, source);
+        assert_eq!(migrated.edit_count, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn code_blocks_with_alignment_markers_are_skipped_until_wrapped_safely() -> Result<()> {
+        let source = "```text\nx² &= y²\n```\n";
         let migrated = migrate_source(source)?;
         assert_eq!(migrated.output, source);
         assert_eq!(migrated.edit_count, 0);
@@ -1472,6 +1718,24 @@ mod tests {
     fn evidence_classifies_mixed_prose_block() -> Result<()> {
         let report = evidence_report_for_source("```text\nαᵢ ≤ x²\nthis is a prose sentence about math\n```\n")?;
         assert_eq!(category_count(&report, EvidenceClass::SkippedBlockMixedProse), 1);
+        assert_eq!(report.changed_files, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn evidence_classifies_block_skip_reasons() -> Result<()> {
+        let source = "```rust\nlet x = 1;\n```\n```text\nA ⥪ B\n```\n```text\nx² &= y²\n```\n```text\n\n```\n";
+        let report = evidence_report_for_source(source)?;
+        assert_eq!(category_count(&report, EvidenceClass::SkippedBlockLanguageTag), 1);
+        assert_eq!(
+            category_count(&report, EvidenceClass::SkippedBlockUnsupportedMathVisible),
+            1
+        );
+        assert_eq!(
+            category_count(&report, EvidenceClass::SkippedBlockUnsafeTranslationDiagnostics),
+            1
+        );
+        assert_eq!(category_count(&report, EvidenceClass::SkippedBlockEmpty), 1);
         assert_eq!(report.changed_files, 0);
         Ok(())
     }
