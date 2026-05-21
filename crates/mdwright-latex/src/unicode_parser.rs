@@ -11,6 +11,13 @@
 //! - This module uses typed nodes with required children. The implementation is
 //!   larger, but the later emitter will consume named source structures rather
 //!   than visual adjacency.
+//!
+//! Script ownership was checked again for mixed ASCII/Unicode forms. Repairing
+//! strings in the emitter would reintroduce scanner-style ownership, and
+//! tokenizing whole `base_script` substrings would push syntax policy into the
+//! lexer. Script markers remain simple tokens, and this parser builds typed
+//! script nodes whose arguments can be styled identifiers, groups, script runs,
+//! arrows, or existing LaTeX passthrough.
 
 #![allow(
     clippy::wildcard_enum_match_arm,
@@ -898,6 +905,62 @@ mod tests {
         };
         assert!(script.subscript.is_some());
         assert!(script.superscript.is_none());
+    }
+
+    #[test]
+    fn styled_identifier_scripts_have_typed_arguments() {
+        let node = first("A_𝔭");
+        let UnicodeNodeKind::Script(script) = node.kind else {
+            panic!("expected script node");
+        };
+        assert!(matches!(*script.base_node(), UnicodeNodeKind::Plain("A")));
+        let Some(ScriptArgument::Node(argument)) = script.subscript else {
+            panic!("expected styled subscript argument");
+        };
+        assert!(matches!(
+            argument.kind,
+            UnicodeNodeKind::StyledRun(StyledRun {
+                style: MathAlphabetStyle::Fraktur,
+                ref base,
+            }) if base == "p"
+        ));
+
+        let node = first("A_𝔭𝔮");
+        let UnicodeNodeKind::Script(script) = node.kind else {
+            panic!("expected script node");
+        };
+        let Some(ScriptArgument::Node(argument)) = script.subscript else {
+            panic!("expected styled subscript argument");
+        };
+        assert!(matches!(
+            argument.kind,
+            UnicodeNodeKind::StyledRun(StyledRun {
+                style: MathAlphabetStyle::Fraktur,
+                ref base,
+            }) if base == "pq"
+        ));
+    }
+
+    #[test]
+    fn limit_arrow_scripts_are_structured_scripts() {
+        let node = first("lim_→ A_t");
+        let UnicodeNodeKind::Script(script) = node.kind else {
+            panic!("expected script node");
+        };
+        assert!(matches!(*script.base_node(), UnicodeNodeKind::Plain("lim")));
+        let Some(ScriptArgument::Node(argument)) = script.subscript else {
+            panic!("expected arrow subscript argument");
+        };
+        assert!(matches!(argument.kind, UnicodeNodeKind::DirectSymbol("→")));
+
+        let node = first("lim_← H^n");
+        let UnicodeNodeKind::Script(script) = node.kind else {
+            panic!("expected script node");
+        };
+        let Some(ScriptArgument::Node(argument)) = script.subscript else {
+            panic!("expected arrow subscript argument");
+        };
+        assert!(matches!(argument.kind, UnicodeNodeKind::DirectSymbol("←")));
     }
 
     #[test]

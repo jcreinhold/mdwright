@@ -1133,6 +1133,20 @@ mod tests {
     }
 
     #[test]
+    fn inline_conversion_uses_translator_for_script_and_limit_forms() -> Result<()> {
+        let source = "Use `A_𝔭`, `C/𝔏`, and `lim_← H^n(𝔛, ℱ_k)`.\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(
+            migrated.output,
+            r"Use \(A_{\mathfrak{p}}\), \(C/\mathfrak{L}\), and \(\varprojlim H^{n}(\mathfrak{X}, \mathcal{F}_{k})\)."
+                .to_owned()
+                + "\n"
+        );
+        assert_eq!(migrated.edit_count, 3);
+        Ok(())
+    }
+
+    #[test]
     fn formula_only_blocks_with_extended_unicode_convert_to_latex() -> Result<()> {
         let source = concat!(
             "```text\nM̃ ⟺ 𝓗𝓸𝓶(A, B)\nA ↔ B\nD₊ ⨁ □\n𝒟ℯ𝓇(X) ",

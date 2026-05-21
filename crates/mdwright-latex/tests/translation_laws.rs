@@ -97,7 +97,22 @@ fn plain_unicode_atom() -> impl Strategy<Value = String> {
 
 fn script_unicode_atom() -> impl Strategy<Value = String> {
     prop::sample::select(&[
-        "xᵢ", "xₙ", "x₁₂", "x²", "xⁿ", "x⁻¹", "αᵢ", "β²", "∑ₙ", "D₊", "iˢ_A", "M_[φ]", "x^(n)", "𝚪_*",
+        "xᵢ",
+        "xₙ",
+        "x₁₂",
+        "x²",
+        "xⁿ",
+        "x⁻¹",
+        "αᵢ",
+        "β²",
+        "∑ₙ",
+        "D₊",
+        "iˢ_A",
+        "M_[φ]",
+        "x^(n)",
+        "𝚪_*",
+        "A_𝔭",
+        "A_𝔭𝔮",
     ])
     .prop_map(str::to_owned)
 }
@@ -122,7 +137,7 @@ fn structured_unicode_atom() -> impl Strategy<Value = String> {
 }
 
 fn styled_unicode_atom() -> impl Strategy<Value = String> {
-    prop::sample::select(&["𝓗𝓸𝓶", "𝓟𝓻𝓸𝓳", "𝒟ℯ𝓇", "𝐟𝐠", "𝔭", "ℤ"]).prop_map(str::to_owned)
+    prop::sample::select(&["𝓗𝓸𝓶", "𝓟𝓻𝓸𝓳", "𝒟ℯ𝓇", "𝐟𝐠", "𝔭", "𝔭𝔮", "𝔏", "ℤ", "C/𝔏"]).prop_map(str::to_owned)
 }
 
 fn operator_unicode_atom() -> impl Strategy<Value = String> {
@@ -136,6 +151,7 @@ fn operator_unicode_atom() -> impl Strategy<Value = String> {
         "Idem(A)",
         "lim_→ A_t",
         "lim_← H^n",
+        "lim_← H^n(𝔛, ℱ_k)",
     ])
     .prop_map(str::to_owned)
 }

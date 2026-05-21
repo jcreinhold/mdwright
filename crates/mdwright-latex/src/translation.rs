@@ -1074,6 +1074,8 @@ mod tests {
         assert_eq!(translate_unicode_to_latex("𝒪_X").text(), r"\mathcal{O}_{X}");
         assert_eq!(translate_unicode_to_latex("ℱ(U)").text(), r"\mathcal{F}(U)");
         assert_eq!(translate_unicode_to_latex("𝔭").text(), r"\mathfrak{p}");
+        assert_eq!(translate_unicode_to_latex("𝔏").text(), r"\mathfrak{L}");
+        assert_eq!(translate_unicode_to_latex("𝔍").text(), r"\mathfrak{J}");
         assert_eq!(translate_unicode_to_latex("ℤ").text(), r"\mathbb{Z}");
         assert_eq!(translate_unicode_to_latex("𝓗𝓸𝓶").text(), r"\operatorname{Hom}");
         assert_eq!(translate_unicode_to_latex("𝓟𝓻𝓸𝓳").text(), r"\operatorname{Proj}");
@@ -1083,6 +1085,8 @@ mod tests {
         assert_eq!(translate_unicode_to_latex("𝐕").text(), r"\mathbf{V}");
         assert_eq!(translate_unicode_to_latex("𝐗").text(), r"\mathbf{X}");
         assert_eq!(translate_unicode_to_latex("𝐟𝐠").text(), r"\mathbf{fg}");
+        assert_eq!(translate_unicode_to_latex("𝔭𝔮").text(), r"\mathfrak{pq}");
+        assert_eq!(translate_unicode_to_latex("𝓕𝓸𝓸").text(), r"\mathcal{Foo}");
     }
 
     #[test]
@@ -1127,6 +1131,10 @@ mod tests {
     fn unicode_to_latex_normalizes_directional_limit_scripts() {
         assert_eq!(translate_unicode_to_latex("lim_→ A_t").text(), r"\varinjlim A_{t}");
         assert_eq!(translate_unicode_to_latex("lim_← H^n").text(), r"\varprojlim H^{n}");
+        assert_eq!(
+            translate_unicode_to_latex("lim_← H^n(𝔛, ℱ_k)").text(),
+            r"\varprojlim H^{n}(\mathfrak{X}, \mathcal{F}_{k})"
+        );
         assert_eq!(translate_unicode_to_latex(r"lim_\to A_t").text(), r"\varinjlim A_{t}");
         assert_eq!(
             translate_unicode_to_latex(r"lim_\leftarrow H^n").text(),
@@ -1144,6 +1152,14 @@ mod tests {
         assert_eq!(translate_unicode_to_latex("D₊").text(), r"D_{+}");
         assert_eq!(translate_unicode_to_latex("xᵐ").text(), r"x^{m}");
         assert_eq!(translate_unicode_to_latex("Aᵖ").text(), r"A^{p}");
+        assert_eq!(translate_unicode_to_latex("A_𝔭").text(), r"A_{\mathfrak{p}}");
+        assert_eq!(translate_unicode_to_latex("A_𝔭𝔮").text(), r"A_{\mathfrak{pq}}");
+        assert_eq!(translate_unicode_to_latex("C/𝔏").text(), r"C/\mathfrak{L}");
+
+        let dangling = translate_unicode_to_latex("((A'_i)_{𝔪'})^");
+        assert_eq!(dangling.text(), r"((A'_{i})_{\mathfrak{m}'})^");
+        assert_eq!(dangling.status(), TranslationStatus::Lossy);
+        assert_eq!(dangling.diagnostics()[0].kind(), &LatexErrorKind::Syntax);
     }
 
     #[test]
@@ -1249,6 +1265,9 @@ mod tests {
             "𝒪_X",
             "a · m",
             "A ⥲ B",
+            "A_𝔭",
+            "C/𝔏",
+            "lim_← H^n(𝔛, ℱ_k)",
             "U ─j × 1→ X",
             "f♯ ⊠ g♭",
             "codim(‾{x}, S)",
