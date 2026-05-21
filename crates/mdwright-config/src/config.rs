@@ -1230,9 +1230,11 @@ mod tests {
 
     use mdwright_lint::RuleSet;
 
+    use crate::documentation;
+
     use super::{
         Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, LintRulePreset, ListContinuationIndent,
-        ListMarkerStyle, OrderedListStyle, RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle,
+        ListMarkerStyle, MathRender, OrderedListStyle, RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle,
         TrailingNewline, Wrap, WrapStrategy,
     };
 
@@ -1396,6 +1398,49 @@ style = "pad"
             .err()
             .ok_or_else(|| anyhow!("expected error"))?;
         assert!(err.to_string().contains("no-such-rule"));
+        Ok(())
+    }
+
+    #[test]
+    fn generated_default_toml_parses_as_defaults() -> Result<()> {
+        let generated = documentation::render_default_toml();
+        let cfg = config_from_str(&generated)?;
+        let default = Config::defaults();
+
+        assert_eq!(cfg.lint_rule_selection(), default.lint_rule_selection());
+        assert_eq!(cfg.exclude_globs(), default.exclude_globs());
+        assert_eq!(cfg.extra_info_strings(), default.extra_info_strings());
+        assert_eq!(cfg.parse_options(), default.parse_options());
+        assert_eq!(cfg.render_options(), default.render_options());
+
+        let fmt = cfg.fmt_options();
+        let default_fmt = default.fmt_options();
+        assert_eq!(fmt.wrap(), default_fmt.wrap());
+        assert_eq!(fmt.wrap_strategy(), default_fmt.wrap_strategy());
+        assert_eq!(fmt.italic(), default_fmt.italic());
+        assert_eq!(fmt.strong(), default_fmt.strong());
+        assert_eq!(fmt.list_marker(), default_fmt.list_marker());
+        assert_eq!(fmt.ordered_list(), default_fmt.ordered_list());
+        assert_eq!(fmt.thematic_break_style(), default_fmt.thematic_break_style());
+        assert_eq!(fmt.trailing_newline(), default_fmt.trailing_newline());
+        assert_eq!(fmt.end_of_line(), default_fmt.end_of_line());
+        assert_eq!(fmt.exclude_globs(), default_fmt.exclude_globs());
+        assert_eq!(fmt.link_def_placement(), default_fmt.link_def_placement());
+        assert_eq!(fmt.link_def_style(), default_fmt.link_def_style());
+        assert_eq!(fmt.footnote_placement(), default_fmt.footnote_placement());
+        assert_eq!(fmt.table(), default_fmt.table());
+        assert_eq!(fmt.list_continuation_indent(), default_fmt.list_continuation_indent());
+        assert_eq!(fmt.preserve_frontmatter(), default_fmt.preserve_frontmatter());
+        assert_eq!(fmt.heading_attrs(), default_fmt.heading_attrs());
+        assert!(!fmt.math().normalise);
+        assert_eq!(fmt.math().render, MathRender::None);
+
+        assert!(generated.contains("[lint.info-strings]"));
+        assert!(generated.contains("extra = []"));
+        assert!(generated.contains("[fmt.math]"));
+        assert!(generated.contains("render = \"none\""));
+        assert!(generated.contains("[parse.extensions.gfm]"));
+        assert!(generated.contains("autolinks = \"urls-and-emails\""));
         Ok(())
     }
 

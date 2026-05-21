@@ -8,6 +8,7 @@ use std::fs;
 use std::process::Command;
 
 use anyhow::{Result, anyhow};
+use mdwright_config::Config;
 use tempfile::tempdir;
 
 fn run_check(args: &[&str]) -> Result<(bool, String)> {
@@ -15,6 +16,14 @@ fn run_check(args: &[&str]) -> Result<(bool, String)> {
     let output = Command::new(bin).args(args).output()?;
     let stdout = String::from_utf8(output.stdout)?;
     Ok((output.status.success(), stdout))
+}
+
+fn run_mdwright(args: &[&str]) -> Result<(bool, String, String)> {
+    let bin = env!("CARGO_BIN_EXE_mdwright");
+    let output = Command::new(bin).args(args).output()?;
+    let stdout = String::from_utf8(output.stdout)?;
+    let stderr = String::from_utf8(output.stderr)?;
+    Ok((output.status.success(), stdout, stderr))
 }
 
 #[test]
@@ -105,5 +114,46 @@ fn cli_honours_config_exclude_globs() -> Result<()> {
     ])?;
     assert!(out.contains("keep.md"), "non-excluded file should appear: {out}");
     assert!(!out.contains("drop.md"), "excluded file must not appear: {out}");
+    Ok(())
+}
+
+#[test]
+fn config_init_writes_documented_default_config() -> Result<()> {
+    let dir = tempdir()?;
+    let target = dir.path().join(".mdwright.toml");
+    let target_arg = target.to_str().ok_or_else(|| anyhow!("non-utf8 path"))?;
+
+    let (ok, stdout, stderr) = run_mdwright(&["config", "init", "--path", target_arg])?;
+    assert!(ok, "config init should succeed: stdout={stdout} stderr={stderr}");
+    let body = fs::read_to_string(&target)?;
+    assert!(body.contains("[lint]"), "template should include lint table: {body}");
+    assert!(
+        body.contains("[fmt.math]"),
+        "template should include math table: {body}"
+    );
+    assert!(
+        body.contains("[parse.extensions.gfm]"),
+        "template should include GFM extension table: {body}"
+    );
+    Config::load_explicit(&target).map_err(|e| anyhow!("load generated config: {e}"))?;
+
+    let before = body;
+    let (ok, _stdout, stderr) = run_mdwright(&["config", "init", "--path", target_arg])?;
+    assert!(!ok, "second init without --force should fail");
+    assert!(
+        stderr.contains("--force"),
+        "error should mention force override: {stderr}"
+    );
+    assert_eq!(fs::read_to_string(&target)?, before, "failed init must not rewrite");
+
+    fs::write(&target, "sentinel\n")?;
+    let (ok, stdout, stderr) = run_mdwright(&["config", "init", "--path", target_arg, "--force"])?;
+    assert!(
+        ok,
+        "config init --force should succeed: stdout={stdout} stderr={stderr}"
+    );
+    let forced = fs::read_to_string(&target)?;
+    assert_ne!(forced, "sentinel\n");
+    Config::load_explicit(&target).map_err(|e| anyhow!("load forced config: {e}"))?;
     Ok(())
 }

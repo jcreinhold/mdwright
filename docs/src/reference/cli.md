@@ -20,6 +20,7 @@ Commands:
   render      Format the input and emit the rendered HTML to stdout
   preview     Format the input and render a static terminal Markdown preview
   math        Translate math source between LaTeX commands and Unicode
+  config      Create mdwright configuration files
   lsp         Run as a Language Server Protocol server over stdio
   help        Print this message or the help of the given subcommand(s)
 
@@ -396,6 +397,42 @@ Options:
           File name to report when reading from stdin. Defaults to `<stdin>`. Useful when integrating with editors that pipe the buffer through
   -h, --help
           Print help
+```
+
+## `mdwright config`
+
+```text
+Create mdwright configuration files
+
+Usage: mdwright config [OPTIONS] <COMMAND>
+
+Commands:
+  init  Write a documented `.mdwright.toml` with every option set to its default
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+      --config <CONFIG>          Explicit path to a config file. When omitted, mdwright walks up from `$PWD` looking, at each ancestor, for `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` containing a `[tool.mdwright]` table (in that precedence). The walk stops at the filesystem root or the first directory containing `.git/` (the workspace boundary). If nothing matches, built-in defaults apply
+  -v, --verbose...               Increase log verbosity. `-v` = info, `-vv` = debug, `-vvv` = trace. `RUST_LOG` overrides this when set
+      --max-input-bytes <BYTES>  Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely [default: 10000000]
+      --reject-control-chars     Refuse files (or stdin payloads) that contain C0 control bytes other than TAB, LF, FF, and CR. `CommonMark` accepts these verbatim (it only substitutes NUL with U+FFFD), but their presence is usually evidence the input is not Markdown, and pulldown's silent NUL rewrite makes round-trip idempotence undefined on such inputs. Off by default; opt-in for callers (CI gates, docs pipelines) that prefer hard rejection
+  -h, --help                     Print help
+```
+
+## `mdwright config init`
+
+```text
+Write a documented `.mdwright.toml` with every option set to its default
+
+Usage: mdwright config init [OPTIONS]
+
+Options:
+      --config <CONFIG>          Explicit path to a config file. When omitted, mdwright walks up from `$PWD` looking, at each ancestor, for `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` containing a `[tool.mdwright]` table (in that precedence). The walk stops at the filesystem root or the first directory containing `.git/` (the workspace boundary). If nothing matches, built-in defaults apply
+      --path <PATH>              Path to write. Defaults to `.mdwright.toml` in the current directory [default: .mdwright.toml]
+      --force                    Overwrite an existing file
+  -v, --verbose...               Increase log verbosity. `-v` = info, `-vv` = debug, `-vvv` = trace. `RUST_LOG` overrides this when set
+      --max-input-bytes <BYTES>  Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely [default: 10000000]
+      --reject-control-chars     Refuse files (or stdin payloads) that contain C0 control bytes other than TAB, LF, FF, and CR. `CommonMark` accepts these verbatim (it only substitutes NUL with U+FFFD), but their presence is usually evidence the input is not Markdown, and pulldown's silent NUL rewrite makes round-trip idempotence undefined on such inputs. Off by default; opt-in for callers (CI gates, docs pipelines) that prefer hard rejection
+  -h, --help                     Print help
 ```
 
 ## `mdwright list-rules`

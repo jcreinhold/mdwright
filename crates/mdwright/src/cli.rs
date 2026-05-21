@@ -45,7 +45,7 @@ use similar::TextDiff;
 
 use crate::discover::discover_markdown;
 use crate::preview::{PreviewMath, PreviewOptions};
-use mdwright_config::Config;
+use mdwright_config::{Config, documentation};
 use mdwright_document::{
     Document, LineIndex, ParseOptions, RenderOptions, RenderProfile, contains_rejected_control_chars,
     render_html_with_render_options,
@@ -161,6 +161,8 @@ enum Command {
     Preview(PreviewArgs),
     /// Translate math source between LaTeX commands and Unicode.
     Math(MathArgs),
+    /// Create mdwright configuration files.
+    Config(ConfigArgs),
     /// Run as a Language Server Protocol server over stdio.
     Lsp,
 }
@@ -498,6 +500,29 @@ struct MathArgs {
     stdin_filename: Option<PathBuf>,
 }
 
+#[derive(Args, Debug)]
+struct ConfigArgs {
+    #[command(subcommand)]
+    command: ConfigCommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum ConfigCommand {
+    /// Write a documented `.mdwright.toml` with every option set to its default.
+    Init(ConfigInitArgs),
+}
+
+#[derive(Args, Debug)]
+struct ConfigInitArgs {
+    /// Path to write. Defaults to `.mdwright.toml` in the current directory.
+    #[arg(long, default_value = ".mdwright.toml")]
+    path: PathBuf,
+
+    /// Overwrite an existing file.
+    #[arg(long)]
+    force: bool,
+}
+
 #[derive(Copy, Clone, Debug)]
 enum MathDirection {
     ToUnicode,
@@ -624,8 +649,33 @@ fn run(available: RuleSet) -> Result<ExitCode> {
         Command::Render(args) => run_render(&args, config_path.as_deref(), policy),
         Command::Preview(args) => run_preview(&args, config_path.as_deref(), policy),
         Command::Math(args) => run_math(&args, config_path.as_deref(), policy),
+        Command::Config(args) => run_config(&args),
         Command::Lsp => run_lsp(),
     }
+}
+
+fn run_config(args: &ConfigArgs) -> Result<ExitCode> {
+    match &args.command {
+        ConfigCommand::Init(init) => run_config_init(init),
+    }
+}
+
+fn run_config_init(args: &ConfigInitArgs) -> Result<ExitCode> {
+    let body = documentation::render_default_toml();
+    if args.force {
+        fs::write(&args.path, body).with_context(|| format!("write {}", args.path.display()))?;
+    } else {
+        let mut file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&args.path)
+            .with_context(|| format!("create {} (use --force to overwrite)", args.path.display()))?;
+        file.write_all(body.as_bytes())
+            .with_context(|| format!("write {}", args.path.display()))?;
+    }
+    let mut stderr = io::stderr().lock();
+    writeln!(stderr, "mdwright: wrote {}", args.path.display())?;
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Read input, format it, pipe the result through the same HTML

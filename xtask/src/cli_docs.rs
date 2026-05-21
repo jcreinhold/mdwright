@@ -18,18 +18,20 @@ pub const CLI_DOC_PATH: &str = "docs/src/reference/cli.md";
 /// Subcommands rendered by the generator. The empty string represents
 /// the top-level invocation (`mdwright --help`). Order matches the
 /// order users see them in the top-level help.
-const SUBCOMMANDS: &[&str] = &[
-    "",
-    "check",
-    "fix",
-    "fmt",
-    "fmt-check",
-    "render",
-    "preview",
-    "math",
-    "list-rules",
-    "explain",
-    "lsp",
+const SUBCOMMANDS: &[&[&str]] = &[
+    &[],
+    &["check"],
+    &["fix"],
+    &["fmt"],
+    &["fmt-check"],
+    &["render"],
+    &["preview"],
+    &["math"],
+    &["config"],
+    &["config", "init"],
+    &["list-rules"],
+    &["explain"],
+    &["lsp"],
 ];
 
 /// Build the expected contents of [`CLI_DOC_PATH`] by invoking each
@@ -58,13 +60,13 @@ pub fn render(workspace: &Path, binary_override: Option<&Path>) -> Result<String
         let heading = if subcmd.is_empty() {
             "mdwright".to_owned()
         } else {
-            format!("mdwright {subcmd}")
+            format!("mdwright {}", subcmd.join(" "))
         };
         out.push_str(&format!("## `{heading}`\n\n"));
 
         let mut cmd = Command::new(&bin);
-        if !subcmd.is_empty() {
-            cmd.arg(subcmd);
+        for part in *subcmd {
+            cmd.arg(part);
         }
         cmd.arg("--help");
         cmd.env("NO_COLOR", "1");
@@ -73,16 +75,18 @@ pub fn render(workspace: &Path, binary_override: Option<&Path>) -> Result<String
 
         let output = cmd
             .output()
-            .with_context(|| format!("invoke `{} {subcmd} --help`", bin.display()))?;
+            .with_context(|| format!("invoke `{} {} --help`", bin.display(), subcmd.join(" ")))?;
         if !output.status.success() {
             bail!(
-                "`{} {subcmd} --help` failed (status {}):\n{}",
+                "`{} {} --help` failed (status {}):\n{}",
                 bin.display(),
+                subcmd.join(" "),
                 output.status,
                 String::from_utf8_lossy(&output.stderr),
             );
         }
-        let help = String::from_utf8(output.stdout).with_context(|| format!("non-UTF8 help for `{subcmd}`"))?;
+        let help =
+            String::from_utf8(output.stdout).with_context(|| format!("non-UTF8 help for `{}`", subcmd.join(" ")))?;
         out.push_str("```text\n");
         out.push_str(&strip_trailing_line_space(&help));
         out.push_str("\n```\n");
