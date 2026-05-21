@@ -69,6 +69,7 @@ pub(crate) enum UnicodeTokenKind<'src> {
     },
     CombiningAccentMark(CombiningAccent),
     DirectSymbol(&'src str),
+    SquareRoot,
     ArrowShaft(&'src str),
     ArrowHead(ArrowDirection),
     Whitespace(&'src str),
@@ -183,7 +184,7 @@ pub(crate) struct UnicodeTokenCursor<'stream, 'src> {
 }
 
 impl<'stream, 'src> UnicodeTokenCursor<'stream, 'src> {
-    const fn new(tokens: &'stream [UnicodeToken<'src>]) -> Self {
+    pub(crate) const fn new(tokens: &'stream [UnicodeToken<'src>]) -> Self {
         Self { tokens, position: 0 }
     }
 
@@ -308,6 +309,7 @@ impl<'src> UnicodeLexer<'src> {
             _ if is_left_arrow_head(ch) => {
                 self.push_single(start, end, UnicodeTokenKind::ArrowHead(ArrowDirection::Left));
             }
+            '√' => self.push_single(start, end, UnicodeTokenKind::SquareRoot),
             _ if is_ascii_punctuation(ch) => {
                 if self.push_combining_accent_cluster(start) {
                     return;
