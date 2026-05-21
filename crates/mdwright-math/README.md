@@ -1,5 +1,7 @@
 # mdwright-math
 
+[![docs.rs](https://docs.rs/mdwright-math/badge.svg)](https://docs.rs/mdwright-math)
+
 Markdown math-region recognition for [mdwright](https://github.com/jcreinhold/mdwright):
 delimiter policy, region scanning, and balance diagnostics for TeX-style math embedded in
 Markdown.
@@ -35,6 +37,7 @@ use mdwright_math::scan;
 ## See also
 
 - Project: <https://github.com/jcreinhold/mdwright>
+- Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
 - Manual: <https://jcreinhold.github.io/mdwright/>
 - Math rendering: <https://jcreinhold.github.io/mdwright/concepts/math-rendering.html>
 

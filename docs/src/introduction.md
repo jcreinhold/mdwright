@@ -1,23 +1,31 @@
 # mdwright
 
-mdwright is a Markdown linter and round-trip formatter for technical writing. Math safety is the distinguishing
-capability that pushed the design, but the tool is useful on any Markdown.
+mdwright is a Markdown linter and round-trip formatter for any Markdown project.
 
-Three commitments shape the tool.
+Four commitments shape the tool.
 
-**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after; every change in the rendered DOM is
-treated as a bug. Whitespace inside a paragraph may shift (`a  b` becomes `a b`), but the word boundaries and the
-rendered tree do not. Where the formatter cannot prove equivalence it refuses to rewrite; the
+**Fast.** On a 79-file corpus of math-heavy technical prose, `mdwright fmt-check` runs ≥
+50× faster than `mdformat --check`. The multiplier scales with file count and core count;
+see [Performance](reference/performance.md) for the measurement, host, and reproducer.
+Design choices that buy this are in [Architecture](extending/architecture.md).
+
+**Round-trip safe.** `mdwright fmt` renders to the same HTML before and after; every
+change in the rendered DOM is treated as a bug. Whitespace inside a paragraph may shift
+(`a  b` becomes `a b`), but word boundaries and the rendered tree do not. Where the
+formatter cannot prove equivalence it refuses to rewrite; the
 [deviation table](deviations.md) lists every exception with a reproducer.
 
-**Math-resilient.** `\( … \)`, `\[ … \]`, and `\begin{NAME} … \end{NAME}` pass through verbatim. The scanner identifies
-math regions before any other pass touches the document, so the formatter never reflows `\frac{a}{b}` into
-`\\frac{a}{b}` and the linter never flags a backslash inside `\begin{align*}`. See
-[Math regions](concepts/math-regions.md) for the design.
+**Configurable, preserve by default.** Source style choices — emphasis delimiters, list
+markers, thematic breaks, link-destination angle brackets — pass through untouched.
+Canonicalisation is opt-in one knob at a time in `.mdwright.toml`, or via
+`fmt.profile = "mdformat"` for mdformat-compatible spelling where verified rewrites
+preserve the parsed document.
 
-**Fast.** Several hundred times faster than `mdformat --check` on a multi-thousand-file corpus. Benches under
-[`crates/mdwright/benches/`](https://github.com/jcreinhold/mdwright/tree/main/crates/mdwright/benches); the design
-choices that buy this are in [Architecture](extending/architecture.md).
+**Math-resilient.** `\( … \)`, `\[ … \]`, and `\begin{NAME} … \end{NAME}` pass through
+verbatim. The scanner identifies math regions before any other pass touches the document,
+so the formatter never reflows `\frac{a}{b}` into `\\frac{a}{b}` and the linter never
+flags a backslash inside `\begin{align*}`. See [Math regions](concepts/math-regions.md)
+for the design.
 
 ## Who this site is for
 

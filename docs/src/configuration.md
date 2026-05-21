@@ -42,6 +42,34 @@ config file:
 
 All `[fmt]` knobs are config-file-only.
 
+## Typical setup
+
+Most projects need three or four keys. A starting point:
+
+```toml
+# .mdwright.toml
+[lint]
+# Comma-separated tokens: `default` enables the default rule set;
+# `-name` removes a rule; `+name` adds an opt-in rule.
+rules = "default"
+
+[fmt]
+wrap = 100           # hard-wrap prose to 100 columns; `"keep"` leaves source breaks
+list-marker = "dash" # canonicalise bullet lists to `-` (`"preserve"` keeps source)
+```
+
+Common variations:
+
+- **Wrap nothing.** Drop `fmt.wrap` (or set `"keep"`) when contributors disagree about
+  prose width and you want mdwright to leave existing breaks alone.
+- **mdformat-compatible spelling.** Add `fmt.profile = "mdformat"`. Verified rewrites
+  adopt mdformat defaults where they preserve semantics.
+- **Use `pyproject.toml`.** Drop the file above and put the same keys under
+  `[tool.mdwright]` in `pyproject.toml`.
+
+The full schema below documents every knob; the defaults preserve source whenever the
+spelling is ambiguous, so adding a key opts in to a specific normalisation.
+
 ## Schema reference
 
 <!-- BEGIN GENERATED: do not edit. Regenerate by running `cargo xtask doc-config`. -->

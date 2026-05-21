@@ -46,7 +46,7 @@ error[unbalanced-backtick]: unterminated fenced code block
 ...
 ```
 
-Read the long-form explanation of the first rule:
+Every rule has a long-form explanation reachable from the command line:
 
 ```sh
 mdwright explain bare-url
@@ -97,6 +97,8 @@ mdwright reads configuration from the nearest `.mdwright.toml`, `mdwright.toml`,
 
 ```toml
 [lint]
+# Comma-separated tokens: `default` enables the default rule set;
+# `-name` removes a rule; `+name` adds an opt-in rule.
 rules = "default,-bare-url"
 ```
 

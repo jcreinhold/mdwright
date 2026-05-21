@@ -57,12 +57,25 @@
 
 - [Lint rules](extending/lint-rules.md)
 - [Plugin loading](extending/plugin-loading.md)
-- [Architecture](extending/architecture.md)
+- [Architecture overview](extending/architecture.md)
+
+# Architecture
+
+- [Crate boundaries](architecture/crate-boundaries.md)
+- [Parser boundary](architecture/parser-boundary.md)
+- [Formatter rewrite boundary](architecture/formatter-rewrite-boundary.md)
+- [Pulldown model](architecture/pulldown-model.md)
+- [Test matrix](architecture/test-matrix.md)
+- [Stability](architecture/stability.md)
+- [mdformat parity](architecture/mdformat-parity.md)
+- [Parser backend audit](architecture/parser-backend-audit.md)
+- [LaTeX boundary and dependency audit](architecture/latex-boundary-and-dependency-audit.md)
 
 # Reference
 
 - [CLI](reference/cli.md)
 - [Diagnostic schema](reference/diagnostic-schema.md)
+- [Performance](reference/performance.md)
 - [Public API surface](reference/public-api.md)
 - [Release evidence](reference/release-evidence.md)
 - [Semver policy](reference/semver.md)

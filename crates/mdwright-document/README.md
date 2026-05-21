@@ -1,5 +1,7 @@
 # mdwright-document
 
+[![docs.rs](https://docs.rs/mdwright-document/badge.svg)](https://docs.rs/mdwright-document)
+
 Recognised Markdown document facts with stable source coordinates, for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
@@ -33,6 +35,7 @@ use mdwright_document::Document;
 ## See also
 
 - Project: <https://github.com/jcreinhold/mdwright>
+- Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
 - Manual: <https://jcreinhold.github.io/mdwright/>
 - Architecture: `docs/architecture/parser-boundary.md`,
   `docs/architecture/crate-boundaries.md`

@@ -1,5 +1,7 @@
 # mdwright-config
 
+[![docs.rs](https://docs.rs/mdwright-config/badge.svg)](https://docs.rs/mdwright-config)
+
 Configuration discovery and TOML resolution for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
@@ -31,6 +33,7 @@ use mdwright_config::Config;
 ## See also
 
 - Project: <https://github.com/jcreinhold/mdwright>
+- Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
 - Configuration reference: <https://jcreinhold.github.io/mdwright/configuration.html>
 
 ## License

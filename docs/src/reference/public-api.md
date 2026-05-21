@@ -6,6 +6,48 @@ depend on the component crate that owns the capability they need.
 The API is still pre-1.0. Import paths and operation shapes may change in minor releases under the
 [pre-1.0 caveats](semver.md#pre-10-caveats).
 
+## Use mdwright as a library
+
+A minimal embed that parses Markdown, runs the standard lint catalogue, and formats with
+defaults. Add the three crates to `Cargo.toml`:
+
+```toml
+[dependencies]
+mdwright-document = "0.1"
+mdwright-format = "0.1"
+mdwright-lint = "0.1"
+```
+
+Then:
+
+```rust
+use mdwright_document::Document;
+use mdwright_format::{FmtOptions, format_validated};
+use mdwright_lint::{LintOptions, RuleSet};
+
+fn main() -> anyhow::Result<()> {
+    let source = "# Hello\n\nSee https://example.com for the spec.\n";
+
+    // Parse once. `Document` holds source coordinates and recognised facts.
+    let doc = Document::parse(source)?;
+
+    // Lint with the shipped default rule set.
+    let rules = RuleSet::stdlib_defaults();
+    for diag in rules.check_with(&doc, LintOptions::default()) {
+        println!("{}: {}", diag.rule, diag.message);
+    }
+
+    // Format. Returns a verified rewrite or a `FormatError` on safety-gate refusal.
+    let formatted = format_validated(&doc, &FmtOptions::default())?;
+    print!("{formatted}");
+    Ok(())
+}
+```
+
+The table below maps every capability to its owning crate. For the surface a particular
+crate exposes, follow its docs.rs link from the
+[project README](https://github.com/jcreinhold/mdwright#documentation).
+
 ## Common User Surfaces
 
 | Capability | Public surface | Owning crate |

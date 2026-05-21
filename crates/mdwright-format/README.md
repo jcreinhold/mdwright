@@ -1,5 +1,7 @@
 # mdwright-format
 
+[![docs.rs](https://docs.rs/mdwright-format/badge.svg)](https://docs.rs/mdwright-format)
+
 Verified Markdown formatting and byte-rewrite transactions for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
@@ -32,6 +34,7 @@ use mdwright_format::{format_validated, FmtOptions};
 ## See also
 
 - Project: <https://github.com/jcreinhold/mdwright>
+- Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
 - Manual: <https://jcreinhold.github.io/mdwright/>
 - Architecture: `docs/architecture/crate-boundaries.md`
 

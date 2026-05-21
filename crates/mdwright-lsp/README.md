@@ -1,5 +1,7 @@
 # mdwright-lsp
 
+[![docs.rs](https://docs.rs/mdwright-lsp/badge.svg)](https://docs.rs/mdwright-lsp)
+
 Language Server Protocol delivery for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
@@ -38,6 +40,7 @@ use mdwright_lsp::serve;
 ## See also
 
 - Project: <https://github.com/jcreinhold/mdwright>
+- Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
 - Editor integrations:
   <https://jcreinhold.github.io/mdwright/integration/editor-integrations.html>
 

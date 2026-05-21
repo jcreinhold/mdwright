@@ -1,5 +1,7 @@
 # mdwright-latex
 
+[![docs.rs](https://docs.rs/mdwright-latex/badge.svg)](https://docs.rs/mdwright-latex)
+
 TeX math-body parsing, Unicode terminal layout, and source translation for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
@@ -35,6 +37,7 @@ use mdwright_latex::render_unicode_math;
 ## See also
 
 - Project: <https://github.com/jcreinhold/mdwright>
+- Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
 - Manual: <https://jcreinhold.github.io/mdwright/>
 - Math rendering: <https://jcreinhold.github.io/mdwright/concepts/math-rendering.html>
 

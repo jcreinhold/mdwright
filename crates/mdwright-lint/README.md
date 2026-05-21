@@ -1,5 +1,7 @@
 # mdwright-lint
 
+[![docs.rs](https://docs.rs/mdwright-lint/badge.svg)](https://docs.rs/mdwright-lint)
+
 Lint diagnostics, rule execution, suppression handling, and the standard rule set for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
@@ -32,6 +34,7 @@ use mdwright_lint::{LintRule, RuleSet, Diagnostic};
 ## See also
 
 - Project: <https://github.com/jcreinhold/mdwright>
+- Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
 - Rules catalogue: <https://jcreinhold.github.io/mdwright/rules/index.html>
 - Plugin extension model:
   <https://jcreinhold.github.io/mdwright/extending/plugin-loading.html>
