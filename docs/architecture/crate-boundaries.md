@@ -8,7 +8,7 @@ root binary.
 Cargo.toml               # virtual workspace root, no package targets
 crates/mdwright          # command-line package and `mdwright` binary
 crates/mdwright-document # parsed Markdown facts with stable source coords
-crates/mdwright-latex    # TeX math-body lexing, parsing, layout, translation
+crates/mdwright-latex    # TeX and Unicode math-body lexing, parsing, layout, translation
 crates/mdwright-math     # Markdown math-span recognition and normalisation
 crates/mdwright-format   # formatter policy, rewrite-family planning, oracles
 crates/mdwright-lint     # diagnostics, rule execution, suppression, safe fixes
@@ -38,7 +38,7 @@ mdwright-format   mdwright-lint
 
 | Crate              | Hides                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------ |
-| `mdwright-latex`   | TeX/LaTeX math-body lexing, parsing, command vocabulary, Unicode layout, and source translation. |
+| `mdwright-latex`   | TeX/LaTeX and Unicode math-body lexing, parsing, command vocabulary, Unicode layout, and source translation. |
 | `mdwright-math`    | Markdown math delimiter and environment recognition; extraction of math bodies from source. |
 | `mdwright-document`| CommonMark/pulldown quirks, GFM extension overlays, source-coordinate invariants, parser-panic containment. Owns the only production `pulldown-cmark` chokepoint. |
 | `mdwright-format`  | Formatter style policy, rewrite-family planning, local ownership checks, semantic verification. |
@@ -52,9 +52,10 @@ their algorithms. Other crates consume document facts as domain records (structu
 sites, inline delimiter slots, heading attribute trailers, link destination slots, math regions, frontmatter, code/HTML
 exclusions, top-level checkpoints) and do not couple to pulldown's event vocabulary, offset iterator, panic payloads, or
 backtraces. Markdown math-region recognition and TeX math-body parsing are separate boundaries: `mdwright-math`
-recognises where math lives in Markdown, while `mdwright-latex` owns the language inside those regions. Lint rules that
-need LaTeX vocabulary facts depend on `mdwright-latex` directly rather than copying command tables or asking
-`mdwright-math` to pass them through.
+recognises where math lives in Markdown, while `mdwright-latex` owns the language inside those regions. That ownership
+includes parser-backed Unicode-to-LaTeX translation: unsupported Unicode remains visible and records diagnostics or
+losses instead of being silently guessed. Lint rules that need LaTeX vocabulary facts depend on `mdwright-latex`
+directly rather than copying command tables or asking `mdwright-math` to pass them through.
 `pulldown_model` tests may import pulldown directly because they deliberately probe upstream drift.
 
 ## Public API entry points
@@ -118,13 +119,15 @@ those packages exist on crates.io. Publishing order:
 - No `mdwright-source` / `mdwright-source-map` / `mdwright-text`: source canonicalisation and byte mapping are part
   of the document abstraction. Callers want a recognised document whose spans map back to user bytes, not a separate
   coordinate package.
-- `mdwright-latex` is a real boundary, not a facade. TeX math-body parsing, command vocabulary, Unicode layout, and
-  source translation share grammar knowledge and should change behind one narrow API. `mdwright-math` remains separate
-  because Markdown delimiter recognition changes for different reasons and has different callers. See
+- `mdwright-latex` is a real boundary, not a facade. TeX math-body parsing, Unicode math-source parsing, command
+  vocabulary, Unicode layout, and source translation share grammar knowledge and should change behind one narrow API.
+  `mdwright-math` remains separate because Markdown delimiter recognition changes for different reasons and has
+  different callers. See
   [`latex-boundary-and-dependency-audit.md`](latex-boundary-and-dependency-audit.md) for the design comparison and
   dependency audit.
   The release claim for this crate is evidence-backed common MathJax-style coverage where Unicode has honest
-  representations, not TeX macro expansion or browser-grade MathJax layout.
+  representations, plus parser-backed Unicode-to-LaTeX source translation for the supported subset. It is not TeX macro
+  expansion, browser-grade MathJax layout, or diagram interpretation.
 - No `mdwright-util`: a utility crate has no domain responsibility and becomes a junk drawer.
 - No `mdwright-rules`: standard rules and rule dispatch share suppression, diagnostic, and registry semantics;
   separating them would mirror an old directory layout shallowly.

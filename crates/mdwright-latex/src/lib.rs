@@ -1,37 +1,28 @@
-//! TeX math-body language support for mdwright.
+//! Math-body language support for mdwright.
 //!
-//! `mdwright-latex` owns the volatile TeX-like language machinery:
+//! `mdwright-latex` owns the volatile language machinery for both
+//! TeX-like math bodies and parser-backed Unicode mathematical source:
 //! lexing, parsing, command vocabulary, Unicode terminal layout, and
 //! source translation. Markdown delimiter recognition stays in
 //! `mdwright-math`; command-line delivery stays in `mdwright`.
 //!
-//! The public surface is intentionally narrow at this stage. Later
-//! parser, registry, layout, and translation work should grow the
-//! implementation behind these result and diagnostic types rather than
-//! exposing lexer tokens or AST nodes.
+//! The public surface is intentionally narrow. Parser, registry, layout,
+//! and translation complexity stays behind result and diagnostic types
+//! rather than exposing lexer tokens or AST nodes.
 
 #![forbid(unsafe_code)]
 
 mod error;
 mod layout;
-#[allow(dead_code, reason = "parser work consumes this private lexer in the next phase")]
+#[allow(dead_code, reason = "the private TeX lexer has fixture-tested token APIs")]
 mod lexer;
-#[allow(
-    dead_code,
-    reason = "layout and translation consume this private parser in later phases"
-)]
+#[allow(dead_code, reason = "the private TeX parser has fixture-tested AST helpers")]
 mod parser;
 mod registry;
 mod translation;
-#[allow(
-    dead_code,
-    reason = "unicode parser and emitter work consumes this private lexer in the next phase"
-)]
+#[allow(dead_code, reason = "the private Unicode lexer has fixture-tested token APIs")]
 mod unicode_lexer;
-#[allow(
-    dead_code,
-    reason = "unicode emitter work consumes this private parser in the next phase"
-)]
+#[allow(dead_code, reason = "the private Unicode parser has fixture-tested AST helpers")]
 mod unicode_parser;
 
 pub use error::{LatexError, LatexErrorKind, SourceSpan};

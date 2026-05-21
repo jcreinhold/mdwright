@@ -82,7 +82,8 @@ fn supported_latex_source() -> impl Strategy<Value = String> {
 
 fn direct_unicode_atom() -> impl Strategy<Value = String> {
     prop::sample::select(&[
-        "α", "β", "Γ", "Ω", "≤", "≥", "≠", "→", "←", "×", "∧", "∨", "∑", "∞", "∅",
+        "α", "β", "Γ", "Ω", "≤", "≥", "≠", "→", "←", "×", "∧", "∨", "∑", "∞", "∅", "⩽", "≽", "≼", "≫", "⊉", "⊄", "⊀",
+        "⋂", "⋯", "⨁", "□", "⤏",
     ])
     .prop_map(str::to_owned)
 }
@@ -92,11 +93,33 @@ fn plain_unicode_atom() -> impl Strategy<Value = String> {
 }
 
 fn script_unicode_atom() -> impl Strategy<Value = String> {
-    prop::sample::select(&["xᵢ", "xₙ", "x₁₂", "x²", "xⁿ", "x⁻¹", "αᵢ", "β²", "∑ₙ"]).prop_map(str::to_owned)
+    prop::sample::select(&[
+        "xᵢ", "xₙ", "x₁₂", "x²", "xⁿ", "x⁻¹", "αᵢ", "β²", "∑ₙ", "D₊", "iˢ_A", "M_[φ]", "x^(n)", "𝚪_*",
+    ])
+    .prop_map(str::to_owned)
 }
 
 fn structured_unicode_atom() -> impl Strategy<Value = String> {
-    prop::sample::select(&["√x", "ⁿ√x", "x\u{302}", "x\u{305}", "x\u{303}", "v\u{20d7}"]).prop_map(str::to_owned)
+    prop::sample::select(&[
+        "√x",
+        "ⁿ√x",
+        "x\u{302}",
+        "x\u{305}",
+        "x\u{303}",
+        "v\u{20d7}",
+        "Y\u{304}'",
+        "{Y'}\u{304}",
+        "lim\u{20d7}",
+        "lim\u{20d6}",
+        "A ─u→ B",
+        "A ←u─ B",
+        "A ⥲ B",
+    ])
+    .prop_map(str::to_owned)
+}
+
+fn styled_unicode_atom() -> impl Strategy<Value = String> {
+    prop::sample::select(&["𝓗𝓸𝓶", "𝓟𝓻𝓸𝓳", "𝒟ℯ𝓇", "𝐟𝐠", "𝔭", "ℤ"]).prop_map(str::to_owned)
 }
 
 fn supported_unicode_atom() -> impl Strategy<Value = String> {
@@ -105,6 +128,7 @@ fn supported_unicode_atom() -> impl Strategy<Value = String> {
         direct_unicode_atom(),
         script_unicode_atom(),
         structured_unicode_atom(),
+        styled_unicode_atom(),
     ]
 }
 
@@ -120,6 +144,14 @@ fn lossy_latex_source() -> impl Strategy<Value = String> {
             .prop_map(str::to_owned),
         supported_latex_atom().prop_map(|atom| format!("{atom} + \\frac{{a}}{{b}}")),
         supported_latex_atom().prop_map(|atom| format!("{atom} + \\color{{red}}{{x}}")),
+    ]
+}
+
+fn lossy_unicode_source() -> impl Strategy<Value = String> {
+    prop_oneof![
+        prop::sample::select(&["A ⥪ B", "Y'\u{304}", "\u{0304}x", "x 🜁 y", "A ─── B"]).prop_map(str::to_owned),
+        supported_unicode_atom().prop_map(|atom| format!("{atom} + ⥪")),
+        supported_unicode_atom().prop_map(|atom| format!("{atom} + Y'\u{304}")),
     ]
 }
 
@@ -168,5 +200,19 @@ proptest! {
         prop_assert!(!first_normal_form.is_empty());
         let second_normal_form = latex_to_unicode_text(&unicode_to_latex_text(&first_normal_form));
         prop_assert_eq!(second_normal_form, first_normal_form);
+    }
+
+    #[test]
+    fn lossy_unicode_translation_remains_visible_and_stable(source in lossy_unicode_source()) {
+        let translated = translate_unicode_to_latex(&source);
+        prop_assert!(!translated.text().is_empty());
+        prop_assert_eq!(translated.status(), TranslationStatus::Lossy);
+        prop_assert!(recorded_issue_count(&translated) > 0);
+        prop_assert!(diagnostics_are_in_bounds(&translated, source.len()));
+
+        let canonical = unicode_to_latex_text(&latex_to_unicode_text(translated.text()));
+        prop_assert!(!canonical.is_empty());
+        let canonical_again = unicode_to_latex_text(&latex_to_unicode_text(&canonical));
+        prop_assert_eq!(canonical_again, canonical);
     }
 }

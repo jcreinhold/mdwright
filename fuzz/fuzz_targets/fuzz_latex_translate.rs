@@ -1,6 +1,6 @@
 #![no_main]
-//! Translate TeX math source to Unicode and Unicode math source to
-//! preferred LaTeX. Diagnostics and losses must stay in-bounds.
+//! Translate TeX math source to Unicode and parser-backed Unicode math
+//! source to preferred LaTeX. Diagnostics and losses must stay in-bounds.
 
 use libfuzzer_sys::fuzz_target;
 
@@ -19,6 +19,9 @@ fuzz_target!(|data: &[u8]| {
 
     let to_latex = mdwright_latex::translate_unicode_to_latex(source);
     assert_translation_spans(source, &to_latex);
+
+    let unicode_after_latex = mdwright_latex::translate_latex_to_unicode(to_latex.text());
+    assert_translation_spans(to_latex.text(), &unicode_after_latex);
 });
 
 fn assert_translation_spans(source: &str, translation: &mdwright_latex::Translation) {

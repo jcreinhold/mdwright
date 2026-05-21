@@ -76,3 +76,10 @@ doc = false
 name = "fuzz_markdown_math_translate"
 path = "fuzz_targets/fuzz_markdown_math_translate.rs"
 test = false
+
+[[bin]]
+bench = false
+doc = false
+name = "fuzz_unicode_latex_roundtrip"
+path = "fuzz_targets/fuzz_unicode_latex_roundtrip.rs"
+test = false

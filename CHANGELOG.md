@@ -78,6 +78,9 @@ All notable changes to mdwright are listed here. The format follows
 - Added `mdwright preview` Unicode math rendering and `mdwright math --to-unicode|--to-latex` source translation.
   Coverage targets common MathJax-style input where Unicode has honest representations; unsupported TeX reports typed
   diagnostics or falls back to source instead of pretending to be browser MathJax.
+- Replaced Unicode-to-LaTeX substitution with a parser-backed source translator in `mdwright-latex`. Supported Unicode
+  math source emits canonical LaTeX; unsupported glyphs, ambiguous accent ownership, and diagram-like source remain
+  visible with diagnostics or losses.
 
 ### Performance
 

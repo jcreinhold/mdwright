@@ -589,6 +589,9 @@ impl<'src> TranslateContext<'src> {
             AccentKind::Tilde => '\u{303}',
             AccentKind::Vec => '\u{20d7}',
         };
+        if needs_grouped_unicode_accent_target(&body) {
+            return Ok(format!("{{{body}}}{mark}"));
+        }
         let mut out = String::new();
         for ch in body.chars() {
             out.push(ch);
@@ -656,6 +659,10 @@ impl<'src> TranslateContext<'src> {
             Ok(translated)
         }
     }
+}
+
+fn needs_grouped_unicode_accent_target(body: &str) -> bool {
+    body.chars().filter(|ch| !ch.is_whitespace()).count() > 1
 }
 
 fn translate_ranges(source: &str, ranges: &[Range<usize>], translate_body: fn(&str) -> Translation) -> Translation {
@@ -818,6 +825,15 @@ mod tests {
 
         let unicode_again = translate_latex_to_unicode(latex.text());
         assert_eq!(unicode_again.text(), "αᵢ");
+    }
+
+    #[test]
+    fn latex_accents_over_compound_targets_preserve_unicode_ownership() {
+        let unicode = translate_latex_to_unicode(r"\bar{Y'}");
+        assert_eq!(unicode.text(), "{Y'}\u{305}");
+
+        let latex = translate_unicode_to_latex(unicode.text());
+        assert_eq!(latex.text(), r"\bar{Y'}");
     }
 
     #[test]

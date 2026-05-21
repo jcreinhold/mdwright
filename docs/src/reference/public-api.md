@@ -16,7 +16,7 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 | Format parsed or source Markdown | `FmtOptions`, `WrapStrategy`, `FormatError`, `format_document`, `format_document_with_report`, `format_source`, `format_validated`, `format_validated_with_report` | `mdwright-format` |
 | Format editor ranges | `CheckpointTable`, `format_range`, `format_range_with_checkpoints` | `mdwright-format` |
 | Compare formatter semantics | `semantically_equivalent`, `first_divergence` | `mdwright-format` |
-| Represent TeX math-body diagnostics, vocabulary, Unicode layout, source translation, and output | `LatexError`, `LatexErrorKind`, `SourceSpan`, `CommandInfo`, `CommandCategory`, `ArgumentShape`, `SupportStatus`, `lookup_command`, `latex_symbol`, `unicode_symbol_latex`, `unicode_super`, `unicode_sub`, `RenderedLatex`, `render_unicode_math`, `Translation`, `TranslationStatus`, `TranslationLoss`, `translate_latex_to_unicode`, `translate_unicode_to_latex`, `translate_latex_ranges_to_unicode`, `translate_unicode_ranges_to_latex` | `mdwright-latex` |
+| Represent TeX and Unicode math-body diagnostics, vocabulary, Unicode layout, source translation, and output | `LatexError`, `LatexErrorKind`, `SourceSpan`, `CommandInfo`, `CommandCategory`, `ArgumentShape`, `SupportStatus`, `lookup_command`, `latex_symbol`, `unicode_symbol_latex`, `unicode_super`, `unicode_sub`, `RenderedLatex`, `render_unicode_math`, `Translation`, `TranslationStatus`, `TranslationLoss`, `translate_latex_to_unicode`, `translate_unicode_to_latex`, `translate_latex_ranges_to_unicode`, `translate_unicode_ranges_to_latex` | `mdwright-latex` |
 | Recognise Markdown math regions | `scan_math_regions`, `render::convert_for_dollar`, `MathBody::source_range` | `mdwright-math` |
 | Run lint rules | `RuleSet`, `LintOptions` | `mdwright-lint` |
 | Consume lint output | `Diagnostic`, `Fix`, `Severity`, `Snippet`, `DuplicateRuleName` | `mdwright-lint` |
@@ -29,8 +29,10 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 editor delivery stay in their owning crates.
 
 The `mdwright-latex` surface targets common MathJax-style math bodies where Unicode can represent the source or
-terminal output honestly. It is not a TeX engine API: macro expansion, browser layout, and unsupported package commands
-return typed errors, losses, or fallback output rather than hidden approximations.
+terminal output honestly. Unicode-to-LaTeX translation is parser-backed for the supported subset: the crate lexes and
+parses Unicode mathematical source before emitting canonical LaTeX. It is not a TeX engine API, a browser layout API, or
+a diagram recogniser. Macro expansion, unsupported package commands, layout-heavy source, and unknown Unicode return
+typed errors, losses, or visible fallback output rather than hidden approximations.
 
 ## Extension Surfaces
 

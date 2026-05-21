@@ -101,6 +101,7 @@ cargo +nightly fuzz run fuzz_verbatim_identity -- -runs=0
 cargo +nightly fuzz run fuzz_latex_render -- -runs=0
 cargo +nightly fuzz run fuzz_latex_translate -- -runs=0
 cargo +nightly fuzz run fuzz_markdown_math_translate -- -runs=0
+cargo +nightly fuzz run fuzz_unicode_latex_roundtrip -- -runs=0
 ```
 
 Write the replay result to `target/mdwright/release/fuzz-replay.md`.

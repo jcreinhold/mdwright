@@ -10,7 +10,9 @@ relations, operators, and matrix-like environments where Unicode terminal text c
 Unsupported math falls back to source text instead of guessing.
 
 For editable source translation, use `mdwright math`. It translates math bodies between LaTeX commands and Unicode
-source while preserving Markdown math delimiters. Normal `mdwright fmt` never rewrites math notation silently.
+source while preserving Markdown math delimiters. Unicode-to-LaTeX translation is parser-backed for the supported
+subset, so scripts, styled alphabets, accents, arrows, and direct symbols are recognised as source structure before
+canonical LaTeX is emitted. Normal `mdwright fmt` never rewrites math notation silently.
 
 For *what* mdwright treats as math, see [Math regions](math-regions.md). This page is about *how those regions are
 emitted*.
@@ -96,9 +98,10 @@ File mode translates recognised Markdown math bodies and preserves their delimit
 `\( αᵢ \)`. Use `--check` for CI, `--diff` to inspect a patch-compatible diff, and `--write` to mutate files. Stdin
 without recognised Markdown math delimiters is treated as one math source body.
 
-Translation is conservative. Direct symbols, scripts, roots, aliases, and other constructs with honest editable Unicode
-forms are translated. Fractions, complex environments, macros, colour/style commands, and other TeX constructs without a
-plain Unicode source form remain visible and are reported on stderr rather than being approximated.
+Translation is conservative. Direct symbols, scripts, styled alphabets, accents, roots, aliases, and other constructs
+with honest editable Unicode forms are translated. Unsupported Unicode, ambiguous accent/prime ownership, diagrams,
+fractions, complex environments, macros, colour/style commands, and other constructs without a plain source form remain
+visible and are reported on stderr rather than being approximated.
 
 ## The gate under `dollar` mode
 

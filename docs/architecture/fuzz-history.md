@@ -33,6 +33,8 @@ The release fuzz sweep also includes `mdwright-latex` targets:
   stay inside the input.
 - `fuzz_markdown_math_translate`: Markdown math-span recognition through `mdwright-math`, followed by body-only
   translation in `mdwright-latex`.
+- `fuzz_unicode_latex_roundtrip`: parser-backed Unicode-to-LaTeX translation over supported Unicode math source,
+  followed by LaTeX-to-Unicode and back to LaTeX. The canonical fixed point must not drift.
 
 These targets protect the language boundary added for v0.1 release hardening. They do not change the historical
 formatter-fuzz histogram below, which classifies bugs that were already fixed.

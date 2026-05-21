@@ -28,6 +28,7 @@ TARGETS=(
 	fuzz_latex_render
 	fuzz_latex_translate
 	fuzz_markdown_math_translate
+	fuzz_unicode_latex_roundtrip
 )
 
 fail=0
