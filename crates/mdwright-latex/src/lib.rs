@@ -23,6 +23,11 @@ mod lexer;
 mod parser;
 mod registry;
 mod translation;
+#[allow(
+    dead_code,
+    reason = "unicode parser and emitter work consumes this private lexer in the next phase"
+)]
+mod unicode_lexer;
 
 pub use error::{LatexError, LatexErrorKind, SourceSpan};
 pub use layout::{RenderedLatex, render_unicode_math};
