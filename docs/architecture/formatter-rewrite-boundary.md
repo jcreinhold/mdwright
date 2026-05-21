@@ -57,13 +57,16 @@ that accidentally covers child bytes.
 
 ## Table Normal Forms
 
-Table padding is a parent operation. It runs after inline delimiter and link-destination families, reads cell bytes from
-the current snapshot, and rewrites the whole table block as one verified operation. Row and cell edits are not exposed
-as candidates.
+Table formatting is a parent operation. It runs after inline delimiter and link-destination families, reads cell bytes
+from the current snapshot, and rewrites the whole table block as one verified operation. Row and cell edits are not
+exposed as candidates.
 
 The table family uses document-owned table facts: source ranges for the table, rows, cells, and alignments. If a row has
 source cells beyond the recognised table column count, or a cell range is not contained in its row, the table family
 skips that table instead of dropping bytes it cannot model.
+
+The normal form is configurable at the formatter boundary. `compact` trims each cell to one space of padding and is the
+default. `align` pads columns by display width. `preserve` disables table rewrites.
 
 ## Terminal Wrap
 

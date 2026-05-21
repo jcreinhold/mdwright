@@ -19,7 +19,7 @@ use std::io::Write;
 use mdwright_document::Document;
 use mdwright_format::{
     FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
-    OrderedListStyle, StrongStyle, ThematicStyle, Wrap, format_range, semantically_equivalent,
+    OrderedListStyle, StrongStyle, TableStyle, ThematicStyle, Wrap, format_range, semantically_equivalent,
 };
 use mdwright_lint::RuleSet;
 use proptest::prelude::*;
@@ -245,6 +245,8 @@ fn check_html_preserving(label: &str, src: &str) -> Result<(), TestCaseError> {
 fn opts_matrix() -> Vec<FmtOptions> {
     vec![
         FmtOptions::default(),
+        FmtOptions::default().with_table(TableStyle::Align),
+        FmtOptions::default().with_table(TableStyle::Preserve),
         FmtOptions::default().with_wrap(Wrap::At(80)),
         FmtOptions::default().with_wrap(Wrap::At(120)),
         FmtOptions::default().with_wrap(Wrap::No),

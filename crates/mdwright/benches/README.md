@@ -7,6 +7,7 @@ Criterion benches that measure parse and lint cost for the `mdwright` crate. Run
 - `parse/{small, medium}`—`Document::parse` only, single file.
 - `lint/{defaults, all}/{small, medium}`—lint rule loop, with parse hoisted outside the timed region.
 - `parse_plus_lint/defaults/{small, medium}`—full pipeline.
+- `format/tables/{table-free-default, compact, align, preserve}`—table-free default fast path and table normal forms.
 - `corpus/{none, defaults, all}`—rayon-parallel sweep over every file in `corpus.list`. File contents are pre-loaded so
   the benchmark times CPU work, not disk I/O.
 

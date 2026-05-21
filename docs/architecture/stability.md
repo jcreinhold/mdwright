@@ -59,9 +59,10 @@ buffer as success.
 | `format_validated(&doc, opts) -> Result<String, FormatError>` | Carries parse failures and semantic divergence.       |
 | `semantically_equivalent(a, b) -> Result<bool, ParseError>`   | Reparses both inputs to build semantic signatures.    |
 
-`FmtOptions` style knobs default to `Preserve`. Fluent setters (`with_italic`, `with_strong`, `with_list_marker`,
-`with_ordered_list`, `with_thematic_break`, `with_link_def_style`) cover programmatic callers; the TOML keys are
-`[fmt] strong`, `[fmt] thematic-break`, and the existing per-knob spellings. User-facing surfaces are documented in
+`FmtOptions` style knobs default to `Preserve` except GFM tables, which default to compact normal form. Fluent setters
+(`with_italic`, `with_strong`, `with_list_marker`, `with_ordered_list`, `with_thematic_break`, `with_table`,
+`with_link_def_style`) cover programmatic callers; the TOML keys are `[fmt] strong`, `[fmt] thematic-break`, and the
+existing per-knob spellings. User-facing surfaces are documented in
 [`docs/src/format/policy.md`](../src/format/policy.md) and [`docs/src/format/style.md`](../src/format/style.md).
 
 ## Risk register

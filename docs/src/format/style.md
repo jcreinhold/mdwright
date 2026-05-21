@@ -116,16 +116,17 @@ style = "angle"
 
 | Value | Effect |
 |---|---|
-| `"preserve"` (default) | GFM table spacing round-trips from source. |
-| `"pad"` | Pad cells and delimiter rows to mdformat-compatible widths when verification preserves the parse. |
+| `"compact"` (default) | Trim cell padding and emit one conventional space on each side of every cell. |
+| `"align"` | Pad cells and delimiter rows to display-width-aligned columns when verification preserves the parse. |
+| `"preserve"` | Keep source table spacing. |
 
-Padding is a table-level operation. Inline delimiter and link destination rewrites run first; table padding then reads
-the current cell bytes and rewrites the table block as one verified replacement. Tables with source cells the document
-facts cannot account for are left unchanged rather than partially rewritten.
+Table formatting is a table-level operation. Inline delimiter and link destination rewrites run first; the table family
+then reads the current cell bytes and rewrites the table block as one verified replacement. Tables with source cells the
+document facts cannot account for are left unchanged rather than partially rewritten.
 
 ```toml
 [fmt.tables]
-style = "pad"
+style = "align"
 ```
 
 ## `[fmt] wrap`
@@ -205,7 +206,7 @@ ordered-list = "one"
 style = "angle"
 
 [fmt.tables]
-style = "pad"
+style = "align"
 ```
 
 This is mdformat-compatible where mdwright has verified rewrite support. It does not move orphan footnotes or copy

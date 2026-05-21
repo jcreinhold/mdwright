@@ -5,9 +5,10 @@
 Verified Markdown formatting and byte-rewrite transactions for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
-The formatter is identity by default: structural emit replays the source. Active rewrites
-ship as small, ownership-checked families — canonicalisation knobs (heading style, list
-markers, link-definition shape, …) and paragraph wrapping. Each family produces its
+The formatter is table-free identity by default: structural emit replays the source, while
+GFM tables default to compact normal form. Active rewrites ship as small,
+ownership-checked families — canonicalisation knobs (heading style, list markers,
+link-definition shape, …) and paragraph wrapping. Each family produces its
 normal-form plan or skips; rewrites that would change the rendered DOM are rejected by the
 semantic gate (`semantically_equivalent`), so `format_validated` either returns a
 byte-for-byte safe rewrite or surfaces a diagnostic.

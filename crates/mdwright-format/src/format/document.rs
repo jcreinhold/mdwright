@@ -15,12 +15,12 @@ use mdwright_document::Document;
 
 /// Format `source` per `opts`. Returns the resulting string.
 ///
-/// Default-options callers (every style knob `Preserve`, wrap `Keep`)
-/// hit the identity early-out: the output is the canonicalised source,
-/// modulo line-ending and trailing-newline policies. Opt-in
-/// transformations route through the canonicalise pass; each rewrite
-/// verifies before commit so a failed rewrite silently skips and the
-/// source bytes survive.
+/// Table-free default-options callers hit the identity early-out: the
+/// output is the canonicalised source, modulo line-ending and
+/// trailing-newline policies. GFM tables default to compact normal
+/// form, and all other transformations route through the canonicalise
+/// pass; each rewrite verifies before commit so a failed rewrite
+/// silently skips and the source bytes survive.
 pub(crate) fn format_document(doc: &Document, opts: &FmtOptions) -> String {
     format_document_with_report(doc, opts).0
 }
@@ -29,7 +29,8 @@ pub(crate) fn format_document_with_report(doc: &Document, opts: &FmtOptions) -> 
     let source = doc.source();
     let mut out = source.to_string();
     let mut report = FormatReport::default();
-    let has_canonicalisation = opts.has_any_canonicalisation();
+    let has_canonicalisation =
+        opts.has_any_canonicalisation() && (opts.has_non_table_canonicalisation() || !doc.table_sites().is_empty());
     let has_wrap = !matches!(opts.wrap(), crate::Wrap::Keep);
 
     if has_canonicalisation || has_wrap {

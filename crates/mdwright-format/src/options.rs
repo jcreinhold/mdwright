@@ -1,12 +1,10 @@
 /// Formatter knobs.
 ///
-/// Style knobs (`italic`, `strong`, `list_marker`, `ordered_list`,
-/// `link_def_style`, `thematic_break_style`) default to `Preserve`;
-/// the structural-emit pipeline never consults them, so the defaults
-/// round-trip source bytes verbatim. Style rewrites are applied by the
-/// formatter's rewrite-family pipeline. Structural defaults:
-/// `wrap = keep`, `trailing-newline = preserve`, `end-of-line = lf`,
-/// empty exclude list.
+/// Style knobs default to `Preserve` except GFM tables, which default
+/// to compact normal form. The structural-emit pipeline never consults
+/// style knobs; rewrites are applied by the formatter's rewrite-family
+/// pipeline. Structural defaults: `wrap = keep`, `trailing-newline =
+/// preserve`, `end-of-line = lf`, empty exclude list.
 #[derive(Debug, Clone)]
 pub struct FmtOptions {
     wrap: Wrap,
@@ -395,10 +393,28 @@ impl FmtOptions {
         }
     }
 
-    /// `true` iff GFM tables should be padded/aligned.
+    /// `true` iff GFM tables should be normalised.
     #[must_use]
-    pub(crate) fn should_pad_tables(&self) -> bool {
-        matches!(self.table, TableStyle::Pad)
+    pub(crate) fn should_normalise_tables(&self) -> bool {
+        !matches!(self.table, TableStyle::Preserve)
+    }
+
+    /// True iff a canonicalisation family other than tables is active.
+    ///
+    /// Tables default to compact normalisation, so callers use this to
+    /// preserve the identity fast path for table-free documents.
+    #[must_use]
+    pub(crate) fn has_non_table_canonicalisation(&self) -> bool {
+        self.italic_target_byte().is_some()
+            || self.strong_target_byte().is_some()
+            || self.list_marker_target_byte().is_some()
+            || self.thematic_target().is_some()
+            || self.ordered_list_target().is_some()
+            || self.link_def_target().is_some()
+            || matches!(self.heading_attrs, HeadingAttrsStyle::Canonicalise)
+            || matches!(self.math.render, MathRender::Dollar)
+            || self.math.normalise
+            || !self.preserve_frontmatter
     }
 
     /// Link-destination angle-bracket rewrite target. `None` keeps
@@ -416,17 +432,7 @@ impl FmtOptions {
     /// false, the canonicalisation pass is skipped entirely.
     #[must_use]
     pub(crate) fn has_any_canonicalisation(&self) -> bool {
-        self.italic_target_byte().is_some()
-            || self.strong_target_byte().is_some()
-            || self.list_marker_target_byte().is_some()
-            || self.thematic_target().is_some()
-            || self.ordered_list_target().is_some()
-            || self.should_pad_tables()
-            || self.link_def_target().is_some()
-            || matches!(self.heading_attrs, HeadingAttrsStyle::Canonicalise)
-            || matches!(self.math.render, MathRender::Dollar)
-            || self.math.normalise
-            || !self.preserve_frontmatter
+        self.should_normalise_tables() || self.has_non_table_canonicalisation()
     }
 
     /// Override the trailing-newline policy.
@@ -477,15 +483,16 @@ impl Default for FmtOptions {
         Self {
             wrap: Wrap::Keep,
             wrap_strategy: WrapStrategy::Stable,
-            // Style knobs default to Preserve so structural emit
-            // round-trips source bytes. Canonicalisation reads these
-            // knobs to opt in to rewrites.
+            // Most style knobs default to Preserve so structural emit
+            // round-trips source bytes. GFM tables default to compact
+            // normal form because redundant cell padding is not useful
+            // source information.
             italic: ItalicStyle::Preserve,
             strong: StrongStyle::Preserve,
             list_marker: ListMarkerStyle::Preserve,
             list_continuation_indent: ListContinuationIndent::MarkerWidth,
             ordered_list: OrderedListStyle::Preserve,
-            table: TableStyle::Preserve,
+            table: TableStyle::Compact,
             trailing_newline: TrailingNewline::Preserve,
             end_of_line: EndOfLine::Lf,
             exclude_globs: Vec::new(),
@@ -519,7 +526,7 @@ impl FmtOptions {
             .with_list_continuation_indent(ListContinuationIndent::FourSpace)
             .with_ordered_list(OrderedListStyle::One)
             .with_thematic_break(ThematicStyle::Underscore70)
-            .with_table(TableStyle::Pad)
+            .with_table(TableStyle::Align)
     }
 }
 
@@ -714,10 +721,13 @@ impl ThematicStyle {
 /// GFM table canonicalisation policy.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TableStyle {
+    /// Trim source cell padding and emit one conventional space on
+    /// each side of each cell.
+    Compact,
+    /// Pad cells and delimiter rows to display-width-aligned columns.
+    Align,
     /// Keep source table spacing.
     Preserve,
-    /// Pad cells and delimiter rows to mdformat-compatible widths.
-    Pad,
 }
 
 /// Line-ending policy. `Keep` adopts the first newline in the source.

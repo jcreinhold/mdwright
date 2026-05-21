@@ -18,13 +18,14 @@
 
 #![allow(clippy::expect_used, reason = "bench fixtures should fail loudly")]
 
+use std::fmt::Write as _;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use mdwright_document::Document;
-use mdwright_format::{FmtOptions, Wrap};
+use mdwright_format::{FmtOptions, TableStyle, Wrap};
 use rayon::prelude::*;
 use std::hint::black_box;
 
@@ -169,6 +170,45 @@ fn bench_format_profile(c: &mut Criterion) {
     g.finish();
 }
 
+fn table_heavy_fixture() -> String {
+    let mut out = String::from(
+        "| Notation                                    | Description                                                | Reference               |\n",
+    );
+    out.push_str("| ------------------------------------------- | ---------------------------------------------------------- | ----------------------- |\n");
+    for idx in 0..200 {
+        let _ = writeln!(
+            out,
+            "| $A_{{{idx}}}$                                      | Description with enough words to make spacing visible in table normalisation | ({idx}.0.0)               |",
+        );
+    }
+    out
+}
+
+fn bench_format_tables(c: &mut Criterion) {
+    let table = table_heavy_fixture();
+    let table_doc = Document::parse(&table).expect("table-heavy fixture parses");
+    let prose = "A paragraph with no tables and enough ordinary words to make default formatting exercise the table-free fast path without producing rewrite work.\n\n".repeat(200);
+    let prose_doc = Document::parse(&prose).expect("table-free fixture parses");
+
+    let mut g = c.benchmark_group("format/tables");
+    for (label, opts) in [
+        ("table-free-default", FmtOptions::default()),
+        ("compact", FmtOptions::default()),
+        ("align", FmtOptions::default().with_table(TableStyle::Align)),
+        ("preserve", FmtOptions::default().with_table(TableStyle::Preserve)),
+    ] {
+        let doc = if label == "table-free-default" {
+            &prose_doc
+        } else {
+            &table_doc
+        };
+        g.bench_function(label, |b| {
+            b.iter(|| mdwright_format::format_document(black_box(doc), black_box(&opts)));
+        });
+    }
+    g.finish();
+}
+
 fn bench_format_corpus(c: &mut Criterion) {
     let sources = load_corpus();
     let opts_default = FmtOptions::default();
@@ -239,6 +279,7 @@ criterion_group!(
     bench_format,
     bench_format_wrap,
     bench_format_profile,
+    bench_format_tables,
     bench_format_corpus,
     bench_tracing_disabled,
 );

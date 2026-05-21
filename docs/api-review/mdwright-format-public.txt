@@ -224,7 +224,8 @@ impl core::marker::UnsafeUnpin for mdwright_format::StrongStyle
 impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::StrongStyle
 impl core::panic::unwind_safe::UnwindSafe for mdwright_format::StrongStyle
 pub enum mdwright_format::TableStyle
-pub mdwright_format::TableStyle::Pad
+pub mdwright_format::TableStyle::Align
+pub mdwright_format::TableStyle::Compact
 pub mdwright_format::TableStyle::Preserve
 impl core::clone::Clone for mdwright_format::TableStyle
 pub fn mdwright_format::TableStyle::clone(&self) -> mdwright_format::TableStyle

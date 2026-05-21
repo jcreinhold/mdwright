@@ -229,9 +229,9 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
     // ---- [fmt.tables] -----------------------------------------------
     FieldDoc {
         key: "fmt.tables.style",
-        ty: "\"preserve\" | \"pad\"",
-        default: "\"preserve\"",
-        description: "GFM table spacing policy. `preserve` keeps source cell spacing; `pad` aligns cells and delimiter rows to mdformat-compatible widths when verification preserves semantics.",
+        ty: "\"compact\" | \"align\" | \"preserve\"",
+        default: "\"compact\"",
+        description: "GFM table spacing policy. `compact` trims cell padding to one space on each side; `align` pads columns by display width; `preserve` keeps source cell spacing.",
         cli_override: None,
     },
     // ---- [fmt.lists] -------------------------------------------------

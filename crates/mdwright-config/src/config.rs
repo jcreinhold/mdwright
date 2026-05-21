@@ -1058,8 +1058,9 @@ enum ThematicSchema {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum TableStyleSchema {
+    Compact,
+    Align,
     Preserve,
-    Pad,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1145,8 +1146,9 @@ impl From<ThematicSchema> for ThematicStyle {
 impl From<TableStyleSchema> for TableStyle {
     fn from(s: TableStyleSchema) -> Self {
         match s {
+            TableStyleSchema::Compact => Self::Compact,
+            TableStyleSchema::Align => Self::Align,
             TableStyleSchema::Preserve => Self::Preserve,
-            TableStyleSchema::Pad => Self::Pad,
         }
     }
 }
@@ -1308,7 +1310,7 @@ end-of-line = "lf"
 exclude = ["docs/generated/**"]
 
 [fmt.tables]
-style = "pad"
+style = "align"
 "#;
         let cfg = config_from_str(src)?;
         let lint = cfg.lint_rule_selection();
@@ -1326,7 +1328,7 @@ style = "pad"
         assert_eq!(fmt.list_marker(), ListMarkerStyle::Dash);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::Consistent);
         assert_eq!(fmt.thematic_break_style(), ThematicStyle::Asterisk);
-        assert_eq!(fmt.table(), TableStyle::Pad);
+        assert_eq!(fmt.table(), TableStyle::Align);
         assert_eq!(fmt.trailing_newline(), TrailingNewline::Ensure);
         assert_eq!(fmt.end_of_line(), EndOfLine::Lf);
         assert_eq!(fmt.exclude_globs(), &["docs/generated/**".to_owned()]);
@@ -1598,7 +1600,7 @@ inline-attribute-spans = false
         assert_eq!(fmt.list_continuation_indent(), ListContinuationIndent::FourSpace);
         assert_eq!(fmt.ordered_list(), OrderedListStyle::One);
         assert_eq!(fmt.thematic_break_style(), ThematicStyle::Underscore70);
-        assert_eq!(fmt.table(), TableStyle::Pad);
+        assert_eq!(fmt.table(), TableStyle::Align);
         assert!(fmt.preserve_frontmatter());
         Ok(())
     }
@@ -1676,6 +1678,27 @@ style = "preserve"
     }
 
     #[test]
+    fn fmt_tables_style_accepts_supported_styles() -> Result<()> {
+        let compact = config_from_str("[fmt.tables]\nstyle = \"compact\"\n")?;
+        assert_eq!(compact.fmt_options().table(), TableStyle::Compact);
+
+        let align = config_from_str("[fmt.tables]\nstyle = \"align\"\n")?;
+        assert_eq!(align.fmt_options().table(), TableStyle::Align);
+
+        let preserve = config_from_str("[fmt.tables]\nstyle = \"preserve\"\n")?;
+        assert_eq!(preserve.fmt_options().table(), TableStyle::Preserve);
+
+        let pad = config_from_str("[fmt.tables]\nstyle = \"pad\"\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected table style error"))?;
+        assert!(
+            pad.to_string().contains("style"),
+            "error should name rejected table style: {pad}"
+        );
+        Ok(())
+    }
+
+    #[test]
     fn rejects_unknown_fmt_profile_and_table_style() -> Result<()> {
         let profile = config_from_str("[fmt]\nprofile = \"aggressive\"\n")
             .err()
@@ -1685,7 +1708,7 @@ style = "preserve"
             "error should name profile: {profile}"
         );
 
-        let table = config_from_str("[fmt.tables]\nstyle = \"compact\"\n")
+        let table = config_from_str("[fmt.tables]\nstyle = \"wide\"\n")
             .err()
             .ok_or_else(|| anyhow!("expected table style error"))?;
         assert!(
@@ -1722,8 +1745,9 @@ style = "preserve"
         assert_eq!(fmt.resolve_italic(b'_'), b'*');
         assert_eq!(fmt.resolve_list_marker(b'*'), b'-');
 
-        // Default config (no [fmt] table): every style knob is Preserve,
-        // so resolvers pass the source byte through unchanged.
+        // Default config (no [fmt] table): delimiter and marker style
+        // knobs are Preserve, so resolvers pass source bytes through
+        // unchanged. Tables have their own default normal form.
         let defaults = FmtOptions::default();
         assert_eq!(defaults.resolve_italic(b'_'), b'_');
         assert_eq!(defaults.resolve_italic(b'*'), b'*');

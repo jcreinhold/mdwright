@@ -186,4 +186,12 @@ mod tests {
         assert_eq!(formatted, doc.source());
         assert_eq!(report, FormatReport::default());
     }
+
+    #[test]
+    fn default_table_normal_form_keeps_table_free_fast_path() {
+        let doc = Document::parse("plain paragraph\n").expect("fixture parses");
+        let (formatted, report) = format_document_with_report(&doc, &FmtOptions::default());
+        assert_eq!(formatted, doc.source());
+        assert_eq!(report, FormatReport::default());
+    }
 }

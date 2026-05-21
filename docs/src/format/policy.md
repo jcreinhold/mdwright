@@ -4,9 +4,9 @@ mdwright's formatter has two responsibilities, in this order:
 
 ## 1. Identity Emit: Preserve
 
-Start with the user's source bytes. With every style knob at its default and `wrap = "keep"`, formatting returns those
-bytes unchanged except for the document-boundary policies: line endings, trailing newline handling, and end-of-line
-selection.
+Start with the user's source bytes. With `wrap = "keep"` and no active style rewrite other than the default table
+compact normal form, table-free documents return those bytes unchanged except for the document-boundary policies: line
+endings, trailing newline handling, and end-of-line selection.
 
 This is the load-bearing invariant. Default formatting is idempotent by construction because the formatter does not
 synthesise Markdown for recognised structures.
@@ -25,8 +25,9 @@ cannot reach a pass with no commits before its guard trips, mdwright leaves the 
 of returning a partial normal form.
 
 Tables are parent normal forms. The table family runs after inline canonicalisers, reads cell contents from the current
-snapshot, and rewrites each table block only when document-owned table facts account for the full table shape. It does
-not emit row- or cell-level edits that could race inline rewrites.
+snapshot, and rewrites each table block only when document-owned table facts account for the full table shape. The
+default table normal form is compact; `fmt.tables.style = "align"` pads columns by display width, and `"preserve"` opts
+out. The family does not emit row- or cell-level edits that could race inline rewrites.
 
 Wrap is terminal. It runs only after a full canonical-family scan commits no edits for the current snapshot. If wrap
 commits paragraph edits, the engine returns to the first canonical family on a fresh parse before wrapping again.
@@ -39,8 +40,9 @@ The default wrap strategy is stable soft-break reflow: ordinary source newlines 
 breaks stay hard boundaries, and overlong breakable runs are wrapped to the configured budget. `wrap-strategy =
 "balanced"` opts into a paragraph rebalancer for authors who prefer more even line lengths.
 
-Default: every style knob is `Preserve` and wrapping is `Keep`. With the default config the rewrite-family pipeline
-short-circuits before running. Set per-knob targets in `.mdwright.toml` to opt in.
+Default: tables use compact normal form, every other style knob is `Preserve`, and wrapping is `Keep`. With the default
+config the rewrite-family pipeline short-circuits for table-free documents. Set per-knob targets in `.mdwright.toml` to
+opt in or out.
 
 ## Why the separation
 

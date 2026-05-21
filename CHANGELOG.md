@@ -68,7 +68,8 @@ All notable changes to mdwright are listed here. The format follows
 - Added `[fmt] profile = "preserve" | "mdformat"`. The `mdformat` profile keeps mdformat's default `wrap = keep`, uses
   dash bullets, safe repeated-`1.` ordered-list markers, 70-underscore thematic breaks, and padded GFM tables where
   transactional verification preserves document semantics. Explicit `[fmt]` keys override profile defaults.
-- Added `fmt.tables.style = "preserve" | "pad"` for verified GFM table cell padding.
+- Added `fmt.tables.style = "compact" | "align" | "preserve"` for verified GFM table normal forms. The default compact
+  form trims redundant cell padding; `align` keeps the padded table layout used by the mdformat profile.
 - Fixed dogfood lint false positives for inline-code plural suffixes, `jsonc` code fences, and MyST directive fences.
 - Reworked formatter canonicalisation around rewrite families with explicit ownership. Inline delimiters and link
   destinations are slot-owned, list markers are marker-owned, table padding is a parent normal form, wrap is terminal,

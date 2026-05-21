@@ -19,18 +19,18 @@
 //!
 //! # Performance
 //!
-//! Default config (every knob `Preserve`) triggers the early-out in
-//! [`FmtOptions::has_any_canonicalisation`], so structural callers
-//! pay zero. With canonicalisation enabled, the rewrite-family pipeline
-//! reparses after committed family plans so later families see fresh
-//! document facts. A family that cannot produce a verified local plan
-//! skips instead of committing partial progress.
+//! Table-free default config triggers the early-out in
+//! `format_document_with_report`, so structural callers pay zero. With
+//! canonicalisation enabled, the rewrite-family pipeline reparses after
+//! committed family plans so later families see fresh document facts. A
+//! family that cannot produce a verified local plan skips instead of
+//! committing partial progress.
 //!
 //! Family order lives in the rewrite-family pipeline. This module owns
 //! only the style-specific policy for constructing a family's edits.
 
 use crate::format::rewrite::{Candidate, OwnerKind, RewriteFamily, Snapshot, Verification};
-use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender, OrderedListStyle, ThematicStyle};
+use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender, OrderedListStyle, TableStyle, ThematicStyle};
 use mdwright_document::{InlineDelimiterKind, TableAlign, TableSite};
 use mdwright_math::MathRegion;
 use mdwright_math::MathSpan;
@@ -70,8 +70,8 @@ pub(crate) fn collect_family_candidates(
             }
         }
         RewriteFamily::Table => {
-            if opts.should_pad_tables() {
-                collect_table_padding(snapshot, candidates);
+            if opts.should_normalise_tables() {
+                collect_table_normal_form(snapshot, opts.table(), candidates);
             }
         }
         RewriteFamily::LinkDestination => {
@@ -299,12 +299,12 @@ fn collect_thematic(snapshot: &Snapshot<'_>, target: ThematicStyle, candidates: 
     }
 }
 
-// ----- GFM table padding ----------------------------------------
+// ----- GFM table normal forms -----------------------------------
 
-fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate>) {
+fn collect_table_normal_form(snapshot: &Snapshot<'_>, style: TableStyle, candidates: &mut Vec<Candidate>) {
     let out = snapshot.source();
     for table in snapshot.document().table_sites() {
-        let Some(normal_form) = TableNormalForm::from_current_snapshot(out, table) else {
+        let Some(normal_form) = TableNormalForm::from_current_snapshot(out, table, style) else {
             continue;
         };
         let raw_range = table.raw_range();
@@ -319,7 +319,7 @@ fn collect_table_padding(snapshot: &Snapshot<'_>, candidates: &mut Vec<Candidate
             raw_range,
             normal_form.replacement,
             Verification::PreserveMarkdownAndMath,
-            "table-pad",
+            "table-normal-form",
         ) {
             candidates.push(candidate);
         }
@@ -331,26 +331,22 @@ struct TableNormalForm {
 }
 
 impl TableNormalForm {
-    fn from_current_snapshot(source: &str, table: &TableSite) -> Option<Self> {
+    fn from_current_snapshot(source: &str, table: &TableSite, style: TableStyle) -> Option<Self> {
         let column_count = table_column_count(table)?;
         let rows = table_source_rows(source, table, column_count)?;
-        let widths = table_column_widths(&rows, column_count);
         let had_trailing_newline = source.get(table.raw_range()).is_some_and(|slice| slice.ends_with('\n'));
 
         // The table family runs after inline families. Cell contents
         // therefore come from the current snapshot, not the original
         // document, and the replacement owns only the table block.
-        let mut replacement = String::new();
-        for (row_idx, row) in rows.iter().enumerate() {
-            if row_idx == 1 {
-                push_table_delimiter(&mut replacement, &widths, table.alignments());
-            } else {
-                push_table_row(&mut replacement, row, &widths, table.alignments());
+        let replacement = match style {
+            TableStyle::Compact => render_compact_table(&rows, table.alignments(), had_trailing_newline),
+            TableStyle::Align => {
+                let widths = table_column_widths(&rows, column_count);
+                render_aligned_table(&rows, &widths, table.alignments(), had_trailing_newline)
             }
-            if row_idx.saturating_add(1) < rows.len() || had_trailing_newline {
-                replacement.push('\n');
-            }
-        }
+            TableStyle::Preserve => return None,
+        };
 
         Some(Self { replacement })
     }
@@ -409,7 +405,68 @@ fn table_column_widths(rows: &[Vec<String>], column_count: usize) -> Vec<usize> 
     widths
 }
 
-fn push_table_row(out: &mut String, row: &[String], widths: &[usize], alignments: &[TableAlign]) {
+fn render_compact_table(rows: &[Vec<String>], alignments: &[TableAlign], had_trailing_newline: bool) -> String {
+    let mut out = String::new();
+    for (row_idx, row) in rows.iter().enumerate() {
+        if row_idx == 1 {
+            push_compact_table_delimiter(&mut out, alignments);
+        } else {
+            push_compact_table_row(&mut out, row);
+        }
+        if row_idx.saturating_add(1) < rows.len() || had_trailing_newline {
+            out.push('\n');
+        }
+    }
+    out
+}
+
+fn render_aligned_table(
+    rows: &[Vec<String>],
+    widths: &[usize],
+    alignments: &[TableAlign],
+    had_trailing_newline: bool,
+) -> String {
+    let mut out = String::new();
+    for (row_idx, row) in rows.iter().enumerate() {
+        if row_idx == 1 {
+            push_aligned_table_delimiter(&mut out, widths, alignments);
+        } else {
+            push_aligned_table_row(&mut out, row, widths, alignments);
+        }
+        if row_idx.saturating_add(1) < rows.len() || had_trailing_newline {
+            out.push('\n');
+        }
+    }
+    out
+}
+
+fn push_compact_table_row(out: &mut String, row: &[String]) {
+    out.push('|');
+    for cell in row {
+        out.push(' ');
+        out.push_str(cell);
+        out.push(' ');
+        out.push('|');
+    }
+}
+
+fn push_compact_table_delimiter(out: &mut String, alignments: &[TableAlign]) {
+    out.push('|');
+    for align in alignments {
+        let delimiter = match align {
+            TableAlign::None => "---",
+            TableAlign::Left => ":---",
+            TableAlign::Center => ":---:",
+            TableAlign::Right => "---:",
+        };
+        out.push(' ');
+        out.push_str(delimiter);
+        out.push(' ');
+        out.push('|');
+    }
+}
+
+fn push_aligned_table_row(out: &mut String, row: &[String], widths: &[usize], alignments: &[TableAlign]) {
     out.push('|');
     for (col, width) in widths.iter().copied().enumerate() {
         let cell = row.get(col).map_or("", String::as_str);
@@ -429,7 +486,7 @@ fn push_table_row(out: &mut String, row: &[String], widths: &[usize], alignments
     }
 }
 
-fn push_table_delimiter(out: &mut String, widths: &[usize], alignments: &[TableAlign]) {
+fn push_aligned_table_delimiter(out: &mut String, widths: &[usize], alignments: &[TableAlign]) {
     out.push('|');
     for (col, width) in widths.iter().copied().enumerate() {
         out.push(' ');
@@ -781,7 +838,7 @@ mod tests {
     }
 
     #[test]
-    fn table_padding_skips_rows_with_unmodelled_extra_cells() {
+    fn table_normal_form_skips_rows_with_unmodelled_extra_cells() {
         let snapshot = Snapshot::parse_owned("| a | b |\n| - | - |\n| x | y | z |\n", ParseOptions::default())
             .expect("snapshot parses");
         let mut candidates = Vec::new();
@@ -795,7 +852,7 @@ mod tests {
     }
 
     #[test]
-    fn table_padding_uses_current_inline_normal_form() {
+    fn table_normal_form_uses_current_inline_normal_form() {
         let src = "| item | value |\n| --- | --- |\n| _em_ | [x](https://example.com/a) |\n";
         let opts = FmtOptions::mdformat()
             .with_italic(ItalicStyle::Asterisk)
@@ -806,6 +863,30 @@ mod tests {
         assert_eq!(once, twice);
         assert!(once.contains("*em*"));
         assert!(once.contains("[x](<https://example.com/a>)"));
+    }
+
+    #[test]
+    fn compact_table_normal_form_does_not_compute_column_padding() {
+        let src = "| h1   | longer heading |\n| ---- | :------------- |\n| α    | beta           |\n| 你好 | world          |\n";
+        let once = format_with(src, &FmtOptions::default());
+        let twice = format_with(&once, &FmtOptions::default());
+
+        assert_eq!(once, twice);
+        assert_eq!(
+            once,
+            "| h1 | longer heading |\n| --- | :--- |\n| α | beta |\n| 你好 | world |\n"
+        );
+    }
+
+    #[test]
+    fn aligned_table_normal_form_uses_display_width() {
+        let src = "| name | desc |\n| --- | --- |\n| α | beta |\n| 你好 | world |\n";
+        let once = format_with(src, &FmtOptions::default().with_table(TableStyle::Align));
+
+        assert_eq!(
+            once,
+            "| name | desc  |\n| ---- | ----- |\n| α    | beta  |\n| 你好 | world |\n"
+        );
     }
 
     #[test]
