@@ -131,6 +131,18 @@ pub(crate) enum LatexSourceFragment {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum OperatorWordKind {
+    BuiltInCommand,
+    OperatorName,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct OperatorWordInfo {
+    pub(crate) source: LatexSourceFragment,
+    pub(crate) kind: OperatorWordKind,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MathAlphabetStyle {
     Bold,
     Italic,
@@ -503,6 +515,7 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("arcsin", CommandCategory::Function, "arcsin", "arcsin", BASE),
     CommandEntry::direct("arccos", CommandCategory::Function, "arccos", "arccos", BASE),
     CommandEntry::direct("arctan", CommandCategory::Function, "arctan", "arctan", BASE),
+    CommandEntry::direct("exp", CommandCategory::Function, "exp", "exp", BASE),
     CommandEntry::direct("log", CommandCategory::Function, "log", "log", BASE),
     CommandEntry::direct("ln", CommandCategory::Function, "ln", "ln", BASE),
     CommandEntry::direct("lim", CommandCategory::Function, "lim", "lim", BASE),
@@ -510,6 +523,8 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("det", CommandCategory::Function, "det", "det", BASE),
     CommandEntry::direct("dim", CommandCategory::Function, "dim", "dim", BASE),
     CommandEntry::direct("ker", CommandCategory::Function, "ker", "ker", BASE),
+    CommandEntry::direct("im", CommandCategory::Function, "im", "im", BASE),
+    CommandEntry::direct("coker", CommandCategory::Function, "coker", "coker", AMS),
     CommandEntry::direct("hom", CommandCategory::Function, "hom", "hom", BASE),
     CommandEntry::direct("min", CommandCategory::Function, "min", "min", BASE),
     CommandEntry::direct("max", CommandCategory::Function, "max", "max", BASE),
@@ -831,13 +846,74 @@ pub(crate) fn math_alphabet_latex_command(style: MathAlphabetStyle) -> Option<&'
     }
 }
 
-pub(crate) fn styled_word_latex(style: MathAlphabetStyle, base: &str) -> Option<&'static str> {
-    match (style, base) {
-        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Hom") => Some(r"\mathcal{H}om"),
-        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Proj") => Some(r"\mathcal{P}roj"),
-        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Spec") => Some(r"\mathcal{S}pec"),
-        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Der") => Some(r"\mathcal{D}er"),
-        _ => None,
+// Word normalization is registry data rather than xtask migration policy or
+// parser branches. The parser owns source shape; this table owns the narrower
+// vocabulary decision that a word is a mathematical operator.
+const BUILT_IN_OPERATOR_WORDS: &[(&str, &str)] = &[
+    ("log", "log"),
+    ("sin", "sin"),
+    ("cos", "cos"),
+    ("tan", "tan"),
+    ("exp", "exp"),
+    ("dim", "dim"),
+    ("ker", "ker"),
+    ("im", "im"),
+    ("coker", "coker"),
+    ("lim", "lim"),
+    ("sup", "sup"),
+    ("inf", "inf"),
+    ("max", "max"),
+    ("min", "min"),
+];
+
+const NAMED_OPERATOR_WORDS: &[(&str, &str)] = &[
+    ("Spec", r"\operatorname{Spec}"),
+    ("Proj", r"\operatorname{Proj}"),
+    ("Hom", r"\operatorname{Hom}"),
+    ("End", r"\operatorname{End}"),
+    ("Aut", r"\operatorname{Aut}"),
+    ("Gal", r"\operatorname{Gal}"),
+    ("Pic", r"\operatorname{Pic}"),
+    ("Div", r"\operatorname{Div}"),
+    ("Der", r"\operatorname{Der}"),
+    ("Idem", r"\operatorname{Idem}"),
+    ("Frob", r"\operatorname{Frob}"),
+    ("LabCusp", r"\operatorname{LabCusp}"),
+];
+
+pub(crate) fn operator_word_latex_source(word: &str) -> Option<OperatorWordInfo> {
+    if let Some((_word, command)) = BUILT_IN_OPERATOR_WORDS
+        .iter()
+        .find(|(candidate, _command)| *candidate == word)
+    {
+        return Some(OperatorWordInfo {
+            source: LatexSourceFragment::Command(command),
+            kind: OperatorWordKind::BuiltInCommand,
+        });
+    }
+    NAMED_OPERATOR_WORDS
+        .iter()
+        .find(|(candidate, _source)| *candidate == word)
+        .map(|(_word, source)| OperatorWordInfo {
+            source: LatexSourceFragment::Raw(source),
+            kind: OperatorWordKind::OperatorName,
+        })
+}
+
+pub(crate) fn styled_operator_word_latex_source(style: MathAlphabetStyle, base: &str) -> Option<OperatorWordInfo> {
+    match style {
+        MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript => operator_word_latex_source(base),
+        MathAlphabetStyle::Bold
+        | MathAlphabetStyle::Italic
+        | MathAlphabetStyle::BoldItalic
+        | MathAlphabetStyle::Fraktur
+        | MathAlphabetStyle::DoubleStruck
+        | MathAlphabetStyle::BoldFraktur
+        | MathAlphabetStyle::Sans
+        | MathAlphabetStyle::SansBold
+        | MathAlphabetStyle::SansItalic
+        | MathAlphabetStyle::SansBoldItalic
+        | MathAlphabetStyle::Monospace => None,
     }
 }
 
@@ -1057,6 +1133,27 @@ mod tests {
         assert_eq!(
             unicode_symbol_latex_source("⤏"),
             Some(LatexSourceFragment::Command("dashrightarrow"))
+        );
+    }
+
+    #[test]
+    fn operator_word_lookup_keeps_semantic_vocabulary_in_registry() {
+        let log = operator_word_latex_source("log").unwrap_or_else(|| panic!("missing log operator entry"));
+        assert_eq!(log.source, LatexSourceFragment::Command("log"));
+        assert_eq!(log.kind, OperatorWordKind::BuiltInCommand);
+
+        let spec = operator_word_latex_source("Spec").unwrap_or_else(|| panic!("missing Spec operator entry"));
+        assert_eq!(spec.source, LatexSourceFragment::Raw(r"\operatorname{Spec}"));
+        assert_eq!(spec.kind, OperatorWordKind::OperatorName);
+
+        let styled_hom = styled_operator_word_latex_source(MathAlphabetStyle::Script, "Hom")
+            .unwrap_or_else(|| panic!("missing script Hom semantic entry"));
+        assert_eq!(styled_hom.source, LatexSourceFragment::Raw(r"\operatorname{Hom}"));
+
+        assert_eq!(operator_word_latex_source("Thing"), None);
+        assert_eq!(
+            styled_operator_word_latex_source(MathAlphabetStyle::Fraktur, "Spec"),
+            None
         );
     }
 

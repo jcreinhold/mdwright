@@ -1044,6 +1044,18 @@ mod tests {
     }
 
     #[test]
+    fn inline_code_math_uses_canonical_operator_words() -> Result<()> {
+        let source = "Use `Hom(A, ℤ)` and `log(q) ≤ 0`.\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(
+            migrated.output,
+            r"Use \(\operatorname{Hom}(A, \mathbb{Z})\) and \(\log(q) \leq 0\).".to_owned() + "\n"
+        );
+        assert_eq!(migrated.edit_count, 2);
+        Ok(())
+    }
+
+    #[test]
     fn existing_math_body_translation_preserves_delimiters() -> Result<()> {
         let source = r"Let \[αᵢ P^∨/S\] hold.".to_owned() + "\n";
         let migrated = migrate_source(&source)?;
@@ -1132,7 +1144,7 @@ mod tests {
         let migrated = migrate_source(source)?;
         assert_eq!(
             migrated.output,
-            "\\[\n\\tilde{M} \\Longleftrightarrow \\mathcal{H}om(A, B)\nA \\leftrightarrow B\nD_{+} \\bigoplus \\square\n\\mathcal{D}er(X) \\nprec Y \\nleqslant Z\n\\]\n"
+            "\\[\n\\tilde{M} \\Longleftrightarrow \\operatorname{Hom}(A, B)\nA \\leftrightarrow B\nD_{+} \\bigoplus \\square\n\\operatorname{Der}(X) \\nprec Y \\nleqslant Z\n\\]\n"
         );
         assert_eq!(migrated.edit_count, 1);
         Ok(())

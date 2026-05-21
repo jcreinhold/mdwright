@@ -34,6 +34,9 @@ fn direct_latex_atom() -> impl Strategy<Value = String> {
         r"\infty",
         r"\varnothing",
         r"\emptyset",
+        r"\log",
+        r"\exp",
+        r"\ker",
     ])
     .prop_map(str::to_owned)
 }
@@ -122,6 +125,21 @@ fn styled_unicode_atom() -> impl Strategy<Value = String> {
     prop::sample::select(&["𝓗𝓸𝓶", "𝓟𝓻𝓸𝓳", "𝒟ℯ𝓇", "𝐟𝐠", "𝔭", "ℤ"]).prop_map(str::to_owned)
 }
 
+fn operator_unicode_atom() -> impl Strategy<Value = String> {
+    prop::sample::select(&[
+        "log(q)",
+        "6 · log(q)",
+        "Spec(A)",
+        "Proj(A)",
+        "Hom(A,B)",
+        "Gal(L/K)",
+        "Idem(A)",
+        "lim_→ A_t",
+        "lim_← H^n",
+    ])
+    .prop_map(str::to_owned)
+}
+
 fn supported_unicode_atom() -> impl Strategy<Value = String> {
     prop_oneof![
         plain_unicode_atom(),
@@ -129,6 +147,7 @@ fn supported_unicode_atom() -> impl Strategy<Value = String> {
         script_unicode_atom(),
         structured_unicode_atom(),
         styled_unicode_atom(),
+        operator_unicode_atom(),
     ]
 }
 

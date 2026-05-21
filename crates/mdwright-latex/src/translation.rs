@@ -13,8 +13,9 @@ use crate::parser::{
     ParseDiagnosticKind, Script, ScriptArgument, ScriptBase, Sqrt, parse_math_body,
 };
 use crate::registry::{
-    LatexSourceFragment, latex_symbol, lookup_command, math_alphabet_latex_command, styled_word_latex,
-    unicode_sub_latex, unicode_sub_str, unicode_super_latex, unicode_super_str, unicode_symbol_latex_source,
+    LatexSourceFragment, OperatorWordKind, latex_symbol, lookup_command, math_alphabet_latex_command,
+    operator_word_latex_source, styled_operator_word_latex_source, unicode_sub_latex, unicode_sub_str,
+    unicode_super_latex, unicode_super_str, unicode_symbol_latex_source,
 };
 use crate::unicode_lexer::CombiningAccent;
 use crate::unicode_parser::{
@@ -178,17 +179,65 @@ impl<'src> UnicodeEmitContext<'src> {
     fn emit_body_preserving_gaps(&mut self, body: &UnicodeMathBody<'_>, start: usize, end: usize) -> String {
         let mut out = String::new();
         let mut cursor = start;
-        for node in &body.elements {
+        let mut index = 0;
+        while let Some(node) = body.elements.get(index) {
             if cursor < node.span.start() {
                 out.push_str(slice_or_empty(self.source, cursor..node.span.start()));
             }
+            if preserves_following_group(&node.kind)
+                && let Some(next) = body.elements.get(index.saturating_add(1))
+                && let Some((preserved, span_end)) = self.emit_preserved_latex_argument(node, next)
+            {
+                out.push_str(&preserved);
+                cursor = span_end;
+                index = index.saturating_add(2);
+                continue;
+            }
             out.push_str(&self.emit_node(node));
             cursor = node.span.end();
+            index = index.saturating_add(1);
         }
         if cursor < end {
             out.push_str(slice_or_empty(self.source, cursor..end));
         }
         out
+    }
+
+    fn emit_preserved_latex_argument(
+        &mut self,
+        command: &UnicodeNode<'_>,
+        argument: &UnicodeNode<'_>,
+    ) -> Option<(String, usize)> {
+        let mut out = self.emit_node(command);
+        match &argument.kind {
+            UnicodeNodeKind::Group(_) => {
+                if command.span.end() < argument.span.start() {
+                    out.push_str(slice_or_empty(self.source, command.span.end()..argument.span.start()));
+                }
+                out.push_str(slice_or_empty(self.source, argument.span.as_range()));
+                Some((out, argument.span.end()))
+            }
+            UnicodeNodeKind::Script(script) => {
+                let base = script_group_base(script)?;
+                if command.span.end() < base.span.start() {
+                    out.push_str(slice_or_empty(self.source, command.span.end()..base.span.start()));
+                }
+                out.push_str(slice_or_empty(self.source, base.span.as_range()));
+                out.push_str(&self.emit_script_suffix(script).ok()?);
+                Some((out, argument.span.end()))
+            }
+            UnicodeNodeKind::Plain(_)
+            | UnicodeNodeKind::Number(_)
+            | UnicodeNodeKind::Punctuation(_)
+            | UnicodeNodeKind::CanonicalSource(_)
+            | UnicodeNodeKind::DirectSymbol(_)
+            | UnicodeNodeKind::ExistingLatex(_)
+            | UnicodeNodeKind::StyledRun(_)
+            | UnicodeNodeKind::Accent(_)
+            | UnicodeNodeKind::Root(_)
+            | UnicodeNodeKind::LinearArrow(_)
+            | UnicodeNodeKind::Unknown(_) => None,
+        }
     }
 
     fn emit_node(&mut self, node: &UnicodeNode<'_>) -> String {
@@ -203,13 +252,14 @@ impl<'src> UnicodeEmitContext<'src> {
 
     fn try_emit_node(&mut self, node: &UnicodeNode<'_>) -> Result<String, String> {
         match &node.kind {
-            UnicodeNodeKind::Plain(text) | UnicodeNodeKind::Number(text) | UnicodeNodeKind::Punctuation(text) => {
+            UnicodeNodeKind::Plain(text) => Ok(self.emit_plain(text, node.span)),
+            UnicodeNodeKind::Number(text) | UnicodeNodeKind::Punctuation(text) => {
                 Ok(prime_source(text).unwrap_or(text).to_owned())
             }
             UnicodeNodeKind::CanonicalSource(text) => Ok(translate_unicode_to_latex(text).text().to_owned()),
             UnicodeNodeKind::DirectSymbol(text) => self.emit_direct_symbol(text, node.span),
             UnicodeNodeKind::ExistingLatex(text) => Ok(canonical_latex_passthrough(text).to_owned()),
-            UnicodeNodeKind::StyledRun(run) => Ok(Self::emit_styled_run(run.style, &run.base)),
+            UnicodeNodeKind::StyledRun(run) => Ok(self.emit_styled_run(run.style, &run.base, node.span)),
             UnicodeNodeKind::Script(script) => self.emit_script(script),
             UnicodeNodeKind::Accent(accent) => self.emit_accent(accent),
             UnicodeNodeKind::Group(group) => Ok(self.emit_group(group)),
@@ -217,6 +267,19 @@ impl<'src> UnicodeEmitContext<'src> {
             UnicodeNodeKind::LinearArrow(arrow) => Ok(self.emit_linear_arrow(arrow)),
             UnicodeNodeKind::Unknown(text) => Err(format!("unknown Unicode math source {text:?}")),
         }
+    }
+
+    fn emit_plain(&self, text: &str, span: SourceSpan) -> String {
+        if let Some(source) = prime_source(text) {
+            return source.to_owned();
+        }
+        if let Some(info) = operator_word_latex_source(text) {
+            let source = match info.kind {
+                OperatorWordKind::BuiltInCommand | OperatorWordKind::OperatorName => info.source,
+            };
+            return self.latex_fragment(source, span.end());
+        }
+        text.to_owned()
     }
 
     fn emit_direct_symbol(&self, text: &str, span: SourceSpan) -> Result<String, String> {
@@ -229,9 +292,12 @@ impl<'src> UnicodeEmitContext<'src> {
         Ok(self.latex_fragment(fragment, span.end()))
     }
 
-    fn emit_styled_run(style: crate::registry::MathAlphabetStyle, base: &str) -> String {
-        if let Some(source) = styled_word_latex(style, base) {
-            return source.to_owned();
+    fn emit_styled_run(&self, style: crate::registry::MathAlphabetStyle, base: &str, span: SourceSpan) -> String {
+        if let Some(info) = styled_operator_word_latex_source(style, base) {
+            let source = match info.kind {
+                OperatorWordKind::BuiltInCommand | OperatorWordKind::OperatorName => info.source,
+            };
+            return self.latex_fragment(source, span.end());
         }
         if base.chars().any(|ch| !ch.is_ascii_alphanumeric()) {
             return translate_unicode_to_latex(base).text().to_owned();
@@ -243,7 +309,16 @@ impl<'src> UnicodeEmitContext<'src> {
     }
 
     fn emit_script(&mut self, script: &UnicodeScript<'_>) -> Result<String, String> {
+        if let Some(command) = directional_limit_script_command(script) {
+            return Ok(command.to_owned());
+        }
         let mut out = self.emit_script_base(&script.base);
+        out.push_str(&self.emit_script_suffix(script)?);
+        Ok(out)
+    }
+
+    fn emit_script_suffix(&mut self, script: &UnicodeScript<'_>) -> Result<String, String> {
+        let mut out = String::new();
         if let Some(superscript) = &script.superscript {
             out.push_str("^{");
             out.push_str(&self.emit_script_argument(superscript)?);
@@ -382,6 +457,88 @@ fn canonical_latex_passthrough(source: &str) -> &str {
         "geq\u{0338}" | "ge\u{0338}" | "geqslant\u{0338}" => r"\ngeq",
         "in\u{0338}" => r"\notin",
         _ => source,
+    }
+}
+
+fn preserves_following_group(kind: &UnicodeNodeKind<'_>) -> bool {
+    matches!(
+        kind,
+        UnicodeNodeKind::ExistingLatex(
+            r"\operatorname"
+                | r"\mathrm"
+                | r"\mathbf"
+                | r"\mathit"
+                | r"\mathsf"
+                | r"\mathtt"
+                | r"\mathcal"
+                | r"\mathfrak"
+                | r"\mathbb"
+                | r"\text"
+        )
+    )
+}
+
+fn script_group_base<'a>(script: &'a UnicodeScript<'_>) -> Option<&'a UnicodeNode<'a>> {
+    let UnicodeScriptBase::Node(base) = &script.base else {
+        return None;
+    };
+    if matches!(base.kind, UnicodeNodeKind::Group(_)) {
+        Some(base)
+    } else {
+        None
+    }
+}
+
+fn directional_limit_script_command(script: &UnicodeScript<'_>) -> Option<&'static str> {
+    if script.superscript.is_some() {
+        return None;
+    }
+    let UnicodeScriptBase::Node(base) = &script.base else {
+        return None;
+    };
+    if !matches!(&base.kind, UnicodeNodeKind::Plain("lim")) {
+        return None;
+    }
+    script
+        .subscript
+        .as_ref()
+        .and_then(directional_limit_script_argument_command)
+}
+
+fn directional_limit_script_argument_command(argument: &UnicodeScriptArgument<'_>) -> Option<&'static str> {
+    match argument {
+        UnicodeScriptArgument::Node(node) => directional_limit_node_command(node),
+        UnicodeScriptArgument::Group(group) => match group.body.elements.as_slice() {
+            [node] => directional_limit_node_command(node),
+            _ => None,
+        },
+        UnicodeScriptArgument::ScriptRun { source, .. } => directional_limit_source_command(source),
+    }
+}
+
+fn directional_limit_node_command(node: &UnicodeNode<'_>) -> Option<&'static str> {
+    match &node.kind {
+        UnicodeNodeKind::DirectSymbol(source)
+        | UnicodeNodeKind::Plain(source)
+        | UnicodeNodeKind::ExistingLatex(source) => directional_limit_source_command(source),
+        UnicodeNodeKind::CanonicalSource(source) => directional_limit_source_command(source),
+        UnicodeNodeKind::Number(_)
+        | UnicodeNodeKind::Punctuation(_)
+        | UnicodeNodeKind::StyledRun(_)
+        | UnicodeNodeKind::Script(_)
+        | UnicodeNodeKind::Accent(_)
+        | UnicodeNodeKind::Group(_)
+        | UnicodeNodeKind::Root(_)
+        | UnicodeNodeKind::LinearArrow(_)
+        | UnicodeNodeKind::Unknown(_) => None,
+    }
+}
+
+fn directional_limit_source_command(source: &str) -> Option<&'static str> {
+    match source {
+        "→" | r"\to" | r"\rightarrow" => Some(r"\varinjlim"),
+        "←" | r"\gets" | r"\leftarrow" => Some(r"\varprojlim"),
+        _ => None,
     }
 }
 
@@ -889,6 +1046,14 @@ mod tests {
             translate_unicode_to_latex(r"x_{n} + \color{red}{x}").text(),
             r"x_{n} + \color{red}{x}"
         );
+        assert_eq!(
+            translate_unicode_to_latex(r"\mathrm{Hom}(X,Y)").text(),
+            r"\mathrm{Hom}(X,Y)"
+        );
+        assert_eq!(
+            translate_unicode_to_latex(r"\mathrm{Div}^+_X").text(),
+            r"\mathrm{Div}^{+}_{X}"
+        );
     }
 
     #[test]
@@ -910,14 +1075,33 @@ mod tests {
         assert_eq!(translate_unicode_to_latex("ℱ(U)").text(), r"\mathcal{F}(U)");
         assert_eq!(translate_unicode_to_latex("𝔭").text(), r"\mathfrak{p}");
         assert_eq!(translate_unicode_to_latex("ℤ").text(), r"\mathbb{Z}");
-        assert_eq!(translate_unicode_to_latex("𝓗𝓸𝓶").text(), r"\mathcal{H}om");
-        assert_eq!(translate_unicode_to_latex("𝓟𝓻𝓸𝓳").text(), r"\mathcal{P}roj");
-        assert_eq!(translate_unicode_to_latex("𝒟ℯ𝓇").text(), r"\mathcal{D}er");
+        assert_eq!(translate_unicode_to_latex("𝓗𝓸𝓶").text(), r"\operatorname{Hom}");
+        assert_eq!(translate_unicode_to_latex("𝓟𝓻𝓸𝓳").text(), r"\operatorname{Proj}");
+        assert_eq!(translate_unicode_to_latex("𝒟ℯ𝓇").text(), r"\operatorname{Der}");
         assert_eq!(translate_unicode_to_latex("𝚪_*").text(), r"\Gamma_{*}");
         assert_eq!(translate_unicode_to_latex("𝐒").text(), r"\mathbf{S}");
         assert_eq!(translate_unicode_to_latex("𝐕").text(), r"\mathbf{V}");
         assert_eq!(translate_unicode_to_latex("𝐗").text(), r"\mathbf{X}");
         assert_eq!(translate_unicode_to_latex("𝐟𝐠").text(), r"\mathbf{fg}");
+    }
+
+    #[test]
+    fn unicode_to_latex_normalizes_operator_words() {
+        assert_eq!(translate_unicode_to_latex("log(q)").text(), r"\log(q)");
+        assert_eq!(translate_unicode_to_latex("6 · log(q)").text(), r"6 \cdot \log(q)");
+        assert_eq!(translate_unicode_to_latex("Spec(A)").text(), r"\operatorname{Spec}(A)");
+        assert_eq!(translate_unicode_to_latex("Proj(A)").text(), r"\operatorname{Proj}(A)");
+        assert_eq!(
+            translate_unicode_to_latex("Hom(A,B)").text(),
+            r"\operatorname{Hom}(A,B)"
+        );
+        assert_eq!(
+            translate_unicode_to_latex("Gal(L/K)").text(),
+            r"\operatorname{Gal}(L/K)"
+        );
+        assert_eq!(translate_unicode_to_latex("Idem(A)").text(), r"\operatorname{Idem}(A)");
+        assert_eq!(translate_unicode_to_latex("Thing(A)").text(), "Thing(A)");
+        assert_eq!(translate_unicode_to_latex("𝓣𝓱𝓲𝓷𝓰").text(), r"\mathcal{Thing}");
     }
 
     #[test]
@@ -937,6 +1121,19 @@ mod tests {
         assert_eq!(translate_unicode_to_latex("c̄").text(), r"\bar{c}");
         assert_eq!(translate_unicode_to_latex("lim⃗").text(), r"\varinjlim");
         assert_eq!(translate_unicode_to_latex("lim⃖").text(), r"\varprojlim");
+    }
+
+    #[test]
+    fn unicode_to_latex_normalizes_directional_limit_scripts() {
+        assert_eq!(translate_unicode_to_latex("lim_→ A_t").text(), r"\varinjlim A_{t}");
+        assert_eq!(translate_unicode_to_latex("lim_← H^n").text(), r"\varprojlim H^{n}");
+        assert_eq!(translate_unicode_to_latex(r"lim_\to A_t").text(), r"\varinjlim A_{t}");
+        assert_eq!(
+            translate_unicode_to_latex(r"lim_\leftarrow H^n").text(),
+            r"\varprojlim H^{n}"
+        );
+        assert_eq!(translate_unicode_to_latex("lim⃗ M_n").text(), r"\varinjlim M_{n}");
+        assert_eq!(translate_unicode_to_latex("lim⃖ M_n").text(), r"\varprojlim M_{n}");
     }
 
     #[test]

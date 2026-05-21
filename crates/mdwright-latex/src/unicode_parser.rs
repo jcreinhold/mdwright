@@ -447,11 +447,17 @@ impl<'stream, 'src> UnicodeParser<'stream, 'src> {
                     span: token.span(),
                 })
             }
+            UnicodeTokenKind::ArrowHead(TokenArrowDirection::Left | TokenArrowDirection::Right) => {
+                self.cursor.advance();
+                Some(ScriptArgument::Node(Box::new(UnicodeNode::new(
+                    UnicodeNodeKind::DirectSymbol(&self.source[token.span().as_range()]),
+                    token.span(),
+                ))))
+            }
             UnicodeTokenKind::RightBrace
             | UnicodeTokenKind::RightBracket
             | UnicodeTokenKind::RightParen
             | UnicodeTokenKind::ArrowShaft(_)
-            | UnicodeTokenKind::ArrowHead(_)
             | UnicodeTokenKind::CombiningAccentMark(_)
             | UnicodeTokenKind::Whitespace(_)
             | UnicodeTokenKind::Error
