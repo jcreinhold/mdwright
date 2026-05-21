@@ -8,8 +8,8 @@ surface** that the version number commits to.
 A change to any of the following is a breaking change and requires a major-version bump (or a minor bump while we are
 pre-1.0; see [Pre-1.0 caveats](#pre-10-caveats) below):
 
-- Every `pub` item exported from the publishable component crates: `mdwright-document`, `mdwright-format`,
-  `mdwright-lint`, `mdwright-config`, `mdwright-lsp`, and `mdwright-math`.
+- Every `pub` item exported from the publishable component crates: `mdwright-latex`, `mdwright-math`,
+  `mdwright-document`, `mdwright-format`, `mdwright-lint`, `mdwright-config`, and `mdwright-lsp`.
 - The command-package helpers exported from `mdwright`: `run_with_rules` and `discover_markdown`.
 - CLI subcommands, their flags, and their exit codes. The exit-code mapping appears in [`reference/cli.md`](cli.md).
 - The configuration schema for `mdwright.toml`, `.mdwright.toml`, and `pyproject.toml [tool.mdwright]`. The schema is

@@ -8,7 +8,8 @@ root binary.
 Cargo.toml               # virtual workspace root, no package targets
 crates/mdwright          # command-line package and `mdwright` binary
 crates/mdwright-document # parsed Markdown facts with stable source coords
-crates/mdwright-math     # TeX/math span recognition, rendering, normalisation
+crates/mdwright-latex    # TeX math-body lexing, parsing, layout, translation
+crates/mdwright-math     # Markdown math-span recognition and normalisation
 crates/mdwright-format   # formatter policy, rewrite-family planning, oracles
 crates/mdwright-lint     # diagnostics, rule execution, suppression, safe fixes
 crates/mdwright-config   # TOML schema, discovery, resolved option construction
@@ -18,6 +19,8 @@ crates/mdwright-lsp      # tower-lsp server and editor-state bridge
 Dependency direction:
 
 ```text
+       mdwright-latex
+             │
        mdwright-math
             │
        mdwright-document
@@ -33,7 +36,8 @@ mdwright-format   mdwright-lint
 
 | Crate              | Hides                                                                                      |
 | ------------------ | ------------------------------------------------------------------------------------------ |
-| `mdwright-math`    | TeX delimiter and environment recognition; math body normalisation.                        |
+| `mdwright-latex`   | TeX/LaTeX math-body lexing, parsing, command vocabulary, Unicode layout, and source translation. |
+| `mdwright-math`    | Markdown math delimiter and environment recognition; extraction of math bodies from source. |
 | `mdwright-document`| CommonMark/pulldown quirks, GFM extension overlays, source-coordinate invariants, parser-panic containment. Owns the only production `pulldown-cmark` chokepoint. |
 | `mdwright-format`  | Formatter style policy, rewrite-family planning, local ownership checks, semantic verification. |
 | `mdwright-lint`    | Rule dispatch, suppressions, diagnostic shape, safe-fix edit ordering, standard-rule registry. |
@@ -45,7 +49,8 @@ The document crate is a parse/query abstraction; formatting and linting are oper
 their algorithms. Other crates consume document facts as domain records (structural spans, paragraphs, list-marker
 sites, inline delimiter slots, heading attribute trailers, link destination slots, math regions, frontmatter, code/HTML
 exclusions, top-level checkpoints) and do not couple to pulldown's event vocabulary, offset iterator, panic payloads, or
-backtraces.
+backtraces. Markdown math-region recognition and TeX math-body parsing are separate boundaries: `mdwright-math`
+recognises where math lives in Markdown, while `mdwright-latex` owns the language inside those regions.
 `pulldown_model` tests may import pulldown directly because they deliberately probe upstream drift.
 
 ## Public API entry points
@@ -71,8 +76,11 @@ as `[render] profile`.
 
 Enforced by `crates/mdwright/tests/dependency_fences.rs` via `cargo tree`:
 
-- `mdwright-math` depends on no other `mdwright-*` crate.
-- `mdwright-document` may depend on `mdwright-math`; it must not depend on format, lint, config, CLI, LSP, `clap`,
+- `mdwright-latex` depends on no other `mdwright-*` crate and has no terminal, browser, Markdown parser, formatter,
+  lint, config, CLI, or LSP dependencies.
+- `mdwright-math` may depend on `mdwright-latex`; it must not depend on document, format, lint, config, CLI, or LSP.
+- `mdwright-document` may depend on `mdwright-math`; it must not depend on latex body parsing directly, format, lint,
+  config, CLI, LSP, `clap`,
   `ignore`, `rayon`, `serde`, `toml`, `tokio`, `tower-lsp`, `owo-colors`, or `anyhow`.
 - `mdwright-format` may depend on `mdwright-document` and `mdwright-math`; it must not depend on lint, CLI, LSP, `clap`,
   `tokio`, or `tower-lsp`. It does not import `pulldown-cmark` or `mdwright_document::parse` in production code.
@@ -81,6 +89,7 @@ Enforced by `crates/mdwright/tests/dependency_fences.rs` via `cargo tree`:
 - `mdwright-config` may depend on document/format/lint option types; it must not depend on CLI or LSP.
 - `mdwright` and `mdwright-lsp` are delivery crates; heavy delivery dependencies belong there.
 - `mdwright-document` does not publicly export parser helpers.
+- `mdwright-math` does not publicly re-export `mdwright-latex` as a pass-through facade.
 - Config schema and docs hold recognition keys under `[parse.extensions]`, not formatter policy.
 - Workspace-internal dependencies carry both `path` and `version`.
 
@@ -91,18 +100,24 @@ strips paths during packaging while local workspace builds keep using the checke
 `.cargo/config.toml` patches internal packages to local paths so local `cargo package --no-verify` checks run before
 those packages exist on crates.io. Publishing order:
 
-1. `mdwright-math`
-2. `mdwright-document`
-3. `mdwright-format`, `mdwright-lint`
-4. `mdwright-config`
-5. `mdwright-lsp`
-6. `mdwright`
+1. `mdwright-latex`
+2. `mdwright-math`
+3. `mdwright-document`
+4. `mdwright-format`, `mdwright-lint`
+5. `mdwright-config`
+6. `mdwright-lsp`
+7. `mdwright`
 
 ## Why these crates, not others
 
 - No `mdwright-source` / `mdwright-source-map` / `mdwright-text`: source canonicalisation and byte mapping are part
   of the document abstraction. Callers want a recognised document whose spans map back to user bytes, not a separate
   coordinate package.
+- `mdwright-latex` is a real boundary, not a facade. TeX math-body parsing, command vocabulary, Unicode layout, and
+  source translation share grammar knowledge and should change behind one narrow API. `mdwright-math` remains separate
+  because Markdown delimiter recognition changes for different reasons and has different callers. See
+  [`latex-boundary-and-dependency-audit.md`](latex-boundary-and-dependency-audit.md) for the design comparison and
+  dependency audit.
 - No `mdwright-util`: a utility crate has no domain responsibility and becomes a junk drawer.
 - No `mdwright-rules`: standard rules and rule dispatch share suppression, diagnostic, and registry semantics;
   separating them would mirror an old directory layout shallowly.

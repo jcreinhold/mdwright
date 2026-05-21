@@ -12,9 +12,10 @@ more specific. Today only this root file exists; add a nested guide where local 
 mdwright is a virtual Cargo workspace. The command package lives at `crates/mdwright` and owns the `mdwright` binary.
 Library users depend directly on component crates:
 
+- `mdwright-latex`: TeX/LaTeX math-body lexing, parsing, command vocabulary, Unicode layout, and source translation.
+- `mdwright-math`: Markdown math-span recognition, delimiter policy, and extraction of math bodies from source.
 - `mdwright-document`: source canonicalisation, pulldown invocation, parser panic containment, document facts, ranges,
   references, frontmatter, lists, code/HTML exclusions, and parse options.
-- `mdwright-math`: pure TeX/math span recognition, render conversion, and body normalisation.
 - `mdwright-format`: identity structural emit plus rewrite-family planning, explicit ownership checks, semantic
   verification, and wrapping.
 - `mdwright-lint`: diagnostics, suppression handling, safe fixes, rule execution, and standard rules.

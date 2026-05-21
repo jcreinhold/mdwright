@@ -5,6 +5,7 @@ members = [
   "crates/mdwright-config",
   "crates/mdwright-document",
   "crates/mdwright-format",
+  "crates/mdwright-latex",
   "crates/mdwright-lint",
   "crates/mdwright-lsp",
   "crates/mdwright-math",
@@ -32,9 +33,11 @@ mdwright = { version = "0.1.0", path = "crates/mdwright" }
 mdwright-config = { version = "0.1.0", path = "crates/mdwright-config" }
 mdwright-document = { version = "0.1.0", path = "crates/mdwright-document" }
 mdwright-format = { version = "0.1.0", path = "crates/mdwright-format" }
+mdwright-latex = { version = "0.1.0", path = "crates/mdwright-latex" }
 mdwright-lint = { version = "0.1.0", path = "crates/mdwright-lint" }
 mdwright-lsp = { version = "0.1.0", path = "crates/mdwright-lsp" }
 mdwright-math = { version = "0.1.0", path = "crates/mdwright-math" }
+logos = "0.16"
 owo-colors = "4"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
 rayon = "1"
@@ -64,6 +67,7 @@ mdwright = { path = "crates/mdwright" }
 mdwright-config = { path = "crates/mdwright-config" }
 mdwright-document = { path = "crates/mdwright-document" }
 mdwright-format = { path = "crates/mdwright-format" }
+mdwright-latex = { path = "crates/mdwright-latex" }
 mdwright-lint = { path = "crates/mdwright-lint" }
 mdwright-lsp = { path = "crates/mdwright-lsp" }
 mdwright-math = { path = "crates/mdwright-math" }

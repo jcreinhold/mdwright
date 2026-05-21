@@ -1,0 +1,21 @@
+[package]
+authors.workspace = true
+categories.workspace = true
+description = "TeX math-body parsing, Unicode layout, and source translation for mdwright"
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+name = "mdwright-latex"
+readme.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+logos = { workspace = true }
+
+[lints]
+workspace = true
+
+[lib]
+doctest = false

@@ -195,12 +195,59 @@ fn old_cli_package_name_is_gone_from_sources() {
 }
 
 #[test]
-fn math_has_no_mdwright_dependencies() {
-    let tree = cargo_tree("mdwright-math");
+fn latex_has_no_mdwright_dependencies() {
+    let tree = cargo_tree("mdwright-latex");
     let deps = tree.lines().skip(1).collect::<Vec<_>>().join("\n");
     assert!(
         !deps.contains("mdwright-") && !deps.contains("mdwright v"),
-        "mdwright-math must not depend on another mdwright crate\n{tree}"
+        "mdwright-latex must not depend on another mdwright crate\n{tree}"
+    );
+}
+
+#[test]
+fn math_depends_only_on_latex_boundary() {
+    let tree = cargo_tree("mdwright-math");
+    for line in tree.lines().skip(1) {
+        if line.contains("mdwright-") || line.contains("mdwright v") {
+            assert!(
+                line.contains("mdwright-latex"),
+                "mdwright-math may depend on mdwright-latex only, not another mdwright crate\n{tree}"
+            );
+        }
+    }
+}
+
+#[test]
+fn math_does_not_reexport_latex_as_a_facade() {
+    let lib = fs::read_to_string(repo_file("crates/mdwright-math/src/lib.rs")).expect("read math lib");
+    assert!(
+        !lib.contains("pub use mdwright_latex"),
+        "mdwright-math must not re-export mdwright-latex as a pass-through facade"
+    );
+}
+
+#[test]
+fn latex_boundary_has_no_delivery_or_markdown_dependencies() {
+    assert_tree_excludes(
+        "mdwright-latex",
+        &[
+            "mdwright-math",
+            "mdwright-document",
+            "mdwright-format",
+            "mdwright-lint",
+            "mdwright-config",
+            "mdwright-lsp",
+            "pulldown-cmark",
+            "syntect",
+            "opener",
+            "clap ",
+            "ignore ",
+            "rayon ",
+            "tokio ",
+            "tower-lsp",
+            "term-maths",
+            "tui-math",
+        ],
     );
 }
 
@@ -426,6 +473,7 @@ fn internal_workspace_dependencies_are_versioned_paths() {
         "mdwright-config",
         "mdwright-document",
         "mdwright-format",
+        "mdwright-latex",
         "mdwright-lint",
         "mdwright-lsp",
         "mdwright-math",

@@ -16,6 +16,7 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 | Format parsed or source Markdown | `FmtOptions`, `WrapStrategy`, `FormatError`, `format_document`, `format_document_with_report`, `format_source`, `format_validated`, `format_validated_with_report` | `mdwright-format` |
 | Format editor ranges | `CheckpointTable`, `format_range`, `format_range_with_checkpoints` | `mdwright-format` |
 | Compare formatter semantics | `semantically_equivalent`, `first_divergence` | `mdwright-format` |
+| Represent TeX math-body diagnostics and output | `LatexError`, `LatexErrorKind`, `SourceSpan`, `RenderedLatex`, `Translation`, `TranslationLoss` | `mdwright-latex` |
 | Run lint rules | `RuleSet`, `LintOptions` | `mdwright-lint` |
 | Consume lint output | `Diagnostic`, `Fix`, `Severity`, `Snippet`, `DuplicateRuleName` | `mdwright-lint` |
 | Apply safe lint fixes | `apply_safe_fixes` | `mdwright-lint` |
@@ -68,6 +69,7 @@ downstream code while preserving stable ranges for rule authors and diagnostic t
 - `Source`, `CanonicalSource`, `OffsetMap`, `ByteSpan`, `OriginalSpan`, `NormalisedLabel`, and heading trailer scanners.
 - Top-level block checkpoint parser helpers. Use `mdwright_format::CheckpointTable`.
 - Formatter rewrite candidates, rewrite snapshots, verification signatures, owner IDs, and byte-application internals.
+- `mdwright-latex` lexer tokens, parser cursors, AST nodes, command-registry storage, and Unicode layout internals.
 - Lint suppression maps, diagnostic sorting internals, and stdlib helper functions not listed as extension surfaces.
 - TOML raw schema structs and config discovery internals.
 - CLI and LSP state machines beyond the documented entry points.

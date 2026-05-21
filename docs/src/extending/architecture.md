@@ -12,10 +12,12 @@ Surfaces      mdwright (CLI)        mdwright-lsp
 Engines       mdwright-format       mdwright-lint
 Glue          mdwright-config
 Document      mdwright-document
-Math          mdwright-math
+Math spans    mdwright-math
+TeX bodies    mdwright-latex
 ```
 
-- `mdwright-math`: pure TeX / math scanning and normalisation.
+- `mdwright-latex`: TeX math-body parsing, Unicode layout, command vocabulary, and source translation.
+- `mdwright-math`: Markdown math-span scanning and normalisation.
 - `mdwright-document`: source coordinates, pulldown invocation, parse options, recognised Markdown facts.
 - `mdwright-config`: interprets user config files into document, format, and lint policy.
 - `mdwright-format`: formatting options, rewrite-family planning, and verification.
@@ -36,8 +38,10 @@ Recognition policy lives in `ParseOptions`. Formatting policy lives in `FmtOptio
 
 ## Math regions
 
-The math scanner lives in `mdwright-math` and knows only about strings and byte ranges. The document crate supplies
-Markdown exclusion ranges, stores accepted math regions, and gives downstream crates one stable inventory to query.
+The Markdown math scanner lives in `mdwright-math` and knows only about strings and byte ranges. The document crate
+supplies Markdown exclusion ranges, stores accepted math regions, and gives downstream crates one stable inventory to
+query. TeX body parsing and Unicode rendering belong in `mdwright-latex`, so Markdown delimiter policy does not leak
+into the TeX parser.
 
 This is the design choice that makes mdwright math-resilient. See [Math regions](../concepts/math-regions.md) for the
 user-facing view.
@@ -76,7 +80,8 @@ a CSS class) but the test sees it.
 | -------------------- | ------------------------------------------------------------------ |
 | A lint rule          | `crates/mdwright-lint/src/stdlib/<rule>.rs` + its explanation      |
 | Document recognition | `crates/mdwright-document/src/`                                    |
-| Math recognition     | `crates/mdwright-math/src/`                                        |
+| Math body language   | `crates/mdwright-latex/src/`                                       |
+| Math span recognition| `crates/mdwright-math/src/`                                        |
 | Formatter rewrites   | `crates/mdwright-format/src/format/`                               |
 | Wrap algorithm       | `crates/mdwright-format/src/format/wrap_pass.rs`                   |
 | Config schema        | `crates/mdwright-config/src/config.rs` + `xtask/src/config_docs.rs` |

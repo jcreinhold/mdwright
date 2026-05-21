@@ -60,6 +60,7 @@ notes.
 Package every publishable crate:
 
 ```sh
+cargo package -p mdwright-latex --allow-dirty --no-verify
 cargo package -p mdwright-math --allow-dirty --no-verify
 cargo package -p mdwright-document --allow-dirty --no-verify
 cargo package -p mdwright-format --allow-dirty --no-verify
