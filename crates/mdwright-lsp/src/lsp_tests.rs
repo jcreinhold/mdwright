@@ -457,7 +457,7 @@ async fn root_config_discovery_controls_lsp_diagnostics() {
     let temp = tempfile::tempdir().expect("tempdir");
     std::fs::write(
         temp.path().join(".mdwright.toml"),
-        "[lint]\nrules = \"default,-bare-url\"\n",
+        "[lint]\npreset = \"default\"\nignore = [\"bare-url\"]\n",
     )
     .expect("write config");
     let root_uri = Url::from_directory_path(temp.path())

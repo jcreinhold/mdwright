@@ -24,7 +24,8 @@ configuration can live there under `[tool.mdwright]`:
 ```toml
 # pyproject.toml
 [tool.mdwright]
-lint.rules = "default,+latex-command"
+lint.preset = "default"
+lint.extend-select = ["latex-command"]
 
 [tool.mdwright.fmt]
 wrap = 100
@@ -35,40 +36,12 @@ wrap = 100
 The following knobs accept CLI flags that take precedence over the
 config file:
 
-- `lint.rules`: `--rules`
+- `lint.preset`, `lint.select`, `lint.extend-select`, `lint.ignore`: `--rules`
 - `render.profile`: `mdwright render --render-profile`
 - `--no-suppress` toggles whether `<!-- mdwright: allow ... -->`
   comments are honoured; there is no config-file equivalent.
 
 All `[fmt]` knobs are config-file-only.
-
-## Typical setup
-
-Most projects need three or four keys. A starting point:
-
-```toml
-# .mdwright.toml
-[lint]
-# Comma-separated tokens: `default` enables the default rule set;
-# `-name` removes a rule; `+name` adds an opt-in rule.
-rules = "default"
-
-[fmt]
-wrap = 100           # hard-wrap prose to 100 columns; `"keep"` leaves source breaks
-list-marker = "dash" # canonicalise bullet lists to `-` (`"preserve"` keeps source)
-```
-
-Common variations:
-
-- **Wrap nothing.** Drop `fmt.wrap` (or set `"keep"`) when contributors disagree about
-  prose width and you want mdwright to leave existing breaks alone.
-- **mdformat-compatible spelling.** Add `fmt.profile = "mdformat"`. Verified rewrites
-  adopt mdformat defaults where they preserve semantics.
-- **Use `pyproject.toml`.** Drop the file above and put the same keys under
-  `[tool.mdwright]` in `pyproject.toml`.
-
-The full schema below documents every knob; the defaults preserve source whenever the
-spelling is ambiguous, so adding a key opts in to a specific normalisation.
 
 ## Schema reference
 
@@ -78,7 +51,10 @@ spelling is ambiguous, so adding a key opts in to a specific normalisation.
 
 | Key | Type | Default | CLI override | Description |
 | --- | --- | --- | --- | --- |
-| `lint.rules` | string | `"default"` | `--rules` | Rule-selection spec. Comma-separated tokens: `all`, `default`, `<name>` (start from `{<name>}`), `+<name>` (add), `-<name>` (remove). |
+| `lint.preset` | "default" \| "all" \| "none" | `"default"` | `--rules` | Baseline lint rule set. Use `default` for curated defaults, `all` for every registered rule, or `none` with `lint.select` for an explicit set. |
+| `lint.select` | array of string | `[]` | `--rules` | Exact lint rule names to enable when `lint.preset = "none"`. Preset names are not valid rule names here. |
+| `lint.extend-select` | array of string | `[]` | `--rules` | Lint rule names to add on top of `lint.preset`. |
+| `lint.ignore` | array of string | `[]` | `--rules` | Lint rule names to remove after applying `lint.preset`, `lint.select`, and `lint.extend-select`. |
 | `lint.exclude` | array of string | `[]` | `none` | Gitignore-style patterns. Matching files are dropped from lint runs. Patterns are anchored to the directory containing the config file. |
 | `lint.info-strings.extra` | array of string | `[]` | `none` | Project-specific additions to the `info-string-typo` allowlist. The stdlib's default allowlist still applies. |
 

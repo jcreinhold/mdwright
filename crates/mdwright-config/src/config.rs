@@ -18,6 +18,7 @@
 //! and stay stable even if the on-disk format gains alternate
 //! representations (e.g. CLI overrides for individual keys later on).
 
+use std::collections::HashSet;
 use std::error::Error as StdError;
 use std::fmt;
 use std::fs;
@@ -33,6 +34,7 @@ use mdwright_format::{
     MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline,
     Wrap, WrapStrategy,
 };
+use mdwright_lint::RuleSet;
 use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer};
 
@@ -45,7 +47,7 @@ use serde::{Deserialize, Deserializer};
 /// [`Config::discover`] (for the ancestor walk from CWD).
 #[derive(Debug, Clone)]
 pub struct Config {
-    rules_spec: String,
+    lint_rule_selection: LintRuleSelection,
     exclude_globs: Vec<String>,
     extra_info_strings: Vec<String>,
     fmt_options: FmtOptions,
@@ -106,11 +108,10 @@ impl Config {
         self.source.as_deref().and_then(Path::parent)
     }
 
-    /// The `--rules`-equivalent token list. `"default"` when no
-    /// config file is found or the file does not set it.
+    /// Resolved lint rule selection from `[lint]`.
     #[must_use]
-    pub fn rules_spec(&self) -> &str {
-        &self.rules_spec
+    pub fn lint_rule_selection(&self) -> &LintRuleSelection {
+        &self.lint_rule_selection
     }
 
     /// Gitignore-style patterns from `[lint] exclude`. Files matching
@@ -164,7 +165,12 @@ impl Config {
             render,
         } = schema;
         Self {
-            rules_spec: lint.rules,
+            lint_rule_selection: LintRuleSelection {
+                preset: LintRulePreset::from(lint.preset),
+                select: lint.select,
+                extend_select: lint.extend_select,
+                ignore: lint.ignore,
+            },
             exclude_globs: lint.exclude,
             extra_info_strings: lint.info_strings.extra,
             fmt_options: fmt_options_from_schema(fmt),
@@ -174,6 +180,140 @@ impl Config {
         }
     }
 }
+
+/// Named baseline for lint rule selection.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum LintRulePreset {
+    /// The curated default-on rule set.
+    #[default]
+    Default,
+    /// Every registered rule.
+    All,
+    /// No baseline rules; use `select` for an exact explicit set.
+    None,
+}
+
+/// Resolved `[lint]` rule-selection policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LintRuleSelection {
+    preset: LintRulePreset,
+    select: Vec<String>,
+    extend_select: Vec<String>,
+    ignore: Vec<String>,
+}
+
+impl LintRuleSelection {
+    #[must_use]
+    pub fn preset(&self) -> LintRulePreset {
+        self.preset
+    }
+
+    #[must_use]
+    pub fn select(&self) -> &[String] {
+        &self.select
+    }
+
+    #[must_use]
+    pub fn extend_select(&self) -> &[String] {
+        &self.extend_select
+    }
+
+    #[must_use]
+    pub fn ignore(&self) -> &[String] {
+        &self.ignore
+    }
+
+    /// Partition the available rule pool according to this config.
+    ///
+    /// The config schema owns selector policy, but callers provide the
+    /// available pool so downstream binaries can include custom rules
+    /// without teaching `mdwright-config` where they came from.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RuleSelectionError`] when a selected rule name is not
+    /// present in `available`, or when a manually constructed selection
+    /// violates the TOML schema invariants.
+    pub fn resolve(&self, available: RuleSet) -> Result<RuleSet, RuleSelectionError> {
+        if self.preset != LintRulePreset::None && !self.select.is_empty() {
+            return Err(RuleSelectionError::new(
+                "`lint.select` can only be used with `lint.preset = \"none\"`; use `extend-select` to add rules to a preset",
+            ));
+        }
+
+        let inventory: Vec<(String, bool)> = available
+            .iter()
+            .map(|r| (r.name().to_owned(), r.is_default()))
+            .collect();
+        let all_names: HashSet<&str> = inventory.iter().map(|(name, _)| name.as_str()).collect();
+        let default_names: HashSet<&str> = inventory
+            .iter()
+            .filter_map(|(name, is_default)| is_default.then_some(name.as_str()))
+            .collect();
+
+        let mut selected: HashSet<String> = match self.preset {
+            LintRulePreset::Default => default_names.iter().map(|name| (*name).to_owned()).collect(),
+            LintRulePreset::All => all_names.iter().map(|name| (*name).to_owned()).collect(),
+            LintRulePreset::None => HashSet::new(),
+        };
+
+        for name in &self.select {
+            ensure_known_rule(name, &all_names)?;
+            selected.insert(name.clone());
+        }
+        for name in &self.extend_select {
+            ensure_known_rule(name, &all_names)?;
+            selected.insert(name.clone());
+        }
+        for name in &self.ignore {
+            ensure_known_rule(name, &all_names)?;
+            selected.remove(name);
+        }
+
+        let mut result = RuleSet::new();
+        for rule in available {
+            if selected.contains(rule.name()) {
+                result
+                    .add(rule)
+                    .map_err(|err| RuleSelectionError::new(err.to_string()))?;
+            }
+        }
+        Ok(result)
+    }
+}
+
+fn ensure_known_rule(name: &str, known: &HashSet<&str>) -> Result<(), RuleSelectionError> {
+    if known.contains(name) {
+        Ok(())
+    } else {
+        Err(RuleSelectionError::new(format!(
+            "unknown lint rule `{name}` (run `mdwright list-rules` to see what's registered)"
+        )))
+    }
+}
+
+/// Failure to resolve configured lint rule selection against the
+/// available rule pool.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleSelectionError {
+    message: String,
+}
+
+impl RuleSelectionError {
+    fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+impl fmt::Display for RuleSelectionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl StdError for RuleSelectionError {}
 
 /// Failure to load configuration: I/O, TOML syntax, or schema
 /// validation. The `Display` impl renders the path and underlying
@@ -222,29 +362,121 @@ struct Schema {
     render: RenderSchema,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug)]
 struct LintSchema {
-    #[serde(default = "default_rules_spec")]
-    rules: String,
-    #[serde(default)]
+    preset: LintPresetSchema,
+    select: Vec<String>,
+    extend_select: Vec<String>,
+    ignore: Vec<String>,
     exclude: Vec<String>,
-    #[serde(default, rename = "info-strings")]
     info_strings: InfoStringsSchema,
 }
 
 impl Default for LintSchema {
     fn default() -> Self {
         Self {
-            rules: default_rules_spec(),
+            preset: LintPresetSchema::Default,
+            select: Vec::new(),
+            extend_select: Vec::new(),
+            ignore: Vec::new(),
             exclude: Vec::new(),
             info_strings: InfoStringsSchema::default(),
         }
     }
 }
 
-fn default_rules_spec() -> String {
-    "default".to_owned()
+impl<'de> Deserialize<'de> for LintSchema {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct RawLintSchema {
+            #[serde(default, deserialize_with = "reject_legacy_rules")]
+            rules: (),
+            #[serde(default)]
+            preset: LintPresetSchema,
+            #[serde(default)]
+            select: Vec<String>,
+            #[serde(default, rename = "extend-select")]
+            extend_select: Vec<String>,
+            #[serde(default)]
+            ignore: Vec<String>,
+            #[serde(default)]
+            exclude: Vec<String>,
+            #[serde(default, rename = "info-strings")]
+            info_strings: InfoStringsSchema,
+        }
+
+        let RawLintSchema {
+            rules: _rules,
+            preset,
+            select,
+            extend_select,
+            ignore,
+            exclude,
+            info_strings,
+        } = RawLintSchema::deserialize(deserializer)?;
+
+        for (key, names) in [
+            ("select", select.as_slice()),
+            ("extend-select", extend_select.as_slice()),
+            ("ignore", ignore.as_slice()),
+        ] {
+            for name in names {
+                if matches!(name.as_str(), "default" | "all" | "none") {
+                    return Err(D::Error::custom(format!(
+                        "`lint.{key}` accepts rule names only; `{name}` is a preset, so use `lint.preset = \"{name}\"`"
+                    )));
+                }
+            }
+        }
+
+        if preset != LintPresetSchema::None && !select.is_empty() {
+            return Err(D::Error::custom(
+                "`lint.select` can only be used with `lint.preset = \"none\"`; use `extend-select` to add rules to a preset",
+            ));
+        }
+
+        Ok(Self {
+            preset,
+            select,
+            extend_select,
+            ignore,
+            exclude,
+            info_strings,
+        })
+    }
+}
+
+fn reject_legacy_rules<'de, D>(deserializer: D) -> Result<(), D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let _ignored = toml::Value::deserialize(deserializer)?;
+    Err(D::Error::custom(
+        "`lint.rules` has been replaced by `lint.preset`, `lint.select`, `lint.extend-select`, and `lint.ignore`",
+    ))
+}
+
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+enum LintPresetSchema {
+    #[default]
+    Default,
+    All,
+    None,
+}
+
+impl From<LintPresetSchema> for LintRulePreset {
+    fn from(s: LintPresetSchema) -> Self {
+        match s {
+            LintPresetSchema::Default => Self::Default,
+            LintPresetSchema::All => Self::All,
+            LintPresetSchema::None => Self::None,
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -996,10 +1228,12 @@ fn read_pyproject(path: &Path) -> Result<Option<Config>, ConfigError> {
 mod tests {
     use anyhow::{Result, anyhow};
 
+    use mdwright_lint::RuleSet;
+
     use super::{
-        Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, ListContinuationIndent, ListMarkerStyle,
-        OrderedListStyle, RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle, TrailingNewline, Wrap,
-        WrapStrategy,
+        Config, EndOfLine, FmtOptions, GfmAutolinkPolicy, ItalicStyle, LintRulePreset, ListContinuationIndent,
+        ListMarkerStyle, OrderedListStyle, RenderProfile, Schema, StrongStyle, TableStyle, ThematicStyle,
+        TrailingNewline, Wrap, WrapStrategy,
     };
 
     fn schema_from_str(src: &str) -> Result<Schema> {
@@ -1014,7 +1248,9 @@ mod tests {
     fn parses_complete_toml() -> Result<()> {
         let src = r#"
 [lint]
-rules = "default,+escaped-emphasis"
+preset = "default"
+extend-select = ["escaped-emphasis"]
+ignore = ["bare-url"]
 exclude = ["docs/vendored/**"]
 [lint.info-strings]
 extra = ["promql"]
@@ -1034,7 +1270,11 @@ exclude = ["docs/generated/**"]
 style = "pad"
 "#;
         let cfg = config_from_str(src)?;
-        assert_eq!(cfg.rules_spec(), "default,+escaped-emphasis");
+        let lint = cfg.lint_rule_selection();
+        assert_eq!(lint.preset(), LintRulePreset::Default);
+        assert!(lint.select().is_empty());
+        assert_eq!(lint.extend_select(), &["escaped-emphasis".to_owned()]);
+        assert_eq!(lint.ignore(), &["bare-url".to_owned()]);
         assert_eq!(cfg.exclude_globs(), &["docs/vendored/**".to_owned()]);
         assert_eq!(cfg.extra_info_strings(), &["promql".to_owned()]);
         let fmt = cfg.fmt_options();
@@ -1049,6 +1289,113 @@ style = "pad"
         assert_eq!(fmt.trailing_newline(), TrailingNewline::Ensure);
         assert_eq!(fmt.end_of_line(), EndOfLine::Lf);
         assert_eq!(fmt.exclude_globs(), &["docs/generated/**".to_owned()]);
+        Ok(())
+    }
+
+    #[test]
+    fn default_lint_selection_resolves_defaults() -> Result<()> {
+        let cfg = config_from_str("")?;
+        let rules = cfg
+            .lint_rule_selection()
+            .resolve(RuleSet::stdlib_all())
+            .map_err(|err| anyhow!("{err}"))?;
+        assert!(!rules.is_empty());
+        assert!(rules.contains("bare-url"));
+        assert!(!rules.contains("latex-command"));
+        Ok(())
+    }
+
+    #[test]
+    fn lint_selection_supports_all_preset() -> Result<()> {
+        let cfg = config_from_str("[lint]\npreset = \"all\"\n")?;
+        let rules = cfg
+            .lint_rule_selection()
+            .resolve(RuleSet::stdlib_all())
+            .map_err(|err| anyhow!("{err}"))?;
+        assert!(rules.contains("latex-command"));
+        assert!(rules.contains("bare-url"));
+        Ok(())
+    }
+
+    #[test]
+    fn lint_selection_supports_explicit_select_with_none_preset() -> Result<()> {
+        let cfg = config_from_str("[lint]\npreset = \"none\"\nselect = [\"heading-punctuation\", \"bare-url\"]\n")?;
+        let rules = cfg
+            .lint_rule_selection()
+            .resolve(RuleSet::stdlib_all())
+            .map_err(|err| anyhow!("{err}"))?;
+        assert!(rules.contains("heading-punctuation"));
+        assert!(rules.contains("bare-url"));
+        assert_eq!(rules.len(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn lint_selection_supports_extend_select_and_ignore() -> Result<()> {
+        let cfg = config_from_str(
+            "[lint]\npreset = \"default\"\nextend-select = [\"latex-command\"]\nignore = [\"bare-url\"]\n",
+        )?;
+        let rules = cfg
+            .lint_rule_selection()
+            .resolve(RuleSet::stdlib_all())
+            .map_err(|err| anyhow!("{err}"))?;
+        assert!(rules.contains("latex-command"));
+        assert!(!rules.contains("bare-url"));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_legacy_rules_key_with_migration_hint() -> Result<()> {
+        let err = toml::from_str::<Schema>("[lint]\nrules = \"default,+latex-command\"\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected error"))?;
+        let rendered = err.to_string();
+        assert!(
+            rendered.contains("lint.rules"),
+            "error should name legacy key: {rendered}"
+        );
+        assert!(
+            rendered.contains("extend-select"),
+            "error should suggest new keys: {rendered}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_presets_in_rule_name_lists() -> Result<()> {
+        let err = toml::from_str::<Schema>("[lint]\npreset = \"none\"\nselect = [\"default\"]\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected error"))?;
+        let rendered = err.to_string();
+        assert!(
+            rendered.contains("preset") && rendered.contains("select"),
+            "error should explain preset/rule split: {rendered}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_select_with_non_none_preset() -> Result<()> {
+        let err = toml::from_str::<Schema>("[lint]\npreset = \"default\"\nselect = [\"bare-url\"]\n")
+            .err()
+            .ok_or_else(|| anyhow!("expected error"))?;
+        let rendered = err.to_string();
+        assert!(
+            rendered.contains("extend-select") && rendered.contains("preset"),
+            "error should explain valid shape: {rendered}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn resolve_rejects_unknown_rule_names() -> Result<()> {
+        let cfg = config_from_str("[lint]\nextend-select = [\"no-such-rule\"]\n")?;
+        let err = cfg
+            .lint_rule_selection()
+            .resolve(RuleSet::stdlib_all())
+            .err()
+            .ok_or_else(|| anyhow!("expected error"))?;
+        assert!(err.to_string().contains("no-such-rule"));
         Ok(())
     }
 

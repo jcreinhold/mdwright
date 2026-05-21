@@ -32,10 +32,31 @@ struct FieldDoc {
 const SCHEMA_FIELDS: &[FieldDoc] = &[
     // ---- [lint] ------------------------------------------------------
     FieldDoc {
-        key: "lint.rules",
-        ty: "string",
+        key: "lint.preset",
+        ty: "\"default\" | \"all\" | \"none\"",
         default: "\"default\"",
-        description: "Rule-selection spec. Comma-separated tokens: `all`, `default`, `<name>` (start from `{<name>}`), `+<name>` (add), `-<name>` (remove).",
+        description: "Baseline lint rule set. Use `default` for curated defaults, `all` for every registered rule, or `none` with `lint.select` for an explicit set.",
+        cli_override: Some("--rules"),
+    },
+    FieldDoc {
+        key: "lint.select",
+        ty: "array of string",
+        default: "[]",
+        description: "Exact lint rule names to enable when `lint.preset = \"none\"`. Preset names are not valid rule names here.",
+        cli_override: Some("--rules"),
+    },
+    FieldDoc {
+        key: "lint.extend-select",
+        ty: "array of string",
+        default: "[]",
+        description: "Lint rule names to add on top of `lint.preset`.",
+        cli_override: Some("--rules"),
+    },
+    FieldDoc {
+        key: "lint.ignore",
+        ty: "array of string",
+        default: "[]",
+        description: "Lint rule names to remove after applying `lint.preset`, `lint.select`, and `lint.extend-select`.",
         cli_override: Some("--rules"),
     },
     FieldDoc {
@@ -314,7 +335,8 @@ configuration can live there under `[tool.mdwright]`:
 ```toml
 # pyproject.toml
 [tool.mdwright]
-lint.rules = "default,+latex-command"
+lint.preset = "default"
+lint.extend-select = ["latex-command"]
 
 [tool.mdwright.fmt]
 wrap = 100
@@ -325,7 +347,7 @@ wrap = 100
 The following knobs accept CLI flags that take precedence over the
 config file:
 
-- `lint.rules`: `--rules`
+- `lint.preset`, `lint.select`, `lint.extend-select`, `lint.ignore`: `--rules`
 - `render.profile`: `mdwright render --render-profile`
 - `--no-suppress` toggles whether `<!-- mdwright: allow ... -->`
   comments are honoured; there is no config-file equivalent.

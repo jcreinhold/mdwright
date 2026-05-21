@@ -64,7 +64,8 @@ When the same suppression appears in dozens of places, disable the rule in confi
 
 ```toml,no-check
 [lint]
-rules = "default,-bare-url"
+preset = "default"
+ignore = ["bare-url"]
 ```
 
 See [Configuration](../configuration.md#lint).

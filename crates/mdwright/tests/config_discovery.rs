@@ -2,7 +2,7 @@
 //!
 //! Each case lays out a directory tree with `tempfile::tempdir()`,
 //! then calls `Config::discover(some_subdir)` and asserts the
-//! resolved `rules_spec`. Discovery takes the start directory as a
+//! resolved lint rule selection. Discovery takes the start directory as a
 //! parameter, so no test needs to chdir — they can all run in
 //! parallel under nextest.
 
@@ -10,10 +10,19 @@ use std::fs;
 
 use anyhow::{Result, anyhow};
 use mdwright_config::Config;
+use mdwright_lint::RuleSet;
 use tempfile::tempdir;
 
 fn write(path: &std::path::Path, contents: &str) -> Result<()> {
     fs::write(path, contents).map_err(|e| anyhow!("write {}: {e}", path.display()))
+}
+
+fn selected_rule_names(cfg: &Config) -> Result<Vec<String>> {
+    let rules = cfg
+        .lint_rule_selection()
+        .resolve(RuleSet::stdlib_all())
+        .map_err(|e| anyhow!("{e}"))?;
+    Ok(rules.names().map(str::to_owned).collect())
 }
 
 #[test]
@@ -25,7 +34,7 @@ fn discover_returns_defaults_when_no_file_anywhere() -> Result<()> {
     let sub = dir.path().join("sub");
     fs::create_dir(&sub)?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "default");
+    assert!(selected_rule_names(&cfg)?.contains(&"bare-url".to_owned()));
     assert!(cfg.exclude_globs().is_empty());
     assert!(cfg.extra_info_strings().is_empty());
     Ok(())
@@ -39,10 +48,10 @@ fn discover_finds_dot_mdwright_toml() -> Result<()> {
     fs::create_dir(&sub)?;
     write(
         &dir.path().join(".mdwright.toml"),
-        "[lint]\nrules = \"unbalanced-backtick\"\n",
+        "[lint]\npreset = \"none\"\nselect = [\"unbalanced-backtick\"]\n",
     )?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "unbalanced-backtick");
+    assert_eq!(selected_rule_names(&cfg)?, ["unbalanced-backtick".to_owned()]);
     Ok(())
 }
 
@@ -52,9 +61,12 @@ fn discover_finds_mdwright_toml_in_ancestor() -> Result<()> {
     fs::create_dir(dir.path().join(".git"))?;
     let sub = dir.path().join("sub").join("nested");
     fs::create_dir_all(&sub)?;
-    write(&dir.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
+    write(
+        &dir.path().join("mdwright.toml"),
+        "[lint]\npreset = \"none\"\nselect = [\"bare-url\"]\n",
+    )?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "bare-url");
+    assert_eq!(selected_rule_names(&cfg)?, ["bare-url".to_owned()]);
     Ok(())
 }
 
@@ -66,10 +78,10 @@ fn discover_pyproject_with_tool_mdwright() -> Result<()> {
     fs::create_dir(&sub)?;
     write(
         &dir.path().join("pyproject.toml"),
-        "[tool.mdwright.lint]\nrules = \"bare-url\"\n",
+        "[tool.mdwright.lint]\npreset = \"none\"\nselect = [\"bare-url\"]\n",
     )?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "bare-url");
+    assert_eq!(selected_rule_names(&cfg)?, ["bare-url".to_owned()]);
     Ok(())
 }
 
@@ -88,11 +100,15 @@ fn discover_stops_at_git_boundary() -> Result<()> {
     let sub = proj.join("sub");
     fs::create_dir_all(&sub)?;
     fs::create_dir(proj.join(".git"))?;
-    write(&outer.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
+    write(
+        &outer.path().join("mdwright.toml"),
+        "[lint]\npreset = \"none\"\nselect = [\"latex-command\"]\n",
+    )?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(
-        cfg.rules_spec(),
-        "default",
+    let names = selected_rule_names(&cfg)?;
+    assert!(names.contains(&"bare-url".to_owned()));
+    assert!(
+        !names.contains(&"latex-command".to_owned()),
         "outer config must not leak past the .git/ boundary"
     );
     Ok(())
@@ -104,13 +120,16 @@ fn discover_prefers_dotfile_over_plain_in_same_dir() -> Result<()> {
     fs::create_dir(dir.path().join(".git"))?;
     write(
         &dir.path().join(".mdwright.toml"),
-        "[lint]\nrules = \"unbalanced-backtick\"\n",
+        "[lint]\npreset = \"none\"\nselect = [\"unbalanced-backtick\"]\n",
     )?;
-    write(&dir.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
+    write(
+        &dir.path().join("mdwright.toml"),
+        "[lint]\npreset = \"none\"\nselect = [\"bare-url\"]\n",
+    )?;
     let cfg = Config::discover(dir.path()).map_err(|e| anyhow!("discover: {e}"))?;
     assert_eq!(
-        cfg.rules_spec(),
-        "unbalanced-backtick",
+        selected_rule_names(&cfg)?,
+        ["unbalanced-backtick".to_owned()],
         ".mdwright.toml must win over mdwright.toml"
     );
     Ok(())
@@ -122,16 +141,16 @@ fn discover_prefers_local_config_over_pyproject() -> Result<()> {
     fs::create_dir(dir.path().join(".git"))?;
     write(
         &dir.path().join(".mdwright.toml"),
-        "[lint]\nrules = \"unbalanced-backtick\"\n",
+        "[lint]\npreset = \"none\"\nselect = [\"unbalanced-backtick\"]\n",
     )?;
     write(
         &dir.path().join("pyproject.toml"),
-        "[tool.mdwright.lint]\nrules = \"bare-url\"\n",
+        "[tool.mdwright.lint]\npreset = \"none\"\nselect = [\"bare-url\"]\n",
     )?;
     let cfg = Config::discover(dir.path()).map_err(|e| anyhow!("discover: {e}"))?;
     assert_eq!(
-        cfg.rules_spec(),
-        "unbalanced-backtick",
+        selected_rule_names(&cfg)?,
+        ["unbalanced-backtick".to_owned()],
         ".mdwright.toml must win over pyproject.toml [tool.mdwright]"
     );
     Ok(())
@@ -141,7 +160,7 @@ fn discover_prefers_local_config_over_pyproject() -> Result<()> {
 fn discover_skips_pyproject_without_tool_table() -> Result<()> {
     // Layout:
     //   root/.git/
-    //   root/mdwright.toml          (rules = "bare-url")
+    //   root/mdwright.toml          (select = ["bare-url"])
     //   root/proj/pyproject.toml    (no [tool.mdwright])
     //   root/proj/sub/              (start dir)
     //
@@ -153,10 +172,13 @@ fn discover_skips_pyproject_without_tool_table() -> Result<()> {
     let proj = root.path().join("proj");
     let sub = proj.join("sub");
     fs::create_dir_all(&sub)?;
-    write(&root.path().join("mdwright.toml"), "[lint]\nrules = \"bare-url\"\n")?;
+    write(
+        &root.path().join("mdwright.toml"),
+        "[lint]\npreset = \"none\"\nselect = [\"bare-url\"]\n",
+    )?;
     write(&proj.join("pyproject.toml"), "[project]\nname = \"unrelated\"\n")?;
     let cfg = Config::discover(&sub).map_err(|e| anyhow!("discover: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "bare-url");
+    assert_eq!(selected_rule_names(&cfg)?, ["bare-url".to_owned()]);
     Ok(())
 }
 
@@ -164,9 +186,9 @@ fn discover_skips_pyproject_without_tool_table() -> Result<()> {
 fn load_explicit_reads_the_given_path() -> Result<()> {
     let dir = tempdir()?;
     let path = dir.path().join("custom.toml");
-    write(&path, "[lint]\nrules = \"bare-url\"\n")?;
+    write(&path, "[lint]\npreset = \"none\"\nselect = [\"bare-url\"]\n")?;
     let cfg = Config::load_explicit(&path).map_err(|e| anyhow!("load_explicit: {e}"))?;
-    assert_eq!(cfg.rules_spec(), "bare-url");
+    assert_eq!(selected_rule_names(&cfg)?, ["bare-url".to_owned()]);
     Ok(())
 }
 

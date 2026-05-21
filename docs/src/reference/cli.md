@@ -64,7 +64,7 @@ Options:
           Explicit path to a config file. When omitted, mdwright walks up from `$PWD` looking, at each ancestor, for `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` containing a `[tool.mdwright]` table (in that precedence). The walk stops at the filesystem root or the first directory containing `.git/` (the workspace boundary). If nothing matches, built-in defaults apply
 
       --rules <RULES>
-          Rule-selection spec. If omitted, the `[lint] rules` value from the config file applies (or the curated default set if no config is found). See module docs for syntax
+          Rule-selection spec. If omitted, `[lint] preset`, `select`, `extend-select`, and `ignore` from the config file apply. See module docs for syntax
 
   -v, --verbose...
           Increase log verbosity. `-v` = info, `-vv` = debug, `-vvv` = trace. `RUST_LOG` overrides this when set
@@ -125,7 +125,7 @@ Options:
           Explicit path to a config file. When omitted, mdwright walks up from `$PWD` looking, at each ancestor, for `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` containing a `[tool.mdwright]` table (in that precedence). The walk stops at the filesystem root or the first directory containing `.git/` (the workspace boundary). If nothing matches, built-in defaults apply
 
       --rules <RULES>
-          Rule-selection spec. If omitted, the `[lint] rules` value from the config file applies (or the curated default set if no config is found). See module docs for syntax
+          Rule-selection spec. If omitted, `[lint] preset`, `select`, `extend-select`, and `ignore` from the config file apply. See module docs for syntax
 
   -v, --verbose...
           Increase log verbosity. `-v` = info, `-vv` = debug, `-vvv` = trace. `RUST_LOG` overrides this when set

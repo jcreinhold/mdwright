@@ -97,9 +97,9 @@ mdwright reads configuration from the nearest `.mdwright.toml`, `mdwright.toml`,
 
 ```toml
 [lint]
-# Comma-separated tokens: `default` enables the default rule set;
-# `-name` removes a rule; `+name` adds an opt-in rule.
-rules = "default,-bare-url"
+# `default` enables the curated baseline; `ignore` removes rules.
+preset = "default"
+ignore = ["bare-url"]
 ```
 
 Now `mdwright check` does not flag bare URLs. See [Configuration](configuration.md) for the complete schema.

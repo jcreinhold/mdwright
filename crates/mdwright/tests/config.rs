@@ -1,7 +1,7 @@
 //! End-to-end tests for the `mdwright.toml` configuration file.
 //!
 //! Invokes the compiled binary via `CARGO_BIN_EXE_mdwright` and asserts
-//! that the discovery cascade, `[lint] rules`, and `[lint] exclude`
+//! that the discovery cascade, `[lint]` rule selection, and `[lint] exclude`
 //! actually influence what `check` reports.
 
 use std::fs;
@@ -26,7 +26,7 @@ fn cli_honours_config_rules() -> Result<()> {
     //   * `unbalanced-backtick` on the dangling opener;
     //   * `heading-punctuation` on the trailing period.
     // The config narrows the active set to just `unbalanced-backtick`.
-    fs::write(&toml, "[lint]\nrules = \"unbalanced-backtick\"\n")?;
+    fs::write(&toml, "[lint]\npreset = \"none\"\nselect = [\"unbalanced-backtick\"]\n")?;
     fs::write(&sample, "# Title.\n\nProse with a `dangling backtick.\n")?;
 
     let (_ok, out) = run_check(&[
@@ -55,7 +55,7 @@ fn cli_rules_flag_overrides_config() -> Result<()> {
     let dir = tempdir()?;
     let toml = dir.path().join("mdwright.toml");
     let sample = dir.path().join("sample.md");
-    fs::write(&toml, "[lint]\nrules = \"unbalanced-backtick\"\n")?;
+    fs::write(&toml, "[lint]\npreset = \"none\"\nselect = [\"unbalanced-backtick\"]\n")?;
     fs::write(&sample, "# Title.\n\nProse with a `dangling backtick.\n")?;
 
     let (_ok, out) = run_check(&[

@@ -28,7 +28,7 @@ declarative title or suppress on that block.
 
 - Disable inline (for one heading): place `<!-- mdwright: allow heading-punctuation -->`
   on the line before the heading.
-- Disable in config: `[lint] rules = "default,-heading-punctuation"`.
+- Disable in config: `[lint] ignore = ["heading-punctuation"]`.
 - Severity: non-advisory.
 
 ## References

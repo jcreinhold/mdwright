@@ -31,7 +31,7 @@ If you wanted a literal `\[` in prose, escape it: `\\[`.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow math/unbalanced-delim -->`.
-- Disable in config: `[lint] rules = "default,-math/unbalanced-delim"`.
+- Disable in config: `[lint] ignore = ["math/unbalanced-delim"]`.
 - Severity: non-advisory (fails `mdwright check --check`).
 
 ## References

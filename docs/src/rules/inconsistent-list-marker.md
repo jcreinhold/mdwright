@@ -44,7 +44,7 @@ written would render two adjacent lists when one was meant.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow inconsistent-list-marker -->`.
-- Disable in config: `[lint] rules = "default,-inconsistent-list-marker"`.
+- Disable in config: `[lint] ignore = ["inconsistent-list-marker"]`.
 - Severity: non-advisory.
 
 ## References

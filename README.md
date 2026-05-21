@@ -107,9 +107,9 @@ preserve your source. A minimal `.mdwright.toml` looks like:
 
 ```toml
 [lint]
-# Comma-separated tokens: `default` enables the default rule set;
-# `-name` removes a rule; `+name` adds an opt-in rule.
-rules = "default,-bare-url"
+# `default` enables the curated baseline; `ignore` removes rules.
+preset = "default"
+ignore = ["bare-url"]
 
 [fmt]
 list-marker = "dash"          # canonicalise list markers to `-`

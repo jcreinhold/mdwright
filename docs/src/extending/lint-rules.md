@@ -22,8 +22,8 @@ pub trait LintRule: Send + Sync {
 - `name` is the kebab-case identifier (`"no-todo-in-prose"`); the dispatcher stamps it onto each emitted diagnostic.
 - `description` is the one-line summary shown by `mdwright list-rules`.
 - `check` reads the [`Document`][doc] and pushes `Diagnostic` values.
-- `is_default` controls whether the rule fires under `--rules default` (and the implicit selector when `--rules` is
-  omitted).
+- `is_default` controls whether the rule fires under `--rules default` and under the config default
+  `lint.preset = "default"` when `--rules` is omitted.
 - `is_advisory` makes diagnostics informational; they do not fail `mdwright check --check`.
 - `produces_fix` claims that at least one diagnostic carries a [`Fix`][fix].
 - `explain` is the long-form markdown shown by `mdwright explain <name>`.

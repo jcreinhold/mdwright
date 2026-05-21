@@ -11,7 +11,7 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 A minimal embed that parses Markdown, runs the standard lint catalogue, and formats with
 defaults. Add the three crates to `Cargo.toml`:
 
-```toml
+```toml,no-check
 [dependencies]
 mdwright-document = "0.1"
 mdwright-format = "0.1"

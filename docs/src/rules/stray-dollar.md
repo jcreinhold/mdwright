@@ -41,7 +41,7 @@ That costs \$5.
 
 ## Configuration
 
-- This rule is off by default. Enable with `[lint] rules = "default,+stray-dollar"`.
+- This rule is off by default. Enable with `[lint] extend-select = ["stray-dollar"]`.
 - Disable inline: `<!-- mdwright: allow stray-dollar -->`.
 - Severity: non-advisory. Safe autofix available.
 

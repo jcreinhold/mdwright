@@ -32,7 +32,7 @@ that will silently break rendering in any math-aware renderer.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow math/unbalanced-env -->`.
-- Disable in config: `[lint] rules = "default,-math/unbalanced-env"`.
+- Disable in config: `[lint] ignore = ["math/unbalanced-env"]`.
 - Severity: non-advisory.
 
 ## References

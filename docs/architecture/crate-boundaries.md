@@ -92,7 +92,8 @@ Enforced by `crates/mdwright/tests/dependency_fences.rs` via `cargo tree`:
 - `mdwright-lint` depends on `mdwright-document` and may depend directly on `mdwright-latex` for command vocabulary; it
   must not depend on format, CLI, LSP, `clap`, `tokio`, or `tower-lsp`, and it must not depend directly on
   `mdwright-math` for vocabulary.
-- `mdwright-config` may depend on document/format/lint option types; it must not depend on CLI or LSP.
+- `mdwright-config` may depend on document/format/lint option types and on the lint rule registry for resolving
+  configured rule selection; it must not depend on CLI or LSP.
 - `mdwright` and `mdwright-lsp` are delivery crates; heavy delivery dependencies belong there.
 - `mdwright-document` does not publicly export parser helpers.
 - `mdwright-math` does not publicly re-export `mdwright-latex` as a pass-through facade.

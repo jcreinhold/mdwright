@@ -26,7 +26,7 @@ Call `vec.push(x)` afterwards.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow adjacent-code-no-space -->`.
-- Disable in config: `[lint] rules = "default,-adjacent-code-no-space"`.
+- Disable in config: `[lint] ignore = ["adjacent-code-no-space"]`.
 - Severity: non-advisory.
 
 ## References

@@ -45,7 +45,7 @@ External links to the document then drift unpredictably as new sections are adde
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow duplicate-heading -->`.
-- Disable in config: `[lint] rules = "default,-duplicate-heading"`.
+- Disable in config: `[lint] ignore = ["duplicate-heading"]`.
 - Severity: advisory. Math/theorem documents legitimately repeat `### Proof` or `### Corollary`
   under one chapter, so the diagnostic surfaces but does not fail `mdwright check --check`.
 

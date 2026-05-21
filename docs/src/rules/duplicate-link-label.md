@@ -43,7 +43,7 @@ See the [docs][readme] and the [tutorial][tutorial].
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow duplicate-link-label -->`.
-- Disable in config: `[lint] rules = "default,-duplicate-link-label"`.
+- Disable in config: `[lint] ignore = ["duplicate-link-label"]`.
 - Severity: non-advisory.
 
 ## References

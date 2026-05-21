@@ -100,7 +100,7 @@ pub fn index_page(rules: &RuleSet) -> String {
     append_rule_table(&mut out, &default_advisory);
 
     out.push_str("\n## Opt-in rules\n\n");
-    out.push_str("Off by default. Enable with `+name` in the `lint.rules` configuration knob.\n\n");
+    out.push_str("Off by default. Enable with `lint.extend-select = [\"name\"]` in configuration.\n\n");
     append_rule_table(&mut out, &opt_in);
 
     out

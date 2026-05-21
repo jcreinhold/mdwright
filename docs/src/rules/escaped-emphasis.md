@@ -40,7 +40,7 @@ This is _actually italic_, despite the escapes.
 
 ## Configuration
 
-- This rule is off by default. Enable with `[lint] rules = "default,+escaped-emphasis"`.
+- This rule is off by default. Enable with `[lint] extend-select = ["escaped-emphasis"]`.
 - Disable inline: `<!-- mdwright: allow escaped-emphasis -->`.
 - Severity: non-advisory. Safe autofix available.
 

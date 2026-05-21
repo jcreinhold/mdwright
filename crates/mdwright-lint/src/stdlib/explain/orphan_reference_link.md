@@ -29,7 +29,7 @@ See the [installation guide][install] for details.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow orphan-reference-link -->`.
-- Disable in config: `[lint] rules = "default,-orphan-reference-link"`.
+- Disable in config: `[lint] ignore = ["orphan-reference-link"]`.
 - Severity: non-advisory.
 
 ## References

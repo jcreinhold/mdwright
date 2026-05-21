@@ -38,7 +38,7 @@ See <https://example.com> for details.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow bare-url -->`.
-- Disable in config: `[lint] rules = "default,-bare-url"`.
+- Disable in config: `[lint] ignore = ["bare-url"]`.
 - Severity: non-advisory. Safe autofix available.
 
 ## References

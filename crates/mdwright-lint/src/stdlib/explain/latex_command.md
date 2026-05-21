@@ -27,7 +27,7 @@ This is **important**.
 
 ## Configuration
 
-- This rule is off by default. Enable with `[lint] rules = "default,+latex-command"`.
+- This rule is off by default. Enable with `[lint] extend-select = ["latex-command"]`.
 - Disable inline: `<!-- mdwright: allow latex-command -->`.
 - Severity: non-advisory. Safe autofix where a Markdown equivalent exists.
 

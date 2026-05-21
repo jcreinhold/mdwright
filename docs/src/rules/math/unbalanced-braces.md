@@ -40,7 +40,7 @@ $$\sum_{i=1}^n i$$
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow math/unbalanced-braces -->`.
-- Disable in config: `[lint] rules = "default,-math/unbalanced-braces"`.
+- Disable in config: `[lint] ignore = ["math/unbalanced-braces"]`.
 - Severity: non-advisory.
 
 ## References

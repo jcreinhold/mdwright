@@ -32,7 +32,7 @@ Take the i-th element xᵢ.
 
 ## Configuration
 
-- This rule is off by default. Enable with `[lint] rules = "default,+subscript-damage"`.
+- This rule is off by default. Enable with `[lint] extend-select = ["subscript-damage"]`.
 - Disable inline: `<!-- mdwright: allow subscript-damage -->`.
 - Severity: non-advisory. Safe autofix where context is unambiguous.
 

@@ -42,7 +42,7 @@ Another line.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow trailing-whitespace -->`.
-- Disable in config: `[lint] rules = "default,-trailing-whitespace"`.
+- Disable in config: `[lint] ignore = ["trailing-whitespace"]`.
 - Severity: non-advisory. Safe autofix available.
 
 ## References

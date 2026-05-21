@@ -46,7 +46,7 @@ def f(): pass
 
 - Extend allowlist: `[lint.info-strings] extra = ["mycustomlang", "vendor-dsl"]`.
 - Disable inline: `<!-- mdwright: allow info-string-typo -->`.
-- Disable in config: `[lint] rules = "default,-info-string-typo"`.
+- Disable in config: `[lint] ignore = ["info-string-typo"]`.
 - Severity: advisory.
 
 ## References

@@ -971,6 +971,7 @@ dependencies = [
  "anyhow",
  "mdwright-document",
  "mdwright-format",
+ "mdwright-lint",
  "serde",
  "toml",
 ]

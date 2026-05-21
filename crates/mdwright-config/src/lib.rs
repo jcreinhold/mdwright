@@ -2,4 +2,4 @@
 
 mod config;
 
-pub use config::{Config, ConfigError};
+pub use config::{Config, ConfigError, LintRulePreset, LintRuleSelection, RuleSelectionError};

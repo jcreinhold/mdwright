@@ -786,7 +786,10 @@ fn discover_or_default(root: Option<&std::path::Path>) -> Config {
 }
 
 fn build_rules(cfg: &Config) -> Arc<RuleSet> {
-    let mut rules = parse_rules_spec(cfg.rules_spec()).unwrap_or_else(|_| RuleSet::stdlib_defaults());
+    let mut rules = cfg
+        .lint_rule_selection()
+        .resolve(RuleSet::stdlib_all())
+        .unwrap_or_else(|_| RuleSet::stdlib_defaults());
     if !cfg.extra_info_strings().is_empty() && rules.contains("info-string-typo") {
         rules.remove("info-string-typo");
         if let Err(err) = rules.add(Box::new(stdlib::InfoStringTypo::with_extra(
@@ -796,40 +799,6 @@ fn build_rules(cfg: &Config) -> Arc<RuleSet> {
         }
     }
     Arc::new(rules)
-}
-
-/// Mirror of the binary's `parse_rules_spec`. Kept private here so the
-/// LSP server doesn't depend on the CLI binary; the two parsers must
-/// stay in sync, fenced by `tests/lsp.rs::cli_and_lsp_parse_rules_alike`.
-fn parse_rules_spec(spec: &str) -> Result<RuleSet, String> {
-    let tokens: Vec<&str> = spec.split(',').map(str::trim).filter(|t| !t.is_empty()).collect();
-    if tokens.is_empty() {
-        return Ok(RuleSet::stdlib_defaults());
-    }
-    let mut rs: Option<RuleSet> = None;
-    for tok in tokens {
-        if let Some(name) = tok.strip_prefix('+') {
-            let rule = stdlib::by_name(name).ok_or_else(|| format!("unknown rule: {name}"))?;
-            let target = rs.get_or_insert_with(RuleSet::new);
-            if !target.contains(name) {
-                target.add(rule).map_err(|e| e.to_string())?;
-            }
-        } else if let Some(name) = tok.strip_prefix('-') {
-            let target = rs.get_or_insert_with(RuleSet::stdlib_defaults);
-            target.remove(name);
-        } else if tok == "all" {
-            rs = Some(RuleSet::stdlib_all());
-        } else if tok == "default" {
-            rs = Some(RuleSet::stdlib_defaults());
-        } else {
-            let rule = stdlib::by_name(tok).ok_or_else(|| format!("unknown rule: {tok}"))?;
-            let target = rs.get_or_insert_with(RuleSet::new);
-            if !target.contains(tok) {
-                target.add(rule).map_err(|e| e.to_string())?;
-            }
-        }
-    }
-    Ok(rs.unwrap_or_else(RuleSet::stdlib_defaults))
 }
 
 fn mdwright_to_lsp(line_index: &LineIndex, source: &str, diag: &MdwrightDiagnostic) -> LspDiagnostic {
@@ -930,29 +899,7 @@ fn format_range_edits(
 
 #[cfg(test)]
 mod tests {
-    use super::{LineIndex, Position, overlaps, parse_rules_spec, whole_doc_range};
-
-    #[test]
-    fn parse_rules_spec_default() -> Result<(), String> {
-        let rs = parse_rules_spec("default")?;
-        assert!(!rs.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn parse_rules_spec_subtract() -> Result<(), String> {
-        let rs = parse_rules_spec("default,-bare-url")?;
-        assert!(!rs.contains("bare-url"));
-        Ok(())
-    }
-
-    #[test]
-    fn parse_rules_spec_bare_name_starts_empty() -> Result<(), String> {
-        let rs = parse_rules_spec("bare-url")?;
-        assert!(rs.contains("bare-url"));
-        assert_eq!(rs.len(), 1);
-        Ok(())
-    }
+    use super::{LineIndex, Position, overlaps, whole_doc_range};
 
     #[test]
     fn overlap_half_open_ranges() {

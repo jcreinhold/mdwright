@@ -28,7 +28,7 @@ Take the i-th component, xᵢ.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow unicodeable-subscript -->`.
-- Disable in config: `[lint] rules = "default,-unicodeable-subscript"`.
+- Disable in config: `[lint] ignore = ["unicodeable-subscript"]`.
 - Severity: advisory.
 
 ## References

@@ -34,7 +34,7 @@ On by default but informational: they report but do not fail `--check`.
 
 ## Opt-in rules
 
-Off by default. Enable with `+name` in the `lint.rules` configuration knob.
+Off by default. Enable with `lint.extend-select = ["name"]` in configuration.
 
 | Rule | Fix | Description |
 | --- | --- | --- |

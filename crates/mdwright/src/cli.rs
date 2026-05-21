@@ -176,9 +176,9 @@ struct LintArgs {
     #[arg(long)]
     check: bool,
 
-    /// Rule-selection spec. If omitted, the `[lint] rules` value
-    /// from the config file applies (or the curated default set if
-    /// no config is found). See module docs for syntax.
+    /// Rule-selection spec. If omitted, `[lint] preset`,
+    /// `select`, `extend-select`, and `ignore` from the config file
+    /// apply. See module docs for syntax.
     #[arg(long)]
     rules: Option<String>,
 
@@ -1483,8 +1483,13 @@ fn run_lint(
 
     let cfg = resolve_config(config_path)?;
     let parse_options = cfg.parse_options();
-    let rules_spec = args.rules.as_deref().unwrap_or_else(|| cfg.rules_spec());
-    let mut rules = parse_rules_spec(available, rules_spec)?;
+    let mut rules = if let Some(rules_spec) = args.rules.as_deref() {
+        parse_rules_spec(available, rules_spec)?
+    } else {
+        cfg.lint_rule_selection()
+            .resolve(available)
+            .map_err(|err| anyhow!("{err}"))?
+    };
     apply_config_to_rules(&mut rules, &cfg)?;
 
     let use_color = match args.color {

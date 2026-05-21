@@ -38,7 +38,7 @@ Run `cargo build` to compile.
 ## Configuration
 
 - Disable inline: `<!-- mdwright: allow unbalanced-backtick -->`.
-- Disable in config: `[lint] rules = "default,-unbalanced-backtick"`.
+- Disable in config: `[lint] ignore = ["unbalanced-backtick"]`.
 - Severity: non-advisory.
 
 ## References

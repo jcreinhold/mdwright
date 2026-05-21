@@ -60,7 +60,7 @@ Or loose throughout:
 ## Configuration
 
 - This rule is off by default (opt-in). Enable with
-  `[lint] rules = "default,+list-tightness-flipped"`.
+  `[lint] extend-select = ["list-tightness-flipped"]`.
 - Disable inline: `<!-- mdwright: allow list-tightness-flipped -->`.
 - Severity: advisory (does not fail `--check`).
 
