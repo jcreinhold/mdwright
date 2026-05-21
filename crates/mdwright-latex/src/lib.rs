@@ -25,7 +25,7 @@ mod registry;
 mod translation;
 
 pub use error::{LatexError, LatexErrorKind, SourceSpan};
-pub use layout::RenderedLatex;
+pub use layout::{RenderedLatex, render_unicode_math};
 pub use registry::{
     ArgumentShape, CommandCategory, CommandInfo, SupportStatus, is_known_unsupported_command, latex_symbol,
     lookup_command, unicode_sub, unicode_sub_latex, unicode_sub_str, unicode_super, unicode_super_latex,

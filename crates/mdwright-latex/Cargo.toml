@@ -13,6 +13,7 @@ version.workspace = true
 
 [dependencies]
 logos = { workspace = true }
+unicode-width = { workspace = true }
 
 [lints]
 workspace = true

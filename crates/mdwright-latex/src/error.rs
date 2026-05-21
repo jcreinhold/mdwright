@@ -52,6 +52,14 @@ pub struct LatexError {
 }
 
 impl LatexError {
+    pub(crate) fn new(kind: LatexErrorKind, span: SourceSpan, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            span,
+            message: message.into(),
+        }
+    }
+
     /// Error category.
     #[must_use]
     pub const fn kind(&self) -> &LatexErrorKind {

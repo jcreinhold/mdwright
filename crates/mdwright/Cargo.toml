@@ -27,6 +27,7 @@ ignore = { workspace = true }
 mdwright-config = { workspace = true }
 mdwright-document = { workspace = true }
 mdwright-format = { workspace = true }
+mdwright-latex = { workspace = true }
 mdwright-lint = { workspace = true }
 mdwright-lsp = { workspace = true }
 mdwright-math = { workspace = true }

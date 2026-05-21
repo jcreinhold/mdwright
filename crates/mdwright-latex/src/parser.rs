@@ -17,8 +17,8 @@ use crate::registry::{CommandCategory, CommandInfo, SupportStatus, lookup_comman
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MathBody<'src> {
-    elements: Vec<Node<'src>>,
-    span: SourceSpan,
+    pub(crate) elements: Vec<Node<'src>>,
+    pub(crate) span: SourceSpan,
 }
 
 impl<'src> MathBody<'src> {
@@ -29,8 +29,8 @@ impl<'src> MathBody<'src> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Node<'src> {
-    kind: NodeKind<'src>,
-    span: SourceSpan,
+    pub(crate) kind: NodeKind<'src>,
+    pub(crate) span: SourceSpan,
 }
 
 impl<'src> Node<'src> {
@@ -64,8 +64,8 @@ pub(crate) enum Atom<'src> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Group<'src> {
-    body: MathBody<'src>,
-    delimiter: GroupDelimiter,
+    pub(crate) body: MathBody<'src>,
+    pub(crate) delimiter: GroupDelimiter,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,9 +76,9 @@ pub(crate) enum GroupDelimiter {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Fraction<'src> {
-    command: FractionCommand,
-    numerator: Group<'src>,
-    denominator: Group<'src>,
+    pub(crate) command: FractionCommand,
+    pub(crate) numerator: Group<'src>,
+    pub(crate) denominator: Group<'src>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -90,14 +90,14 @@ pub(crate) enum FractionCommand {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Sqrt<'src> {
-    degree: Option<Group<'src>>,
-    body: Group<'src>,
+    pub(crate) degree: Option<Group<'src>>,
+    pub(crate) body: Group<'src>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Accent<'src> {
-    accent: AccentKind,
-    body: Group<'src>,
+    pub(crate) accent: AccentKind,
+    pub(crate) body: Group<'src>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -110,9 +110,9 @@ pub(crate) enum AccentKind {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Script<'src> {
-    base: Box<ScriptBase<'src>>,
-    subscript: Option<ScriptArgument<'src>>,
-    superscript: Option<ScriptArgument<'src>>,
+    pub(crate) base: Box<ScriptBase<'src>>,
+    pub(crate) subscript: Option<ScriptArgument<'src>>,
+    pub(crate) superscript: Option<ScriptArgument<'src>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,9 +133,9 @@ pub(crate) enum ScriptArgument<'src> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Delimited<'src> {
-    opener: Delimiter<'src>,
-    body: MathBody<'src>,
-    closer: Delimiter<'src>,
+    pub(crate) opener: Delimiter<'src>,
+    pub(crate) body: MathBody<'src>,
+    pub(crate) closer: Delimiter<'src>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -145,20 +145,20 @@ pub(crate) enum Delimiter<'src> {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Environment<'src> {
-    name: &'src str,
-    preamble: Option<&'src str>,
-    rows: Vec<Row<'src>>,
+    pub(crate) name: &'src str,
+    pub(crate) preamble: Option<&'src str>,
+    pub(crate) rows: Vec<Row<'src>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Row<'src> {
-    cells: Vec<Cell<'src>>,
-    span: SourceSpan,
+    pub(crate) cells: Vec<Cell<'src>>,
+    pub(crate) span: SourceSpan,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Cell<'src> {
-    body: MathBody<'src>,
+    pub(crate) body: MathBody<'src>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -175,6 +175,18 @@ impl ParseDiagnostic {
             span,
             message: message.into(),
         }
+    }
+
+    pub(crate) const fn kind(&self) -> &ParseDiagnosticKind {
+        &self.kind
+    }
+
+    pub(crate) const fn span(&self) -> SourceSpan {
+        self.span
+    }
+
+    pub(crate) fn message(&self) -> &str {
+        &self.message
     }
 }
 
@@ -840,7 +852,7 @@ impl<'src> ScriptBase<'src> {
 }
 
 impl ScriptArgument<'_> {
-    fn span(&self) -> SourceSpan {
+    pub(crate) fn span(&self) -> SourceSpan {
         match self {
             Self::Atom { span, .. } => *span,
             Self::Group(group) => group.body.span,

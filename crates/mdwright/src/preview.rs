@@ -1,6 +1,6 @@
 use anyhow::Result;
 use mdwright_document::{Document, ExtensionOptions, ParseOptions};
-use mdwright_math::render_unicode_math;
+use mdwright_latex::render_unicode_math;
 use owo_colors::OwoColorize;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 

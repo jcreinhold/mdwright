@@ -941,6 +941,7 @@ dependencies = [
  "mdwright-config",
  "mdwright-document",
  "mdwright-format",
+ "mdwright-latex",
  "mdwright-lint",
  "mdwright-lsp",
  "mdwright-math",
@@ -1009,6 +1010,7 @@ name = "mdwright-latex"
 version = "0.1.0"
 dependencies = [
  "logos",
+ "unicode-width",
 ]
 
 [[package]]

@@ -26,13 +26,11 @@ pub mod normalise;
 pub mod render;
 pub mod scan;
 pub mod span;
-pub mod unicode_render;
 
 use std::ops::Range;
 
 pub use scan::{MathConfig, scan_math_regions};
 pub use span::{AnyDelim, DisplayDelim, InlineDelim, MathBody, MathError, MathSpan};
-pub use unicode_render::{RenderedMath, UnicodeMathError, render_unicode_math};
 
 /// One recognised math region in source order.
 ///

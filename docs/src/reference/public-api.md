@@ -16,8 +16,8 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 | Format parsed or source Markdown | `FmtOptions`, `WrapStrategy`, `FormatError`, `format_document`, `format_document_with_report`, `format_source`, `format_validated`, `format_validated_with_report` | `mdwright-format` |
 | Format editor ranges | `CheckpointTable`, `format_range`, `format_range_with_checkpoints` | `mdwright-format` |
 | Compare formatter semantics | `semantically_equivalent`, `first_divergence` | `mdwright-format` |
-| Represent TeX math-body diagnostics, vocabulary, and output | `LatexError`, `LatexErrorKind`, `SourceSpan`, `CommandInfo`, `CommandCategory`, `ArgumentShape`, `SupportStatus`, `lookup_command`, `latex_symbol`, `unicode_symbol_latex`, `unicode_super`, `unicode_sub`, `RenderedLatex`, `Translation`, `TranslationLoss` | `mdwright-latex` |
-| Recognise and render Markdown math regions | `scan_math_regions`, `render::convert_for_dollar`, `render_unicode_math` | `mdwright-math` |
+| Represent TeX math-body diagnostics, vocabulary, Unicode layout, and output | `LatexError`, `LatexErrorKind`, `SourceSpan`, `CommandInfo`, `CommandCategory`, `ArgumentShape`, `SupportStatus`, `lookup_command`, `latex_symbol`, `unicode_symbol_latex`, `unicode_super`, `unicode_sub`, `RenderedLatex`, `render_unicode_math`, `Translation`, `TranslationLoss` | `mdwright-latex` |
+| Recognise Markdown math regions | `scan_math_regions`, `render::convert_for_dollar` | `mdwright-math` |
 | Run lint rules | `RuleSet`, `LintOptions` | `mdwright-lint` |
 | Consume lint output | `Diagnostic`, `Fix`, `Severity`, `Snippet`, `DuplicateRuleName` | `mdwright-lint` |
 | Apply safe lint fixes | `apply_safe_fixes` | `mdwright-lint` |

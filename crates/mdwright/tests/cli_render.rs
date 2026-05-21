@@ -174,7 +174,7 @@ fn preview_renders_terminal_text_not_html() {
 
 #[test]
 fn preview_math_modes_are_visible_and_fallback_is_successful() {
-    let source = "Inline \\( \\alpha_i \\) and \\( \\bar{x} \\).\n";
+    let source = "Inline \\( \\alpha_i \\) and \\( \\color{red}{x} \\).\n";
     let (ok, stdout, stderr) = run_preview(&["--math=unicode"], source);
     assert!(ok, "preview unicode exited non-zero; stderr:\n{stderr}");
     assert!(
@@ -182,7 +182,7 @@ fn preview_math_modes_are_visible_and_fallback_is_successful() {
         "supported math should render to Unicode:\n{stdout}"
     );
     assert!(
-        stdout.contains(r"\bar{x}"),
+        stdout.contains(r"\color{red}{x}"),
         "unsupported math should fall back to source:\n{stdout}"
     );
 

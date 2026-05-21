@@ -224,6 +224,27 @@ fn math_does_not_reexport_latex_as_a_facade() {
         !lib.contains("pub use mdwright_latex"),
         "mdwright-math must not re-export mdwright-latex as a pass-through facade"
     );
+    assert!(
+        !lib.contains("render_unicode_math"),
+        "Unicode math rendering belongs in mdwright-latex, not a mdwright-math pass-through"
+    );
+    assert!(
+        !repo_file("crates/mdwright-math/src/unicode_render.rs").exists(),
+        "Unicode math layout belongs in mdwright-latex"
+    );
+}
+
+#[test]
+fn preview_uses_latex_renderer_directly() {
+    let preview = fs::read_to_string(repo_file("crates/mdwright/src/preview.rs")).expect("read preview source");
+    assert!(
+        preview.contains("mdwright_latex::render_unicode_math"),
+        "preview should consume the mdwright-latex layout API directly"
+    );
+    assert!(
+        !preview.contains("mdwright_math::render_unicode_math"),
+        "preview must not route Unicode math rendering through mdwright-math"
+    );
 }
 
 #[test]
