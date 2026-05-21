@@ -481,6 +481,9 @@ fn push_slice<'a>(bytes: &'a [u8], range: Range<usize>, tokens: &mut Vec<Token<'
 }
 
 fn display_width(s: &str) -> u32 {
+    // `wrap = N` is a terminal display-cell budget, not a byte or
+    // Unicode-scalar budget. Combining marks therefore contribute
+    // zero cells and may make source character counts exceed `N`.
     u32::try_from(UnicodeWidthStr::width(s)).unwrap_or(u32::MAX)
 }
 
@@ -718,7 +721,7 @@ mod tests {
         let s = "alpha beta gamma delta epsilon zeta\n";
         let out = wrap(s, Wrap::At(15));
         let lines: Vec<&str> = out.lines().collect();
-        assert!(lines.iter().all(|l| l.chars().count() <= 15), "{out:?}");
+        assert!(lines.iter().all(|l| super::display_width(l) <= 15), "{out:?}");
     }
 
     #[test]
@@ -828,7 +831,7 @@ mod tests {
         let opts = FmtOptions::mdformat().with_wrap(Wrap::At(64));
         let out = wrap_with(s, &opts);
         for line in out.lines() {
-            assert!(line.len() <= 64, "{line:?} in {out:?}");
+            assert!(super::display_width(line) <= 64, "{line:?} in {out:?}");
         }
         assert!(out.contains("This line already fits and should remain exactly where it"));
         assert!(out.contains("wrapping. The final line fits too."));
@@ -839,8 +842,24 @@ mod tests {
         let s = "This line contains enough ordinary words to exceed the configured forty column target and therefore needs wrapping.\n";
         let out = wrap(s, Wrap::At(40));
         for line in out.lines() {
-            assert!(line.len() <= 40, "{line:?} in {out:?}");
+            assert!(super::display_width(line) <= 40, "{line:?} in {out:?}");
         }
+    }
+
+    #[test]
+    fn wrap_budget_counts_display_cells_not_unicode_scalars() {
+        let s = "aaaaaaaaaa bbbbbbbbbb cccccccccc ddddd Y̅ tail\n";
+        let out = wrap(s, Wrap::At(40));
+        let mut lines = out.lines();
+        let first = lines.next().unwrap_or("");
+        assert_eq!(first, "aaaaaaaaaa bbbbbbbbbb cccccccccc ddddd Y̅");
+        assert_eq!(first.chars().count(), 41);
+        assert_eq!(super::display_width(first), 40);
+        assert!(
+            first.contains("Y\u{0305}"),
+            "combining mark must stay attached: {out:?}"
+        );
+        assert_eq!(lines.next(), Some("tail"));
     }
 
     #[test]

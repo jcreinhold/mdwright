@@ -130,7 +130,7 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         key: "fmt.wrap",
         ty: "\"keep\" | \"no\" | int",
         default: "\"keep\"",
-        description: "Wrap mode for prose paragraphs. `keep` leaves existing breaks alone; `no` forbids new breaks; an integer enforces that column for breakable lines in every formatter profile.",
+        description: "Wrap mode for prose paragraphs. `keep` leaves existing breaks alone; `no` forbids new breaks; an integer enforces that display-column budget for breakable lines in every formatter profile.",
         cli_override: None,
     },
     FieldDoc {
