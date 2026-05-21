@@ -279,6 +279,9 @@ fn apply_edits(source: &str, edits: &[Edit]) -> String {
 }
 
 fn is_convertible_math_block(block: &CodeBlock, body: &str) -> bool {
+    if has_diagram_layout(body) {
+        return false;
+    }
     if block.fenced {
         if !is_plain_code_info(&block.info) {
             return false;
@@ -286,6 +289,29 @@ fn is_convertible_math_block(block: &CodeBlock, body: &str) -> bool {
         return has_nonblank_line(body) && nonblank_lines(body).all(is_math_like_line);
     }
     has_nonblank_line(body) && nonblank_lines(body).all(is_high_confidence_math_line)
+}
+
+fn has_diagram_layout(text: &str) -> bool {
+    text.chars().any(is_diagram_layout_char) || has_long_ruler_run(text)
+}
+
+fn is_diagram_layout_char(ch: char) -> bool {
+    matches!(ch, '\u{2500}'..='\u{257f}' | '↙' | '↘' | '↖' | '↗')
+}
+
+fn has_long_ruler_run(text: &str) -> bool {
+    let mut run = 0usize;
+    for ch in text.chars() {
+        if matches!(ch, '-' | '=' | '─' | '━') {
+            run = run.saturating_add(1);
+            if run >= 4 {
+                return true;
+            }
+        } else {
+            run = 0;
+        }
+    }
+    false
 }
 
 fn code_block_body_range(source: &str, block: &CodeBlock) -> Option<Range<usize>> {
@@ -352,6 +378,7 @@ fn translation_changes_without_diagnostics(text: &str) -> bool {
 
 fn translation_usable_for_conversion(translation: &Translation) -> bool {
     translation.diagnostics().is_empty()
+        && translation.text().is_ascii()
         && matches!(
             translation.status(),
             TranslationStatus::Lossless | TranslationStatus::Unchanged
@@ -379,7 +406,8 @@ fn has_strong_math_signal(text: &str) -> bool {
 fn is_strong_math_char(ch: char) -> bool {
     matches!(
         ch,
-        '\u{0370}'..='\u{03ff}'
+        '′' | '″' | '‴' | '⁗' | '·' | '⥲' | '─' | '━' | '▸'
+            | '\u{0370}'..='\u{03ff}'
             | '\u{2070}'..='\u{209f}'
             | '\u{2100}'..='\u{214f}'
             | '\u{2190}'..='\u{22ff}'
@@ -492,7 +520,10 @@ mod tests {
     fn existing_math_body_translation_preserves_delimiters() -> Result<()> {
         let source = r"Let \[αᵢ P^∨/S\] hold.".to_owned() + "\n";
         let migrated = migrate_source(&source)?;
-        assert_eq!(migrated.output, r"Let \[\alpha_{i} P^\vee/S\] hold.".to_owned() + "\n");
+        assert_eq!(
+            migrated.output,
+            r"Let \[\alpha_{i} P^{\vee}/S\] hold.".to_owned() + "\n"
+        );
         assert_eq!(migrated.edit_count, 1);
         Ok(())
     }
@@ -508,9 +539,74 @@ mod tests {
 
     #[test]
     fn plain_fenced_math_code_block_becomes_display_math() -> Result<()> {
-        let source = "Before\n```text\nαᵢ ≤ x²\n```\nAfter\n";
+        let source = "Before\n```text\nαᵢ ≤ x²\nA ⥲ B\n```\nAfter\n";
         let migrated = migrate_source(source)?;
-        assert_eq!(migrated.output, "Before\n\\[\n\\alpha_{i} \\leq x^{2}\n\\]\nAfter\n");
+        assert_eq!(
+            migrated.output,
+            "Before\n\\[\n\\alpha_{i} \\leq x^{2}\nA \\xrightarrow{\\sim} B\n\\]\nAfter\n"
+        );
+        assert_eq!(migrated.edit_count, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn diagram_like_plain_code_blocks_are_skipped() -> Result<()> {
+        let source =
+            "```text\n                  S_α⁻¹A\n                ρ_α ↙ ↘ φ_α\n              A′ ────φ──── S⁻¹A\n```\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(migrated.output, source);
+        assert_eq!(migrated.edit_count, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn code_blocks_with_unknown_unicode_math_are_skipped() -> Result<()> {
+        let source = "```text\nA ⥪ B\n```\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(migrated.output, source);
+        assert_eq!(migrated.edit_count, 0);
+        Ok(())
+    }
+
+    #[test]
+    fn inline_conversion_uses_canonical_latex_output() -> Result<()> {
+        let source = "Use `𝒪_X`, `A′`, and `C ──g──▸ E ──▸ E/L`.\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(
+            migrated.output,
+            r"Use \(\mathcal{O}_{X}\), \(A'\), and \(C \xrightarrow{g} E \to E/L\).".to_owned() + "\n"
+        );
+        assert_eq!(migrated.edit_count, 3);
+        Ok(())
+    }
+
+    #[test]
+    fn inline_conversion_uses_extended_unicode_normalization() -> Result<()> {
+        let source = "Use `lim⃗ Mₙ`, `𝚪_*`, `𝐟𝐠`, and `f♯ ⊠ g♭`.\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(
+            migrated.output,
+            r"Use \(\varinjlim M_{n}\), \(\Gamma_{*}\), \(\mathbf{fg}\), and \(f\sharp \boxtimes g\flat\).".to_owned()
+                + "\n"
+        );
+        assert_eq!(migrated.edit_count, 4);
+        Ok(())
+    }
+
+    #[test]
+    fn formula_only_blocks_with_extended_unicode_convert_to_latex() -> Result<()> {
+        let source = concat!(
+            "```text\nM̃ ⟺ 𝓗𝓸𝓶(A, B)\nA ↔ B\nD₊ ⨁ □\n𝒟ℯ𝓇(X) ",
+            "\u{227A}\u{0338}",
+            " Y ",
+            "\u{2A7D}\u{0338}",
+            " Z\n```\n"
+        );
+        let migrated = migrate_source(source)?;
+        assert_eq!(
+            migrated.output,
+            "\\[\n\\tilde{M} \\Longleftrightarrow \\mathcal{H}om(A, B)\nA \\leftrightarrow B\nD_{+} \\bigoplus \\square\n\\mathcal{D}er(X) \\nprec Y \\nleqslant Z\n\\]\n"
+        );
         assert_eq!(migrated.edit_count, 1);
         Ok(())
     }

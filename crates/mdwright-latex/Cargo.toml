@@ -13,6 +13,7 @@ version.workspace = true
 
 [dependencies]
 logos = { workspace = true }
+unicode-normalization = { workspace = true }
 unicode-width = { workspace = true }
 
 [dev-dependencies]

@@ -374,13 +374,13 @@ fn canonical_latex_passthrough(source: &str) -> &str {
         return source;
     };
     match command {
-        "supset̸" => r"\nsupset",
-        "subset̸" => r"\nsubset",
-        "supseteq̸" => r"\nsupseteq",
-        "subseteq̸" => r"\nsubseteq",
-        "leq̸" | "le̸" | "leqslant̸" => r"\nleq",
-        "geq̸" | "ge̸" | "geqslant̸" => r"\ngeq",
-        "in̸" => r"\notin",
+        "supset\u{0338}" => r"\nsupset",
+        "subset\u{0338}" => r"\nsubset",
+        "supseteq\u{0338}" => r"\nsupseteq",
+        "subseteq\u{0338}" => r"\nsubseteq",
+        "leq\u{0338}" | "le\u{0338}" | "leqslant\u{0338}" => r"\nleq",
+        "geq\u{0338}" | "ge\u{0338}" | "geqslant\u{0338}" => r"\ngeq",
+        "in\u{0338}" => r"\notin",
         _ => source,
     }
 }
@@ -896,6 +896,7 @@ mod tests {
         assert_eq!(translate_unicode_to_latex("ℤ").text(), r"\mathbb{Z}");
         assert_eq!(translate_unicode_to_latex("𝓗𝓸𝓶").text(), r"\mathcal{H}om");
         assert_eq!(translate_unicode_to_latex("𝓟𝓻𝓸𝓳").text(), r"\mathcal{P}roj");
+        assert_eq!(translate_unicode_to_latex("𝒟ℯ𝓇").text(), r"\mathcal{D}er");
         assert_eq!(translate_unicode_to_latex("𝚪_*").text(), r"\Gamma_{*}");
         assert_eq!(translate_unicode_to_latex("𝐒").text(), r"\mathbf{S}");
         assert_eq!(translate_unicode_to_latex("𝐕").text(), r"\mathbf{V}");
@@ -957,6 +958,21 @@ mod tests {
             r"A \twoheadrightarrow B \wr C"
         );
         assert_eq!(
+            translate_unicode_to_latex("A ⊉ B ⊄ C ⊀ D").text(),
+            r"A \nsupseteq B \nsubset C \nprec D"
+        );
+        assert_eq!(
+            translate_unicode_to_latex(concat!(
+                "a ",
+                "\u{227A}\u{0338}",
+                " b ",
+                "\u{2A7D}\u{0338}",
+                " c ≽ d ≼ e ≫ f"
+            ))
+            .text(),
+            r"a \nprec b \nleqslant c \succeq d \preceq e \gg f"
+        );
+        assert_eq!(
             translate_unicode_to_latex("codim(‾{x}, S)").text(),
             r"codim(\overline{x}, S)"
         );
@@ -967,9 +983,13 @@ mod tests {
             translate_unicode_to_latex("A ⨂ B ↝ C").text(),
             r"A \bigotimes B \rightsquigarrow C"
         );
-        assert_eq!(translate_unicode_to_latex(r"\supset̸ S").text(), r"\nsupset S");
+        assert_eq!(translate_unicode_to_latex("⋂ A").text(), r"\bigcap A");
         assert_eq!(
-            translate_unicode_to_latex(r"\leqslant̸ \lambda").text(),
+            translate_unicode_to_latex(concat!("\\supset", "\u{0338}", " S")).text(),
+            r"\nsupset S"
+        );
+        assert_eq!(
+            translate_unicode_to_latex(concat!("\\leqslant", "\u{0338}", r" \lambda")).text(),
             r"\nleq \lambda"
         );
     }
@@ -994,6 +1014,17 @@ mod tests {
             translate_unicode_to_latex("U ─j × 1→ X").text(),
             r"U \xrightarrow{j \times 1} X"
         );
+        assert_eq!(translate_unicode_to_latex("A ⤏ B").text(), r"A \dashrightarrow B");
+    }
+
+    #[test]
+    fn unsupported_unicode_remains_visible_and_lossy() {
+        let translated = translate_unicode_to_latex("A ⥪ B");
+
+        assert_eq!(translated.text(), "A ⥪ B");
+        assert_eq!(translated.status(), TranslationStatus::Lossy);
+        assert_eq!(translated.losses().len(), 1);
+        assert_eq!(translated.diagnostics()[0].kind(), &LatexErrorKind::Lexical);
     }
 
     #[test]

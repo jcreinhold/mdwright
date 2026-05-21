@@ -63,6 +63,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = [
   "tracing-log",
 ] }
 unicode-width = "0.2"
+unicode-normalization = "0.1"
 xtask = { path = "xtask" }
 
 [patch.crates-io]

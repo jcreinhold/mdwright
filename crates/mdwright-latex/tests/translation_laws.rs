@@ -42,8 +42,15 @@ fn plain_latex_atom() -> impl Strategy<Value = String> {
     prop::sample::select(&["x", "y", "n", "i", "0", "1", "2", "12"]).prop_map(str::to_owned)
 }
 
+fn scriptable_latex_atom() -> impl Strategy<Value = String> {
+    prop_oneof![
+        plain_latex_atom(),
+        prop::sample::select(&[r"\alpha", r"\beta", r"\Gamma", r"\Omega"]).prop_map(str::to_owned),
+    ]
+}
+
 fn script_latex_atom() -> impl Strategy<Value = String> {
-    let base = prop_oneof![plain_latex_atom(), direct_latex_atom()];
+    let base = scriptable_latex_atom();
     let script = prop::sample::select(&["_i", "_{n}", "_{12}", "^2", "^{n}", "^{-1}", "_i^2", "^{2}_{i}"]);
     (base, script).prop_map(|(base, script)| format!("{base}{script}"))
 }

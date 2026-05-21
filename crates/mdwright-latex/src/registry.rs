@@ -124,6 +124,35 @@ impl CommandInfo {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LatexSourceFragment {
+    Command(&'static str),
+    Raw(&'static str),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MathAlphabetStyle {
+    Bold,
+    Italic,
+    BoldItalic,
+    Script,
+    BoldScript,
+    Fraktur,
+    DoubleStruck,
+    BoldFraktur,
+    Sans,
+    SansBold,
+    SansItalic,
+    SansBoldItalic,
+    Monospace,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MathAlphabetChar {
+    pub style: MathAlphabetStyle,
+    pub base: char,
+}
+
 #[derive(Clone, Copy)]
 struct CommandEntry {
     name: &'static str,
@@ -305,9 +334,13 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("lor", CommandCategory::BinaryOperator, "∨", "vee", BASE),
     CommandEntry::direct("cap", CommandCategory::BinaryOperator, "∩", "cap", BASE),
     CommandEntry::direct("cup", CommandCategory::BinaryOperator, "∪", "cup", BASE),
+    CommandEntry::direct("sqcup", CommandCategory::BinaryOperator, "⊔", "sqcup", AMS),
     CommandEntry::direct("setminus", CommandCategory::BinaryOperator, "∖", "setminus", BASE),
     CommandEntry::direct("oplus", CommandCategory::BinaryOperator, "⊕", "oplus", BASE),
+    CommandEntry::direct("bigoplus", CommandCategory::LargeOperator, "⨁", "bigoplus", BASE),
     CommandEntry::direct("otimes", CommandCategory::BinaryOperator, "⊗", "otimes", BASE),
+    CommandEntry::direct("bigotimes", CommandCategory::LargeOperator, "⨂", "bigotimes", BASE),
+    CommandEntry::direct("boxtimes", CommandCategory::BinaryOperator, "⊠", "boxtimes", AMS),
     CommandEntry::direct("ominus", CommandCategory::BinaryOperator, "⊖", "ominus", BASE),
     CommandEntry::direct("oslash", CommandCategory::BinaryOperator, "⊘", "oslash", BASE),
     CommandEntry::direct("odot", CommandCategory::BinaryOperator, "⊙", "odot", BASE),
@@ -315,8 +348,24 @@ const COMMANDS: &[CommandEntry] = &[
     // Relations.
     CommandEntry::direct("leq", CommandCategory::Relation, "≤", "leq", BASE),
     CommandEntry::direct("le", CommandCategory::Relation, "≤", "leq", BASE),
+    CommandEntry::direct("leqslant", CommandCategory::Relation, "⩽", "leqslant", AMS),
+    CommandEntry::direct(
+        "nleqslant",
+        CommandCategory::Relation,
+        "\u{2A7D}\u{0338}",
+        "nleqslant",
+        AMS,
+    ),
     CommandEntry::direct("geq", CommandCategory::Relation, "≥", "geq", BASE),
     CommandEntry::direct("ge", CommandCategory::Relation, "≥", "geq", BASE),
+    CommandEntry::direct("geqslant", CommandCategory::Relation, "⩾", "geqslant", AMS),
+    CommandEntry::direct(
+        "ngeqslant",
+        CommandCategory::Relation,
+        "\u{2A7E}\u{0338}",
+        "ngeqslant",
+        AMS,
+    ),
     CommandEntry::direct("neq", CommandCategory::Relation, "≠", "neq", BASE),
     CommandEntry::direct("ne", CommandCategory::Relation, "≠", "neq", BASE),
     CommandEntry::direct("equiv", CommandCategory::Relation, "≡", "equiv", BASE),
@@ -330,6 +379,11 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("notin", CommandCategory::Relation, "∉", "notin", BASE),
     CommandEntry::direct("subset", CommandCategory::Relation, "⊂", "subset", BASE),
     CommandEntry::direct("supset", CommandCategory::Relation, "⊃", "supset", BASE),
+    CommandEntry::direct("nsubset", CommandCategory::Relation, "⊄", "nsubset", AMS),
+    CommandEntry::direct("nsupset", CommandCategory::Relation, "⊅", "nsupset", AMS),
+    CommandEntry::direct("nsupseteq", CommandCategory::Relation, "⊉", "nsupseteq", AMS),
+    CommandEntry::direct("subsetneq", CommandCategory::Relation, "⊊", "subsetneq", AMS),
+    CommandEntry::direct("supsetneq", CommandCategory::Relation, "⊋", "supsetneq", AMS),
     CommandEntry::direct("subseteq", CommandCategory::Relation, "⊆", "subseteq", BASE),
     CommandEntry::direct("supseteq", CommandCategory::Relation, "⊇", "supseteq", BASE),
     CommandEntry::direct("models", CommandCategory::Relation, "⊨", "models", AMS),
@@ -339,6 +393,11 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("parallel", CommandCategory::Relation, "∥", "parallel", BASE),
     CommandEntry::direct("mid", CommandCategory::Relation, "∣", "mid", BASE),
     CommandEntry::direct("asymp", CommandCategory::Relation, "≍", "asymp", BASE),
+    CommandEntry::direct("prec", CommandCategory::Relation, "≺", "prec", AMS),
+    CommandEntry::direct("nprec", CommandCategory::Relation, "⊀", "nprec", AMS),
+    CommandEntry::direct("preceq", CommandCategory::Relation, "≼", "preceq", AMS),
+    CommandEntry::direct("succeq", CommandCategory::Relation, "≽", "succeq", AMS),
+    CommandEntry::direct("gg", CommandCategory::Relation, "≫", "gg", BASE),
     // Arrows.
     CommandEntry::direct("to", CommandCategory::Arrow, "→", "to", BASE),
     CommandEntry::direct("rightarrow", CommandCategory::Arrow, "→", "to", BASE),
@@ -346,13 +405,34 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("leftarrow", CommandCategory::Arrow, "←", "leftarrow", BASE),
     CommandEntry::direct("mapsto", CommandCategory::Arrow, "↦", "mapsto", BASE),
     CommandEntry::direct("leftrightarrow", CommandCategory::Arrow, "↔", "leftrightarrow", BASE),
+    CommandEntry::direct(
+        "twoheadrightarrow",
+        CommandCategory::Arrow,
+        "↠",
+        "twoheadrightarrow",
+        AMS,
+    ),
     CommandEntry::direct("Rightarrow", CommandCategory::Arrow, "⇒", "Rightarrow", BASE),
     CommandEntry::direct("Leftarrow", CommandCategory::Arrow, "⇐", "Leftarrow", BASE),
     CommandEntry::direct("Leftrightarrow", CommandCategory::Arrow, "⇔", "Leftrightarrow", BASE),
     CommandEntry::direct("longrightarrow", CommandCategory::Arrow, "⟶", "longrightarrow", BASE),
     CommandEntry::direct("longleftarrow", CommandCategory::Arrow, "⟵", "longleftarrow", BASE),
+    CommandEntry::direct(
+        "longleftrightarrow",
+        CommandCategory::Arrow,
+        "⟷",
+        "longleftrightarrow",
+        BASE,
+    ),
     CommandEntry::direct("Longrightarrow", CommandCategory::Arrow, "⟹", "Longrightarrow", BASE),
     CommandEntry::direct("Longleftarrow", CommandCategory::Arrow, "⟸", "Longleftarrow", BASE),
+    CommandEntry::direct(
+        "Longleftrightarrow",
+        CommandCategory::Arrow,
+        "⟺",
+        "Longleftrightarrow",
+        BASE,
+    ),
     CommandEntry::direct("hookrightarrow", CommandCategory::Arrow, "↪", "hookrightarrow", BASE),
     CommandEntry::direct("hookleftarrow", CommandCategory::Arrow, "↩", "hookleftarrow", BASE),
     CommandEntry::direct("uparrow", CommandCategory::Arrow, "↑", "uparrow", BASE),
@@ -360,6 +440,7 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("updownarrow", CommandCategory::Arrow, "↕", "updownarrow", BASE),
     CommandEntry::direct("dashrightarrow", CommandCategory::Arrow, "⇢", "dashrightarrow", AMS),
     CommandEntry::direct("curvearrowright", CommandCategory::Arrow, "↷", "curvearrowright", AMS),
+    CommandEntry::direct("rightsquigarrow", CommandCategory::Arrow, "↝", "rightsquigarrow", AMS),
     // Delimiters and set symbols.
     CommandEntry::direct("langle", CommandCategory::Delimiter, "⟨", "langle", BASE),
     CommandEntry::direct("rangle", CommandCategory::Delimiter, "⟩", "rangle", BASE),
@@ -404,6 +485,14 @@ const COMMANDS: &[CommandEntry] = &[
     CommandEntry::direct("Re", CommandCategory::Symbol, "ℜ", "Re", BASE),
     CommandEntry::direct("Im", CommandCategory::Symbol, "ℑ", "Im", BASE),
     CommandEntry::direct("wp", CommandCategory::Symbol, "℘", "wp", BASE),
+    CommandEntry::direct("cdots", CommandCategory::Symbol, "⋯", "cdots", BASE),
+    CommandEntry::direct("dots", CommandCategory::Symbol, "…", "cdots", BASE),
+    CommandEntry::direct("square", CommandCategory::Symbol, "□", "square", AMS),
+    CommandEntry::direct("complement", CommandCategory::Symbol, "∁", "complement", AMS),
+    CommandEntry::direct("sharp", CommandCategory::Symbol, "♯", "sharp", BASE),
+    CommandEntry::direct("flat", CommandCategory::Symbol, "♭", "flat", BASE),
+    CommandEntry::direct("natural", CommandCategory::Symbol, "♮", "natural", BASE),
+    CommandEntry::direct("wr", CommandCategory::BinaryOperator, "≀", "wr", BASE),
     // Function names.
     CommandEntry::direct("sin", CommandCategory::Function, "sin", "sin", BASE),
     CommandEntry::direct("cos", CommandCategory::Function, "cos", "cos", BASE),
@@ -587,8 +676,54 @@ const SUPERSCRIPTS: &[(char, char, &str)] = &[
     ('7', '⁷', "7"),
     ('8', '⁸', "8"),
     ('9', '⁹', "9"),
+    ('+', '⁺', "+"),
+    ('=', '⁼', "="),
+    ('(', '⁽', "("),
+    (')', '⁾', ")"),
+    ('a', 'ᵃ', "a"),
+    ('b', 'ᵇ', "b"),
+    ('c', 'ᶜ', "c"),
+    ('d', 'ᵈ', "d"),
+    ('e', 'ᵉ', "e"),
+    ('f', 'ᶠ', "f"),
+    ('g', 'ᵍ', "g"),
+    ('h', 'ʰ', "h"),
     ('n', 'ⁿ', "n"),
     ('i', 'ⁱ', "i"),
+    ('j', 'ʲ', "j"),
+    ('k', 'ᵏ', "k"),
+    ('l', 'ˡ', "l"),
+    ('m', 'ᵐ', "m"),
+    ('o', 'ᵒ', "o"),
+    ('p', 'ᵖ', "p"),
+    ('r', 'ʳ', "r"),
+    ('s', 'ˢ', "s"),
+    ('t', 'ᵗ', "t"),
+    ('u', 'ᵘ', "u"),
+    ('v', 'ᵛ', "v"),
+    ('w', 'ʷ', "w"),
+    ('x', 'ˣ', "x"),
+    ('y', 'ʸ', "y"),
+    ('z', 'ᶻ', "z"),
+    ('A', 'ᴬ', "A"),
+    ('B', 'ᴮ', "B"),
+    ('D', 'ᴰ', "D"),
+    ('E', 'ᴱ', "E"),
+    ('G', 'ᴳ', "G"),
+    ('H', 'ᴴ', "H"),
+    ('I', 'ᴵ', "I"),
+    ('J', 'ᴶ', "J"),
+    ('K', 'ᴷ', "K"),
+    ('L', 'ᴸ', "L"),
+    ('M', 'ᴹ', "M"),
+    ('N', 'ᴺ', "N"),
+    ('O', 'ᴼ', "O"),
+    ('P', 'ᴾ', "P"),
+    ('R', 'ᴿ', "R"),
+    ('T', 'ᵀ', "T"),
+    ('U', 'ᵁ', "U"),
+    ('V', 'ⱽ', "V"),
+    ('W', 'ᵂ', "W"),
     ('-', '⁻', "-"),
 ];
 
@@ -603,7 +738,27 @@ const SUBSCRIPTS: &[(char, char, &str)] = &[
     ('7', '₇', "7"),
     ('8', '₈', "8"),
     ('9', '₉', "9"),
+    ('+', '₊', "+"),
+    ('-', '₋', "-"),
+    ('=', '₌', "="),
+    ('(', '₍', "("),
+    (')', '₎', ")"),
+    ('a', 'ₐ', "a"),
+    ('e', 'ₑ', "e"),
+    ('h', 'ₕ', "h"),
+    ('j', 'ⱼ', "j"),
+    ('k', 'ₖ', "k"),
+    ('l', 'ₗ', "l"),
+    ('m', 'ₘ', "m"),
     ('n', 'ₙ', "n"),
+    ('o', 'ₒ', "o"),
+    ('p', 'ₚ', "p"),
+    ('r', 'ᵣ', "r"),
+    ('s', 'ₛ', "s"),
+    ('t', 'ₜ', "t"),
+    ('u', 'ᵤ', "u"),
+    ('v', 'ᵥ', "v"),
+    ('x', 'ₓ', "x"),
     ('i', 'ᵢ', "i"),
 ];
 
@@ -639,6 +794,175 @@ pub fn unicode_symbol_latex(symbol: &str) -> Option<&'static str> {
         .find_map(|entry| (entry.unicode == Some(symbol) && entry.preferred == entry.name).then_some(entry.preferred))
 }
 
+pub(crate) fn unicode_symbol_latex_source(symbol: &str) -> Option<LatexSourceFragment> {
+    match symbol {
+        "−" => Some(LatexSourceFragment::Raw("-")),
+        "·" | "⋅" => Some(LatexSourceFragment::Command("cdot")),
+        "…" => Some(LatexSourceFragment::Command("cdots")),
+        "ℎ" => Some(LatexSourceFragment::Raw("h")),
+        "ℴ" => Some(LatexSourceFragment::Raw("o")),
+        "\u{227A}\u{0338}" => Some(LatexSourceFragment::Command("nprec")),
+        "\u{2A7D}\u{0338}" => Some(LatexSourceFragment::Command("nleqslant")),
+        "⥲" => Some(LatexSourceFragment::Raw(r"\xrightarrow{\sim}")),
+        "⤏" => Some(LatexSourceFragment::Command("dashrightarrow")),
+        _ => unicode_symbol_latex(symbol).map(LatexSourceFragment::Command),
+    }
+}
+
+pub(crate) fn unicode_math_alphabet_char(ch: char) -> Option<MathAlphabetChar> {
+    legacy_math_alphabet_char(ch)
+        .or_else(|| latin_math_alphabet_char(ch))
+        .or_else(|| digit_math_alphabet_char(ch))
+        .or_else(|| greek_math_alphabet_char(ch))
+}
+
+pub(crate) fn math_alphabet_latex_command(style: MathAlphabetStyle) -> Option<&'static str> {
+    match style {
+        MathAlphabetStyle::Bold => Some("mathbf"),
+        MathAlphabetStyle::Italic | MathAlphabetStyle::BoldItalic => Some("mathit"),
+        MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript => Some("mathcal"),
+        MathAlphabetStyle::Fraktur | MathAlphabetStyle::BoldFraktur => Some("mathfrak"),
+        MathAlphabetStyle::DoubleStruck => Some("mathbb"),
+        MathAlphabetStyle::Sans
+        | MathAlphabetStyle::SansBold
+        | MathAlphabetStyle::SansItalic
+        | MathAlphabetStyle::SansBoldItalic => Some("mathsf"),
+        MathAlphabetStyle::Monospace => Some("mathtt"),
+    }
+}
+
+pub(crate) fn styled_word_latex(style: MathAlphabetStyle, base: &str) -> Option<&'static str> {
+    match (style, base) {
+        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Hom") => Some(r"\mathcal{H}om"),
+        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Proj") => Some(r"\mathcal{P}roj"),
+        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Spec") => Some(r"\mathcal{S}pec"),
+        (MathAlphabetStyle::Script | MathAlphabetStyle::BoldScript, "Der") => Some(r"\mathcal{D}er"),
+        _ => None,
+    }
+}
+
+fn legacy_math_alphabet_char(ch: char) -> Option<MathAlphabetChar> {
+    let (style, base) = match ch {
+        'ℂ' => (MathAlphabetStyle::DoubleStruck, 'C'),
+        'ℍ' => (MathAlphabetStyle::DoubleStruck, 'H'),
+        'ℕ' => (MathAlphabetStyle::DoubleStruck, 'N'),
+        'ℙ' => (MathAlphabetStyle::DoubleStruck, 'P'),
+        'ℚ' => (MathAlphabetStyle::DoubleStruck, 'Q'),
+        'ℝ' => (MathAlphabetStyle::DoubleStruck, 'R'),
+        'ℤ' => (MathAlphabetStyle::DoubleStruck, 'Z'),
+        'ℬ' => (MathAlphabetStyle::Script, 'B'),
+        'ℰ' => (MathAlphabetStyle::Script, 'E'),
+        'ℱ' => (MathAlphabetStyle::Script, 'F'),
+        'ℋ' => (MathAlphabetStyle::Script, 'H'),
+        'ℐ' => (MathAlphabetStyle::Script, 'I'),
+        'ℒ' => (MathAlphabetStyle::Script, 'L'),
+        'ℳ' => (MathAlphabetStyle::Script, 'M'),
+        'ℛ' => (MathAlphabetStyle::Script, 'R'),
+        'ℯ' => (MathAlphabetStyle::Script, 'e'),
+        'ℭ' => (MathAlphabetStyle::Fraktur, 'C'),
+        'ℌ' => (MathAlphabetStyle::Fraktur, 'H'),
+        'ℑ' => (MathAlphabetStyle::Fraktur, 'I'),
+        'ℜ' => (MathAlphabetStyle::Fraktur, 'R'),
+        'ℨ' => (MathAlphabetStyle::Fraktur, 'Z'),
+        _ => return None,
+    };
+    Some(MathAlphabetChar { style, base })
+}
+
+fn latin_math_alphabet_char(ch: char) -> Option<MathAlphabetChar> {
+    const LATIN_RANGES: &[(u32, MathAlphabetStyle, char, usize)] = &[
+        (0x1d400, MathAlphabetStyle::Bold, 'A', 26),
+        (0x1d41a, MathAlphabetStyle::Bold, 'a', 26),
+        (0x1d434, MathAlphabetStyle::Italic, 'A', 26),
+        (0x1d44e, MathAlphabetStyle::Italic, 'a', 26),
+        (0x1d468, MathAlphabetStyle::BoldItalic, 'A', 26),
+        (0x1d482, MathAlphabetStyle::BoldItalic, 'a', 26),
+        (0x1d49c, MathAlphabetStyle::Script, 'A', 26),
+        (0x1d4b6, MathAlphabetStyle::Script, 'a', 26),
+        (0x1d4d0, MathAlphabetStyle::BoldScript, 'A', 26),
+        (0x1d4ea, MathAlphabetStyle::BoldScript, 'a', 26),
+        (0x1d504, MathAlphabetStyle::Fraktur, 'A', 26),
+        (0x1d51e, MathAlphabetStyle::Fraktur, 'a', 26),
+        (0x1d538, MathAlphabetStyle::DoubleStruck, 'A', 26),
+        (0x1d552, MathAlphabetStyle::DoubleStruck, 'a', 26),
+        (0x1d56c, MathAlphabetStyle::BoldFraktur, 'A', 26),
+        (0x1d586, MathAlphabetStyle::BoldFraktur, 'a', 26),
+        (0x1d5a0, MathAlphabetStyle::Sans, 'A', 26),
+        (0x1d5ba, MathAlphabetStyle::Sans, 'a', 26),
+        (0x1d5d4, MathAlphabetStyle::SansBold, 'A', 26),
+        (0x1d5ee, MathAlphabetStyle::SansBold, 'a', 26),
+        (0x1d608, MathAlphabetStyle::SansItalic, 'A', 26),
+        (0x1d622, MathAlphabetStyle::SansItalic, 'a', 26),
+        (0x1d63c, MathAlphabetStyle::SansBoldItalic, 'A', 26),
+        (0x1d656, MathAlphabetStyle::SansBoldItalic, 'a', 26),
+        (0x1d670, MathAlphabetStyle::Monospace, 'A', 26),
+        (0x1d68a, MathAlphabetStyle::Monospace, 'a', 26),
+    ];
+    for &(start, style, base, len) in LATIN_RANGES {
+        if let Some(mapped) = offset_char(ch, start, base, len) {
+            return Some(MathAlphabetChar { style, base: mapped });
+        }
+    }
+    None
+}
+
+fn digit_math_alphabet_char(ch: char) -> Option<MathAlphabetChar> {
+    const DIGIT_RANGES: &[(u32, MathAlphabetStyle)] = &[
+        (0x1d7ce, MathAlphabetStyle::Bold),
+        (0x1d7d8, MathAlphabetStyle::DoubleStruck),
+        (0x1d7e2, MathAlphabetStyle::Sans),
+        (0x1d7ec, MathAlphabetStyle::SansBold),
+        (0x1d7f6, MathAlphabetStyle::Monospace),
+    ];
+    for &(start, style) in DIGIT_RANGES {
+        if let Some(base) = offset_char(ch, start, '0', 10) {
+            return Some(MathAlphabetChar { style, base });
+        }
+    }
+    None
+}
+
+fn greek_math_alphabet_char(ch: char) -> Option<MathAlphabetChar> {
+    const GREEK_BOLD_UPPER: &[char] = &[
+        'Α', 'Β', 'Γ', 'Δ', 'Ε', 'Ζ', 'Η', 'Θ', 'Ι', 'Κ', 'Λ', 'Μ', 'Ν', 'Ξ', 'Ο', 'Π', 'Ρ', 'ϴ', 'Σ', 'Τ', 'Υ', 'Φ',
+        'Χ', 'Ψ', 'Ω',
+    ];
+    const GREEK_BOLD_LOWER: &[char] = &[
+        '∇', 'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'ς', 'σ', 'τ', 'υ',
+        'φ', 'χ', 'ψ', 'ω',
+    ];
+    greek_range(ch, 0x1d6a8, MathAlphabetStyle::Bold, GREEK_BOLD_UPPER)
+        .or_else(|| greek_range(ch, 0x1d6c2, MathAlphabetStyle::Bold, GREEK_BOLD_LOWER))
+        .or_else(|| greek_range(ch, 0x1d6e2, MathAlphabetStyle::Italic, GREEK_BOLD_UPPER))
+        .or_else(|| greek_range(ch, 0x1d6fc, MathAlphabetStyle::Italic, GREEK_BOLD_LOWER))
+        .or_else(|| greek_range(ch, 0x1d71c, MathAlphabetStyle::BoldItalic, GREEK_BOLD_UPPER))
+        .or_else(|| greek_range(ch, 0x1d736, MathAlphabetStyle::BoldItalic, GREEK_BOLD_LOWER))
+        .or_else(|| greek_range(ch, 0x1d756, MathAlphabetStyle::SansBold, GREEK_BOLD_UPPER))
+        .or_else(|| greek_range(ch, 0x1d770, MathAlphabetStyle::SansBold, GREEK_BOLD_LOWER))
+        .or_else(|| greek_range(ch, 0x1d790, MathAlphabetStyle::SansBoldItalic, GREEK_BOLD_UPPER))
+        .or_else(|| greek_range(ch, 0x1d7aa, MathAlphabetStyle::SansBoldItalic, GREEK_BOLD_LOWER))
+}
+
+fn greek_range(ch: char, start: u32, style: MathAlphabetStyle, bases: &'static [char]) -> Option<MathAlphabetChar> {
+    let value = u32::from(ch);
+    let offset = value.checked_sub(start)?;
+    let index = usize::try_from(offset).ok()?;
+    let base = bases.get(index).copied()?;
+    Some(MathAlphabetChar { style, base })
+}
+
+fn offset_char(ch: char, start: u32, base: char, len: usize) -> Option<char> {
+    let value = u32::from(ch);
+    let offset = value.checked_sub(start)?;
+    let index = usize::try_from(offset).ok()?;
+    if index >= len {
+        return None;
+    }
+    let base_value = u32::from(base);
+    let mapped = base_value.checked_add(offset)?;
+    char::from_u32(mapped)
+}
+
 /// Unicode superscript for a single ASCII character.
 #[must_use]
 pub fn unicode_super(c: char) -> Option<char> {
@@ -670,6 +994,9 @@ pub fn unicode_sub_str(s: &str) -> Option<String> {
 /// Preferred ASCII source for one Unicode superscript character.
 #[must_use]
 pub fn unicode_super_latex(c: char) -> Option<&'static str> {
+    if c == '°' {
+        return Some(r"\circ");
+    }
     SUPERSCRIPTS
         .iter()
         .find_map(|(_source, rendered, latex)| (*rendered == c).then_some(*latex))
@@ -710,6 +1037,27 @@ mod tests {
         assert_eq!(le.preferred(), "leq");
         assert_eq!(unicode_symbol_latex("≤"), Some("leq"));
         assert_eq!(unicode_symbol_latex("∅"), Some("emptyset"));
+        assert_eq!(
+            unicode_symbol_latex_source("≤"),
+            Some(LatexSourceFragment::Command("leq"))
+        );
+        assert_eq!(unicode_symbol_latex_source("−"), Some(LatexSourceFragment::Raw("-")));
+        assert_eq!(
+            unicode_symbol_latex_source("⥲"),
+            Some(LatexSourceFragment::Raw(r"\xrightarrow{\sim}"))
+        );
+        assert_eq!(
+            unicode_symbol_latex_source("\u{227A}\u{0338}"),
+            Some(LatexSourceFragment::Command("nprec"))
+        );
+        assert_eq!(
+            unicode_symbol_latex_source("\u{2A7D}\u{0338}"),
+            Some(LatexSourceFragment::Command("nleqslant"))
+        );
+        assert_eq!(
+            unicode_symbol_latex_source("⤏"),
+            Some(LatexSourceFragment::Command("dashrightarrow"))
+        );
     }
 
     #[test]
@@ -735,7 +1083,7 @@ mod tests {
         assert_eq!(unicode_super_str("-1"), Some("⁻¹".to_owned()));
         assert_eq!(unicode_super_str("n"), Some("ⁿ".to_owned()));
         assert_eq!(unicode_sub_str("i"), Some("ᵢ".to_owned()));
-        assert_eq!(unicode_sub_str("x"), None);
+        assert_eq!(unicode_sub_str("x"), Some("ₓ".to_owned()));
         assert_eq!(unicode_super_latex('⁻'), Some("-"));
         assert_eq!(unicode_sub_latex('ᵢ'), Some("i"));
     }

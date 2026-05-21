@@ -928,17 +928,16 @@ mod tests {
 
     #[test]
     fn styled_runs_existing_latex_and_symbols_are_nodes() {
-        let body = parse_ok("𝓗𝓸𝓶 𝓟𝓻𝓸𝓳 𝚪_* 𝐟𝐠 \\leqslant̸ ⩾ ⋯ ⨁ □");
+        let body = parse_ok(concat!("𝓗𝓸𝓶 𝓟𝓻𝓸𝓳 𝚪_* 𝐟𝐠 \\leqslant", "\u{0338}", " ⩾ ⋯ ⨁ □"));
         assert!(
             body.elements
                 .iter()
                 .any(|node| matches!(node.kind, UnicodeNodeKind::StyledRun(_)))
         );
-        assert!(
-            body.elements
-                .iter()
-                .any(|node| matches!(node.kind, UnicodeNodeKind::ExistingLatex("\\leqslant̸")))
-        );
+        assert!(body.elements.iter().any(|node| matches!(
+            node.kind,
+            UnicodeNodeKind::ExistingLatex(concat!("\\leqslant", "\u{0338}"))
+        )));
         assert!(
             body.elements
                 .iter()

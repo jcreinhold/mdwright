@@ -322,9 +322,7 @@ impl<'src> UnicodeLexer<'src> {
             _ if is_prime_mark(ch) => {
                 self.push_single(start, end, UnicodeTokenKind::Punctuation(&self.source[start..end]));
             }
-            _ if self.is_direct_symbol(start, end) => {
-                self.push_single(start, end, UnicodeTokenKind::DirectSymbol(&self.source[start..end]));
-            }
+            _ if self.push_direct_symbol(start, end) => {}
             _ if ch.is_control() => {
                 let span = SourceSpan::new(start, end);
                 self.cursor = end;
@@ -540,8 +538,28 @@ impl<'src> UnicodeLexer<'src> {
         self.tokens.push(UnicodeToken::new(kind, SourceSpan::new(start, end)));
     }
 
-    fn is_direct_symbol(&self, start: usize, end: usize) -> bool {
-        unicode_symbol_latex_source(&self.source[start..end]).is_some()
+    fn push_direct_symbol(&mut self, start: usize, end: usize) -> bool {
+        if let Some((_overlay_start, '\u{0338}', overlay_end)) = self.peek_char_at(end) {
+            let symbol = &self.source[start..overlay_end];
+            if unicode_symbol_latex_source(symbol).is_some() {
+                self.cursor = overlay_end;
+                self.tokens.push(UnicodeToken::new(
+                    UnicodeTokenKind::DirectSymbol(symbol),
+                    SourceSpan::new(start, overlay_end),
+                ));
+                return true;
+            }
+        }
+        let symbol = &self.source[start..end];
+        if unicode_symbol_latex_source(symbol).is_none() {
+            return false;
+        }
+        self.cursor = end;
+        self.tokens.push(UnicodeToken::new(
+            UnicodeTokenKind::DirectSymbol(symbol),
+            SourceSpan::new(start, end),
+        ));
+        true
     }
 
     fn has_previous_non_whitespace(&self) -> bool {
@@ -805,14 +823,14 @@ mod tests {
 
     #[test]
     fn existing_latex_passthrough_keeps_overlay_marks() {
-        let tokens = non_trivia(r"\phi \supset̸ \leqslant̸");
+        let tokens = non_trivia(concat!(r"\phi \supset", "\u{0338}", r" \leqslant", "\u{0338}"));
 
         assert_eq!(
             tokens,
             vec![
                 UnicodeTokenKind::ExistingLatex(r"\phi"),
-                UnicodeTokenKind::ExistingLatex(r"\supset̸"),
-                UnicodeTokenKind::ExistingLatex(r"\leqslant̸"),
+                UnicodeTokenKind::ExistingLatex(concat!(r"\supset", "\u{0338}")),
+                UnicodeTokenKind::ExistingLatex(concat!(r"\leqslant", "\u{0338}")),
                 UnicodeTokenKind::Eof,
             ]
         );
