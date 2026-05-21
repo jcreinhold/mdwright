@@ -25,6 +25,9 @@ TARGETS=(
 	fuzz_structured_idempotence
 	fuzz_lint
 	fuzz_verbatim_identity
+	fuzz_latex_render
+	fuzz_latex_translate
+	fuzz_markdown_math_translate
 )
 
 fail=0

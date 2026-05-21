@@ -90,7 +90,7 @@ aggregator only requires stable JSON with enough fields for a human to inspect a
 
 ## Refresh fuzz and benchmark evidence
 
-Replay the five fuzz corpora:
+Replay the fuzz corpora:
 
 ```sh
 cargo +nightly fuzz run fuzz_parse_format -- -runs=0
@@ -98,6 +98,9 @@ cargo +nightly fuzz run fuzz_idempotence -- -runs=0
 cargo +nightly fuzz run fuzz_structured_idempotence -- -runs=0
 cargo +nightly fuzz run fuzz_lint -- -runs=0
 cargo +nightly fuzz run fuzz_verbatim_identity -- -runs=0
+cargo +nightly fuzz run fuzz_latex_render -- -runs=0
+cargo +nightly fuzz run fuzz_latex_translate -- -runs=0
+cargo +nightly fuzz run fuzz_markdown_math_translate -- -runs=0
 ```
 
 Write the replay result to `target/mdwright/release/fuzz-replay.md`.

@@ -17,7 +17,9 @@ arbitrary = { version = "1", features = ["derive"] }
 libfuzzer-sys = "0.4"
 mdwright-document = { path = "../crates/mdwright-document" }
 mdwright-format = { path = "../crates/mdwright-format" }
+mdwright-latex = { path = "../crates/mdwright-latex" }
 mdwright-lint = { path = "../crates/mdwright-lint" }
+mdwright-math = { path = "../crates/mdwright-math" }
 
 [[bin]]
 bench = false
@@ -52,4 +54,25 @@ bench = false
 doc = false
 name = "fuzz_structured_idempotence"
 path = "fuzz_targets/fuzz_structured_idempotence.rs"
+test = false
+
+[[bin]]
+bench = false
+doc = false
+name = "fuzz_latex_render"
+path = "fuzz_targets/fuzz_latex_render.rs"
+test = false
+
+[[bin]]
+bench = false
+doc = false
+name = "fuzz_latex_translate"
+path = "fuzz_targets/fuzz_latex_translate.rs"
+test = false
+
+[[bin]]
+bench = false
+doc = false
+name = "fuzz_markdown_math_translate"
+path = "fuzz_targets/fuzz_markdown_math_translate.rs"
 test = false

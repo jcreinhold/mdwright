@@ -4,9 +4,10 @@ mdwright does not try to be TeX. It shapes math regions so a downstream renderer
 mkdocs-material's math plugin, or jupyter-book, can do browser-quality typesetting. `--math-render` chooses the source
 delimiter shape for formatter and HTML-render checks.
 
-For terminal inspection, `mdwright preview --math=unicode` has a conservative first-party Unicode renderer for simple
-LaTeX math. It covers common symbols, scripts, fractions, and square roots. Unsupported math falls back to source text
-instead of guessing.
+For terminal inspection, `mdwright preview --math=unicode` has a first-party Unicode renderer for a large common subset
+of MathJax-style TeX math input: symbols, Greek letters, scripts, accents, fractions, roots, delimiters, arrows,
+relations, operators, and matrix-like environments where Unicode terminal text can represent the result honestly.
+Unsupported math falls back to source text instead of guessing.
 
 For editable source translation, use `mdwright math`. It translates math bodies between LaTeX commands and Unicode
 source while preserving Markdown math delimiters. Normal `mdwright fmt` never rewrites math notation silently.
@@ -95,8 +96,9 @@ File mode translates recognised Markdown math bodies and preserves their delimit
 `\( αᵢ \)`. Use `--check` for CI, `--diff` to inspect a patch-compatible diff, and `--write` to mutate files. Stdin
 without recognised Markdown math delimiters is treated as one math source body.
 
-Translation is conservative. Unsupported TeX remains visible in source and is reported on stderr rather than being
-approximated.
+Translation is conservative. Direct symbols, scripts, roots, aliases, and other constructs with honest editable Unicode
+forms are translated. Fractions, complex environments, macros, colour/style commands, and other TeX constructs without a
+plain Unicode source form remain visible and are reported on stderr rather than being approximated.
 
 ## The gate under `dollar` mode
 

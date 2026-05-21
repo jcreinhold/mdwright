@@ -123,6 +123,8 @@ those packages exist on crates.io. Publishing order:
   because Markdown delimiter recognition changes for different reasons and has different callers. See
   [`latex-boundary-and-dependency-audit.md`](latex-boundary-and-dependency-audit.md) for the design comparison and
   dependency audit.
+  The release claim for this crate is evidence-backed common MathJax-style coverage where Unicode has honest
+  representations, not TeX macro expansion or browser-grade MathJax layout.
 - No `mdwright-util`: a utility crate has no domain responsibility and becomes a junk drawer.
 - No `mdwright-rules`: standard rules and rule dispatch share suppression, diagnostic, and registry semantics;
   separating them would mirror an old directory layout shallowly.

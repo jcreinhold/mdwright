@@ -23,6 +23,20 @@ byte ownership, and verification checks safety before commit. See
 The histogram excludes three classes as "not a sweep target": `upstream-pulldown-panic` (external, contained at the
 document boundary), `list-marker-derivation` (local recogniser fix), and a handful of paragraph-continuation IR fixes.
 
+## Current math fuzz coverage
+
+The release fuzz sweep also includes `mdwright-latex` targets:
+
+- `fuzz_latex_render`: TeX math body parse plus Unicode render. Malformed or unsupported input must return typed
+  errors, not panics.
+- `fuzz_latex_translate`: LaTeX-to-Unicode and Unicode-to-LaTeX source translation. Diagnostics and loss spans must
+  stay inside the input.
+- `fuzz_markdown_math_translate`: Markdown math-span recognition through `mdwright-math`, followed by body-only
+  translation in `mdwright-latex`.
+
+These targets protect the language boundary added for v0.1 release hardening. They do not change the historical
+formatter-fuzz histogram below, which classifies bugs that were already fixed.
+
 ## Fixes by cause class
 
 Tagged commits use the `cause-class:` convention; older commits predate it and are classified retroactively from their

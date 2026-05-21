@@ -132,8 +132,8 @@ fn collect(workspace: &Path) -> Result<ReleaseEvidenceReport> {
 
     evidence.push(manual_item(
         "fuzz corpus replay",
-        "Replay all five fuzz corpora and record the commands plus outcomes in target/mdwright/release/fuzz-replay.md.",
-        "cargo +nightly fuzz run fuzz_parse_format -- -runs=0; cargo +nightly fuzz run fuzz_idempotence -- -runs=0; cargo +nightly fuzz run fuzz_structured_idempotence -- -runs=0; cargo +nightly fuzz run fuzz_lint -- -runs=0; cargo +nightly fuzz run fuzz_verbatim_identity -- -runs=0",
+        "Replay all Markdown and math fuzz corpora and record the commands plus outcomes in target/mdwright/release/fuzz-replay.md.",
+        "cargo +nightly fuzz run fuzz_parse_format -- -runs=0; cargo +nightly fuzz run fuzz_idempotence -- -runs=0; cargo +nightly fuzz run fuzz_structured_idempotence -- -runs=0; cargo +nightly fuzz run fuzz_lint -- -runs=0; cargo +nightly fuzz run fuzz_verbatim_identity -- -runs=0; cargo +nightly fuzz run fuzz_latex_render -- -runs=0; cargo +nightly fuzz run fuzz_latex_translate -- -runs=0; cargo +nightly fuzz run fuzz_markdown_math_translate -- -runs=0",
         true,
     ));
     blockers.push("manual evidence missing: fuzz corpus replay".to_owned());

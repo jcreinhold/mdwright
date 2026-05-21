@@ -93,7 +93,7 @@ fuzz, and production soak.
 
 ## Fuzz oracles
 
-**Location:** `fuzz/fuzz_targets/`. Five targets:
+**Location:** `fuzz/fuzz_targets/`.
 
 | Target | Oracle | Option byte |
 |---|---|---|
@@ -102,6 +102,9 @@ fuzz, and production soak.
 | `fuzz_structured_idempotence` | Structured-document idempotence over generated Markdown | Yes |
 | `fuzz_verbatim_identity` | Default options are identity modulo document-boundary normalisations | No |
 | `fuzz_lint` | Standard lint rules do not panic and diagnostics are deterministic/in-bounds | No |
+| `fuzz_latex_render` | TeX math-body parse plus Unicode render never panics; malformed or unsupported input returns typed errors | No |
+| `fuzz_latex_translate` | LaTeX-to-Unicode and Unicode-to-LaTeX source translation never panic; diagnostic/loss spans stay in bounds | No |
+| `fuzz_markdown_math_translate` | Markdown math-span scanning plus body-only translation never panics and preserves valid span accounting | No |
 
 **Option byte allocation** (`fuzz_idempotence` and `fuzz_parse_format`, identical):
 
@@ -114,8 +117,10 @@ fuzz, and production soak.
 
 **Invariant:** no input causes a panic or property violation in 10 minutes. Parser implementation panics are converted
 to `ParseError` at the `mdwright-document` boundary, so fuzz targets discard parse errors through normal `Result`
-handling rather than wrapping product calls in `catch_unwind`. Findings are committed to
-`crates/mdwright/tests/regressions/` as `.in` fixtures.
+handling rather than wrapping product calls in `catch_unwind`. TeX math-body failures return `LatexError` or translation
+diagnostics through `mdwright-latex`; fuzz treats those as normal product output and checks that reported spans are
+valid. Findings are committed to `crates/mdwright/tests/regressions/` or to `mdwright-latex` coverage fixtures as
+appropriate.
 
 ## Production soak
 

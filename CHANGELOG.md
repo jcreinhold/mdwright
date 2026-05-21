@@ -73,6 +73,11 @@ All notable changes to mdwright are listed here. The format follows
 - Reworked formatter canonicalisation around rewrite families with explicit ownership. Inline delimiters and link
   destinations are slot-owned, list markers are marker-owned, table padding is a parent normal form, wrap is terminal,
   and idempotence is now checked by regression and property-law gates.
+- Added `mdwright-latex` as the TeX math-body component. It owns MathJax-style command vocabulary, Unicode terminal
+  layout, and source translation evidence; `mdwright-math` remains the Markdown math-span recogniser.
+- Added `mdwright preview` Unicode math rendering and `mdwright math --to-unicode|--to-latex` source translation.
+  Coverage targets common MathJax-style input where Unicode has honest representations; unsupported TeX reports typed
+  diagnostics or falls back to source instead of pretending to be browser MathJax.
 
 ### Performance
 

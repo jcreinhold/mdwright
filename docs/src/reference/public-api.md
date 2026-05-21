@@ -28,6 +28,10 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 `Document` is parse/query only. Linting, formatting, safe-fix application, config discovery, command delivery, and
 editor delivery stay in their owning crates.
 
+The `mdwright-latex` surface targets common MathJax-style math bodies where Unicode can represent the source or
+terminal output honestly. It is not a TeX engine API: macro expansion, browser layout, and unsupported package commands
+return typed errors, losses, or fallback output rather than hidden approximations.
+
 ## Extension Surfaces
 
 | Surface | Use |
