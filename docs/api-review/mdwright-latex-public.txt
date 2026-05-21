@@ -1,0 +1,264 @@
+pub mod mdwright_latex
+pub enum mdwright_latex::ArgumentShape
+pub mdwright_latex::ArgumentShape::EnvironmentBody
+pub mdwright_latex::ArgumentShape::None
+pub mdwright_latex::ArgumentShape::OneRequired
+pub mdwright_latex::ArgumentShape::OptionalThenRequired
+pub mdwright_latex::ArgumentShape::TwoRequired
+pub mdwright_latex::ArgumentShape::Variable
+impl core::clone::Clone for mdwright_latex::ArgumentShape
+pub fn mdwright_latex::ArgumentShape::clone(&self) -> mdwright_latex::ArgumentShape
+impl core::cmp::Eq for mdwright_latex::ArgumentShape
+impl core::cmp::PartialEq for mdwright_latex::ArgumentShape
+pub fn mdwright_latex::ArgumentShape::eq(&self, other: &mdwright_latex::ArgumentShape) -> bool
+impl core::fmt::Debug for mdwright_latex::ArgumentShape
+pub fn mdwright_latex::ArgumentShape::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_latex::ArgumentShape
+impl core::marker::StructuralPartialEq for mdwright_latex::ArgumentShape
+impl core::marker::Freeze for mdwright_latex::ArgumentShape
+impl core::marker::Send for mdwright_latex::ArgumentShape
+impl core::marker::Sync for mdwright_latex::ArgumentShape
+impl core::marker::Unpin for mdwright_latex::ArgumentShape
+impl core::marker::UnsafeUnpin for mdwright_latex::ArgumentShape
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::ArgumentShape
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::ArgumentShape
+pub enum mdwright_latex::CommandCategory
+pub mdwright_latex::CommandCategory::Accent
+pub mdwright_latex::CommandCategory::Arrow
+pub mdwright_latex::CommandCategory::BinaryOperator
+pub mdwright_latex::CommandCategory::Delimiter
+pub mdwright_latex::CommandCategory::Environment
+pub mdwright_latex::CommandCategory::Font
+pub mdwright_latex::CommandCategory::Function
+pub mdwright_latex::CommandCategory::Greek
+pub mdwright_latex::CommandCategory::LargeOperator
+pub mdwright_latex::CommandCategory::Relation
+pub mdwright_latex::CommandCategory::Spacing
+pub mdwright_latex::CommandCategory::Structural
+pub mdwright_latex::CommandCategory::Symbol
+pub mdwright_latex::CommandCategory::Unsupported
+impl core::clone::Clone for mdwright_latex::CommandCategory
+pub fn mdwright_latex::CommandCategory::clone(&self) -> mdwright_latex::CommandCategory
+impl core::cmp::Eq for mdwright_latex::CommandCategory
+impl core::cmp::PartialEq for mdwright_latex::CommandCategory
+pub fn mdwright_latex::CommandCategory::eq(&self, other: &mdwright_latex::CommandCategory) -> bool
+impl core::fmt::Debug for mdwright_latex::CommandCategory
+pub fn mdwright_latex::CommandCategory::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_latex::CommandCategory
+impl core::marker::StructuralPartialEq for mdwright_latex::CommandCategory
+impl core::marker::Freeze for mdwright_latex::CommandCategory
+impl core::marker::Send for mdwright_latex::CommandCategory
+impl core::marker::Sync for mdwright_latex::CommandCategory
+impl core::marker::Unpin for mdwright_latex::CommandCategory
+impl core::marker::UnsafeUnpin for mdwright_latex::CommandCategory
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::CommandCategory
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::CommandCategory
+pub enum mdwright_latex::LatexErrorKind
+pub mdwright_latex::LatexErrorKind::Lexical
+pub mdwright_latex::LatexErrorKind::Syntax
+pub mdwright_latex::LatexErrorKind::Unsupported
+impl core::clone::Clone for mdwright_latex::LatexErrorKind
+pub fn mdwright_latex::LatexErrorKind::clone(&self) -> mdwright_latex::LatexErrorKind
+impl core::cmp::Eq for mdwright_latex::LatexErrorKind
+impl core::cmp::PartialEq for mdwright_latex::LatexErrorKind
+pub fn mdwright_latex::LatexErrorKind::eq(&self, other: &mdwright_latex::LatexErrorKind) -> bool
+impl core::fmt::Debug for mdwright_latex::LatexErrorKind
+pub fn mdwright_latex::LatexErrorKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_latex::LatexErrorKind
+impl core::marker::Freeze for mdwright_latex::LatexErrorKind
+impl core::marker::Send for mdwright_latex::LatexErrorKind
+impl core::marker::Sync for mdwright_latex::LatexErrorKind
+impl core::marker::Unpin for mdwright_latex::LatexErrorKind
+impl core::marker::UnsafeUnpin for mdwright_latex::LatexErrorKind
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::LatexErrorKind
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::LatexErrorKind
+pub enum mdwright_latex::SupportStatus
+pub mdwright_latex::SupportStatus::DirectUnicode
+pub mdwright_latex::SupportStatus::ParsedConstruct
+pub mdwright_latex::SupportStatus::RecognisedNoOutput
+pub mdwright_latex::SupportStatus::Unsupported
+impl core::clone::Clone for mdwright_latex::SupportStatus
+pub fn mdwright_latex::SupportStatus::clone(&self) -> mdwright_latex::SupportStatus
+impl core::cmp::Eq for mdwright_latex::SupportStatus
+impl core::cmp::PartialEq for mdwright_latex::SupportStatus
+pub fn mdwright_latex::SupportStatus::eq(&self, other: &mdwright_latex::SupportStatus) -> bool
+impl core::fmt::Debug for mdwright_latex::SupportStatus
+pub fn mdwright_latex::SupportStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_latex::SupportStatus
+impl core::marker::StructuralPartialEq for mdwright_latex::SupportStatus
+impl core::marker::Freeze for mdwright_latex::SupportStatus
+impl core::marker::Send for mdwright_latex::SupportStatus
+impl core::marker::Sync for mdwright_latex::SupportStatus
+impl core::marker::Unpin for mdwright_latex::SupportStatus
+impl core::marker::UnsafeUnpin for mdwright_latex::SupportStatus
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::SupportStatus
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::SupportStatus
+pub enum mdwright_latex::TranslationStatus
+pub mdwright_latex::TranslationStatus::Lossless
+pub mdwright_latex::TranslationStatus::Lossy
+pub mdwright_latex::TranslationStatus::Unchanged
+impl core::clone::Clone for mdwright_latex::TranslationStatus
+pub fn mdwright_latex::TranslationStatus::clone(&self) -> mdwright_latex::TranslationStatus
+impl core::cmp::Eq for mdwright_latex::TranslationStatus
+impl core::cmp::PartialEq for mdwright_latex::TranslationStatus
+pub fn mdwright_latex::TranslationStatus::eq(&self, other: &mdwright_latex::TranslationStatus) -> bool
+impl core::fmt::Debug for mdwright_latex::TranslationStatus
+pub fn mdwright_latex::TranslationStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_latex::TranslationStatus
+impl core::marker::StructuralPartialEq for mdwright_latex::TranslationStatus
+impl core::marker::Freeze for mdwright_latex::TranslationStatus
+impl core::marker::Send for mdwright_latex::TranslationStatus
+impl core::marker::Sync for mdwright_latex::TranslationStatus
+impl core::marker::Unpin for mdwright_latex::TranslationStatus
+impl core::marker::UnsafeUnpin for mdwright_latex::TranslationStatus
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::TranslationStatus
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::TranslationStatus
+pub struct mdwright_latex::CommandInfo
+impl mdwright_latex::CommandInfo
+pub const fn mdwright_latex::CommandInfo::arguments(self) -> mdwright_latex::ArgumentShape
+pub const fn mdwright_latex::CommandInfo::category(self) -> mdwright_latex::CommandCategory
+pub const fn mdwright_latex::CommandInfo::name(self) -> &'static str
+pub const fn mdwright_latex::CommandInfo::package(self) -> &'static str
+pub const fn mdwright_latex::CommandInfo::preferred(self) -> &'static str
+pub const fn mdwright_latex::CommandInfo::support(self) -> mdwright_latex::SupportStatus
+pub const fn mdwright_latex::CommandInfo::unicode(self) -> core::option::Option<&'static str>
+impl core::clone::Clone for mdwright_latex::CommandInfo
+pub fn mdwright_latex::CommandInfo::clone(&self) -> mdwright_latex::CommandInfo
+impl core::cmp::Eq for mdwright_latex::CommandInfo
+impl core::cmp::PartialEq for mdwright_latex::CommandInfo
+pub fn mdwright_latex::CommandInfo::eq(&self, other: &mdwright_latex::CommandInfo) -> bool
+impl core::fmt::Debug for mdwright_latex::CommandInfo
+pub fn mdwright_latex::CommandInfo::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_latex::CommandInfo
+impl core::marker::StructuralPartialEq for mdwright_latex::CommandInfo
+impl core::marker::Freeze for mdwright_latex::CommandInfo
+impl core::marker::Send for mdwright_latex::CommandInfo
+impl core::marker::Sync for mdwright_latex::CommandInfo
+impl core::marker::Unpin for mdwright_latex::CommandInfo
+impl core::marker::UnsafeUnpin for mdwright_latex::CommandInfo
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::CommandInfo
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::CommandInfo
+pub struct mdwright_latex::LatexError
+impl mdwright_latex::LatexError
+pub const fn mdwright_latex::LatexError::kind(&self) -> &mdwright_latex::LatexErrorKind
+pub fn mdwright_latex::LatexError::message(&self) -> &str
+pub const fn mdwright_latex::LatexError::span(&self) -> mdwright_latex::SourceSpan
+impl core::clone::Clone for mdwright_latex::LatexError
+pub fn mdwright_latex::LatexError::clone(&self) -> mdwright_latex::LatexError
+impl core::cmp::Eq for mdwright_latex::LatexError
+impl core::cmp::PartialEq for mdwright_latex::LatexError
+pub fn mdwright_latex::LatexError::eq(&self, other: &mdwright_latex::LatexError) -> bool
+impl core::error::Error for mdwright_latex::LatexError
+impl core::fmt::Debug for mdwright_latex::LatexError
+pub fn mdwright_latex::LatexError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_latex::LatexError
+pub fn mdwright_latex::LatexError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_latex::LatexError
+impl core::marker::Freeze for mdwright_latex::LatexError
+impl core::marker::Send for mdwright_latex::LatexError
+impl core::marker::Sync for mdwright_latex::LatexError
+impl core::marker::Unpin for mdwright_latex::LatexError
+impl core::marker::UnsafeUnpin for mdwright_latex::LatexError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::LatexError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::LatexError
+pub struct mdwright_latex::RenderedLatex
+impl mdwright_latex::RenderedLatex
+pub fn mdwright_latex::RenderedLatex::as_text(&self) -> alloc::string::String
+pub const fn mdwright_latex::RenderedLatex::baseline(&self) -> usize
+pub fn mdwright_latex::RenderedLatex::lines(&self) -> &[alloc::string::String]
+pub const fn mdwright_latex::RenderedLatex::width(&self) -> usize
+impl core::clone::Clone for mdwright_latex::RenderedLatex
+pub fn mdwright_latex::RenderedLatex::clone(&self) -> mdwright_latex::RenderedLatex
+impl core::cmp::Eq for mdwright_latex::RenderedLatex
+impl core::cmp::PartialEq for mdwright_latex::RenderedLatex
+pub fn mdwright_latex::RenderedLatex::eq(&self, other: &mdwright_latex::RenderedLatex) -> bool
+impl core::fmt::Debug for mdwright_latex::RenderedLatex
+pub fn mdwright_latex::RenderedLatex::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_latex::RenderedLatex
+pub fn mdwright_latex::RenderedLatex::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_latex::RenderedLatex
+impl core::marker::Freeze for mdwright_latex::RenderedLatex
+impl core::marker::Send for mdwright_latex::RenderedLatex
+impl core::marker::Sync for mdwright_latex::RenderedLatex
+impl core::marker::Unpin for mdwright_latex::RenderedLatex
+impl core::marker::UnsafeUnpin for mdwright_latex::RenderedLatex
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::RenderedLatex
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::RenderedLatex
+pub struct mdwright_latex::SourceSpan
+impl mdwright_latex::SourceSpan
+pub fn mdwright_latex::SourceSpan::as_range(self) -> core::ops::range::Range<usize>
+pub const fn mdwright_latex::SourceSpan::end(self) -> usize
+pub const fn mdwright_latex::SourceSpan::start(self) -> usize
+impl core::clone::Clone for mdwright_latex::SourceSpan
+pub fn mdwright_latex::SourceSpan::clone(&self) -> mdwright_latex::SourceSpan
+impl core::cmp::Eq for mdwright_latex::SourceSpan
+impl core::cmp::PartialEq for mdwright_latex::SourceSpan
+pub fn mdwright_latex::SourceSpan::eq(&self, other: &mdwright_latex::SourceSpan) -> bool
+impl core::fmt::Debug for mdwright_latex::SourceSpan
+pub fn mdwright_latex::SourceSpan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_latex::SourceSpan
+impl core::marker::StructuralPartialEq for mdwright_latex::SourceSpan
+impl core::marker::Freeze for mdwright_latex::SourceSpan
+impl core::marker::Send for mdwright_latex::SourceSpan
+impl core::marker::Sync for mdwright_latex::SourceSpan
+impl core::marker::Unpin for mdwright_latex::SourceSpan
+impl core::marker::UnsafeUnpin for mdwright_latex::SourceSpan
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::SourceSpan
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::SourceSpan
+pub struct mdwright_latex::Translation
+impl mdwright_latex::Translation
+pub fn mdwright_latex::Translation::diagnostics(&self) -> &[mdwright_latex::LatexError]
+pub const fn mdwright_latex::Translation::edit_count(&self) -> usize
+pub fn mdwright_latex::Translation::is_lossless(&self) -> bool
+pub fn mdwright_latex::Translation::losses(&self) -> &[mdwright_latex::TranslationLoss]
+pub fn mdwright_latex::Translation::status(&self) -> mdwright_latex::TranslationStatus
+pub fn mdwright_latex::Translation::text(&self) -> &str
+impl core::clone::Clone for mdwright_latex::Translation
+pub fn mdwright_latex::Translation::clone(&self) -> mdwright_latex::Translation
+impl core::cmp::Eq for mdwright_latex::Translation
+impl core::cmp::PartialEq for mdwright_latex::Translation
+pub fn mdwright_latex::Translation::eq(&self, other: &mdwright_latex::Translation) -> bool
+impl core::fmt::Debug for mdwright_latex::Translation
+pub fn mdwright_latex::Translation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_latex::Translation
+impl core::marker::Freeze for mdwright_latex::Translation
+impl core::marker::Send for mdwright_latex::Translation
+impl core::marker::Sync for mdwright_latex::Translation
+impl core::marker::Unpin for mdwright_latex::Translation
+impl core::marker::UnsafeUnpin for mdwright_latex::Translation
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::Translation
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::Translation
+pub struct mdwright_latex::TranslationLoss
+impl mdwright_latex::TranslationLoss
+pub fn mdwright_latex::TranslationLoss::reason(&self) -> &str
+pub const fn mdwright_latex::TranslationLoss::span(&self) -> mdwright_latex::SourceSpan
+impl core::clone::Clone for mdwright_latex::TranslationLoss
+pub fn mdwright_latex::TranslationLoss::clone(&self) -> mdwright_latex::TranslationLoss
+impl core::cmp::Eq for mdwright_latex::TranslationLoss
+impl core::cmp::PartialEq for mdwright_latex::TranslationLoss
+pub fn mdwright_latex::TranslationLoss::eq(&self, other: &mdwright_latex::TranslationLoss) -> bool
+impl core::fmt::Debug for mdwright_latex::TranslationLoss
+pub fn mdwright_latex::TranslationLoss::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_latex::TranslationLoss
+impl core::marker::Freeze for mdwright_latex::TranslationLoss
+impl core::marker::Send for mdwright_latex::TranslationLoss
+impl core::marker::Sync for mdwright_latex::TranslationLoss
+impl core::marker::Unpin for mdwright_latex::TranslationLoss
+impl core::marker::UnsafeUnpin for mdwright_latex::TranslationLoss
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::TranslationLoss
+impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::TranslationLoss
+pub fn mdwright_latex::is_known_unsupported_command(name: &str) -> bool
+pub fn mdwright_latex::latex_symbol(name: &str) -> core::option::Option<&'static str>
+pub fn mdwright_latex::lookup_command(name: &str) -> core::option::Option<mdwright_latex::CommandInfo>
+pub fn mdwright_latex::render_unicode_math(source: &str) -> core::result::Result<mdwright_latex::RenderedLatex, mdwright_latex::LatexError>
+pub fn mdwright_latex::translate_latex_ranges_to_unicode(source: &str, ranges: &[core::ops::range::Range<usize>]) -> mdwright_latex::Translation
+pub fn mdwright_latex::translate_latex_to_unicode(source: &str) -> mdwright_latex::Translation
+pub fn mdwright_latex::translate_unicode_ranges_to_latex(source: &str, ranges: &[core::ops::range::Range<usize>]) -> mdwright_latex::Translation
+pub fn mdwright_latex::translate_unicode_to_latex(source: &str) -> mdwright_latex::Translation
+pub fn mdwright_latex::unicode_sub(c: char) -> core::option::Option<char>
+pub fn mdwright_latex::unicode_sub_latex(c: char) -> core::option::Option<&'static str>
+pub fn mdwright_latex::unicode_sub_str(s: &str) -> core::option::Option<alloc::string::String>
+pub fn mdwright_latex::unicode_super(c: char) -> core::option::Option<char>
+pub fn mdwright_latex::unicode_super_latex(c: char) -> core::option::Option<&'static str>
+pub fn mdwright_latex::unicode_super_str(s: &str) -> core::option::Option<alloc::string::String>
+pub fn mdwright_latex::unicode_symbol_latex(symbol: &str) -> core::option::Option<&'static str>

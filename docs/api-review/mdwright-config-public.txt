@@ -1,0 +1,104 @@
+pub mod mdwright_config
+pub mod mdwright_config::documentation
+pub fn mdwright_config::documentation::render_default_toml() -> alloc::string::String
+pub fn mdwright_config::documentation::render_reference_markdown() -> alloc::string::String
+pub enum mdwright_config::LintRulePreset
+pub mdwright_config::LintRulePreset::All
+pub mdwright_config::LintRulePreset::Default
+pub mdwright_config::LintRulePreset::None
+impl core::clone::Clone for mdwright_config::LintRulePreset
+pub fn mdwright_config::LintRulePreset::clone(&self) -> mdwright_config::LintRulePreset
+impl core::cmp::Eq for mdwright_config::LintRulePreset
+impl core::cmp::PartialEq for mdwright_config::LintRulePreset
+pub fn mdwright_config::LintRulePreset::eq(&self, other: &mdwright_config::LintRulePreset) -> bool
+impl core::default::Default for mdwright_config::LintRulePreset
+pub fn mdwright_config::LintRulePreset::default() -> mdwright_config::LintRulePreset
+impl core::fmt::Debug for mdwright_config::LintRulePreset
+pub fn mdwright_config::LintRulePreset::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_config::LintRulePreset
+impl core::marker::StructuralPartialEq for mdwright_config::LintRulePreset
+impl core::marker::Freeze for mdwright_config::LintRulePreset
+impl core::marker::Send for mdwright_config::LintRulePreset
+impl core::marker::Sync for mdwright_config::LintRulePreset
+impl core::marker::Unpin for mdwright_config::LintRulePreset
+impl core::marker::UnsafeUnpin for mdwright_config::LintRulePreset
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_config::LintRulePreset
+impl core::panic::unwind_safe::UnwindSafe for mdwright_config::LintRulePreset
+pub struct mdwright_config::Config
+impl mdwright_config::Config
+pub fn mdwright_config::Config::defaults() -> Self
+pub fn mdwright_config::Config::discover(cwd: &std::path::Path) -> core::result::Result<Self, mdwright_config::ConfigError>
+pub fn mdwright_config::Config::exclude_globs(&self) -> &[alloc::string::String]
+pub fn mdwright_config::Config::extra_info_strings(&self) -> &[alloc::string::String]
+pub fn mdwright_config::Config::fmt_options(&self) -> &mdwright_format::options::FmtOptions
+pub fn mdwright_config::Config::lint_rule_selection(&self) -> &mdwright_config::LintRuleSelection
+pub fn mdwright_config::Config::load_explicit(path: &std::path::Path) -> core::result::Result<Self, mdwright_config::ConfigError>
+pub fn mdwright_config::Config::parse_options(&self) -> mdwright_document::ParseOptions
+pub fn mdwright_config::Config::render_options(&self) -> mdwright_document::render::RenderOptions
+pub fn mdwright_config::Config::source(&self) -> core::option::Option<&std::path::Path>
+pub fn mdwright_config::Config::source_dir(&self) -> core::option::Option<&std::path::Path>
+impl core::clone::Clone for mdwright_config::Config
+pub fn mdwright_config::Config::clone(&self) -> mdwright_config::Config
+impl core::fmt::Debug for mdwright_config::Config
+pub fn mdwright_config::Config::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_config::Config
+impl core::marker::Send for mdwright_config::Config
+impl core::marker::Sync for mdwright_config::Config
+impl core::marker::Unpin for mdwright_config::Config
+impl core::marker::UnsafeUnpin for mdwright_config::Config
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_config::Config
+impl core::panic::unwind_safe::UnwindSafe for mdwright_config::Config
+pub struct mdwright_config::ConfigError
+impl core::error::Error for mdwright_config::ConfigError
+impl core::fmt::Debug for mdwright_config::ConfigError
+pub fn mdwright_config::ConfigError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_config::ConfigError
+pub fn mdwright_config::ConfigError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_config::ConfigError
+impl core::marker::Send for mdwright_config::ConfigError
+impl core::marker::Sync for mdwright_config::ConfigError
+impl core::marker::Unpin for mdwright_config::ConfigError
+impl core::marker::UnsafeUnpin for mdwright_config::ConfigError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_config::ConfigError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_config::ConfigError
+pub struct mdwright_config::LintRuleSelection
+impl mdwright_config::LintRuleSelection
+pub fn mdwright_config::LintRuleSelection::extend_select(&self) -> &[alloc::string::String]
+pub fn mdwright_config::LintRuleSelection::ignore(&self) -> &[alloc::string::String]
+pub fn mdwright_config::LintRuleSelection::preset(&self) -> mdwright_config::LintRulePreset
+pub fn mdwright_config::LintRuleSelection::resolve(&self, available: mdwright_lint::rule_set::RuleSet) -> core::result::Result<mdwright_lint::rule_set::RuleSet, mdwright_config::RuleSelectionError>
+pub fn mdwright_config::LintRuleSelection::select(&self) -> &[alloc::string::String]
+impl core::clone::Clone for mdwright_config::LintRuleSelection
+pub fn mdwright_config::LintRuleSelection::clone(&self) -> mdwright_config::LintRuleSelection
+impl core::cmp::Eq for mdwright_config::LintRuleSelection
+impl core::cmp::PartialEq for mdwright_config::LintRuleSelection
+pub fn mdwright_config::LintRuleSelection::eq(&self, other: &mdwright_config::LintRuleSelection) -> bool
+impl core::fmt::Debug for mdwright_config::LintRuleSelection
+pub fn mdwright_config::LintRuleSelection::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_config::LintRuleSelection
+impl core::marker::Freeze for mdwright_config::LintRuleSelection
+impl core::marker::Send for mdwright_config::LintRuleSelection
+impl core::marker::Sync for mdwright_config::LintRuleSelection
+impl core::marker::Unpin for mdwright_config::LintRuleSelection
+impl core::marker::UnsafeUnpin for mdwright_config::LintRuleSelection
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_config::LintRuleSelection
+impl core::panic::unwind_safe::UnwindSafe for mdwright_config::LintRuleSelection
+pub struct mdwright_config::RuleSelectionError
+impl core::clone::Clone for mdwright_config::RuleSelectionError
+pub fn mdwright_config::RuleSelectionError::clone(&self) -> mdwright_config::RuleSelectionError
+impl core::cmp::Eq for mdwright_config::RuleSelectionError
+impl core::cmp::PartialEq for mdwright_config::RuleSelectionError
+pub fn mdwright_config::RuleSelectionError::eq(&self, other: &mdwright_config::RuleSelectionError) -> bool
+impl core::error::Error for mdwright_config::RuleSelectionError
+impl core::fmt::Debug for mdwright_config::RuleSelectionError
+pub fn mdwright_config::RuleSelectionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_config::RuleSelectionError
+pub fn mdwright_config::RuleSelectionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_config::RuleSelectionError
+impl core::marker::Freeze for mdwright_config::RuleSelectionError
+impl core::marker::Send for mdwright_config::RuleSelectionError
+impl core::marker::Sync for mdwright_config::RuleSelectionError
+impl core::marker::Unpin for mdwright_config::RuleSelectionError
+impl core::marker::UnsafeUnpin for mdwright_config::RuleSelectionError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_config::RuleSelectionError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_config::RuleSelectionError

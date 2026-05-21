@@ -1,0 +1,619 @@
+pub mod mdwright_lint
+pub mod mdwright_lint::stdlib
+pub struct mdwright_lint::stdlib::AdjacentCodeNoSpace
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::AdjacentCodeNoSpace
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::description(&self) -> &str
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::name(&self) -> &str
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::AdjacentCodeNoSpace
+impl core::marker::Send for mdwright_lint::stdlib::AdjacentCodeNoSpace
+impl core::marker::Sync for mdwright_lint::stdlib::AdjacentCodeNoSpace
+impl core::marker::Unpin for mdwright_lint::stdlib::AdjacentCodeNoSpace
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::AdjacentCodeNoSpace
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::AdjacentCodeNoSpace
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::AdjacentCodeNoSpace
+pub struct mdwright_lint::stdlib::BareUrl
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::BareUrl
+pub fn mdwright_lint::stdlib::BareUrl::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::BareUrl::description(&self) -> &str
+pub fn mdwright_lint::stdlib::BareUrl::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::BareUrl::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::BareUrl::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::BareUrl::name(&self) -> &str
+pub fn mdwright_lint::stdlib::BareUrl::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::BareUrl
+impl core::marker::Send for mdwright_lint::stdlib::BareUrl
+impl core::marker::Sync for mdwright_lint::stdlib::BareUrl
+impl core::marker::Unpin for mdwright_lint::stdlib::BareUrl
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::BareUrl
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::BareUrl
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::BareUrl
+pub struct mdwright_lint::stdlib::DuplicateHeading
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::DuplicateHeading
+pub fn mdwright_lint::stdlib::DuplicateHeading::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::DuplicateHeading::description(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateHeading::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateHeading::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateHeading::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateHeading::name(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateHeading::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::DuplicateHeading
+impl core::marker::Send for mdwright_lint::stdlib::DuplicateHeading
+impl core::marker::Sync for mdwright_lint::stdlib::DuplicateHeading
+impl core::marker::Unpin for mdwright_lint::stdlib::DuplicateHeading
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::DuplicateHeading
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::DuplicateHeading
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::DuplicateHeading
+pub struct mdwright_lint::stdlib::DuplicateLinkLabel
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::DuplicateLinkLabel
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::description(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::name(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::DuplicateLinkLabel
+impl core::marker::Send for mdwright_lint::stdlib::DuplicateLinkLabel
+impl core::marker::Sync for mdwright_lint::stdlib::DuplicateLinkLabel
+impl core::marker::Unpin for mdwright_lint::stdlib::DuplicateLinkLabel
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::DuplicateLinkLabel
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::DuplicateLinkLabel
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::DuplicateLinkLabel
+pub struct mdwright_lint::stdlib::EscapedEmphasis
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::EscapedEmphasis
+pub fn mdwright_lint::stdlib::EscapedEmphasis::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::EscapedEmphasis::description(&self) -> &str
+pub fn mdwright_lint::stdlib::EscapedEmphasis::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::EscapedEmphasis::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::EscapedEmphasis::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::EscapedEmphasis::name(&self) -> &str
+pub fn mdwright_lint::stdlib::EscapedEmphasis::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::EscapedEmphasis
+impl core::marker::Send for mdwright_lint::stdlib::EscapedEmphasis
+impl core::marker::Sync for mdwright_lint::stdlib::EscapedEmphasis
+impl core::marker::Unpin for mdwright_lint::stdlib::EscapedEmphasis
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::EscapedEmphasis
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::EscapedEmphasis
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::EscapedEmphasis
+pub struct mdwright_lint::stdlib::HeadingPunctuation
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::HeadingPunctuation
+pub fn mdwright_lint::stdlib::HeadingPunctuation::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::HeadingPunctuation::description(&self) -> &str
+pub fn mdwright_lint::stdlib::HeadingPunctuation::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::HeadingPunctuation::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::HeadingPunctuation::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::HeadingPunctuation::name(&self) -> &str
+pub fn mdwright_lint::stdlib::HeadingPunctuation::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::HeadingPunctuation
+impl core::marker::Send for mdwright_lint::stdlib::HeadingPunctuation
+impl core::marker::Sync for mdwright_lint::stdlib::HeadingPunctuation
+impl core::marker::Unpin for mdwright_lint::stdlib::HeadingPunctuation
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::HeadingPunctuation
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::HeadingPunctuation
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::HeadingPunctuation
+pub struct mdwright_lint::stdlib::InconsistentListMarker
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::InconsistentListMarker
+pub fn mdwright_lint::stdlib::InconsistentListMarker::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::InconsistentListMarker::description(&self) -> &str
+pub fn mdwright_lint::stdlib::InconsistentListMarker::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::InconsistentListMarker::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::InconsistentListMarker::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::InconsistentListMarker::name(&self) -> &str
+pub fn mdwright_lint::stdlib::InconsistentListMarker::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::InconsistentListMarker
+impl core::marker::Send for mdwright_lint::stdlib::InconsistentListMarker
+impl core::marker::Sync for mdwright_lint::stdlib::InconsistentListMarker
+impl core::marker::Unpin for mdwright_lint::stdlib::InconsistentListMarker
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::InconsistentListMarker
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::InconsistentListMarker
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::InconsistentListMarker
+pub struct mdwright_lint::stdlib::InfoStringTypo
+impl mdwright_lint::stdlib::InfoStringTypo
+pub fn mdwright_lint::stdlib::InfoStringTypo::new() -> Self
+pub fn mdwright_lint::stdlib::InfoStringTypo::with_extra(extra: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::default::Default for mdwright_lint::stdlib::InfoStringTypo
+pub fn mdwright_lint::stdlib::InfoStringTypo::default() -> Self
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::InfoStringTypo
+pub fn mdwright_lint::stdlib::InfoStringTypo::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::InfoStringTypo::description(&self) -> &str
+pub fn mdwright_lint::stdlib::InfoStringTypo::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::InfoStringTypo::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::InfoStringTypo::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::InfoStringTypo::name(&self) -> &str
+pub fn mdwright_lint::stdlib::InfoStringTypo::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::InfoStringTypo
+impl core::marker::Send for mdwright_lint::stdlib::InfoStringTypo
+impl core::marker::Sync for mdwright_lint::stdlib::InfoStringTypo
+impl core::marker::Unpin for mdwright_lint::stdlib::InfoStringTypo
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::InfoStringTypo
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::InfoStringTypo
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::InfoStringTypo
+pub struct mdwright_lint::stdlib::LatexCommand
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::LatexCommand
+pub fn mdwright_lint::stdlib::LatexCommand::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::LatexCommand::description(&self) -> &str
+pub fn mdwright_lint::stdlib::LatexCommand::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::LatexCommand::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::LatexCommand::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::LatexCommand::name(&self) -> &str
+pub fn mdwright_lint::stdlib::LatexCommand::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::LatexCommand
+impl core::marker::Send for mdwright_lint::stdlib::LatexCommand
+impl core::marker::Sync for mdwright_lint::stdlib::LatexCommand
+impl core::marker::Unpin for mdwright_lint::stdlib::LatexCommand
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::LatexCommand
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::LatexCommand
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::LatexCommand
+pub struct mdwright_lint::stdlib::ListTightnessFlipped
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::ListTightnessFlipped
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::description(&self) -> &str
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::name(&self) -> &str
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::ListTightnessFlipped
+impl core::marker::Send for mdwright_lint::stdlib::ListTightnessFlipped
+impl core::marker::Sync for mdwright_lint::stdlib::ListTightnessFlipped
+impl core::marker::Unpin for mdwright_lint::stdlib::ListTightnessFlipped
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::ListTightnessFlipped
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::ListTightnessFlipped
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::ListTightnessFlipped
+pub struct mdwright_lint::stdlib::MathUnbalancedBraces
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::MathUnbalancedBraces
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::description(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::name(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::MathUnbalancedBraces
+impl core::marker::Send for mdwright_lint::stdlib::MathUnbalancedBraces
+impl core::marker::Sync for mdwright_lint::stdlib::MathUnbalancedBraces
+impl core::marker::Unpin for mdwright_lint::stdlib::MathUnbalancedBraces
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::MathUnbalancedBraces
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::MathUnbalancedBraces
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::MathUnbalancedBraces
+pub struct mdwright_lint::stdlib::MathUnbalancedDelim
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::MathUnbalancedDelim
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::description(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::name(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::MathUnbalancedDelim
+impl core::marker::Send for mdwright_lint::stdlib::MathUnbalancedDelim
+impl core::marker::Sync for mdwright_lint::stdlib::MathUnbalancedDelim
+impl core::marker::Unpin for mdwright_lint::stdlib::MathUnbalancedDelim
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::MathUnbalancedDelim
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::MathUnbalancedDelim
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::MathUnbalancedDelim
+pub struct mdwright_lint::stdlib::MathUnbalancedEnv
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::MathUnbalancedEnv
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::description(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::name(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::MathUnbalancedEnv
+impl core::marker::Send for mdwright_lint::stdlib::MathUnbalancedEnv
+impl core::marker::Sync for mdwright_lint::stdlib::MathUnbalancedEnv
+impl core::marker::Unpin for mdwright_lint::stdlib::MathUnbalancedEnv
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::MathUnbalancedEnv
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::MathUnbalancedEnv
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::MathUnbalancedEnv
+pub struct mdwright_lint::stdlib::OrphanReferenceLink
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::OrphanReferenceLink
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::description(&self) -> &str
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::name(&self) -> &str
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::OrphanReferenceLink
+impl core::marker::Send for mdwright_lint::stdlib::OrphanReferenceLink
+impl core::marker::Sync for mdwright_lint::stdlib::OrphanReferenceLink
+impl core::marker::Unpin for mdwright_lint::stdlib::OrphanReferenceLink
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::OrphanReferenceLink
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::OrphanReferenceLink
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::OrphanReferenceLink
+pub struct mdwright_lint::stdlib::StrayDollar
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::StrayDollar
+pub fn mdwright_lint::stdlib::StrayDollar::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::StrayDollar::description(&self) -> &str
+pub fn mdwright_lint::stdlib::StrayDollar::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::StrayDollar::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::StrayDollar::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::StrayDollar::name(&self) -> &str
+pub fn mdwright_lint::stdlib::StrayDollar::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::StrayDollar
+impl core::marker::Send for mdwright_lint::stdlib::StrayDollar
+impl core::marker::Sync for mdwright_lint::stdlib::StrayDollar
+impl core::marker::Unpin for mdwright_lint::stdlib::StrayDollar
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::StrayDollar
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::StrayDollar
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::StrayDollar
+pub struct mdwright_lint::stdlib::SubscriptDamage
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::SubscriptDamage
+pub fn mdwright_lint::stdlib::SubscriptDamage::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::SubscriptDamage::description(&self) -> &str
+pub fn mdwright_lint::stdlib::SubscriptDamage::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::SubscriptDamage::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::SubscriptDamage::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::SubscriptDamage::name(&self) -> &str
+pub fn mdwright_lint::stdlib::SubscriptDamage::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::SubscriptDamage
+impl core::marker::Send for mdwright_lint::stdlib::SubscriptDamage
+impl core::marker::Sync for mdwright_lint::stdlib::SubscriptDamage
+impl core::marker::Unpin for mdwright_lint::stdlib::SubscriptDamage
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::SubscriptDamage
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::SubscriptDamage
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::SubscriptDamage
+pub struct mdwright_lint::stdlib::TrailingWhitespace
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::TrailingWhitespace
+pub fn mdwright_lint::stdlib::TrailingWhitespace::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::TrailingWhitespace::description(&self) -> &str
+pub fn mdwright_lint::stdlib::TrailingWhitespace::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::TrailingWhitespace::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::TrailingWhitespace::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::TrailingWhitespace::name(&self) -> &str
+pub fn mdwright_lint::stdlib::TrailingWhitespace::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::TrailingWhitespace
+impl core::marker::Send for mdwright_lint::stdlib::TrailingWhitespace
+impl core::marker::Sync for mdwright_lint::stdlib::TrailingWhitespace
+impl core::marker::Unpin for mdwright_lint::stdlib::TrailingWhitespace
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::TrailingWhitespace
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::TrailingWhitespace
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::TrailingWhitespace
+pub struct mdwright_lint::stdlib::UnbalancedBacktick
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::UnbalancedBacktick
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::description(&self) -> &str
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::name(&self) -> &str
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::UnbalancedBacktick
+impl core::marker::Send for mdwright_lint::stdlib::UnbalancedBacktick
+impl core::marker::Sync for mdwright_lint::stdlib::UnbalancedBacktick
+impl core::marker::Unpin for mdwright_lint::stdlib::UnbalancedBacktick
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::UnbalancedBacktick
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::UnbalancedBacktick
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::UnbalancedBacktick
+pub struct mdwright_lint::stdlib::UnicodeableSubscript
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::UnicodeableSubscript
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::description(&self) -> &str
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::name(&self) -> &str
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::UnicodeableSubscript
+impl core::marker::Send for mdwright_lint::stdlib::UnicodeableSubscript
+impl core::marker::Sync for mdwright_lint::stdlib::UnicodeableSubscript
+impl core::marker::Unpin for mdwright_lint::stdlib::UnicodeableSubscript
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::UnicodeableSubscript
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::UnicodeableSubscript
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::UnicodeableSubscript
+pub const mdwright_lint::stdlib::NAMES: &[&str]
+pub fn mdwright_lint::stdlib::all() -> mdwright_lint::RuleSet
+pub fn mdwright_lint::stdlib::by_name(name: &str) -> core::option::Option<alloc::boxed::Box<dyn mdwright_lint::LintRule>>
+pub fn mdwright_lint::stdlib::defaults() -> mdwright_lint::RuleSet
+pub fn mdwright_lint::stdlib::names() -> impl core::iter::traits::iterator::Iterator<Item = &'static str>
+pub enum mdwright_lint::Severity
+pub mdwright_lint::Severity::Advisory
+pub mdwright_lint::Severity::Error
+pub mdwright_lint::Severity::Warning
+impl mdwright_lint::Severity
+pub fn mdwright_lint::Severity::as_str(self) -> &'static str
+impl core::clone::Clone for mdwright_lint::Severity
+pub fn mdwright_lint::Severity::clone(&self) -> mdwright_lint::Severity
+impl core::cmp::Eq for mdwright_lint::Severity
+impl core::cmp::PartialEq for mdwright_lint::Severity
+pub fn mdwright_lint::Severity::eq(&self, other: &mdwright_lint::Severity) -> bool
+impl core::fmt::Debug for mdwright_lint::Severity
+pub fn mdwright_lint::Severity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_lint::Severity
+impl core::marker::StructuralPartialEq for mdwright_lint::Severity
+impl core::marker::Freeze for mdwright_lint::Severity
+impl core::marker::Send for mdwright_lint::Severity
+impl core::marker::Sync for mdwright_lint::Severity
+impl core::marker::Unpin for mdwright_lint::Severity
+impl core::marker::UnsafeUnpin for mdwright_lint::Severity
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::Severity
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::Severity
+pub struct mdwright_lint::Diagnostic
+pub mdwright_lint::Diagnostic::advisory: bool
+pub mdwright_lint::Diagnostic::column: usize
+pub mdwright_lint::Diagnostic::fix: core::option::Option<mdwright_lint::Fix>
+pub mdwright_lint::Diagnostic::line: usize
+pub mdwright_lint::Diagnostic::message: alloc::string::String
+pub mdwright_lint::Diagnostic::rule: alloc::borrow::Cow<'static, str>
+pub mdwright_lint::Diagnostic::span: core::ops::range::Range<usize>
+impl mdwright_lint::Diagnostic
+pub fn mdwright_lint::Diagnostic::at(doc: &mdwright_document::document::Document, byte_offset: usize, local: core::ops::range::Range<usize>, message: alloc::string::String, fix: core::option::Option<mdwright_lint::Fix>) -> core::option::Option<Self>
+pub fn mdwright_lint::Diagnostic::severity(&self) -> mdwright_lint::Severity
+pub fn mdwright_lint::Diagnostic::suppress_via(&self) -> alloc::string::String
+impl core::clone::Clone for mdwright_lint::Diagnostic
+pub fn mdwright_lint::Diagnostic::clone(&self) -> mdwright_lint::Diagnostic
+impl core::fmt::Debug for mdwright_lint::Diagnostic
+pub fn mdwright_lint::Diagnostic::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_lint::Diagnostic
+impl core::marker::Send for mdwright_lint::Diagnostic
+impl core::marker::Sync for mdwright_lint::Diagnostic
+impl core::marker::Unpin for mdwright_lint::Diagnostic
+impl core::marker::UnsafeUnpin for mdwright_lint::Diagnostic
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::Diagnostic
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::Diagnostic
+pub struct mdwright_lint::DuplicateRuleName
+pub mdwright_lint::DuplicateRuleName::name: alloc::string::String
+impl core::clone::Clone for mdwright_lint::DuplicateRuleName
+pub fn mdwright_lint::DuplicateRuleName::clone(&self) -> mdwright_lint::DuplicateRuleName
+impl core::error::Error for mdwright_lint::DuplicateRuleName
+impl core::fmt::Debug for mdwright_lint::DuplicateRuleName
+pub fn mdwright_lint::DuplicateRuleName::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_lint::DuplicateRuleName
+pub fn mdwright_lint::DuplicateRuleName::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_lint::DuplicateRuleName
+impl core::marker::Send for mdwright_lint::DuplicateRuleName
+impl core::marker::Sync for mdwright_lint::DuplicateRuleName
+impl core::marker::Unpin for mdwright_lint::DuplicateRuleName
+impl core::marker::UnsafeUnpin for mdwright_lint::DuplicateRuleName
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::DuplicateRuleName
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::DuplicateRuleName
+pub struct mdwright_lint::Fix
+pub mdwright_lint::Fix::replacement: alloc::string::String
+pub mdwright_lint::Fix::safe: bool
+impl core::clone::Clone for mdwright_lint::Fix
+pub fn mdwright_lint::Fix::clone(&self) -> mdwright_lint::Fix
+impl core::fmt::Debug for mdwright_lint::Fix
+pub fn mdwright_lint::Fix::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_lint::Fix
+impl core::marker::Send for mdwright_lint::Fix
+impl core::marker::Sync for mdwright_lint::Fix
+impl core::marker::Unpin for mdwright_lint::Fix
+impl core::marker::UnsafeUnpin for mdwright_lint::Fix
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::Fix
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::Fix
+pub struct mdwright_lint::LintOptions
+pub mdwright_lint::LintOptions::respect_suppressions: bool
+impl core::clone::Clone for mdwright_lint::LintOptions
+pub fn mdwright_lint::LintOptions::clone(&self) -> mdwright_lint::LintOptions
+impl core::default::Default for mdwright_lint::LintOptions
+pub fn mdwright_lint::LintOptions::default() -> Self
+impl core::fmt::Debug for mdwright_lint::LintOptions
+pub fn mdwright_lint::LintOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_lint::LintOptions
+impl core::marker::Freeze for mdwright_lint::LintOptions
+impl core::marker::Send for mdwright_lint::LintOptions
+impl core::marker::Sync for mdwright_lint::LintOptions
+impl core::marker::Unpin for mdwright_lint::LintOptions
+impl core::marker::UnsafeUnpin for mdwright_lint::LintOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::LintOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::LintOptions
+pub struct mdwright_lint::RuleSet
+impl mdwright_lint::RuleSet
+pub fn mdwright_lint::RuleSet::add(&mut self, rule: alloc::boxed::Box<dyn mdwright_lint::LintRule>) -> core::result::Result<&mut Self, mdwright_lint::DuplicateRuleName>
+pub fn mdwright_lint::RuleSet::by_name(&self, name: &str) -> core::option::Option<&dyn mdwright_lint::LintRule>
+pub fn mdwright_lint::RuleSet::check(&self, doc: &mdwright_document::document::Document) -> alloc::vec::Vec<mdwright_lint::Diagnostic>
+pub fn mdwright_lint::RuleSet::check_with(&self, doc: &mdwright_document::document::Document, opts: mdwright_lint::LintOptions) -> alloc::vec::Vec<mdwright_lint::Diagnostic>
+pub fn mdwright_lint::RuleSet::contains(&self, name: &str) -> bool
+pub fn mdwright_lint::RuleSet::is_empty(&self) -> bool
+pub fn mdwright_lint::RuleSet::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = &dyn mdwright_lint::LintRule>
+pub fn mdwright_lint::RuleSet::len(&self) -> usize
+pub fn mdwright_lint::RuleSet::names(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str>
+pub fn mdwright_lint::RuleSet::new() -> Self
+pub fn mdwright_lint::RuleSet::remove(&mut self, name: &str) -> bool
+pub fn mdwright_lint::RuleSet::stdlib_all() -> Self
+pub fn mdwright_lint::RuleSet::stdlib_defaults() -> Self
+impl core::default::Default for mdwright_lint::RuleSet
+pub fn mdwright_lint::RuleSet::default() -> mdwright_lint::RuleSet
+impl core::fmt::Debug for mdwright_lint::RuleSet
+pub fn mdwright_lint::RuleSet::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::iter::traits::collect::IntoIterator for mdwright_lint::RuleSet
+pub type mdwright_lint::RuleSet::IntoIter = alloc::vec::into_iter::IntoIter<alloc::boxed::Box<dyn mdwright_lint::LintRule>>
+pub type mdwright_lint::RuleSet::Item = alloc::boxed::Box<dyn mdwright_lint::LintRule>
+pub fn mdwright_lint::RuleSet::into_iter(self) -> Self::IntoIter
+impl core::marker::Freeze for mdwright_lint::RuleSet
+impl core::marker::Send for mdwright_lint::RuleSet
+impl core::marker::Sync for mdwright_lint::RuleSet
+impl core::marker::Unpin for mdwright_lint::RuleSet
+impl core::marker::UnsafeUnpin for mdwright_lint::RuleSet
+impl !core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::RuleSet
+impl !core::panic::unwind_safe::UnwindSafe for mdwright_lint::RuleSet
+pub struct mdwright_lint::Snippet<'a>
+pub mdwright_lint::Snippet::col_end: u32
+pub mdwright_lint::Snippet::col_start: u32
+pub mdwright_lint::Snippet::line_no: u32
+pub mdwright_lint::Snippet::line_text: &'a str
+impl<'a> mdwright_lint::Snippet<'a>
+pub fn mdwright_lint::Snippet<'a>::from_span(line_index: &mdwright_document::line_index::LineIndex, source: &'a str, span: &core::ops::range::Range<usize>) -> core::option::Option<Self>
+impl<'a> core::clone::Clone for mdwright_lint::Snippet<'a>
+pub fn mdwright_lint::Snippet<'a>::clone(&self) -> mdwright_lint::Snippet<'a>
+impl<'a> core::fmt::Debug for mdwright_lint::Snippet<'a>
+pub fn mdwright_lint::Snippet<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Freeze for mdwright_lint::Snippet<'a>
+impl<'a> core::marker::Send for mdwright_lint::Snippet<'a>
+impl<'a> core::marker::Sync for mdwright_lint::Snippet<'a>
+impl<'a> core::marker::Unpin for mdwright_lint::Snippet<'a>
+impl<'a> core::marker::UnsafeUnpin for mdwright_lint::Snippet<'a>
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::Snippet<'a>
+impl<'a> core::panic::unwind_safe::UnwindSafe for mdwright_lint::Snippet<'a>
+pub const mdwright_lint::DOCS_URL_DEFAULT: &str
+pub trait mdwright_lint::LintRule: core::marker::Send + core::marker::Sync
+pub fn mdwright_lint::LintRule::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::LintRule::description(&self) -> &str
+pub fn mdwright_lint::LintRule::explain(&self) -> &str
+pub fn mdwright_lint::LintRule::is_advisory(&self) -> bool
+pub fn mdwright_lint::LintRule::is_default(&self) -> bool
+pub fn mdwright_lint::LintRule::name(&self) -> &str
+pub fn mdwright_lint::LintRule::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::AdjacentCodeNoSpace
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::description(&self) -> &str
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::name(&self) -> &str
+pub fn mdwright_lint::stdlib::AdjacentCodeNoSpace::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::BareUrl
+pub fn mdwright_lint::stdlib::BareUrl::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::BareUrl::description(&self) -> &str
+pub fn mdwright_lint::stdlib::BareUrl::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::BareUrl::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::BareUrl::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::BareUrl::name(&self) -> &str
+pub fn mdwright_lint::stdlib::BareUrl::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::DuplicateHeading
+pub fn mdwright_lint::stdlib::DuplicateHeading::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::DuplicateHeading::description(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateHeading::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateHeading::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateHeading::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateHeading::name(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateHeading::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::DuplicateLinkLabel
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::description(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::name(&self) -> &str
+pub fn mdwright_lint::stdlib::DuplicateLinkLabel::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::EscapedEmphasis
+pub fn mdwright_lint::stdlib::EscapedEmphasis::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::EscapedEmphasis::description(&self) -> &str
+pub fn mdwright_lint::stdlib::EscapedEmphasis::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::EscapedEmphasis::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::EscapedEmphasis::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::EscapedEmphasis::name(&self) -> &str
+pub fn mdwright_lint::stdlib::EscapedEmphasis::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::HeadingPunctuation
+pub fn mdwright_lint::stdlib::HeadingPunctuation::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::HeadingPunctuation::description(&self) -> &str
+pub fn mdwright_lint::stdlib::HeadingPunctuation::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::HeadingPunctuation::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::HeadingPunctuation::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::HeadingPunctuation::name(&self) -> &str
+pub fn mdwright_lint::stdlib::HeadingPunctuation::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::InconsistentListMarker
+pub fn mdwright_lint::stdlib::InconsistentListMarker::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::InconsistentListMarker::description(&self) -> &str
+pub fn mdwright_lint::stdlib::InconsistentListMarker::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::InconsistentListMarker::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::InconsistentListMarker::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::InconsistentListMarker::name(&self) -> &str
+pub fn mdwright_lint::stdlib::InconsistentListMarker::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::InfoStringTypo
+pub fn mdwright_lint::stdlib::InfoStringTypo::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::InfoStringTypo::description(&self) -> &str
+pub fn mdwright_lint::stdlib::InfoStringTypo::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::InfoStringTypo::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::InfoStringTypo::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::InfoStringTypo::name(&self) -> &str
+pub fn mdwright_lint::stdlib::InfoStringTypo::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::LatexCommand
+pub fn mdwright_lint::stdlib::LatexCommand::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::LatexCommand::description(&self) -> &str
+pub fn mdwright_lint::stdlib::LatexCommand::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::LatexCommand::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::LatexCommand::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::LatexCommand::name(&self) -> &str
+pub fn mdwright_lint::stdlib::LatexCommand::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::ListTightnessFlipped
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::description(&self) -> &str
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::name(&self) -> &str
+pub fn mdwright_lint::stdlib::ListTightnessFlipped::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::MathUnbalancedBraces
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::description(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::name(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedBraces::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::MathUnbalancedDelim
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::description(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::name(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedDelim::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::MathUnbalancedEnv
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::description(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::name(&self) -> &str
+pub fn mdwright_lint::stdlib::MathUnbalancedEnv::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::OrphanReferenceLink
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::description(&self) -> &str
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::name(&self) -> &str
+pub fn mdwright_lint::stdlib::OrphanReferenceLink::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::StrayDollar
+pub fn mdwright_lint::stdlib::StrayDollar::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::StrayDollar::description(&self) -> &str
+pub fn mdwright_lint::stdlib::StrayDollar::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::StrayDollar::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::StrayDollar::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::StrayDollar::name(&self) -> &str
+pub fn mdwright_lint::stdlib::StrayDollar::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::SubscriptDamage
+pub fn mdwright_lint::stdlib::SubscriptDamage::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::SubscriptDamage::description(&self) -> &str
+pub fn mdwright_lint::stdlib::SubscriptDamage::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::SubscriptDamage::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::SubscriptDamage::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::SubscriptDamage::name(&self) -> &str
+pub fn mdwright_lint::stdlib::SubscriptDamage::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::TrailingWhitespace
+pub fn mdwright_lint::stdlib::TrailingWhitespace::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::TrailingWhitespace::description(&self) -> &str
+pub fn mdwright_lint::stdlib::TrailingWhitespace::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::TrailingWhitespace::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::TrailingWhitespace::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::TrailingWhitespace::name(&self) -> &str
+pub fn mdwright_lint::stdlib::TrailingWhitespace::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::UnbalancedBacktick
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::description(&self) -> &str
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::name(&self) -> &str
+pub fn mdwright_lint::stdlib::UnbalancedBacktick::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::UnicodeableSubscript
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::description(&self) -> &str
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::name(&self) -> &str
+pub fn mdwright_lint::stdlib::UnicodeableSubscript::produces_fix(&self) -> bool
+pub fn mdwright_lint::apply_safe_fixes(doc: &mdwright_document::document::Document, diags: &[mdwright_lint::Diagnostic]) -> (alloc::string::String, usize)
+pub fn mdwright_lint::docs_url() -> alloc::borrow::Cow<'static, str>
+pub fn mdwright_lint::rule_doc_url(rule_name: &str) -> alloc::string::String

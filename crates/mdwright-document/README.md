@@ -6,10 +6,11 @@ Recognised Markdown document facts with stable source coordinates, for
 [mdwright](https://github.com/jcreinhold/mdwright).
 
 This crate owns Markdown parsing for the whole workspace. It invokes pulldown-cmark
-behind a containment boundary, recovers from parser panics, and produces typed
-`Document` facts — headings, list groups, link definitions, frontmatter, code/HTML
-exclusions, inline atoms, wrappable paragraphs, table sites, and the structural
-ranges the formatter rewrites against. Every downstream crate (`mdwright-format`,
+behind a containment boundary that catches the parser's known panics on malformed
+input and turns them into structured errors, and produces typed `Document` facts:
+headings, list groups, link definitions, frontmatter, code/HTML exclusions, inline
+atoms, wrappable paragraphs, table sites, and the structural ranges the formatter
+rewrites against. Every downstream crate (`mdwright-format`,
 `mdwright-lint`, `mdwright-config`) consumes these facts; none of them sees
 pulldown events directly.
 

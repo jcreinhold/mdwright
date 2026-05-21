@@ -37,6 +37,11 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
 cargo doc --workspace --no-deps
 mdbook build docs/
+cargo xtask doc-rules --check
+cargo xtask doc-cli --check
+cargo xtask doc-config --check
+python3 scripts/check_package_docsrs.py --allow-dirty
+actionlint .github/workflows/*.yml
 
 cargo xtask parser-audit --case-set all --ensure-tools --include-comrak
 cargo xtask mdformat-parity \
@@ -58,17 +63,13 @@ proof that the local workspace gate was refreshed.
 
 ## Refresh packaging evidence
 
+The detailed crates.io release checklist lives at [Crates.io release](crates-io-release.md). Before tagging, run the
+release workflow manually with `dry_run: true`.
+
 Package every publishable crate:
 
 ```sh
-cargo package -p mdwright-latex --allow-dirty --no-verify
-cargo package -p mdwright-math --allow-dirty --no-verify
-cargo package -p mdwright-document --allow-dirty --no-verify
-cargo package -p mdwright-format --allow-dirty --no-verify
-cargo package -p mdwright-lint --allow-dirty --no-verify
-cargo package -p mdwright-config --allow-dirty --no-verify
-cargo package -p mdwright-lsp --allow-dirty --no-verify
-cargo package -p mdwright --allow-dirty --no-verify
+cargo package --workspace --exclude xtask --exclude mdwright-extra-example --allow-dirty --no-verify
 ```
 
 Install the command package into an isolated root:

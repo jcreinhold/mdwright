@@ -37,6 +37,7 @@ jobs:
         run: |
           cargo xtask doc-rules --check
           cargo xtask doc-cli --check
+          cargo xtask doc-config --check
       - name: Build site
         run: mdbook build docs/
       - uses: actions/upload-pages-artifact@v3

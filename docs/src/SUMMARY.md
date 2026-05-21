@@ -77,6 +77,7 @@
 - [Diagnostic schema](reference/diagnostic-schema.md)
 - [Performance](reference/performance.md)
 - [Public API surface](reference/public-api.md)
+- [Crates.io release](reference/crates-io-release.md)
 - [Release evidence](reference/release-evidence.md)
 - [Semver policy](reference/semver.md)
 - [Deviations from spec](deviations.md)

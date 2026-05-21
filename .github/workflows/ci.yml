@@ -9,6 +9,15 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  workflow-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: actionlint
+      - run: actionlint .github/workflows/*.yml
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -48,3 +57,31 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --check
+
+  public-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-public-api
+      - name: Install Rust nightly for cargo-public-api
+        run: rustup toolchain install nightly --profile minimal
+      - name: Public API diff vs committed baselines
+        run: |
+          set -euo pipefail
+          for crate in mdwright-latex mdwright-math mdwright-document mdwright-format mdwright-lint mdwright-config mdwright-lsp mdwright; do
+            baseline="docs/api-review/${crate}-public.txt"
+            if [ ! -f "$baseline" ]; then
+              echo "::error::Missing public API baseline: $baseline"
+              exit 1
+            fi
+            actual="$(mktemp)"
+            cargo public-api --simplified -p "$crate" > "$actual"
+            if ! diff -u "$baseline" "$actual"; then
+              echo "::error::Public API drift for $crate. Regenerate $baseline with scripts/update-api-review.sh."
+              exit 1
+            fi
+          done

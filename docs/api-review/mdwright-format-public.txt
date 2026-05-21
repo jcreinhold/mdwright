@@ -1,0 +1,459 @@
+pub mod mdwright_format
+pub enum mdwright_format::EndOfLine
+pub mdwright_format::EndOfLine::Crlf
+pub mdwright_format::EndOfLine::Keep
+pub mdwright_format::EndOfLine::Lf
+impl core::clone::Clone for mdwright_format::EndOfLine
+pub fn mdwright_format::EndOfLine::clone(&self) -> mdwright_format::EndOfLine
+impl core::cmp::Eq for mdwright_format::EndOfLine
+impl core::cmp::PartialEq for mdwright_format::EndOfLine
+pub fn mdwright_format::EndOfLine::eq(&self, other: &mdwright_format::EndOfLine) -> bool
+impl core::fmt::Debug for mdwright_format::EndOfLine
+pub fn mdwright_format::EndOfLine::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::EndOfLine
+impl core::marker::StructuralPartialEq for mdwright_format::EndOfLine
+impl core::marker::Freeze for mdwright_format::EndOfLine
+impl core::marker::Send for mdwright_format::EndOfLine
+impl core::marker::Sync for mdwright_format::EndOfLine
+impl core::marker::Unpin for mdwright_format::EndOfLine
+impl core::marker::UnsafeUnpin for mdwright_format::EndOfLine
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::EndOfLine
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::EndOfLine
+pub enum mdwright_format::FormatError
+pub mdwright_format::FormatError::Parse(mdwright_document::error::ParseError)
+pub mdwright_format::FormatError::SemanticDivergence
+pub mdwright_format::FormatError::SemanticDivergence::diff_summary: alloc::string::String
+pub mdwright_format::FormatError::SemanticDivergence::formatted: alloc::string::String
+pub mdwright_format::FormatError::SemanticDivergence::source: alloc::string::String
+impl core::clone::Clone for mdwright_format::FormatError
+pub fn mdwright_format::FormatError::clone(&self) -> mdwright_format::FormatError
+impl core::convert::From<mdwright_document::error::ParseError> for mdwright_format::FormatError
+pub fn mdwright_format::FormatError::from(value: mdwright_document::error::ParseError) -> Self
+impl core::error::Error for mdwright_format::FormatError
+impl core::fmt::Debug for mdwright_format::FormatError
+pub fn mdwright_format::FormatError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_format::FormatError
+pub fn mdwright_format::FormatError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_format::FormatError
+impl core::marker::Send for mdwright_format::FormatError
+impl core::marker::Sync for mdwright_format::FormatError
+impl core::marker::Unpin for mdwright_format::FormatError
+impl core::marker::UnsafeUnpin for mdwright_format::FormatError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::FormatError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::FormatError
+pub enum mdwright_format::HeadingAttrsStyle
+pub mdwright_format::HeadingAttrsStyle::Canonicalise
+pub mdwright_format::HeadingAttrsStyle::Preserve
+impl core::clone::Clone for mdwright_format::HeadingAttrsStyle
+pub fn mdwright_format::HeadingAttrsStyle::clone(&self) -> mdwright_format::HeadingAttrsStyle
+impl core::cmp::Eq for mdwright_format::HeadingAttrsStyle
+impl core::cmp::PartialEq for mdwright_format::HeadingAttrsStyle
+pub fn mdwright_format::HeadingAttrsStyle::eq(&self, other: &mdwright_format::HeadingAttrsStyle) -> bool
+impl core::default::Default for mdwright_format::HeadingAttrsStyle
+pub fn mdwright_format::HeadingAttrsStyle::default() -> mdwright_format::HeadingAttrsStyle
+impl core::fmt::Debug for mdwright_format::HeadingAttrsStyle
+pub fn mdwright_format::HeadingAttrsStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::HeadingAttrsStyle
+impl core::marker::StructuralPartialEq for mdwright_format::HeadingAttrsStyle
+impl core::marker::Freeze for mdwright_format::HeadingAttrsStyle
+impl core::marker::Send for mdwright_format::HeadingAttrsStyle
+impl core::marker::Sync for mdwright_format::HeadingAttrsStyle
+impl core::marker::Unpin for mdwright_format::HeadingAttrsStyle
+impl core::marker::UnsafeUnpin for mdwright_format::HeadingAttrsStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::HeadingAttrsStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::HeadingAttrsStyle
+pub enum mdwright_format::ItalicStyle
+pub mdwright_format::ItalicStyle::Asterisk
+pub mdwright_format::ItalicStyle::Preserve
+pub mdwright_format::ItalicStyle::Underscore
+impl core::clone::Clone for mdwright_format::ItalicStyle
+pub fn mdwright_format::ItalicStyle::clone(&self) -> mdwright_format::ItalicStyle
+impl core::cmp::Eq for mdwright_format::ItalicStyle
+impl core::cmp::PartialEq for mdwright_format::ItalicStyle
+pub fn mdwright_format::ItalicStyle::eq(&self, other: &mdwright_format::ItalicStyle) -> bool
+impl core::fmt::Debug for mdwright_format::ItalicStyle
+pub fn mdwright_format::ItalicStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::ItalicStyle
+impl core::marker::StructuralPartialEq for mdwright_format::ItalicStyle
+impl core::marker::Freeze for mdwright_format::ItalicStyle
+impl core::marker::Send for mdwright_format::ItalicStyle
+impl core::marker::Sync for mdwright_format::ItalicStyle
+impl core::marker::Unpin for mdwright_format::ItalicStyle
+impl core::marker::UnsafeUnpin for mdwright_format::ItalicStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::ItalicStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::ItalicStyle
+pub enum mdwright_format::LinkDefStyle
+pub mdwright_format::LinkDefStyle::Angle
+pub mdwright_format::LinkDefStyle::Bare
+pub mdwright_format::LinkDefStyle::Preserve
+impl core::clone::Clone for mdwright_format::LinkDefStyle
+pub fn mdwright_format::LinkDefStyle::clone(&self) -> mdwright_format::LinkDefStyle
+impl core::cmp::Eq for mdwright_format::LinkDefStyle
+impl core::cmp::PartialEq for mdwright_format::LinkDefStyle
+pub fn mdwright_format::LinkDefStyle::eq(&self, other: &mdwright_format::LinkDefStyle) -> bool
+impl core::fmt::Debug for mdwright_format::LinkDefStyle
+pub fn mdwright_format::LinkDefStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::LinkDefStyle
+impl core::marker::StructuralPartialEq for mdwright_format::LinkDefStyle
+impl core::marker::Freeze for mdwright_format::LinkDefStyle
+impl core::marker::Send for mdwright_format::LinkDefStyle
+impl core::marker::Sync for mdwright_format::LinkDefStyle
+impl core::marker::Unpin for mdwright_format::LinkDefStyle
+impl core::marker::UnsafeUnpin for mdwright_format::LinkDefStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::LinkDefStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::LinkDefStyle
+pub enum mdwright_format::ListContinuationIndent
+pub mdwright_format::ListContinuationIndent::FourSpace
+pub mdwright_format::ListContinuationIndent::MarkerWidth
+impl core::clone::Clone for mdwright_format::ListContinuationIndent
+pub fn mdwright_format::ListContinuationIndent::clone(&self) -> mdwright_format::ListContinuationIndent
+impl core::cmp::Eq for mdwright_format::ListContinuationIndent
+impl core::cmp::PartialEq for mdwright_format::ListContinuationIndent
+pub fn mdwright_format::ListContinuationIndent::eq(&self, other: &mdwright_format::ListContinuationIndent) -> bool
+impl core::fmt::Debug for mdwright_format::ListContinuationIndent
+pub fn mdwright_format::ListContinuationIndent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::ListContinuationIndent
+impl core::marker::StructuralPartialEq for mdwright_format::ListContinuationIndent
+impl core::marker::Freeze for mdwright_format::ListContinuationIndent
+impl core::marker::Send for mdwright_format::ListContinuationIndent
+impl core::marker::Sync for mdwright_format::ListContinuationIndent
+impl core::marker::Unpin for mdwright_format::ListContinuationIndent
+impl core::marker::UnsafeUnpin for mdwright_format::ListContinuationIndent
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::ListContinuationIndent
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::ListContinuationIndent
+pub enum mdwright_format::ListMarkerStyle
+pub mdwright_format::ListMarkerStyle::Asterisk
+pub mdwright_format::ListMarkerStyle::Dash
+pub mdwright_format::ListMarkerStyle::Plus
+pub mdwright_format::ListMarkerStyle::Preserve
+impl core::clone::Clone for mdwright_format::ListMarkerStyle
+pub fn mdwright_format::ListMarkerStyle::clone(&self) -> mdwright_format::ListMarkerStyle
+impl core::cmp::Eq for mdwright_format::ListMarkerStyle
+impl core::cmp::PartialEq for mdwright_format::ListMarkerStyle
+pub fn mdwright_format::ListMarkerStyle::eq(&self, other: &mdwright_format::ListMarkerStyle) -> bool
+impl core::fmt::Debug for mdwright_format::ListMarkerStyle
+pub fn mdwright_format::ListMarkerStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::ListMarkerStyle
+impl core::marker::StructuralPartialEq for mdwright_format::ListMarkerStyle
+impl core::marker::Freeze for mdwright_format::ListMarkerStyle
+impl core::marker::Send for mdwright_format::ListMarkerStyle
+impl core::marker::Sync for mdwright_format::ListMarkerStyle
+impl core::marker::Unpin for mdwright_format::ListMarkerStyle
+impl core::marker::UnsafeUnpin for mdwright_format::ListMarkerStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::ListMarkerStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::ListMarkerStyle
+pub enum mdwright_format::MathRender
+pub mdwright_format::MathRender::CommonmarkKatex
+pub mdwright_format::MathRender::Dollar
+pub mdwright_format::MathRender::None
+impl core::clone::Clone for mdwright_format::MathRender
+pub fn mdwright_format::MathRender::clone(&self) -> mdwright_format::MathRender
+impl core::cmp::Eq for mdwright_format::MathRender
+impl core::cmp::PartialEq for mdwright_format::MathRender
+pub fn mdwright_format::MathRender::eq(&self, other: &mdwright_format::MathRender) -> bool
+impl core::default::Default for mdwright_format::MathRender
+pub fn mdwright_format::MathRender::default() -> mdwright_format::MathRender
+impl core::fmt::Debug for mdwright_format::MathRender
+pub fn mdwright_format::MathRender::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::MathRender
+impl core::marker::StructuralPartialEq for mdwright_format::MathRender
+impl core::marker::Freeze for mdwright_format::MathRender
+impl core::marker::Send for mdwright_format::MathRender
+impl core::marker::Sync for mdwright_format::MathRender
+impl core::marker::Unpin for mdwright_format::MathRender
+impl core::marker::UnsafeUnpin for mdwright_format::MathRender
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::MathRender
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::MathRender
+pub enum mdwright_format::OrderedListStyle
+pub mdwright_format::OrderedListStyle::Consistent
+pub mdwright_format::OrderedListStyle::One
+pub mdwright_format::OrderedListStyle::Preserve
+impl core::clone::Clone for mdwright_format::OrderedListStyle
+pub fn mdwright_format::OrderedListStyle::clone(&self) -> mdwright_format::OrderedListStyle
+impl core::cmp::Eq for mdwright_format::OrderedListStyle
+impl core::cmp::PartialEq for mdwright_format::OrderedListStyle
+pub fn mdwright_format::OrderedListStyle::eq(&self, other: &mdwright_format::OrderedListStyle) -> bool
+impl core::fmt::Debug for mdwright_format::OrderedListStyle
+pub fn mdwright_format::OrderedListStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::OrderedListStyle
+impl core::marker::StructuralPartialEq for mdwright_format::OrderedListStyle
+impl core::marker::Freeze for mdwright_format::OrderedListStyle
+impl core::marker::Send for mdwright_format::OrderedListStyle
+impl core::marker::Sync for mdwright_format::OrderedListStyle
+impl core::marker::Unpin for mdwright_format::OrderedListStyle
+impl core::marker::UnsafeUnpin for mdwright_format::OrderedListStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::OrderedListStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::OrderedListStyle
+pub enum mdwright_format::Placement
+pub mdwright_format::Placement::End
+pub mdwright_format::Placement::Preserve
+impl core::clone::Clone for mdwright_format::Placement
+pub fn mdwright_format::Placement::clone(&self) -> mdwright_format::Placement
+impl core::cmp::Eq for mdwright_format::Placement
+impl core::cmp::PartialEq for mdwright_format::Placement
+pub fn mdwright_format::Placement::eq(&self, other: &mdwright_format::Placement) -> bool
+impl core::fmt::Debug for mdwright_format::Placement
+pub fn mdwright_format::Placement::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::Placement
+impl core::marker::StructuralPartialEq for mdwright_format::Placement
+impl core::marker::Freeze for mdwright_format::Placement
+impl core::marker::Send for mdwright_format::Placement
+impl core::marker::Sync for mdwright_format::Placement
+impl core::marker::Unpin for mdwright_format::Placement
+impl core::marker::UnsafeUnpin for mdwright_format::Placement
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::Placement
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::Placement
+pub enum mdwright_format::StrongStyle
+pub mdwright_format::StrongStyle::Asterisk
+pub mdwright_format::StrongStyle::Preserve
+pub mdwright_format::StrongStyle::Underscore
+impl core::clone::Clone for mdwright_format::StrongStyle
+pub fn mdwright_format::StrongStyle::clone(&self) -> mdwright_format::StrongStyle
+impl core::cmp::Eq for mdwright_format::StrongStyle
+impl core::cmp::PartialEq for mdwright_format::StrongStyle
+pub fn mdwright_format::StrongStyle::eq(&self, other: &mdwright_format::StrongStyle) -> bool
+impl core::fmt::Debug for mdwright_format::StrongStyle
+pub fn mdwright_format::StrongStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::StrongStyle
+impl core::marker::StructuralPartialEq for mdwright_format::StrongStyle
+impl core::marker::Freeze for mdwright_format::StrongStyle
+impl core::marker::Send for mdwright_format::StrongStyle
+impl core::marker::Sync for mdwright_format::StrongStyle
+impl core::marker::Unpin for mdwright_format::StrongStyle
+impl core::marker::UnsafeUnpin for mdwright_format::StrongStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::StrongStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::StrongStyle
+pub enum mdwright_format::TableStyle
+pub mdwright_format::TableStyle::Pad
+pub mdwright_format::TableStyle::Preserve
+impl core::clone::Clone for mdwright_format::TableStyle
+pub fn mdwright_format::TableStyle::clone(&self) -> mdwright_format::TableStyle
+impl core::cmp::Eq for mdwright_format::TableStyle
+impl core::cmp::PartialEq for mdwright_format::TableStyle
+pub fn mdwright_format::TableStyle::eq(&self, other: &mdwright_format::TableStyle) -> bool
+impl core::fmt::Debug for mdwright_format::TableStyle
+pub fn mdwright_format::TableStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::TableStyle
+impl core::marker::StructuralPartialEq for mdwright_format::TableStyle
+impl core::marker::Freeze for mdwright_format::TableStyle
+impl core::marker::Send for mdwright_format::TableStyle
+impl core::marker::Sync for mdwright_format::TableStyle
+impl core::marker::Unpin for mdwright_format::TableStyle
+impl core::marker::UnsafeUnpin for mdwright_format::TableStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::TableStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::TableStyle
+pub enum mdwright_format::ThematicStyle
+pub mdwright_format::ThematicStyle::Asterisk
+pub mdwright_format::ThematicStyle::Dash
+pub mdwright_format::ThematicStyle::Preserve
+pub mdwright_format::ThematicStyle::Underscore
+pub mdwright_format::ThematicStyle::Underscore70
+impl mdwright_format::ThematicStyle
+pub fn mdwright_format::ThematicStyle::as_byte(self) -> core::option::Option<u8>
+impl core::clone::Clone for mdwright_format::ThematicStyle
+pub fn mdwright_format::ThematicStyle::clone(&self) -> mdwright_format::ThematicStyle
+impl core::cmp::Eq for mdwright_format::ThematicStyle
+impl core::cmp::PartialEq for mdwright_format::ThematicStyle
+pub fn mdwright_format::ThematicStyle::eq(&self, other: &mdwright_format::ThematicStyle) -> bool
+impl core::fmt::Debug for mdwright_format::ThematicStyle
+pub fn mdwright_format::ThematicStyle::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::ThematicStyle
+impl core::marker::StructuralPartialEq for mdwright_format::ThematicStyle
+impl core::marker::Freeze for mdwright_format::ThematicStyle
+impl core::marker::Send for mdwright_format::ThematicStyle
+impl core::marker::Sync for mdwright_format::ThematicStyle
+impl core::marker::Unpin for mdwright_format::ThematicStyle
+impl core::marker::UnsafeUnpin for mdwright_format::ThematicStyle
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::ThematicStyle
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::ThematicStyle
+pub enum mdwright_format::TrailingNewline
+pub mdwright_format::TrailingNewline::Ensure
+pub mdwright_format::TrailingNewline::Preserve
+pub mdwright_format::TrailingNewline::Strip
+impl core::clone::Clone for mdwright_format::TrailingNewline
+pub fn mdwright_format::TrailingNewline::clone(&self) -> mdwright_format::TrailingNewline
+impl core::cmp::Eq for mdwright_format::TrailingNewline
+impl core::cmp::PartialEq for mdwright_format::TrailingNewline
+pub fn mdwright_format::TrailingNewline::eq(&self, other: &mdwright_format::TrailingNewline) -> bool
+impl core::default::Default for mdwright_format::TrailingNewline
+pub fn mdwright_format::TrailingNewline::default() -> mdwright_format::TrailingNewline
+impl core::fmt::Debug for mdwright_format::TrailingNewline
+pub fn mdwright_format::TrailingNewline::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::TrailingNewline
+impl core::marker::StructuralPartialEq for mdwright_format::TrailingNewline
+impl core::marker::Freeze for mdwright_format::TrailingNewline
+impl core::marker::Send for mdwright_format::TrailingNewline
+impl core::marker::Sync for mdwright_format::TrailingNewline
+impl core::marker::Unpin for mdwright_format::TrailingNewline
+impl core::marker::UnsafeUnpin for mdwright_format::TrailingNewline
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::TrailingNewline
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::TrailingNewline
+pub enum mdwright_format::Wrap
+pub mdwright_format::Wrap::At(u32)
+pub mdwright_format::Wrap::Keep
+pub mdwright_format::Wrap::No
+impl mdwright_format::Wrap
+pub fn mdwright_format::Wrap::columns(self) -> u32
+pub fn mdwright_format::Wrap::shrink(self, n: u32) -> Self
+impl core::clone::Clone for mdwright_format::Wrap
+pub fn mdwright_format::Wrap::clone(&self) -> mdwright_format::Wrap
+impl core::cmp::Eq for mdwright_format::Wrap
+impl core::cmp::PartialEq for mdwright_format::Wrap
+pub fn mdwright_format::Wrap::eq(&self, other: &mdwright_format::Wrap) -> bool
+impl core::fmt::Debug for mdwright_format::Wrap
+pub fn mdwright_format::Wrap::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::Wrap
+impl core::marker::StructuralPartialEq for mdwright_format::Wrap
+impl core::marker::Freeze for mdwright_format::Wrap
+impl core::marker::Send for mdwright_format::Wrap
+impl core::marker::Sync for mdwright_format::Wrap
+impl core::marker::Unpin for mdwright_format::Wrap
+impl core::marker::UnsafeUnpin for mdwright_format::Wrap
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::Wrap
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::Wrap
+pub enum mdwright_format::WrapStrategy
+pub mdwright_format::WrapStrategy::Balanced
+pub mdwright_format::WrapStrategy::Stable
+impl mdwright_format::WrapStrategy
+pub fn mdwright_format::WrapStrategy::as_str(self) -> &'static str
+impl core::clone::Clone for mdwright_format::WrapStrategy
+pub fn mdwright_format::WrapStrategy::clone(&self) -> mdwright_format::WrapStrategy
+impl core::cmp::Eq for mdwright_format::WrapStrategy
+impl core::cmp::PartialEq for mdwright_format::WrapStrategy
+pub fn mdwright_format::WrapStrategy::eq(&self, other: &mdwright_format::WrapStrategy) -> bool
+impl core::fmt::Debug for mdwright_format::WrapStrategy
+pub fn mdwright_format::WrapStrategy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::WrapStrategy
+impl core::marker::StructuralPartialEq for mdwright_format::WrapStrategy
+impl core::marker::Freeze for mdwright_format::WrapStrategy
+impl core::marker::Send for mdwright_format::WrapStrategy
+impl core::marker::Sync for mdwright_format::WrapStrategy
+impl core::marker::Unpin for mdwright_format::WrapStrategy
+impl core::marker::UnsafeUnpin for mdwright_format::WrapStrategy
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::WrapStrategy
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::WrapStrategy
+pub struct mdwright_format::CheckpointTable
+impl mdwright_format::CheckpointTable
+pub fn mdwright_format::CheckpointTable::build(source: &str) -> core::result::Result<Self, mdwright_document::error::ParseError>
+pub fn mdwright_format::CheckpointTable::build_with_options(source: &str, parse_options: mdwright_document::ParseOptions) -> core::result::Result<Self, mdwright_document::error::ParseError>
+pub fn mdwright_format::CheckpointTable::from_document(doc: &mdwright_document::document::Document) -> Self
+pub fn mdwright_format::CheckpointTable::is_empty(&self) -> bool
+pub fn mdwright_format::CheckpointTable::len(&self) -> usize
+pub fn mdwright_format::CheckpointTable::snap_to_block_boundaries(&self, range: core::ops::range::Range<u32>) -> core::ops::range::Range<u32>
+impl core::fmt::Debug for mdwright_format::CheckpointTable
+pub fn mdwright_format::CheckpointTable::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_format::CheckpointTable
+impl core::marker::Send for mdwright_format::CheckpointTable
+impl core::marker::Sync for mdwright_format::CheckpointTable
+impl core::marker::Unpin for mdwright_format::CheckpointTable
+impl core::marker::UnsafeUnpin for mdwright_format::CheckpointTable
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::CheckpointTable
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::CheckpointTable
+pub struct mdwright_format::FmtOptions
+impl mdwright_format::FmtOptions
+pub fn mdwright_format::FmtOptions::end_of_line(&self) -> mdwright_format::EndOfLine
+pub fn mdwright_format::FmtOptions::exclude_globs(&self) -> &[alloc::string::String]
+pub fn mdwright_format::FmtOptions::footnote_placement(&self) -> mdwright_format::Placement
+pub fn mdwright_format::FmtOptions::heading_attrs(&self) -> mdwright_format::HeadingAttrsStyle
+pub fn mdwright_format::FmtOptions::italic(&self) -> mdwright_format::ItalicStyle
+pub fn mdwright_format::FmtOptions::link_def_placement(&self) -> mdwright_format::Placement
+pub fn mdwright_format::FmtOptions::link_def_style(&self) -> mdwright_format::LinkDefStyle
+pub fn mdwright_format::FmtOptions::list_continuation_indent(&self) -> mdwright_format::ListContinuationIndent
+pub fn mdwright_format::FmtOptions::list_marker(&self) -> mdwright_format::ListMarkerStyle
+pub fn mdwright_format::FmtOptions::math(&self) -> mdwright_format::MathOptions
+pub fn mdwright_format::FmtOptions::ordered_list(&self) -> mdwright_format::OrderedListStyle
+pub fn mdwright_format::FmtOptions::preserve_frontmatter(&self) -> bool
+pub fn mdwright_format::FmtOptions::resolve_italic(&self, source_delim: u8) -> u8
+pub fn mdwright_format::FmtOptions::resolve_list_marker(&self, source_marker: u8) -> u8
+pub fn mdwright_format::FmtOptions::strong(&self) -> mdwright_format::StrongStyle
+pub fn mdwright_format::FmtOptions::table(&self) -> mdwright_format::TableStyle
+pub fn mdwright_format::FmtOptions::thematic_break_style(&self) -> mdwright_format::ThematicStyle
+pub fn mdwright_format::FmtOptions::trailing_newline(&self) -> mdwright_format::TrailingNewline
+pub fn mdwright_format::FmtOptions::with_end_of_line(self, end_of_line: mdwright_format::EndOfLine) -> Self
+pub fn mdwright_format::FmtOptions::with_exclude_globs(self, exclude_globs: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn mdwright_format::FmtOptions::with_footnote_placement(self, placement: mdwright_format::Placement) -> Self
+pub fn mdwright_format::FmtOptions::with_heading_attrs(self, style: mdwright_format::HeadingAttrsStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_italic(self, italic: mdwright_format::ItalicStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_link_def_placement(self, placement: mdwright_format::Placement) -> Self
+pub fn mdwright_format::FmtOptions::with_link_def_style(self, link_def_style: mdwright_format::LinkDefStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_list_continuation_indent(self, indent: mdwright_format::ListContinuationIndent) -> Self
+pub fn mdwright_format::FmtOptions::with_list_marker(self, list_marker: mdwright_format::ListMarkerStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_math(self, math: mdwright_format::MathOptions) -> Self
+pub fn mdwright_format::FmtOptions::with_math_render(self, render: mdwright_format::MathRender) -> Self
+pub fn mdwright_format::FmtOptions::with_ordered_list(self, ordered_list: mdwright_format::OrderedListStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_preserve_frontmatter(self, preserve_frontmatter: bool) -> Self
+pub fn mdwright_format::FmtOptions::with_strong(self, strong: mdwright_format::StrongStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_table(self, table: mdwright_format::TableStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_thematic_break(self, thematic_break: mdwright_format::ThematicStyle) -> Self
+pub fn mdwright_format::FmtOptions::with_trailing_newline(self, trailing_newline: mdwright_format::TrailingNewline) -> Self
+pub fn mdwright_format::FmtOptions::with_wrap(self, wrap: mdwright_format::Wrap) -> Self
+pub fn mdwright_format::FmtOptions::with_wrap_strategy(self, strategy: mdwright_format::WrapStrategy) -> Self
+pub fn mdwright_format::FmtOptions::wrap(&self) -> mdwright_format::Wrap
+pub fn mdwright_format::FmtOptions::wrap_strategy(&self) -> mdwright_format::WrapStrategy
+impl mdwright_format::FmtOptions
+pub fn mdwright_format::FmtOptions::mdformat() -> Self
+impl core::clone::Clone for mdwright_format::FmtOptions
+pub fn mdwright_format::FmtOptions::clone(&self) -> mdwright_format::FmtOptions
+impl core::default::Default for mdwright_format::FmtOptions
+pub fn mdwright_format::FmtOptions::default() -> Self
+impl core::fmt::Debug for mdwright_format::FmtOptions
+pub fn mdwright_format::FmtOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_format::FmtOptions
+impl core::marker::Send for mdwright_format::FmtOptions
+impl core::marker::Sync for mdwright_format::FmtOptions
+impl core::marker::Unpin for mdwright_format::FmtOptions
+impl core::marker::UnsafeUnpin for mdwright_format::FmtOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::FmtOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::FmtOptions
+pub struct mdwright_format::FormatReport
+pub mdwright_format::FormatReport::rewrite_candidates: usize
+pub mdwright_format::FormatReport::rewrite_committed: usize
+pub mdwright_format::FormatReport::rewrite_committed_style: usize
+pub mdwright_format::FormatReport::rewrite_committed_wrap: usize
+pub mdwright_format::FormatReport::rewrite_rejected_convergence: usize
+pub mdwright_format::FormatReport::rewrite_rejected_overlap: usize
+pub mdwright_format::FormatReport::rewrite_rejected_verification: usize
+pub mdwright_format::FormatReport::rewrite_skipped_wrap: usize
+impl core::clone::Clone for mdwright_format::FormatReport
+pub fn mdwright_format::FormatReport::clone(&self) -> mdwright_format::FormatReport
+impl core::cmp::Eq for mdwright_format::FormatReport
+impl core::cmp::PartialEq for mdwright_format::FormatReport
+pub fn mdwright_format::FormatReport::eq(&self, other: &mdwright_format::FormatReport) -> bool
+impl core::default::Default for mdwright_format::FormatReport
+pub fn mdwright_format::FormatReport::default() -> mdwright_format::FormatReport
+impl core::fmt::Debug for mdwright_format::FormatReport
+pub fn mdwright_format::FormatReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_format::FormatReport
+impl core::marker::Freeze for mdwright_format::FormatReport
+impl core::marker::Send for mdwright_format::FormatReport
+impl core::marker::Sync for mdwright_format::FormatReport
+impl core::marker::Unpin for mdwright_format::FormatReport
+impl core::marker::UnsafeUnpin for mdwright_format::FormatReport
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::FormatReport
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::FormatReport
+pub struct mdwright_format::MathOptions
+pub mdwright_format::MathOptions::normalise: bool
+pub mdwright_format::MathOptions::render: mdwright_format::MathRender
+impl core::clone::Clone for mdwright_format::MathOptions
+pub fn mdwright_format::MathOptions::clone(&self) -> mdwright_format::MathOptions
+impl core::default::Default for mdwright_format::MathOptions
+pub fn mdwright_format::MathOptions::default() -> mdwright_format::MathOptions
+impl core::fmt::Debug for mdwright_format::MathOptions
+pub fn mdwright_format::MathOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::MathOptions
+impl core::marker::Freeze for mdwright_format::MathOptions
+impl core::marker::Send for mdwright_format::MathOptions
+impl core::marker::Sync for mdwright_format::MathOptions
+impl core::marker::Unpin for mdwright_format::MathOptions
+impl core::marker::UnsafeUnpin for mdwright_format::MathOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::MathOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::MathOptions
+pub fn mdwright_format::first_divergence(source: &str, formatted: &str) -> core::result::Result<core::option::Option<alloc::string::String>, mdwright_document::error::ParseError>
+pub fn mdwright_format::format_document(doc: &mdwright_document::document::Document, opts: &mdwright_format::FmtOptions) -> alloc::string::String
+pub fn mdwright_format::format_document_with_report(doc: &mdwright_document::document::Document, opts: &mdwright_format::FmtOptions) -> (alloc::string::String, mdwright_format::FormatReport)
+pub fn mdwright_format::format_range(doc: &mdwright_document::document::Document, opts: &mdwright_format::FmtOptions, range: core::ops::range::Range<usize>) -> alloc::string::String
+pub fn mdwright_format::format_range_with_checkpoints(doc: &mdwright_document::document::Document, opts: &mdwright_format::FmtOptions, table: &mdwright_format::CheckpointTable, range: core::ops::range::Range<usize>) -> alloc::string::String
+pub fn mdwright_format::format_source(source: &str, opts: &mdwright_format::FmtOptions) -> core::result::Result<alloc::string::String, mdwright_format::FormatError>
+pub fn mdwright_format::format_validated(doc: &mdwright_document::document::Document, opts: &mdwright_format::FmtOptions) -> core::result::Result<alloc::string::String, mdwright_format::FormatError>
+pub fn mdwright_format::format_validated_with_report(doc: &mdwright_document::document::Document, opts: &mdwright_format::FmtOptions) -> core::result::Result<(alloc::string::String, mdwright_format::FormatReport), mdwright_format::FormatError>
+pub fn mdwright_format::semantically_equivalent(source: &str, formatted: &str) -> core::result::Result<bool, mdwright_document::error::ParseError>

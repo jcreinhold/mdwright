@@ -4,7 +4,7 @@
 against.
 
 - Source: `https://raw.githubusercontent.com/github/cmark-gfm/master/test/spec.txt`
-- Pinned upstream commit: `587a12bb54d95ac37241377e6ddc93ea0e45439b` (2023-07-21)
+- Pinned upstream commit: `587a12bb54d9` (2023-07-21)
 - License: CC-BY-SA 4.0 (per the spec frontmatter).
 - Vendored on: 2026-05-14.
 
@@ -38,7 +38,7 @@ those extension cases while the formatter still round-trips source bytes.
 idempotence plus mdwright semantic equivalence. It does **not** compare against the expected HTML embedded in
 `spec.txt`; that cmark-gfm conformance role belongs to `cargo xtask parser-audit`.
 
-Phase R replaced the ratchet with a snapshot. Two tests in `tests/gfm_spec.rs`:
+Two tests in `tests/gfm_spec.rs` enforce coverage:
 
 - `gfm_spec_snapshot` runs every case through `parse → format → parse → format`, collects the residual `(case, kind)`
   failures *not* covered by `allowlist.toml`, and asserts byte-for-byte equality with `snapshot.txt`. Any drift,

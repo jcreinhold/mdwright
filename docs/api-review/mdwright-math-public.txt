@@ -1,0 +1,390 @@
+pub mod mdwright_math
+pub mod mdwright_math::env
+pub enum mdwright_math::env::EnvKind
+pub mdwright_math::env::EnvKind::Custom(core::ops::range::Range<usize>)
+pub mdwright_math::env::EnvKind::Known(mdwright_math::env::KnownEnv)
+impl mdwright_math::env::EnvKind
+pub fn mdwright_math::env::EnvKind::is_aligning(&self) -> bool
+pub fn mdwright_math::env::EnvKind::name<'a>(&self, source: &'a str) -> &'a str
+impl core::clone::Clone for mdwright_math::env::EnvKind
+pub fn mdwright_math::env::EnvKind::clone(&self) -> mdwright_math::env::EnvKind
+impl core::cmp::Eq for mdwright_math::env::EnvKind
+impl core::cmp::PartialEq for mdwright_math::env::EnvKind
+pub fn mdwright_math::env::EnvKind::eq(&self, other: &mdwright_math::env::EnvKind) -> bool
+impl core::fmt::Debug for mdwright_math::env::EnvKind
+pub fn mdwright_math::env::EnvKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_math::env::EnvKind
+impl core::marker::Freeze for mdwright_math::env::EnvKind
+impl core::marker::Send for mdwright_math::env::EnvKind
+impl core::marker::Sync for mdwright_math::env::EnvKind
+impl core::marker::Unpin for mdwright_math::env::EnvKind
+impl core::marker::UnsafeUnpin for mdwright_math::env::EnvKind
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::env::EnvKind
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::env::EnvKind
+pub enum mdwright_math::env::KnownEnv
+pub mdwright_math::env::KnownEnv::Align
+pub mdwright_math::env::KnownEnv::AlignStar
+pub mdwright_math::env::KnownEnv::Aligned
+pub mdwright_math::env::KnownEnv::Array
+pub mdwright_math::env::KnownEnv::Bmatrix
+pub mdwright_math::env::KnownEnv::Cases
+pub mdwright_math::env::KnownEnv::Equation
+pub mdwright_math::env::KnownEnv::EquationStar
+pub mdwright_math::env::KnownEnv::Gather
+pub mdwright_math::env::KnownEnv::GatherStar
+pub mdwright_math::env::KnownEnv::Matrix
+pub mdwright_math::env::KnownEnv::Multline
+pub mdwright_math::env::KnownEnv::MultlineStar
+pub mdwright_math::env::KnownEnv::Pmatrix
+pub mdwright_math::env::KnownEnv::Smallmatrix
+pub mdwright_math::env::KnownEnv::Split
+pub mdwright_math::env::KnownEnv::Vmatrix
+impl mdwright_math::env::KnownEnv
+pub fn mdwright_math::env::KnownEnv::from_name(name: &str) -> core::option::Option<Self>
+pub const fn mdwright_math::env::KnownEnv::is_aligning(self) -> bool
+pub const fn mdwright_math::env::KnownEnv::name(self) -> &'static str
+impl core::clone::Clone for mdwright_math::env::KnownEnv
+pub fn mdwright_math::env::KnownEnv::clone(&self) -> mdwright_math::env::KnownEnv
+impl core::cmp::Eq for mdwright_math::env::KnownEnv
+impl core::cmp::PartialEq for mdwright_math::env::KnownEnv
+pub fn mdwright_math::env::KnownEnv::eq(&self, other: &mdwright_math::env::KnownEnv) -> bool
+impl core::fmt::Debug for mdwright_math::env::KnownEnv
+pub fn mdwright_math::env::KnownEnv::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::env::KnownEnv
+impl core::marker::StructuralPartialEq for mdwright_math::env::KnownEnv
+impl core::marker::Freeze for mdwright_math::env::KnownEnv
+impl core::marker::Send for mdwright_math::env::KnownEnv
+impl core::marker::Sync for mdwright_math::env::KnownEnv
+impl core::marker::Unpin for mdwright_math::env::KnownEnv
+impl core::marker::UnsafeUnpin for mdwright_math::env::KnownEnv
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::env::KnownEnv
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::env::KnownEnv
+pub mod mdwright_math::normalise
+pub fn mdwright_math::normalise::align_env_body(body: &str) -> alloc::string::String
+pub fn mdwright_math::normalise::body_braces_balanced(body: &str) -> core::result::Result<(), usize>
+pub mod mdwright_math::render
+pub fn mdwright_math::render::convert_for_dollar<'a>(source: &'a str, range: &core::ops::range::Range<usize>, span: &mdwright_math::span::MathSpan) -> alloc::borrow::Cow<'a, str>
+pub mod mdwright_math::scan
+pub struct mdwright_math::scan::MathConfig
+pub mdwright_math::scan::MathConfig::backslash_bracket: bool
+pub mdwright_math::scan::MathConfig::backslash_paren: bool
+pub mdwright_math::scan::MathConfig::double_dollar: bool
+pub mdwright_math::scan::MathConfig::environments: bool
+pub mdwright_math::scan::MathConfig::single_dollar: bool
+impl core::clone::Clone for mdwright_math::scan::MathConfig
+pub fn mdwright_math::scan::MathConfig::clone(&self) -> mdwright_math::scan::MathConfig
+impl core::default::Default for mdwright_math::scan::MathConfig
+pub fn mdwright_math::scan::MathConfig::default() -> Self
+impl core::fmt::Debug for mdwright_math::scan::MathConfig
+pub fn mdwright_math::scan::MathConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::scan::MathConfig
+impl core::marker::Freeze for mdwright_math::scan::MathConfig
+impl core::marker::Send for mdwright_math::scan::MathConfig
+impl core::marker::Sync for mdwright_math::scan::MathConfig
+impl core::marker::Unpin for mdwright_math::scan::MathConfig
+impl core::marker::UnsafeUnpin for mdwright_math::scan::MathConfig
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::scan::MathConfig
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::scan::MathConfig
+pub fn mdwright_math::scan::scan_math_regions(source: &str, exclusions: &[core::ops::range::Range<usize>], transparent_runs: &[core::ops::range::Range<usize>], cfg: mdwright_math::scan::MathConfig) -> (alloc::vec::Vec<mdwright_math::MathRegion>, alloc::vec::Vec<mdwright_math::span::MathError>)
+pub mod mdwright_math::span
+pub enum mdwright_math::span::AnyDelim
+pub mdwright_math::span::AnyDelim::Bracket
+pub mdwright_math::span::AnyDelim::Dollar
+pub mdwright_math::span::AnyDelim::Dollar2
+pub mdwright_math::span::AnyDelim::Paren
+impl mdwright_math::span::AnyDelim
+pub const fn mdwright_math::span::AnyDelim::close(self) -> &'static str
+pub const fn mdwright_math::span::AnyDelim::is_display(self) -> bool
+pub const fn mdwright_math::span::AnyDelim::open(self) -> &'static str
+impl core::clone::Clone for mdwright_math::span::AnyDelim
+pub fn mdwright_math::span::AnyDelim::clone(&self) -> mdwright_math::span::AnyDelim
+impl core::cmp::Eq for mdwright_math::span::AnyDelim
+impl core::cmp::PartialEq for mdwright_math::span::AnyDelim
+pub fn mdwright_math::span::AnyDelim::eq(&self, other: &mdwright_math::span::AnyDelim) -> bool
+impl core::fmt::Debug for mdwright_math::span::AnyDelim
+pub fn mdwright_math::span::AnyDelim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::span::AnyDelim
+impl core::marker::StructuralPartialEq for mdwright_math::span::AnyDelim
+impl core::marker::Freeze for mdwright_math::span::AnyDelim
+impl core::marker::Send for mdwright_math::span::AnyDelim
+impl core::marker::Sync for mdwright_math::span::AnyDelim
+impl core::marker::Unpin for mdwright_math::span::AnyDelim
+impl core::marker::UnsafeUnpin for mdwright_math::span::AnyDelim
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::AnyDelim
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::AnyDelim
+pub enum mdwright_math::span::DisplayDelim
+pub mdwright_math::span::DisplayDelim::Bracket
+pub mdwright_math::span::DisplayDelim::Dollar2
+impl core::clone::Clone for mdwright_math::span::DisplayDelim
+pub fn mdwright_math::span::DisplayDelim::clone(&self) -> mdwright_math::span::DisplayDelim
+impl core::cmp::Eq for mdwright_math::span::DisplayDelim
+impl core::cmp::PartialEq for mdwright_math::span::DisplayDelim
+pub fn mdwright_math::span::DisplayDelim::eq(&self, other: &mdwright_math::span::DisplayDelim) -> bool
+impl core::fmt::Debug for mdwright_math::span::DisplayDelim
+pub fn mdwright_math::span::DisplayDelim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::span::DisplayDelim
+impl core::marker::StructuralPartialEq for mdwright_math::span::DisplayDelim
+impl core::marker::Freeze for mdwright_math::span::DisplayDelim
+impl core::marker::Send for mdwright_math::span::DisplayDelim
+impl core::marker::Sync for mdwright_math::span::DisplayDelim
+impl core::marker::Unpin for mdwright_math::span::DisplayDelim
+impl core::marker::UnsafeUnpin for mdwright_math::span::DisplayDelim
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::DisplayDelim
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::DisplayDelim
+pub enum mdwright_math::span::InlineDelim
+pub mdwright_math::span::InlineDelim::Dollar
+pub mdwright_math::span::InlineDelim::Paren
+impl core::clone::Clone for mdwright_math::span::InlineDelim
+pub fn mdwright_math::span::InlineDelim::clone(&self) -> mdwright_math::span::InlineDelim
+impl core::cmp::Eq for mdwright_math::span::InlineDelim
+impl core::cmp::PartialEq for mdwright_math::span::InlineDelim
+pub fn mdwright_math::span::InlineDelim::eq(&self, other: &mdwright_math::span::InlineDelim) -> bool
+impl core::fmt::Debug for mdwright_math::span::InlineDelim
+pub fn mdwright_math::span::InlineDelim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::span::InlineDelim
+impl core::marker::StructuralPartialEq for mdwright_math::span::InlineDelim
+impl core::marker::Freeze for mdwright_math::span::InlineDelim
+impl core::marker::Send for mdwright_math::span::InlineDelim
+impl core::marker::Sync for mdwright_math::span::InlineDelim
+impl core::marker::Unpin for mdwright_math::span::InlineDelim
+impl core::marker::UnsafeUnpin for mdwright_math::span::InlineDelim
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::InlineDelim
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::InlineDelim
+pub enum mdwright_math::span::MathError
+pub mdwright_math::span::MathError::UnbalancedBraces
+pub mdwright_math::span::MathError::UnbalancedBraces::offset: usize
+pub mdwright_math::span::MathError::UnbalancedBraces::region: core::ops::range::Range<usize>
+pub mdwright_math::span::MathError::UnbalancedDelim
+pub mdwright_math::span::MathError::UnbalancedDelim::delim: mdwright_math::span::AnyDelim
+pub mdwright_math::span::MathError::UnbalancedDelim::range: core::ops::range::Range<usize>
+pub mdwright_math::span::MathError::UnbalancedEnv
+pub mdwright_math::span::MathError::UnbalancedEnv::name: alloc::string::String
+pub mdwright_math::span::MathError::UnbalancedEnv::range: core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_math::span::MathError
+pub fn mdwright_math::span::MathError::clone(&self) -> mdwright_math::span::MathError
+impl core::fmt::Debug for mdwright_math::span::MathError
+pub fn mdwright_math::span::MathError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_math::span::MathError
+impl core::marker::Send for mdwright_math::span::MathError
+impl core::marker::Sync for mdwright_math::span::MathError
+impl core::marker::Unpin for mdwright_math::span::MathError
+impl core::marker::UnsafeUnpin for mdwright_math::span::MathError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::MathError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::MathError
+pub enum mdwright_math::span::MathSpan
+pub mdwright_math::span::MathSpan::Display
+pub mdwright_math::span::MathSpan::Display::body: mdwright_math::span::MathBody
+pub mdwright_math::span::MathSpan::Display::delim: mdwright_math::span::DisplayDelim
+pub mdwright_math::span::MathSpan::Environment
+pub mdwright_math::span::MathSpan::Environment::body: mdwright_math::span::MathBody
+pub mdwright_math::span::MathSpan::Environment::env: mdwright_math::env::EnvKind
+pub mdwright_math::span::MathSpan::Inline
+pub mdwright_math::span::MathSpan::Inline::body: mdwright_math::span::MathBody
+pub mdwright_math::span::MathSpan::Inline::delim: mdwright_math::span::InlineDelim
+impl mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::body(&self) -> &mdwright_math::span::MathBody
+impl core::clone::Clone for mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::clone(&self) -> mdwright_math::span::MathSpan
+impl core::cmp::Eq for mdwright_math::span::MathSpan
+impl core::cmp::PartialEq for mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::eq(&self, other: &mdwright_math::span::MathSpan) -> bool
+impl core::fmt::Debug for mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_math::span::MathSpan
+impl core::marker::Freeze for mdwright_math::span::MathSpan
+impl core::marker::Send for mdwright_math::span::MathSpan
+impl core::marker::Sync for mdwright_math::span::MathSpan
+impl core::marker::Unpin for mdwright_math::span::MathSpan
+impl core::marker::UnsafeUnpin for mdwright_math::span::MathSpan
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::MathSpan
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::MathSpan
+pub struct mdwright_math::span::MathBody
+impl mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::as_str<'src>(&self, source: &'src str) -> alloc::borrow::Cow<'src, str>
+pub fn mdwright_math::span::MathBody::clean_offset_to_source(&self, clean_off: usize) -> usize
+pub fn mdwright_math::span::MathBody::new(range: core::ops::range::Range<usize>, transparent: alloc::boxed::Box<[core::ops::range::Range<usize>]>) -> Self
+pub fn mdwright_math::span::MathBody::source_range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::clone(&self) -> mdwright_math::span::MathBody
+impl core::cmp::Eq for mdwright_math::span::MathBody
+impl core::cmp::PartialEq for mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::eq(&self, other: &mdwright_math::span::MathBody) -> bool
+impl core::fmt::Debug for mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_math::span::MathBody
+impl core::marker::Freeze for mdwright_math::span::MathBody
+impl core::marker::Send for mdwright_math::span::MathBody
+impl core::marker::Sync for mdwright_math::span::MathBody
+impl core::marker::Unpin for mdwright_math::span::MathBody
+impl core::marker::UnsafeUnpin for mdwright_math::span::MathBody
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::MathBody
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::MathBody
+pub enum mdwright_math::AnyDelim
+pub mdwright_math::AnyDelim::Bracket
+pub mdwright_math::AnyDelim::Dollar
+pub mdwright_math::AnyDelim::Dollar2
+pub mdwright_math::AnyDelim::Paren
+impl mdwright_math::span::AnyDelim
+pub const fn mdwright_math::span::AnyDelim::close(self) -> &'static str
+pub const fn mdwright_math::span::AnyDelim::is_display(self) -> bool
+pub const fn mdwright_math::span::AnyDelim::open(self) -> &'static str
+impl core::clone::Clone for mdwright_math::span::AnyDelim
+pub fn mdwright_math::span::AnyDelim::clone(&self) -> mdwright_math::span::AnyDelim
+impl core::cmp::Eq for mdwright_math::span::AnyDelim
+impl core::cmp::PartialEq for mdwright_math::span::AnyDelim
+pub fn mdwright_math::span::AnyDelim::eq(&self, other: &mdwright_math::span::AnyDelim) -> bool
+impl core::fmt::Debug for mdwright_math::span::AnyDelim
+pub fn mdwright_math::span::AnyDelim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::span::AnyDelim
+impl core::marker::StructuralPartialEq for mdwright_math::span::AnyDelim
+impl core::marker::Freeze for mdwright_math::span::AnyDelim
+impl core::marker::Send for mdwright_math::span::AnyDelim
+impl core::marker::Sync for mdwright_math::span::AnyDelim
+impl core::marker::Unpin for mdwright_math::span::AnyDelim
+impl core::marker::UnsafeUnpin for mdwright_math::span::AnyDelim
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::AnyDelim
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::AnyDelim
+pub enum mdwright_math::DisplayDelim
+pub mdwright_math::DisplayDelim::Bracket
+pub mdwright_math::DisplayDelim::Dollar2
+impl core::clone::Clone for mdwright_math::span::DisplayDelim
+pub fn mdwright_math::span::DisplayDelim::clone(&self) -> mdwright_math::span::DisplayDelim
+impl core::cmp::Eq for mdwright_math::span::DisplayDelim
+impl core::cmp::PartialEq for mdwright_math::span::DisplayDelim
+pub fn mdwright_math::span::DisplayDelim::eq(&self, other: &mdwright_math::span::DisplayDelim) -> bool
+impl core::fmt::Debug for mdwright_math::span::DisplayDelim
+pub fn mdwright_math::span::DisplayDelim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::span::DisplayDelim
+impl core::marker::StructuralPartialEq for mdwright_math::span::DisplayDelim
+impl core::marker::Freeze for mdwright_math::span::DisplayDelim
+impl core::marker::Send for mdwright_math::span::DisplayDelim
+impl core::marker::Sync for mdwright_math::span::DisplayDelim
+impl core::marker::Unpin for mdwright_math::span::DisplayDelim
+impl core::marker::UnsafeUnpin for mdwright_math::span::DisplayDelim
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::DisplayDelim
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::DisplayDelim
+pub enum mdwright_math::InlineDelim
+pub mdwright_math::InlineDelim::Dollar
+pub mdwright_math::InlineDelim::Paren
+impl core::clone::Clone for mdwright_math::span::InlineDelim
+pub fn mdwright_math::span::InlineDelim::clone(&self) -> mdwright_math::span::InlineDelim
+impl core::cmp::Eq for mdwright_math::span::InlineDelim
+impl core::cmp::PartialEq for mdwright_math::span::InlineDelim
+pub fn mdwright_math::span::InlineDelim::eq(&self, other: &mdwright_math::span::InlineDelim) -> bool
+impl core::fmt::Debug for mdwright_math::span::InlineDelim
+pub fn mdwright_math::span::InlineDelim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::span::InlineDelim
+impl core::marker::StructuralPartialEq for mdwright_math::span::InlineDelim
+impl core::marker::Freeze for mdwright_math::span::InlineDelim
+impl core::marker::Send for mdwright_math::span::InlineDelim
+impl core::marker::Sync for mdwright_math::span::InlineDelim
+impl core::marker::Unpin for mdwright_math::span::InlineDelim
+impl core::marker::UnsafeUnpin for mdwright_math::span::InlineDelim
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::InlineDelim
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::InlineDelim
+pub enum mdwright_math::MathError
+pub mdwright_math::MathError::UnbalancedBraces
+pub mdwright_math::MathError::UnbalancedBraces::offset: usize
+pub mdwright_math::MathError::UnbalancedBraces::region: core::ops::range::Range<usize>
+pub mdwright_math::MathError::UnbalancedDelim
+pub mdwright_math::MathError::UnbalancedDelim::delim: mdwright_math::span::AnyDelim
+pub mdwright_math::MathError::UnbalancedDelim::range: core::ops::range::Range<usize>
+pub mdwright_math::MathError::UnbalancedEnv
+pub mdwright_math::MathError::UnbalancedEnv::name: alloc::string::String
+pub mdwright_math::MathError::UnbalancedEnv::range: core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_math::span::MathError
+pub fn mdwright_math::span::MathError::clone(&self) -> mdwright_math::span::MathError
+impl core::fmt::Debug for mdwright_math::span::MathError
+pub fn mdwright_math::span::MathError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_math::span::MathError
+impl core::marker::Send for mdwright_math::span::MathError
+impl core::marker::Sync for mdwright_math::span::MathError
+impl core::marker::Unpin for mdwright_math::span::MathError
+impl core::marker::UnsafeUnpin for mdwright_math::span::MathError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::MathError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::MathError
+pub enum mdwright_math::MathSpan
+pub mdwright_math::MathSpan::Display
+pub mdwright_math::MathSpan::Display::body: mdwright_math::span::MathBody
+pub mdwright_math::MathSpan::Display::delim: mdwright_math::span::DisplayDelim
+pub mdwright_math::MathSpan::Environment
+pub mdwright_math::MathSpan::Environment::body: mdwright_math::span::MathBody
+pub mdwright_math::MathSpan::Environment::env: mdwright_math::env::EnvKind
+pub mdwright_math::MathSpan::Inline
+pub mdwright_math::MathSpan::Inline::body: mdwright_math::span::MathBody
+pub mdwright_math::MathSpan::Inline::delim: mdwright_math::span::InlineDelim
+impl mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::body(&self) -> &mdwright_math::span::MathBody
+impl core::clone::Clone for mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::clone(&self) -> mdwright_math::span::MathSpan
+impl core::cmp::Eq for mdwright_math::span::MathSpan
+impl core::cmp::PartialEq for mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::eq(&self, other: &mdwright_math::span::MathSpan) -> bool
+impl core::fmt::Debug for mdwright_math::span::MathSpan
+pub fn mdwright_math::span::MathSpan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_math::span::MathSpan
+impl core::marker::Freeze for mdwright_math::span::MathSpan
+impl core::marker::Send for mdwright_math::span::MathSpan
+impl core::marker::Sync for mdwright_math::span::MathSpan
+impl core::marker::Unpin for mdwright_math::span::MathSpan
+impl core::marker::UnsafeUnpin for mdwright_math::span::MathSpan
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::MathSpan
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::MathSpan
+pub struct mdwright_math::MathBody
+impl mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::as_str<'src>(&self, source: &'src str) -> alloc::borrow::Cow<'src, str>
+pub fn mdwright_math::span::MathBody::clean_offset_to_source(&self, clean_off: usize) -> usize
+pub fn mdwright_math::span::MathBody::new(range: core::ops::range::Range<usize>, transparent: alloc::boxed::Box<[core::ops::range::Range<usize>]>) -> Self
+pub fn mdwright_math::span::MathBody::source_range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::clone(&self) -> mdwright_math::span::MathBody
+impl core::cmp::Eq for mdwright_math::span::MathBody
+impl core::cmp::PartialEq for mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::eq(&self, other: &mdwright_math::span::MathBody) -> bool
+impl core::fmt::Debug for mdwright_math::span::MathBody
+pub fn mdwright_math::span::MathBody::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_math::span::MathBody
+impl core::marker::Freeze for mdwright_math::span::MathBody
+impl core::marker::Send for mdwright_math::span::MathBody
+impl core::marker::Sync for mdwright_math::span::MathBody
+impl core::marker::Unpin for mdwright_math::span::MathBody
+impl core::marker::UnsafeUnpin for mdwright_math::span::MathBody
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::span::MathBody
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::span::MathBody
+pub struct mdwright_math::MathConfig
+pub mdwright_math::MathConfig::backslash_bracket: bool
+pub mdwright_math::MathConfig::backslash_paren: bool
+pub mdwright_math::MathConfig::double_dollar: bool
+pub mdwright_math::MathConfig::environments: bool
+pub mdwright_math::MathConfig::single_dollar: bool
+impl core::clone::Clone for mdwright_math::scan::MathConfig
+pub fn mdwright_math::scan::MathConfig::clone(&self) -> mdwright_math::scan::MathConfig
+impl core::default::Default for mdwright_math::scan::MathConfig
+pub fn mdwright_math::scan::MathConfig::default() -> Self
+impl core::fmt::Debug for mdwright_math::scan::MathConfig
+pub fn mdwright_math::scan::MathConfig::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_math::scan::MathConfig
+impl core::marker::Freeze for mdwright_math::scan::MathConfig
+impl core::marker::Send for mdwright_math::scan::MathConfig
+impl core::marker::Sync for mdwright_math::scan::MathConfig
+impl core::marker::Unpin for mdwright_math::scan::MathConfig
+impl core::marker::UnsafeUnpin for mdwright_math::scan::MathConfig
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::scan::MathConfig
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::scan::MathConfig
+pub struct mdwright_math::MathRegion
+pub mdwright_math::MathRegion::range: core::ops::range::Range<usize>
+impl mdwright_math::MathRegion
+pub fn mdwright_math::MathRegion::new(range: core::ops::range::Range<usize>, span: mdwright_math::span::MathSpan) -> Self
+pub fn mdwright_math::MathRegion::span(&self) -> &mdwright_math::span::MathSpan
+impl core::clone::Clone for mdwright_math::MathRegion
+pub fn mdwright_math::MathRegion::clone(&self) -> mdwright_math::MathRegion
+impl core::fmt::Debug for mdwright_math::MathRegion
+pub fn mdwright_math::MathRegion::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_math::MathRegion
+impl core::marker::Send for mdwright_math::MathRegion
+impl core::marker::Sync for mdwright_math::MathRegion
+impl core::marker::Unpin for mdwright_math::MathRegion
+impl core::marker::UnsafeUnpin for mdwright_math::MathRegion
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_math::MathRegion
+impl core::panic::unwind_safe::UnwindSafe for mdwright_math::MathRegion
+pub fn mdwright_math::scan_math_regions(source: &str, exclusions: &[core::ops::range::Range<usize>], transparent_runs: &[core::ops::range::Range<usize>], cfg: mdwright_math::scan::MathConfig) -> (alloc::vec::Vec<mdwright_math::MathRegion>, alloc::vec::Vec<mdwright_math::span::MathError>)

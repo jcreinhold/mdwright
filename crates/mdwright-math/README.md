@@ -8,7 +8,7 @@ Markdown.
 
 CommonMark does not understand math. Inside `\[ … \]`, `\( … \)`, `$$ … $$`, `$ … $`, or
 `\begin{env} … \end{env}`, pulldown tokenises bytes as plain prose, so `_` becomes
-emphasis, `[` becomes a link candidate, and `*` becomes a delimiter run. Without an overlay
+emphasis, `[` becomes a link candidate, and `*` becomes an emphasis-delimiter candidate. Without an overlay
 the formatter's round-trip drifts. This crate is that overlay: `scan::scan_math_regions`
 consumes Markdown source plus the IR's inline and block atoms and produces typed
 `MathRegion` values plus the `math/unbalanced-delim`, `math/unbalanced-env`, and

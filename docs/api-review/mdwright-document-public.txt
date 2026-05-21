@@ -1,0 +1,915 @@
+pub mod mdwright_document
+pub use mdwright_document::MathError
+pub use mdwright_document::MathRegion
+pub use mdwright_document::MathSpan
+pub enum mdwright_document::AllowScope
+pub mdwright_document::AllowScope::Block
+pub mdwright_document::AllowScope::NextLine
+impl core::clone::Clone for mdwright_document::AllowScope
+pub fn mdwright_document::AllowScope::clone(&self) -> mdwright_document::AllowScope
+impl core::cmp::Eq for mdwright_document::AllowScope
+impl core::cmp::PartialEq for mdwright_document::AllowScope
+pub fn mdwright_document::AllowScope::eq(&self, other: &mdwright_document::AllowScope) -> bool
+impl core::fmt::Debug for mdwright_document::AllowScope
+pub fn mdwright_document::AllowScope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::AllowScope
+impl core::marker::StructuralPartialEq for mdwright_document::AllowScope
+impl core::marker::Freeze for mdwright_document::AllowScope
+impl core::marker::Send for mdwright_document::AllowScope
+impl core::marker::Sync for mdwright_document::AllowScope
+impl core::marker::Unpin for mdwright_document::AllowScope
+impl core::marker::UnsafeUnpin for mdwright_document::AllowScope
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::AllowScope
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::AllowScope
+pub enum mdwright_document::AutolinkOrigin
+pub mdwright_document::AutolinkOrigin::CommonMark
+pub mdwright_document::AutolinkOrigin::GfmEmail
+pub mdwright_document::AutolinkOrigin::GfmUrl
+impl core::clone::Clone for mdwright_document::AutolinkOrigin
+pub fn mdwright_document::AutolinkOrigin::clone(&self) -> mdwright_document::AutolinkOrigin
+impl core::cmp::Eq for mdwright_document::AutolinkOrigin
+impl core::cmp::PartialEq for mdwright_document::AutolinkOrigin
+pub fn mdwright_document::AutolinkOrigin::eq(&self, other: &mdwright_document::AutolinkOrigin) -> bool
+impl core::fmt::Debug for mdwright_document::AutolinkOrigin
+pub fn mdwright_document::AutolinkOrigin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::AutolinkOrigin
+impl core::marker::StructuralPartialEq for mdwright_document::AutolinkOrigin
+impl core::marker::Freeze for mdwright_document::AutolinkOrigin
+impl core::marker::Send for mdwright_document::AutolinkOrigin
+impl core::marker::Sync for mdwright_document::AutolinkOrigin
+impl core::marker::Unpin for mdwright_document::AutolinkOrigin
+impl core::marker::UnsafeUnpin for mdwright_document::AutolinkOrigin
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::AutolinkOrigin
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::AutolinkOrigin
+pub enum mdwright_document::FrontmatterDelimiter
+pub mdwright_document::FrontmatterDelimiter::Toml
+pub mdwright_document::FrontmatterDelimiter::Yaml
+impl core::clone::Clone for mdwright_document::FrontmatterDelimiter
+pub fn mdwright_document::FrontmatterDelimiter::clone(&self) -> mdwright_document::FrontmatterDelimiter
+impl core::cmp::Eq for mdwright_document::FrontmatterDelimiter
+impl core::cmp::PartialEq for mdwright_document::FrontmatterDelimiter
+pub fn mdwright_document::FrontmatterDelimiter::eq(&self, other: &mdwright_document::FrontmatterDelimiter) -> bool
+impl core::fmt::Debug for mdwright_document::FrontmatterDelimiter
+pub fn mdwright_document::FrontmatterDelimiter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::FrontmatterDelimiter
+impl core::marker::StructuralPartialEq for mdwright_document::FrontmatterDelimiter
+impl core::marker::Freeze for mdwright_document::FrontmatterDelimiter
+impl core::marker::Send for mdwright_document::FrontmatterDelimiter
+impl core::marker::Sync for mdwright_document::FrontmatterDelimiter
+impl core::marker::Unpin for mdwright_document::FrontmatterDelimiter
+impl core::marker::UnsafeUnpin for mdwright_document::FrontmatterDelimiter
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::FrontmatterDelimiter
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::FrontmatterDelimiter
+pub enum mdwright_document::GfmAutolinkPolicy
+pub mdwright_document::GfmAutolinkPolicy::Disabled
+pub mdwright_document::GfmAutolinkPolicy::Urls
+pub mdwright_document::GfmAutolinkPolicy::UrlsAndEmails
+impl core::clone::Clone for mdwright_document::GfmAutolinkPolicy
+pub fn mdwright_document::GfmAutolinkPolicy::clone(&self) -> mdwright_document::GfmAutolinkPolicy
+impl core::cmp::Eq for mdwright_document::GfmAutolinkPolicy
+impl core::cmp::PartialEq for mdwright_document::GfmAutolinkPolicy
+pub fn mdwright_document::GfmAutolinkPolicy::eq(&self, other: &mdwright_document::GfmAutolinkPolicy) -> bool
+impl core::fmt::Debug for mdwright_document::GfmAutolinkPolicy
+pub fn mdwright_document::GfmAutolinkPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::GfmAutolinkPolicy
+impl core::marker::StructuralPartialEq for mdwright_document::GfmAutolinkPolicy
+impl core::marker::Freeze for mdwright_document::GfmAutolinkPolicy
+impl core::marker::Send for mdwright_document::GfmAutolinkPolicy
+impl core::marker::Sync for mdwright_document::GfmAutolinkPolicy
+impl core::marker::Unpin for mdwright_document::GfmAutolinkPolicy
+impl core::marker::UnsafeUnpin for mdwright_document::GfmAutolinkPolicy
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::GfmAutolinkPolicy
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::GfmAutolinkPolicy
+pub enum mdwright_document::InlineDelimiterKind
+pub mdwright_document::InlineDelimiterKind::Emphasis
+pub mdwright_document::InlineDelimiterKind::Strong
+impl core::clone::Clone for mdwright_document::InlineDelimiterKind
+pub fn mdwright_document::InlineDelimiterKind::clone(&self) -> mdwright_document::InlineDelimiterKind
+impl core::cmp::Eq for mdwright_document::InlineDelimiterKind
+impl core::cmp::PartialEq for mdwright_document::InlineDelimiterKind
+pub fn mdwright_document::InlineDelimiterKind::eq(&self, other: &mdwright_document::InlineDelimiterKind) -> bool
+impl core::fmt::Debug for mdwright_document::InlineDelimiterKind
+pub fn mdwright_document::InlineDelimiterKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::InlineDelimiterKind
+impl core::marker::StructuralPartialEq for mdwright_document::InlineDelimiterKind
+impl core::marker::Freeze for mdwright_document::InlineDelimiterKind
+impl core::marker::Send for mdwright_document::InlineDelimiterKind
+impl core::marker::Sync for mdwright_document::InlineDelimiterKind
+impl core::marker::Unpin for mdwright_document::InlineDelimiterKind
+impl core::marker::UnsafeUnpin for mdwright_document::InlineDelimiterKind
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::InlineDelimiterKind
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::InlineDelimiterKind
+pub enum mdwright_document::LineIndexError
+pub mdwright_document::LineIndexError::NotUtf8Boundary
+pub mdwright_document::LineIndexError::NotUtf8Boundary::byte: usize
+pub mdwright_document::LineIndexError::OffsetOutOfBounds
+pub mdwright_document::LineIndexError::OffsetOutOfBounds::byte: usize
+pub mdwright_document::LineIndexError::OffsetOutOfBounds::source_len: usize
+pub mdwright_document::LineIndexError::OffsetTooLarge
+pub mdwright_document::LineIndexError::OffsetTooLarge::byte: usize
+impl core::clone::Clone for mdwright_document::LineIndexError
+pub fn mdwright_document::LineIndexError::clone(&self) -> mdwright_document::LineIndexError
+impl core::cmp::Eq for mdwright_document::LineIndexError
+impl core::cmp::PartialEq for mdwright_document::LineIndexError
+pub fn mdwright_document::LineIndexError::eq(&self, other: &mdwright_document::LineIndexError) -> bool
+impl core::error::Error for mdwright_document::LineIndexError
+impl core::fmt::Debug for mdwright_document::LineIndexError
+pub fn mdwright_document::LineIndexError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_document::LineIndexError
+pub fn mdwright_document::LineIndexError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_document::LineIndexError
+impl core::marker::Freeze for mdwright_document::LineIndexError
+impl core::marker::Send for mdwright_document::LineIndexError
+impl core::marker::Sync for mdwright_document::LineIndexError
+impl core::marker::Unpin for mdwright_document::LineIndexError
+impl core::marker::UnsafeUnpin for mdwright_document::LineIndexError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::LineIndexError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::LineIndexError
+pub enum mdwright_document::MathDelimiterSet
+pub mdwright_document::MathDelimiterSet::Github
+pub mdwright_document::MathDelimiterSet::Tex
+impl core::clone::Clone for mdwright_document::MathDelimiterSet
+pub fn mdwright_document::MathDelimiterSet::clone(&self) -> mdwright_document::MathDelimiterSet
+impl core::cmp::Eq for mdwright_document::MathDelimiterSet
+impl core::cmp::PartialEq for mdwright_document::MathDelimiterSet
+pub fn mdwright_document::MathDelimiterSet::eq(&self, other: &mdwright_document::MathDelimiterSet) -> bool
+impl core::default::Default for mdwright_document::MathDelimiterSet
+pub fn mdwright_document::MathDelimiterSet::default() -> mdwright_document::MathDelimiterSet
+impl core::fmt::Debug for mdwright_document::MathDelimiterSet
+pub fn mdwright_document::MathDelimiterSet::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::MathDelimiterSet
+impl core::marker::StructuralPartialEq for mdwright_document::MathDelimiterSet
+impl core::marker::Freeze for mdwright_document::MathDelimiterSet
+impl core::marker::Send for mdwright_document::MathDelimiterSet
+impl core::marker::Sync for mdwright_document::MathDelimiterSet
+impl core::marker::Unpin for mdwright_document::MathDelimiterSet
+impl core::marker::UnsafeUnpin for mdwright_document::MathDelimiterSet
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::MathDelimiterSet
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::MathDelimiterSet
+pub enum mdwright_document::RenderProfile
+pub mdwright_document::RenderProfile::CmarkGfm
+pub mdwright_document::RenderProfile::Pulldown
+impl core::clone::Clone for mdwright_document::RenderProfile
+pub fn mdwright_document::RenderProfile::clone(&self) -> mdwright_document::RenderProfile
+impl core::cmp::Eq for mdwright_document::RenderProfile
+impl core::cmp::PartialEq for mdwright_document::RenderProfile
+pub fn mdwright_document::RenderProfile::eq(&self, other: &mdwright_document::RenderProfile) -> bool
+impl core::default::Default for mdwright_document::RenderProfile
+pub fn mdwright_document::RenderProfile::default() -> mdwright_document::RenderProfile
+impl core::fmt::Debug for mdwright_document::RenderProfile
+pub fn mdwright_document::RenderProfile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::RenderProfile
+impl core::marker::StructuralPartialEq for mdwright_document::RenderProfile
+impl core::marker::Freeze for mdwright_document::RenderProfile
+impl core::marker::Send for mdwright_document::RenderProfile
+impl core::marker::Sync for mdwright_document::RenderProfile
+impl core::marker::Unpin for mdwright_document::RenderProfile
+impl core::marker::UnsafeUnpin for mdwright_document::RenderProfile
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::RenderProfile
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::RenderProfile
+pub enum mdwright_document::StructuralKind
+pub mdwright_document::StructuralKind::BlockQuote
+pub mdwright_document::StructuralKind::DefinitionDescription
+pub mdwright_document::StructuralKind::DefinitionList
+pub mdwright_document::StructuralKind::FootnoteDefinition
+pub mdwright_document::StructuralKind::Heading
+pub mdwright_document::StructuralKind::List
+pub mdwright_document::StructuralKind::ListItem
+pub mdwright_document::StructuralKind::Paragraph
+pub mdwright_document::StructuralKind::Table
+pub mdwright_document::StructuralKind::ThematicBreak
+impl core::clone::Clone for mdwright_document::StructuralKind
+pub fn mdwright_document::StructuralKind::clone(&self) -> mdwright_document::StructuralKind
+impl core::cmp::Eq for mdwright_document::StructuralKind
+impl core::cmp::PartialEq for mdwright_document::StructuralKind
+pub fn mdwright_document::StructuralKind::eq(&self, other: &mdwright_document::StructuralKind) -> bool
+impl core::fmt::Debug for mdwright_document::StructuralKind
+pub fn mdwright_document::StructuralKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::StructuralKind
+impl core::marker::StructuralPartialEq for mdwright_document::StructuralKind
+impl core::marker::Freeze for mdwright_document::StructuralKind
+impl core::marker::Send for mdwright_document::StructuralKind
+impl core::marker::Sync for mdwright_document::StructuralKind
+impl core::marker::Unpin for mdwright_document::StructuralKind
+impl core::marker::UnsafeUnpin for mdwright_document::StructuralKind
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::StructuralKind
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::StructuralKind
+pub enum mdwright_document::SuppressionKind
+pub mdwright_document::SuppressionKind::Allow
+pub mdwright_document::SuppressionKind::Allow::scope: mdwright_document::AllowScope
+pub mdwright_document::SuppressionKind::Disable
+pub mdwright_document::SuppressionKind::Enable
+impl core::clone::Clone for mdwright_document::SuppressionKind
+pub fn mdwright_document::SuppressionKind::clone(&self) -> mdwright_document::SuppressionKind
+impl core::cmp::Eq for mdwright_document::SuppressionKind
+impl core::cmp::PartialEq for mdwright_document::SuppressionKind
+pub fn mdwright_document::SuppressionKind::eq(&self, other: &mdwright_document::SuppressionKind) -> bool
+impl core::fmt::Debug for mdwright_document::SuppressionKind
+pub fn mdwright_document::SuppressionKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::SuppressionKind
+impl core::marker::StructuralPartialEq for mdwright_document::SuppressionKind
+impl core::marker::Freeze for mdwright_document::SuppressionKind
+impl core::marker::Send for mdwright_document::SuppressionKind
+impl core::marker::Sync for mdwright_document::SuppressionKind
+impl core::marker::Unpin for mdwright_document::SuppressionKind
+impl core::marker::UnsafeUnpin for mdwright_document::SuppressionKind
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::SuppressionKind
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::SuppressionKind
+pub enum mdwright_document::TableAlign
+pub mdwright_document::TableAlign::Center
+pub mdwright_document::TableAlign::Left
+pub mdwright_document::TableAlign::None
+pub mdwright_document::TableAlign::Right
+impl core::clone::Clone for mdwright_document::TableAlign
+pub fn mdwright_document::TableAlign::clone(&self) -> mdwright_document::TableAlign
+impl core::cmp::Eq for mdwright_document::TableAlign
+impl core::cmp::PartialEq for mdwright_document::TableAlign
+pub fn mdwright_document::TableAlign::eq(&self, other: &mdwright_document::TableAlign) -> bool
+impl core::fmt::Debug for mdwright_document::TableAlign
+pub fn mdwright_document::TableAlign::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::TableAlign
+impl core::marker::StructuralPartialEq for mdwright_document::TableAlign
+impl core::marker::Freeze for mdwright_document::TableAlign
+impl core::marker::Send for mdwright_document::TableAlign
+impl core::marker::Sync for mdwright_document::TableAlign
+impl core::marker::Unpin for mdwright_document::TableAlign
+impl core::marker::UnsafeUnpin for mdwright_document::TableAlign
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::TableAlign
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::TableAlign
+pub struct mdwright_document::AutolinkFact
+impl mdwright_document::AutolinkFact
+pub fn mdwright_document::AutolinkFact::href(&self) -> &str
+pub fn mdwright_document::AutolinkFact::origin(&self) -> mdwright_document::AutolinkOrigin
+pub fn mdwright_document::AutolinkFact::raw_range(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::AutolinkFact::text(&self) -> &str
+impl core::clone::Clone for mdwright_document::AutolinkFact
+pub fn mdwright_document::AutolinkFact::clone(&self) -> mdwright_document::AutolinkFact
+impl core::cmp::Eq for mdwright_document::AutolinkFact
+impl core::cmp::PartialEq for mdwright_document::AutolinkFact
+pub fn mdwright_document::AutolinkFact::eq(&self, other: &mdwright_document::AutolinkFact) -> bool
+impl core::fmt::Debug for mdwright_document::AutolinkFact
+pub fn mdwright_document::AutolinkFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_document::AutolinkFact
+impl core::marker::Freeze for mdwright_document::AutolinkFact
+impl core::marker::Send for mdwright_document::AutolinkFact
+impl core::marker::Sync for mdwright_document::AutolinkFact
+impl core::marker::Unpin for mdwright_document::AutolinkFact
+impl core::marker::UnsafeUnpin for mdwright_document::AutolinkFact
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::AutolinkFact
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::AutolinkFact
+pub struct mdwright_document::BlockCheckpointFact
+pub mdwright_document::BlockCheckpointFact::byte: u32
+pub mdwright_document::BlockCheckpointFact::parser_state: u64
+impl core::clone::Clone for mdwright_document::BlockCheckpointFact
+pub fn mdwright_document::BlockCheckpointFact::clone(&self) -> mdwright_document::BlockCheckpointFact
+impl core::fmt::Debug for mdwright_document::BlockCheckpointFact
+pub fn mdwright_document::BlockCheckpointFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::BlockCheckpointFact
+impl core::marker::Freeze for mdwright_document::BlockCheckpointFact
+impl core::marker::Send for mdwright_document::BlockCheckpointFact
+impl core::marker::Sync for mdwright_document::BlockCheckpointFact
+impl core::marker::Unpin for mdwright_document::BlockCheckpointFact
+impl core::marker::UnsafeUnpin for mdwright_document::BlockCheckpointFact
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::BlockCheckpointFact
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::BlockCheckpointFact
+pub struct mdwright_document::CodeBlock
+pub mdwright_document::CodeBlock::byte_offset: usize
+pub mdwright_document::CodeBlock::fenced: bool
+pub mdwright_document::CodeBlock::info: alloc::string::String
+pub mdwright_document::CodeBlock::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::CodeBlock::text: alloc::string::String
+impl core::clone::Clone for mdwright_document::CodeBlock
+pub fn mdwright_document::CodeBlock::clone(&self) -> mdwright_document::CodeBlock
+impl core::fmt::Debug for mdwright_document::CodeBlock
+pub fn mdwright_document::CodeBlock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::CodeBlock
+impl core::marker::Send for mdwright_document::CodeBlock
+impl core::marker::Sync for mdwright_document::CodeBlock
+impl core::marker::Unpin for mdwright_document::CodeBlock
+impl core::marker::UnsafeUnpin for mdwright_document::CodeBlock
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::CodeBlock
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::CodeBlock
+pub struct mdwright_document::Document
+impl mdwright_document::Document
+pub fn mdwright_document::Document::autolinks(&self) -> &[mdwright_document::AutolinkFact]
+pub fn mdwright_document::Document::block_checkpoints(&self) -> &[mdwright_document::BlockCheckpointFact]
+pub fn mdwright_document::Document::canonical_to_original_range(&self, range: core::ops::range::Range<usize>) -> core::ops::range::Range<usize>
+pub fn mdwright_document::Document::code_blocks(&self) -> &[mdwright_document::CodeBlock]
+pub fn mdwright_document::Document::frontmatter(&self) -> core::option::Option<&mdwright_document::Frontmatter>
+pub fn mdwright_document::Document::headings(&self) -> &[mdwright_document::Heading]
+pub fn mdwright_document::Document::html_blocks(&self) -> &[mdwright_document::HtmlBlock]
+pub fn mdwright_document::Document::inline_codes(&self) -> &[mdwright_document::InlineCode]
+pub fn mdwright_document::Document::inline_html(&self) -> &[mdwright_document::InlineHtml]
+pub fn mdwright_document::Document::line_index(&self) -> &mdwright_document::LineIndex
+pub fn mdwright_document::Document::link_defs(&self) -> alloc::vec::Vec<mdwright_document::LinkDef<'_>>
+pub fn mdwright_document::Document::link_like_ranges(&self) -> &[core::ops::range::Range<usize>]
+pub fn mdwright_document::Document::list_groups(&self) -> &[mdwright_document::ListGroup]
+pub fn mdwright_document::Document::list_tightness_view(&self) -> alloc::vec::Vec<(&mdwright_document::ListGroup, bool)>
+pub fn mdwright_document::Document::math_errors(&self) -> &[mdwright_math::span::MathError]
+pub fn mdwright_document::Document::math_regions(&self) -> &[mdwright_math::MathRegion]
+pub fn mdwright_document::Document::original_source(&self) -> &str
+pub fn mdwright_document::Document::parse(source: &str) -> core::result::Result<Self, mdwright_document::ParseError>
+pub fn mdwright_document::Document::parse_options(&self) -> mdwright_document::ParseOptions
+pub fn mdwright_document::Document::parse_with_options(source: &str, opts: mdwright_document::ParseOptions) -> core::result::Result<Self, mdwright_document::ParseError>
+pub fn mdwright_document::Document::prose_chunks(&self) -> &[mdwright_document::TextSlice]
+pub fn mdwright_document::Document::source(&self) -> &str
+pub fn mdwright_document::Document::suppressions(&self) -> &[mdwright_document::Suppression]
+impl mdwright_document::Document
+pub fn mdwright_document::Document::heading_attr_sites(&self) -> &[mdwright_document::HeadingAttrSite]
+pub fn mdwright_document::Document::inline_delimiter_slots(&self, kind: mdwright_document::InlineDelimiterKind) -> &[mdwright_document::InlineDelimiterSlot]
+pub fn mdwright_document::Document::inline_link_destination_slots(&self) -> &[mdwright_document::InlineLinkDestinationSlot]
+pub fn mdwright_document::Document::ordered_list_marker_sites(&self) -> &[mdwright_document::OrderedListMarkerSite]
+pub fn mdwright_document::Document::reference_definition_sites(&self) -> &[mdwright_document::ReferenceDefinitionSite]
+pub fn mdwright_document::Document::structural_spans(&self) -> &[mdwright_document::StructuralSpan]
+pub fn mdwright_document::Document::table_sites(&self) -> &[mdwright_document::TableSite]
+pub fn mdwright_document::Document::thematic_break_ranges(&self) -> &[core::ops::range::Range<usize>]
+pub fn mdwright_document::Document::unordered_list_marker_sites(&self) -> &[mdwright_document::UnorderedListMarkerSite]
+pub fn mdwright_document::Document::wrappable_paragraphs(&self) -> &[mdwright_document::WrappableParagraph]
+impl core::fmt::Debug for mdwright_document::Document
+pub fn mdwright_document::Document::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::Document
+impl core::marker::Send for mdwright_document::Document
+impl core::marker::Sync for mdwright_document::Document
+impl core::marker::Unpin for mdwright_document::Document
+impl core::marker::UnsafeUnpin for mdwright_document::Document
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::Document
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::Document
+pub struct mdwright_document::ExtensionOptions
+pub mdwright_document::ExtensionOptions::abbreviation_lists: bool
+pub mdwright_document::ExtensionOptions::block_attribute_lists: bool
+pub mdwright_document::ExtensionOptions::definition_lists: bool
+pub mdwright_document::ExtensionOptions::gfm: mdwright_document::GfmOptions
+pub mdwright_document::ExtensionOptions::heading_attribute_lists: bool
+pub mdwright_document::ExtensionOptions::myst: mdwright_document::MystOptions
+pub mdwright_document::ExtensionOptions::pandoc: mdwright_document::PandocOptions
+impl core::clone::Clone for mdwright_document::ExtensionOptions
+pub fn mdwright_document::ExtensionOptions::clone(&self) -> mdwright_document::ExtensionOptions
+impl core::cmp::Eq for mdwright_document::ExtensionOptions
+impl core::cmp::PartialEq for mdwright_document::ExtensionOptions
+pub fn mdwright_document::ExtensionOptions::eq(&self, other: &mdwright_document::ExtensionOptions) -> bool
+impl core::default::Default for mdwright_document::ExtensionOptions
+pub fn mdwright_document::ExtensionOptions::default() -> Self
+impl core::fmt::Debug for mdwright_document::ExtensionOptions
+pub fn mdwright_document::ExtensionOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::ExtensionOptions
+impl core::marker::StructuralPartialEq for mdwright_document::ExtensionOptions
+impl core::marker::Freeze for mdwright_document::ExtensionOptions
+impl core::marker::Send for mdwright_document::ExtensionOptions
+impl core::marker::Sync for mdwright_document::ExtensionOptions
+impl core::marker::Unpin for mdwright_document::ExtensionOptions
+impl core::marker::UnsafeUnpin for mdwright_document::ExtensionOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::ExtensionOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::ExtensionOptions
+pub struct mdwright_document::Frontmatter
+pub mdwright_document::Frontmatter::delimiter: mdwright_document::FrontmatterDelimiter
+pub mdwright_document::Frontmatter::slice: mdwright_document::TextSlice
+impl core::clone::Clone for mdwright_document::Frontmatter
+pub fn mdwright_document::Frontmatter::clone(&self) -> mdwright_document::Frontmatter
+impl core::fmt::Debug for mdwright_document::Frontmatter
+pub fn mdwright_document::Frontmatter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::Frontmatter
+impl core::marker::Send for mdwright_document::Frontmatter
+impl core::marker::Sync for mdwright_document::Frontmatter
+impl core::marker::Unpin for mdwright_document::Frontmatter
+impl core::marker::UnsafeUnpin for mdwright_document::Frontmatter
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::Frontmatter
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::Frontmatter
+pub struct mdwright_document::GfmOptions
+pub mdwright_document::GfmOptions::autolinks: mdwright_document::GfmAutolinkPolicy
+pub mdwright_document::GfmOptions::tagfilter: bool
+impl core::clone::Clone for mdwright_document::GfmOptions
+pub fn mdwright_document::GfmOptions::clone(&self) -> mdwright_document::GfmOptions
+impl core::cmp::Eq for mdwright_document::GfmOptions
+impl core::cmp::PartialEq for mdwright_document::GfmOptions
+pub fn mdwright_document::GfmOptions::eq(&self, other: &mdwright_document::GfmOptions) -> bool
+impl core::default::Default for mdwright_document::GfmOptions
+pub fn mdwright_document::GfmOptions::default() -> Self
+impl core::fmt::Debug for mdwright_document::GfmOptions
+pub fn mdwright_document::GfmOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::GfmOptions
+impl core::marker::StructuralPartialEq for mdwright_document::GfmOptions
+impl core::marker::Freeze for mdwright_document::GfmOptions
+impl core::marker::Send for mdwright_document::GfmOptions
+impl core::marker::Sync for mdwright_document::GfmOptions
+impl core::marker::Unpin for mdwright_document::GfmOptions
+impl core::marker::UnsafeUnpin for mdwright_document::GfmOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::GfmOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::GfmOptions
+pub struct mdwright_document::Heading
+pub mdwright_document::Heading::byte_offset: usize
+pub mdwright_document::Heading::level: u32
+pub mdwright_document::Heading::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::Heading::text: alloc::string::String
+impl core::clone::Clone for mdwright_document::Heading
+pub fn mdwright_document::Heading::clone(&self) -> mdwright_document::Heading
+impl core::fmt::Debug for mdwright_document::Heading
+pub fn mdwright_document::Heading::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::Heading
+impl core::marker::Send for mdwright_document::Heading
+impl core::marker::Sync for mdwright_document::Heading
+impl core::marker::Unpin for mdwright_document::Heading
+impl core::marker::UnsafeUnpin for mdwright_document::Heading
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::Heading
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::Heading
+pub struct mdwright_document::HeadingAttrSite
+impl mdwright_document::HeadingAttrSite
+pub fn mdwright_document::HeadingAttrSite::attrs(&self) -> &mdwright_document::HeadingAttrs
+pub fn mdwright_document::HeadingAttrSite::trailer(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::HeadingAttrSite
+pub fn mdwright_document::HeadingAttrSite::clone(&self) -> mdwright_document::HeadingAttrSite
+impl core::fmt::Debug for mdwright_document::HeadingAttrSite
+pub fn mdwright_document::HeadingAttrSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::HeadingAttrSite
+impl core::marker::Send for mdwright_document::HeadingAttrSite
+impl core::marker::Sync for mdwright_document::HeadingAttrSite
+impl core::marker::Unpin for mdwright_document::HeadingAttrSite
+impl core::marker::UnsafeUnpin for mdwright_document::HeadingAttrSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::HeadingAttrSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::HeadingAttrSite
+pub struct mdwright_document::HeadingAttrs
+pub mdwright_document::HeadingAttrs::attrs: alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>
+pub mdwright_document::HeadingAttrs::classes: alloc::vec::Vec<alloc::string::String>
+pub mdwright_document::HeadingAttrs::id: core::option::Option<alloc::string::String>
+pub mdwright_document::HeadingAttrs::source_trailer: alloc::string::String
+impl mdwright_document::HeadingAttrs
+pub fn mdwright_document::HeadingAttrs::canonical_trailer(&self) -> alloc::string::String
+impl core::clone::Clone for mdwright_document::HeadingAttrs
+pub fn mdwright_document::HeadingAttrs::clone(&self) -> mdwright_document::HeadingAttrs
+impl core::cmp::Eq for mdwright_document::HeadingAttrs
+impl core::cmp::PartialEq for mdwright_document::HeadingAttrs
+pub fn mdwright_document::HeadingAttrs::eq(&self, other: &mdwright_document::HeadingAttrs) -> bool
+impl core::fmt::Debug for mdwright_document::HeadingAttrs
+pub fn mdwright_document::HeadingAttrs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_document::HeadingAttrs
+impl core::marker::Freeze for mdwright_document::HeadingAttrs
+impl core::marker::Send for mdwright_document::HeadingAttrs
+impl core::marker::Sync for mdwright_document::HeadingAttrs
+impl core::marker::Unpin for mdwright_document::HeadingAttrs
+impl core::marker::UnsafeUnpin for mdwright_document::HeadingAttrs
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::HeadingAttrs
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::HeadingAttrs
+pub struct mdwright_document::HtmlBlock
+pub mdwright_document::HtmlBlock::byte_offset: usize
+pub mdwright_document::HtmlBlock::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::HtmlBlock::text: alloc::string::String
+impl core::clone::Clone for mdwright_document::HtmlBlock
+pub fn mdwright_document::HtmlBlock::clone(&self) -> mdwright_document::HtmlBlock
+impl core::fmt::Debug for mdwright_document::HtmlBlock
+pub fn mdwright_document::HtmlBlock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::HtmlBlock
+impl core::marker::Send for mdwright_document::HtmlBlock
+impl core::marker::Sync for mdwright_document::HtmlBlock
+impl core::marker::Unpin for mdwright_document::HtmlBlock
+impl core::marker::UnsafeUnpin for mdwright_document::HtmlBlock
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::HtmlBlock
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::HtmlBlock
+pub struct mdwright_document::InlineCode
+pub mdwright_document::InlineCode::byte_offset: usize
+pub mdwright_document::InlineCode::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::InlineCode::text: alloc::string::String
+impl core::clone::Clone for mdwright_document::InlineCode
+pub fn mdwright_document::InlineCode::clone(&self) -> mdwright_document::InlineCode
+impl core::fmt::Debug for mdwright_document::InlineCode
+pub fn mdwright_document::InlineCode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::InlineCode
+impl core::marker::Send for mdwright_document::InlineCode
+impl core::marker::Sync for mdwright_document::InlineCode
+impl core::marker::Unpin for mdwright_document::InlineCode
+impl core::marker::UnsafeUnpin for mdwright_document::InlineCode
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::InlineCode
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::InlineCode
+pub struct mdwright_document::InlineDelimiterSlot
+impl mdwright_document::InlineDelimiterSlot
+pub fn mdwright_document::InlineDelimiterSlot::close_range(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::InlineDelimiterSlot::kind(&self) -> mdwright_document::InlineDelimiterKind
+pub fn mdwright_document::InlineDelimiterSlot::open_range(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::InlineDelimiterSlot::pair(&self) -> usize
+impl core::clone::Clone for mdwright_document::InlineDelimiterSlot
+pub fn mdwright_document::InlineDelimiterSlot::clone(&self) -> mdwright_document::InlineDelimiterSlot
+impl core::fmt::Debug for mdwright_document::InlineDelimiterSlot
+pub fn mdwright_document::InlineDelimiterSlot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::InlineDelimiterSlot
+impl core::marker::Send for mdwright_document::InlineDelimiterSlot
+impl core::marker::Sync for mdwright_document::InlineDelimiterSlot
+impl core::marker::Unpin for mdwright_document::InlineDelimiterSlot
+impl core::marker::UnsafeUnpin for mdwright_document::InlineDelimiterSlot
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::InlineDelimiterSlot
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::InlineDelimiterSlot
+pub struct mdwright_document::InlineHtml
+pub mdwright_document::InlineHtml::byte_offset: usize
+pub mdwright_document::InlineHtml::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::InlineHtml::text: alloc::string::String
+impl core::clone::Clone for mdwright_document::InlineHtml
+pub fn mdwright_document::InlineHtml::clone(&self) -> mdwright_document::InlineHtml
+impl core::fmt::Debug for mdwright_document::InlineHtml
+pub fn mdwright_document::InlineHtml::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::InlineHtml
+impl core::marker::Send for mdwright_document::InlineHtml
+impl core::marker::Sync for mdwright_document::InlineHtml
+impl core::marker::Unpin for mdwright_document::InlineHtml
+impl core::marker::UnsafeUnpin for mdwright_document::InlineHtml
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::InlineHtml
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::InlineHtml
+pub struct mdwright_document::InlineLinkDestinationSlot
+impl mdwright_document::InlineLinkDestinationSlot
+pub fn mdwright_document::InlineLinkDestinationSlot::range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::InlineLinkDestinationSlot
+pub fn mdwright_document::InlineLinkDestinationSlot::clone(&self) -> mdwright_document::InlineLinkDestinationSlot
+impl core::fmt::Debug for mdwright_document::InlineLinkDestinationSlot
+pub fn mdwright_document::InlineLinkDestinationSlot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::InlineLinkDestinationSlot
+impl core::marker::Send for mdwright_document::InlineLinkDestinationSlot
+impl core::marker::Sync for mdwright_document::InlineLinkDestinationSlot
+impl core::marker::Unpin for mdwright_document::InlineLinkDestinationSlot
+impl core::marker::UnsafeUnpin for mdwright_document::InlineLinkDestinationSlot
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::InlineLinkDestinationSlot
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::InlineLinkDestinationSlot
+pub struct mdwright_document::LineIndex
+impl mdwright_document::LineIndex
+pub fn mdwright_document::LineIndex::byte_of_position_0based(&self, source: &str, line: usize, column: usize) -> core::option::Option<usize>
+pub fn mdwright_document::LineIndex::line_bounds(&self, source: &str, byte: usize) -> core::option::Option<core::ops::range::Range<usize>>
+pub fn mdwright_document::LineIndex::locate(&self, source: &str, byte: usize) -> core::result::Result<(usize, usize), mdwright_document::LineIndexError>
+pub fn mdwright_document::LineIndex::new(source: &str) -> Self
+impl core::clone::Clone for mdwright_document::LineIndex
+pub fn mdwright_document::LineIndex::clone(&self) -> mdwright_document::LineIndex
+impl core::fmt::Debug for mdwright_document::LineIndex
+pub fn mdwright_document::LineIndex::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::LineIndex
+impl core::marker::Send for mdwright_document::LineIndex
+impl core::marker::Sync for mdwright_document::LineIndex
+impl core::marker::Unpin for mdwright_document::LineIndex
+impl core::marker::UnsafeUnpin for mdwright_document::LineIndex
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::LineIndex
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::LineIndex
+pub struct mdwright_document::LinkDef<'a>
+pub mdwright_document::LinkDef::dest: &'a str
+pub mdwright_document::LinkDef::label: &'a str
+pub mdwright_document::LinkDef::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::LinkDef::title: core::option::Option<&'a str>
+impl<'a> core::clone::Clone for mdwright_document::LinkDef<'a>
+pub fn mdwright_document::LinkDef<'a>::clone(&self) -> mdwright_document::LinkDef<'a>
+impl<'a> core::fmt::Debug for mdwright_document::LinkDef<'a>
+pub fn mdwright_document::LinkDef<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Freeze for mdwright_document::LinkDef<'a>
+impl<'a> core::marker::Send for mdwright_document::LinkDef<'a>
+impl<'a> core::marker::Sync for mdwright_document::LinkDef<'a>
+impl<'a> core::marker::Unpin for mdwright_document::LinkDef<'a>
+impl<'a> core::marker::UnsafeUnpin for mdwright_document::LinkDef<'a>
+impl<'a> core::panic::unwind_safe::RefUnwindSafe for mdwright_document::LinkDef<'a>
+impl<'a> core::panic::unwind_safe::UnwindSafe for mdwright_document::LinkDef<'a>
+pub struct mdwright_document::ListGroup
+pub mdwright_document::ListGroup::items: alloc::vec::Vec<mdwright_document::ListItem>
+pub mdwright_document::ListGroup::ordered: bool
+pub mdwright_document::ListGroup::raw_range: core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::ListGroup
+pub fn mdwright_document::ListGroup::clone(&self) -> mdwright_document::ListGroup
+impl core::fmt::Debug for mdwright_document::ListGroup
+pub fn mdwright_document::ListGroup::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::ListGroup
+impl core::marker::Send for mdwright_document::ListGroup
+impl core::marker::Sync for mdwright_document::ListGroup
+impl core::marker::Unpin for mdwright_document::ListGroup
+impl core::marker::UnsafeUnpin for mdwright_document::ListGroup
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::ListGroup
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::ListGroup
+pub struct mdwright_document::ListItem
+pub mdwright_document::ListItem::marker_byte: u8
+pub mdwright_document::ListItem::raw_range: core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::ListItem
+pub fn mdwright_document::ListItem::clone(&self) -> mdwright_document::ListItem
+impl core::fmt::Debug for mdwright_document::ListItem
+pub fn mdwright_document::ListItem::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::ListItem
+impl core::marker::Send for mdwright_document::ListItem
+impl core::marker::Sync for mdwright_document::ListItem
+impl core::marker::Unpin for mdwright_document::ListItem
+impl core::marker::UnsafeUnpin for mdwright_document::ListItem
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::ListItem
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::ListItem
+pub struct mdwright_document::MarkdownSignature
+impl mdwright_document::MarkdownSignature
+pub fn mdwright_document::MarkdownSignature::first_divergence(&self, other: &Self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for mdwright_document::MarkdownSignature
+pub fn mdwright_document::MarkdownSignature::clone(&self) -> mdwright_document::MarkdownSignature
+impl core::cmp::Eq for mdwright_document::MarkdownSignature
+impl core::cmp::PartialEq for mdwright_document::MarkdownSignature
+pub fn mdwright_document::MarkdownSignature::eq(&self, other: &mdwright_document::MarkdownSignature) -> bool
+impl core::fmt::Debug for mdwright_document::MarkdownSignature
+pub fn mdwright_document::MarkdownSignature::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_document::MarkdownSignature
+impl core::marker::Freeze for mdwright_document::MarkdownSignature
+impl core::marker::Send for mdwright_document::MarkdownSignature
+impl core::marker::Sync for mdwright_document::MarkdownSignature
+impl core::marker::Unpin for mdwright_document::MarkdownSignature
+impl core::marker::UnsafeUnpin for mdwright_document::MarkdownSignature
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::MarkdownSignature
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::MarkdownSignature
+pub struct mdwright_document::MathParseOptions
+pub mdwright_document::MathParseOptions::delimiters: mdwright_document::MathDelimiterSet
+impl core::clone::Clone for mdwright_document::MathParseOptions
+pub fn mdwright_document::MathParseOptions::clone(&self) -> mdwright_document::MathParseOptions
+impl core::cmp::Eq for mdwright_document::MathParseOptions
+impl core::cmp::PartialEq for mdwright_document::MathParseOptions
+pub fn mdwright_document::MathParseOptions::eq(&self, other: &mdwright_document::MathParseOptions) -> bool
+impl core::default::Default for mdwright_document::MathParseOptions
+pub fn mdwright_document::MathParseOptions::default() -> Self
+impl core::fmt::Debug for mdwright_document::MathParseOptions
+pub fn mdwright_document::MathParseOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::MathParseOptions
+impl core::marker::StructuralPartialEq for mdwright_document::MathParseOptions
+impl core::marker::Freeze for mdwright_document::MathParseOptions
+impl core::marker::Send for mdwright_document::MathParseOptions
+impl core::marker::Sync for mdwright_document::MathParseOptions
+impl core::marker::Unpin for mdwright_document::MathParseOptions
+impl core::marker::UnsafeUnpin for mdwright_document::MathParseOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::MathParseOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::MathParseOptions
+pub struct mdwright_document::MystOptions
+pub mdwright_document::MystOptions::comments: bool
+pub mdwright_document::MystOptions::directive_containers: bool
+pub mdwright_document::MystOptions::inline_roles: bool
+pub mdwright_document::MystOptions::substitution_references: bool
+impl core::clone::Clone for mdwright_document::MystOptions
+pub fn mdwright_document::MystOptions::clone(&self) -> mdwright_document::MystOptions
+impl core::cmp::Eq for mdwright_document::MystOptions
+impl core::cmp::PartialEq for mdwright_document::MystOptions
+pub fn mdwright_document::MystOptions::eq(&self, other: &mdwright_document::MystOptions) -> bool
+impl core::default::Default for mdwright_document::MystOptions
+pub fn mdwright_document::MystOptions::default() -> Self
+impl core::fmt::Debug for mdwright_document::MystOptions
+pub fn mdwright_document::MystOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::MystOptions
+impl core::marker::StructuralPartialEq for mdwright_document::MystOptions
+impl core::marker::Freeze for mdwright_document::MystOptions
+impl core::marker::Send for mdwright_document::MystOptions
+impl core::marker::Sync for mdwright_document::MystOptions
+impl core::marker::Unpin for mdwright_document::MystOptions
+impl core::marker::UnsafeUnpin for mdwright_document::MystOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::MystOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::MystOptions
+pub struct mdwright_document::OrderedListMarkerSite
+impl mdwright_document::OrderedListMarkerSite
+pub fn mdwright_document::OrderedListMarkerSite::marker_range(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::OrderedListMarkerSite::ordinal(&self) -> usize
+pub fn mdwright_document::OrderedListMarkerSite::start_number(&self) -> u64
+impl core::clone::Clone for mdwright_document::OrderedListMarkerSite
+pub fn mdwright_document::OrderedListMarkerSite::clone(&self) -> mdwright_document::OrderedListMarkerSite
+impl core::fmt::Debug for mdwright_document::OrderedListMarkerSite
+pub fn mdwright_document::OrderedListMarkerSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::OrderedListMarkerSite
+impl core::marker::Send for mdwright_document::OrderedListMarkerSite
+impl core::marker::Sync for mdwright_document::OrderedListMarkerSite
+impl core::marker::Unpin for mdwright_document::OrderedListMarkerSite
+impl core::marker::UnsafeUnpin for mdwright_document::OrderedListMarkerSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::OrderedListMarkerSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::OrderedListMarkerSite
+pub struct mdwright_document::PandocOptions
+pub mdwright_document::PandocOptions::fenced_divs: bool
+pub mdwright_document::PandocOptions::inline_attribute_spans: bool
+pub mdwright_document::PandocOptions::short_form_divs: bool
+impl core::clone::Clone for mdwright_document::PandocOptions
+pub fn mdwright_document::PandocOptions::clone(&self) -> mdwright_document::PandocOptions
+impl core::cmp::Eq for mdwright_document::PandocOptions
+impl core::cmp::PartialEq for mdwright_document::PandocOptions
+pub fn mdwright_document::PandocOptions::eq(&self, other: &mdwright_document::PandocOptions) -> bool
+impl core::default::Default for mdwright_document::PandocOptions
+pub fn mdwright_document::PandocOptions::default() -> Self
+impl core::fmt::Debug for mdwright_document::PandocOptions
+pub fn mdwright_document::PandocOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::PandocOptions
+impl core::marker::StructuralPartialEq for mdwright_document::PandocOptions
+impl core::marker::Freeze for mdwright_document::PandocOptions
+impl core::marker::Send for mdwright_document::PandocOptions
+impl core::marker::Sync for mdwright_document::PandocOptions
+impl core::marker::Unpin for mdwright_document::PandocOptions
+impl core::marker::UnsafeUnpin for mdwright_document::PandocOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::PandocOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::PandocOptions
+pub struct mdwright_document::ParagraphHardBreak
+impl mdwright_document::ParagraphHardBreak
+pub fn mdwright_document::ParagraphHardBreak::marker(&self) -> &'static str
+pub fn mdwright_document::ParagraphHardBreak::marker_start(&self) -> usize
+pub fn mdwright_document::ParagraphHardBreak::newline(&self) -> usize
+impl core::clone::Clone for mdwright_document::ParagraphHardBreak
+pub fn mdwright_document::ParagraphHardBreak::clone(&self) -> mdwright_document::ParagraphHardBreak
+impl core::fmt::Debug for mdwright_document::ParagraphHardBreak
+pub fn mdwright_document::ParagraphHardBreak::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::ParagraphHardBreak
+impl core::marker::Send for mdwright_document::ParagraphHardBreak
+impl core::marker::Sync for mdwright_document::ParagraphHardBreak
+impl core::marker::Unpin for mdwright_document::ParagraphHardBreak
+impl core::marker::UnsafeUnpin for mdwright_document::ParagraphHardBreak
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::ParagraphHardBreak
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::ParagraphHardBreak
+pub struct mdwright_document::ParseError
+impl mdwright_document::ParseError
+pub fn mdwright_document::ParseError::input_len(&self) -> usize
+impl core::clone::Clone for mdwright_document::ParseError
+pub fn mdwright_document::ParseError::clone(&self) -> mdwright_document::ParseError
+impl core::cmp::Eq for mdwright_document::ParseError
+impl core::cmp::PartialEq for mdwright_document::ParseError
+pub fn mdwright_document::ParseError::eq(&self, other: &mdwright_document::ParseError) -> bool
+impl core::error::Error for mdwright_document::ParseError
+impl core::fmt::Debug for mdwright_document::ParseError
+pub fn mdwright_document::ParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for mdwright_document::ParseError
+pub fn mdwright_document::ParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_document::ParseError
+impl core::marker::Freeze for mdwright_document::ParseError
+impl core::marker::Send for mdwright_document::ParseError
+impl core::marker::Sync for mdwright_document::ParseError
+impl core::marker::Unpin for mdwright_document::ParseError
+impl core::marker::UnsafeUnpin for mdwright_document::ParseError
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::ParseError
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::ParseError
+pub struct mdwright_document::ParseOptions
+impl mdwright_document::ParseOptions
+pub fn mdwright_document::ParseOptions::extensions(&self) -> mdwright_document::ExtensionOptions
+pub fn mdwright_document::ParseOptions::math(&self) -> mdwright_document::MathParseOptions
+pub fn mdwright_document::ParseOptions::with_extensions(self, extensions: mdwright_document::ExtensionOptions) -> Self
+pub fn mdwright_document::ParseOptions::with_math(self, math: mdwright_document::MathParseOptions) -> Self
+impl core::clone::Clone for mdwright_document::ParseOptions
+pub fn mdwright_document::ParseOptions::clone(&self) -> mdwright_document::ParseOptions
+impl core::cmp::Eq for mdwright_document::ParseOptions
+impl core::cmp::PartialEq for mdwright_document::ParseOptions
+pub fn mdwright_document::ParseOptions::eq(&self, other: &mdwright_document::ParseOptions) -> bool
+impl core::default::Default for mdwright_document::ParseOptions
+pub fn mdwright_document::ParseOptions::default() -> mdwright_document::ParseOptions
+impl core::fmt::Debug for mdwright_document::ParseOptions
+pub fn mdwright_document::ParseOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::ParseOptions
+impl core::marker::StructuralPartialEq for mdwright_document::ParseOptions
+impl core::marker::Freeze for mdwright_document::ParseOptions
+impl core::marker::Send for mdwright_document::ParseOptions
+impl core::marker::Sync for mdwright_document::ParseOptions
+impl core::marker::Unpin for mdwright_document::ParseOptions
+impl core::marker::UnsafeUnpin for mdwright_document::ParseOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::ParseOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::ParseOptions
+pub struct mdwright_document::ReferenceDefinitionSite
+impl mdwright_document::ReferenceDefinitionSite
+pub fn mdwright_document::ReferenceDefinitionSite::destination(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::ReferenceDefinitionSite::raw_range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::ReferenceDefinitionSite
+pub fn mdwright_document::ReferenceDefinitionSite::clone(&self) -> mdwright_document::ReferenceDefinitionSite
+impl core::fmt::Debug for mdwright_document::ReferenceDefinitionSite
+pub fn mdwright_document::ReferenceDefinitionSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::ReferenceDefinitionSite
+impl core::marker::Send for mdwright_document::ReferenceDefinitionSite
+impl core::marker::Sync for mdwright_document::ReferenceDefinitionSite
+impl core::marker::Unpin for mdwright_document::ReferenceDefinitionSite
+impl core::marker::UnsafeUnpin for mdwright_document::ReferenceDefinitionSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::ReferenceDefinitionSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::ReferenceDefinitionSite
+pub struct mdwright_document::RenderOptions
+impl mdwright_document::RenderOptions
+pub fn mdwright_document::RenderOptions::profile(&self) -> mdwright_document::RenderProfile
+pub fn mdwright_document::RenderOptions::with_profile(self, profile: mdwright_document::RenderProfile) -> Self
+impl core::clone::Clone for mdwright_document::RenderOptions
+pub fn mdwright_document::RenderOptions::clone(&self) -> mdwright_document::RenderOptions
+impl core::cmp::Eq for mdwright_document::RenderOptions
+impl core::cmp::PartialEq for mdwright_document::RenderOptions
+pub fn mdwright_document::RenderOptions::eq(&self, other: &mdwright_document::RenderOptions) -> bool
+impl core::default::Default for mdwright_document::RenderOptions
+pub fn mdwright_document::RenderOptions::default() -> mdwright_document::RenderOptions
+impl core::fmt::Debug for mdwright_document::RenderOptions
+pub fn mdwright_document::RenderOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_document::RenderOptions
+impl core::marker::StructuralPartialEq for mdwright_document::RenderOptions
+impl core::marker::Freeze for mdwright_document::RenderOptions
+impl core::marker::Send for mdwright_document::RenderOptions
+impl core::marker::Sync for mdwright_document::RenderOptions
+impl core::marker::Unpin for mdwright_document::RenderOptions
+impl core::marker::UnsafeUnpin for mdwright_document::RenderOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::RenderOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::RenderOptions
+pub struct mdwright_document::StructuralSpan
+impl mdwright_document::StructuralSpan
+pub fn mdwright_document::StructuralSpan::kind(&self) -> mdwright_document::StructuralKind
+pub fn mdwright_document::StructuralSpan::raw_range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::StructuralSpan
+pub fn mdwright_document::StructuralSpan::clone(&self) -> mdwright_document::StructuralSpan
+impl core::fmt::Debug for mdwright_document::StructuralSpan
+pub fn mdwright_document::StructuralSpan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::StructuralSpan
+impl core::marker::Send for mdwright_document::StructuralSpan
+impl core::marker::Sync for mdwright_document::StructuralSpan
+impl core::marker::Unpin for mdwright_document::StructuralSpan
+impl core::marker::UnsafeUnpin for mdwright_document::StructuralSpan
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::StructuralSpan
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::StructuralSpan
+pub struct mdwright_document::Suppression
+pub mdwright_document::Suppression::kind: mdwright_document::SuppressionKind
+pub mdwright_document::Suppression::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::Suppression::rules: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for mdwright_document::Suppression
+pub fn mdwright_document::Suppression::clone(&self) -> mdwright_document::Suppression
+impl core::fmt::Debug for mdwright_document::Suppression
+pub fn mdwright_document::Suppression::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::Suppression
+impl core::marker::Send for mdwright_document::Suppression
+impl core::marker::Sync for mdwright_document::Suppression
+impl core::marker::Unpin for mdwright_document::Suppression
+impl core::marker::UnsafeUnpin for mdwright_document::Suppression
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::Suppression
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::Suppression
+pub struct mdwright_document::TableCellSite
+impl mdwright_document::TableCellSite
+pub fn mdwright_document::TableCellSite::raw_range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::TableCellSite
+pub fn mdwright_document::TableCellSite::clone(&self) -> mdwright_document::TableCellSite
+impl core::fmt::Debug for mdwright_document::TableCellSite
+pub fn mdwright_document::TableCellSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::TableCellSite
+impl core::marker::Send for mdwright_document::TableCellSite
+impl core::marker::Sync for mdwright_document::TableCellSite
+impl core::marker::Unpin for mdwright_document::TableCellSite
+impl core::marker::UnsafeUnpin for mdwright_document::TableCellSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::TableCellSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::TableCellSite
+pub struct mdwright_document::TableRowSite
+impl mdwright_document::TableRowSite
+pub fn mdwright_document::TableRowSite::cells(&self) -> &[mdwright_document::TableCellSite]
+pub fn mdwright_document::TableRowSite::raw_range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::TableRowSite
+pub fn mdwright_document::TableRowSite::clone(&self) -> mdwright_document::TableRowSite
+impl core::fmt::Debug for mdwright_document::TableRowSite
+pub fn mdwright_document::TableRowSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::TableRowSite
+impl core::marker::Send for mdwright_document::TableRowSite
+impl core::marker::Sync for mdwright_document::TableRowSite
+impl core::marker::Unpin for mdwright_document::TableRowSite
+impl core::marker::UnsafeUnpin for mdwright_document::TableRowSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::TableRowSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::TableRowSite
+pub struct mdwright_document::TableSite
+impl mdwright_document::TableSite
+pub fn mdwright_document::TableSite::alignments(&self) -> &[mdwright_document::TableAlign]
+pub fn mdwright_document::TableSite::raw_range(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::TableSite::rows(&self) -> &[mdwright_document::TableRowSite]
+impl core::clone::Clone for mdwright_document::TableSite
+pub fn mdwright_document::TableSite::clone(&self) -> mdwright_document::TableSite
+impl core::fmt::Debug for mdwright_document::TableSite
+pub fn mdwright_document::TableSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::TableSite
+impl core::marker::Send for mdwright_document::TableSite
+impl core::marker::Sync for mdwright_document::TableSite
+impl core::marker::Unpin for mdwright_document::TableSite
+impl core::marker::UnsafeUnpin for mdwright_document::TableSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::TableSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::TableSite
+pub struct mdwright_document::TextSlice
+pub mdwright_document::TextSlice::byte_offset: usize
+pub mdwright_document::TextSlice::raw_range: core::ops::range::Range<usize>
+pub mdwright_document::TextSlice::text: alloc::string::String
+impl core::clone::Clone for mdwright_document::TextSlice
+pub fn mdwright_document::TextSlice::clone(&self) -> mdwright_document::TextSlice
+impl core::fmt::Debug for mdwright_document::TextSlice
+pub fn mdwright_document::TextSlice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::TextSlice
+impl core::marker::Send for mdwright_document::TextSlice
+impl core::marker::Sync for mdwright_document::TextSlice
+impl core::marker::Unpin for mdwright_document::TextSlice
+impl core::marker::UnsafeUnpin for mdwright_document::TextSlice
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::TextSlice
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::TextSlice
+pub struct mdwright_document::UnorderedListMarkerSite
+impl mdwright_document::UnorderedListMarkerSite
+pub fn mdwright_document::UnorderedListMarkerSite::marker_range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::UnorderedListMarkerSite
+pub fn mdwright_document::UnorderedListMarkerSite::clone(&self) -> mdwright_document::UnorderedListMarkerSite
+impl core::fmt::Debug for mdwright_document::UnorderedListMarkerSite
+pub fn mdwright_document::UnorderedListMarkerSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::UnorderedListMarkerSite
+impl core::marker::Send for mdwright_document::UnorderedListMarkerSite
+impl core::marker::Sync for mdwright_document::UnorderedListMarkerSite
+impl core::marker::Unpin for mdwright_document::UnorderedListMarkerSite
+impl core::marker::UnsafeUnpin for mdwright_document::UnorderedListMarkerSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::UnorderedListMarkerSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::UnorderedListMarkerSite
+pub struct mdwright_document::WrappableParagraph
+impl mdwright_document::WrappableParagraph
+pub fn mdwright_document::WrappableParagraph::atomics(&self) -> &[core::ops::range::Range<usize>]
+pub fn mdwright_document::WrappableParagraph::cont_prefix(&self) -> &str
+pub fn mdwright_document::WrappableParagraph::content_range(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::WrappableParagraph::first_prefix(&self) -> &str
+pub fn mdwright_document::WrappableParagraph::hard_breaks(&self) -> &[mdwright_document::ParagraphHardBreak]
+pub fn mdwright_document::WrappableParagraph::line_range(&self) -> core::ops::range::Range<usize>
+pub fn mdwright_document::WrappableParagraph::list_four_space_cont_prefix(&self) -> core::option::Option<&str>
+pub fn mdwright_document::WrappableParagraph::owner_kind(&self) -> mdwright_document::StructuralKind
+impl core::clone::Clone for mdwright_document::WrappableParagraph
+pub fn mdwright_document::WrappableParagraph::clone(&self) -> mdwright_document::WrappableParagraph
+impl core::fmt::Debug for mdwright_document::WrappableParagraph
+pub fn mdwright_document::WrappableParagraph::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::WrappableParagraph
+impl core::marker::Send for mdwright_document::WrappableParagraph
+impl core::marker::Sync for mdwright_document::WrappableParagraph
+impl core::marker::Unpin for mdwright_document::WrappableParagraph
+impl core::marker::UnsafeUnpin for mdwright_document::WrappableParagraph
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::WrappableParagraph
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::WrappableParagraph
+pub fn mdwright_document::contains_rejected_control_chars(s: &str) -> bool
+pub fn mdwright_document::markdown_signature(source: &str, opts: mdwright_document::ParseOptions) -> core::result::Result<mdwright_document::MarkdownSignature, mdwright_document::ParseError>
+pub fn mdwright_document::render_html(source: &str) -> core::result::Result<alloc::string::String, mdwright_document::ParseError>
+pub fn mdwright_document::render_html_with_options(source: &str, opts: mdwright_document::ParseOptions) -> core::result::Result<alloc::string::String, mdwright_document::ParseError>
+pub fn mdwright_document::render_html_with_render_options(source: &str, opts: mdwright_document::ParseOptions, render: mdwright_document::RenderOptions) -> core::result::Result<alloc::string::String, mdwright_document::ParseError>

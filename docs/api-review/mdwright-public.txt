@@ -1,0 +1,3 @@
+pub mod mdwright
+pub fn mdwright::discover_markdown(root: &std::path::Path) -> alloc::vec::Vec<std::path::PathBuf>
+pub fn mdwright::run_with_rules(rules: mdwright_lint::rule_set::RuleSet) -> std::process::ExitCode
