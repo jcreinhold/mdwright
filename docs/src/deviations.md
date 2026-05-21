@@ -1,15 +1,15 @@
 # mdwright spec deviations
 
-The mdwright formatter targets the GFM 0.29-gfm spec (`tests/gfm-spec/spec.txt`, vendored from cmark-gfm). Every example
-is exercised by `tests/gfm_spec.rs` as a `parse → format → parse → format` round-trip and compared against the source
+The mdwright formatter targets the GFM 0.29-gfm spec (`crates/mdwright/tests/gfm-spec/spec.txt`, vendored from cmark-gfm). Every example
+is exercised by `crates/mdwright/tests/gfm_spec.rs` as a `parse → format → parse → format` round-trip and compared against the source
 HTML and the normalised event stream.
 
 This document is the user-facing index of where mdwright currently **does not** byte-for-byte round-trip the spec. It is
 split into two parts because the underlying mechanism does:
 
-- **Editorial deviations**: choices we have made and intend to keep. Curated in `tests/gfm-spec/allowlist.toml`. Each
+- **Editorial deviations**: choices we have made and intend to keep. Curated in `crates/mdwright/tests/gfm-spec/allowlist.toml`. Each
   entry has a one-line rationale and a pointer to where the decision is documented.
-- **Tracked regressions**: known divergences that we intend to fix. Recorded in `tests/gfm-spec/snapshot.txt`. The
+- **Tracked regressions**: known divergences that we intend to fix. Recorded in `crates/mdwright/tests/gfm-spec/snapshot.txt`. The
   snapshot is asserted byte-for-byte, so any drift, whether regression *or* improvement, fails CI and forces a
   deliberate update.
 
@@ -79,12 +79,12 @@ cases above, remove its entry from `allowlist.toml` and let it re-enter the snap
 ## Tracked regressions
 
 There are currently no tracked GFM-spec formatter regressions. Any future non-allowlisted failure appears in
-`tests/gfm-spec/snapshot.txt` and fails the snapshot test until it is fixed or deliberately classified.
+`crates/mdwright/tests/gfm-spec/snapshot.txt` and fails the snapshot test until it is fixed or deliberately classified.
 
 ## mdformat-mkdocs parity deviations
 
 mdwright matches mdformat-mkdocs byte-for-byte for the four Markdown extensions covered in
-[Markdown extensions](concepts/extensions.md). The parity test at `tests/extension_parity.rs` enforces this against five
+[Markdown extensions](concepts/extensions.md). The parity test at `crates/mdwright/tests/extension_parity.rs` enforces this against five
 committed reference fixtures. Known divergences below; each row exists because the upstream pulldown-cmark parser
 doesn't surface enough information for mdwright to round-trip the source faithfully.
 
@@ -101,8 +101,8 @@ mdwright preserves MyST directive containers, Pandoc fenced divs, inline roles, 
 attribute spans, and MyST `%` line comments byte-verbatim. See [MyST + Pandoc directives](concepts/myst-pandoc.md) for
 the full scope. The bar is **idempotence-on-mode**, not byte-equal round-trip with mdformat-mkdocs: mdformat-mkdocs does
 not implement these constructs at all, so there is no upstream reference to diff against. The vendored jupyter-book demo
-at `tests/external/jupyter_book_minimal/` plus the per-construct regressions at
-`tests/regressions/{directive_*,inline_role_*,myst_*}.in` are the safety net.
+at `crates/mdwright/tests/external/jupyter_book_minimal/` plus the per-construct regressions at
+`crates/mdwright/tests/regressions/{directive_*,inline_role_*,myst_*}.in` are the safety net.
 
 | Construct                       | Source pattern that diverges                      | Why                                                                                                                                                              |
 | ------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -135,7 +135,7 @@ After a deliberate fix (or an accepted editorial deviation):
 # A fix that removes (case, kind) entries from snapshot.txt:
 MDWRIGHT_UPDATE_SNAPSHOT=1 cargo test --release --test gfm_spec gfm_spec_snapshot
 
-# An editorial deviation: add a row to tests/gfm-spec/allowlist.toml
+# An editorial deviation: add a row to crates/mdwright/tests/gfm-spec/allowlist.toml
 # *before* regenerating the snapshot, then run the same command.
 ```
 

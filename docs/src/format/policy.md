@@ -44,12 +44,12 @@ short-circuits before running. Set per-knob targets in `.mdwright.toml` to opt i
 
 ## Why the separation
 
-Earlier mdwright designs canonicalised while synthesising structural output. The result was a bug class where one emit
-decision perturbed the context for another. Rewriting `_foo_` to `*foo*`, for example, can change an adjacent site's
-emphasis-flanking class.
+Synthesising structural output during canonicalisation creates a bug class where one emit decision perturbs the parse
+context of another: rewriting `_foo_` to `*foo*` can change an adjacent site's emphasis-flanking class, so the next
+rewrite reads a different pulldown event stream than the one it planned against.
 
 Identity emit removes that perturbation source. Rewrite families keep the remaining byte changes in formatter-owned
-normal-form plans, so stale local string edits cannot commit without reparsing and verification.
+normal-form plans, so a stale local string edit cannot commit without reparsing and verification.
 
 ## How to opt in
 

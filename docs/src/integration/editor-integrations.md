@@ -25,9 +25,8 @@ unexpectedly does nothing, it usually means the client never granted UTF-8.
 
 ## VS Code
 
-There is no official extension yet; this section will be replaced when one ships. Until then, install any generic-LSP
-client extension (e.g. [`vscode-glspc`](https://marketplace.visualstudio.com/items?itemName=jdinhlife.gruvbox)) and
-point it at:
+mdwright does not publish a dedicated VS Code extension. Install a generic LSP-client extension that lets you point at
+an arbitrary LSP binary, then configure it to launch `mdwright lsp`:
 
 ```jsonc,no-check
 {

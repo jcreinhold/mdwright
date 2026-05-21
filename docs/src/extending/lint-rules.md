@@ -136,7 +136,7 @@ binary and run it in place of `mdwright`; the command-line interface is identica
 
 - Config-driven rule reconfiguration applies to stdlib rules only. The `[lint.info-strings] extra` option, for example,
   mutates the stdlib `info-string-typo` rule even when a downstream binary has registered its own implementation under
-  that name. A `Configurable` trait extension is tracked for a later session.
+  that name. Downstream rules read their own configuration; mdwright does not route config keys into them.
 - mdwright does not load lint rules at runtime. See [Plugin loading](plugin-loading.md) for the rationale and the
   comparison of dynamic-loading alternatives we considered.
 

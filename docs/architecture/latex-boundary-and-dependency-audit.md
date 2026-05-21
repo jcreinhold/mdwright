@@ -1,45 +1,30 @@
-# LaTeX Boundary And Dependency Audit
+# LaTeX boundary
 
 mdwright needs MathJax-scale TeX math support, Unicode terminal layout, and bidirectional source translation. That
 language machinery is larger and more volatile than Markdown math-span recognition, so it belongs behind a separate
 component boundary.
 
-## Boundary Decision
-
-### Design A: Keep TeX Bodies In `mdwright-math`
-
-This keeps the workspace smaller, but it braids two different decisions:
-
-- where Markdown math regions start and end;
-- how a TeX-like math body is tokenised, parsed, rendered, and translated.
-
-Those decisions change for different reasons. Markdown span recognition follows CommonMark, GFM, and mdwright's
-math-resilience rules. TeX body support follows MathJax's input vocabulary, Unicode coverage, layout, and translation
-rules. Keeping both in one crate would make `mdwright-math` the place for delimiter scanning, parser recovery, command
-tables, Unicode grids, and translation loss accounting.
-
-### Design B: Create `mdwright-latex`
+## The boundary
 
 `mdwright-latex` hides the TeX body language: lexer, parser, command registry, Unicode layout, and source translation.
-`mdwright-math` keeps Markdown delimiter and environment recognition and can delegate the body string to
-`mdwright-latex` when callers need rendering or translation.
+`mdwright-math` keeps Markdown delimiter and environment recognition and delegates the body string to `mdwright-latex`
+when callers need rendering or translation.
 
-This is the adopted design. The new crate is not a facade: its public API should stay narrower than its implementation.
-Callers should receive parsed/rendered/translated results and typed errors, not lexer tokens, parser cursors, AST
-variants, or MathJax table internals.
+`mdwright-latex` is not a facade: its public API stays narrower than its implementation. Callers receive
+parsed/rendered/translated results and typed errors, not lexer tokens, parser cursors, AST variants, or MathJax table
+internals.
 
-### Design C: Wrap An Existing LaTeX Crate
+- `mdwright-latex` owns TeX math-body lexing, parsing, command vocabulary, Unicode layout, and source translation.
+- `mdwright-math` owns Markdown math-span recognition, delimiter policy, and extraction of math body strings.
+- `mdwright-lint` consumes vocabulary through narrow lookup APIs.
+- `crates/mdwright` owns CLI commands such as `preview` and the math translation surface.
+- Unsupported TeX is a typed error or visible fallback, never a panic.
 
-The current Rust crates are useful references, but they mostly target LaTeX-to-MathML conversion. mdwright needs Unicode
-terminal layout and source translation in both directions. Wrapping a MathML-oriented crate would either leak MathML as
-an unwanted intermediate interface or force mdwright to reconstruct TeX structure from an output format.
+## Dependency comparison
 
-## Dependency Audit
-
-Audit inputs: `cargo info`, crates.io metadata, reachable repository heads, docs.rs pages, and the official
-[MathJax TeX input](https://docs.mathjax.org/en/stable/input/tex/index.html) and
-[supported-command](https://docs.mathjax.org/en/stable/input/tex/macros/) docs. MathJax is the coverage target because
-it documents both TeX input behavior and the supported macro table; it is not treated as a TeX-engine equivalence claim.
+MathJax is the coverage target because it documents both TeX input behavior and the supported macro table; it is not
+treated as a TeX-engine equivalence claim. The comparison axes are licence, signal, API fit at the mdwright boundary,
+and outcome.
 
 | Crate | Version | License | Signal | API fit | Decision |
 | --- | --- | --- | --- | --- | --- |
@@ -53,10 +38,10 @@ it documents both TeX input behavior and the supported macro table; it is not tr
 Low-adoption terminal math rendering crates such as `term-maths` and `tui-math` remain rejected. Terminal delivery code
 belongs in `crates/mdwright`; TeX body structure belongs in `mdwright-latex`.
 
-## Standing Boundary
+## Rejected boundary shapes
 
-- `mdwright-latex` owns TeX math-body lexing, parsing, command vocabulary, Unicode layout, and source translation.
-- `mdwright-math` owns Markdown math-span recognition, delimiter policy, and extraction of math body strings.
-- `mdwright-lint` consumes vocabulary through narrow lookup APIs after the command table moves.
-- `crates/mdwright` owns CLI commands such as `preview` and the future math translation surface.
-- Unsupported TeX is a typed error or visible fallback, never a panic.
+- **Keep TeX bodies in `mdwright-math`.** Braids Markdown span recognition (CommonMark + GFM + math-resilience rules)
+  with TeX body support (MathJax input vocabulary, Unicode coverage, layout, translation). The two change for different
+  reasons.
+- **Wrap an existing LaTeX-to-MathML crate.** The current Rust crates target MathML output. Wrapping one would either
+  leak MathML as an unwanted intermediate interface or force mdwright to reconstruct TeX structure from MathML.

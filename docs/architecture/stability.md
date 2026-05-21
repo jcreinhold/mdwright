@@ -21,9 +21,9 @@ private rewrite-family edits. A family cannot commit unless the document-level v
 
 ## The bug class
 
-As long as any emit site reads source bytes to *choose* its representation, perturbation is possible. The fuzz fixes
-catalogued in [`fuzz-history.md`](fuzz-history.md) trace the same shape: a downstream pass *predicted* what pulldown
-would do, instead of asking pulldown what it does. Two examples drove the redesign:
+As long as any emit site reads source bytes to *choose* its representation, perturbation is possible. The bugs that
+drove this design all share one shape: a downstream pass *predicted* what pulldown would do, instead of asking pulldown
+what it does. Two examples:
 
 - `_*/*_` (5 bytes). Pulldown sees nested emphasis; a predictive formatter emitted `*\*/\**`, which re-parses to a
   single emphasis.
@@ -71,7 +71,7 @@ buffer as success.
 | A rewrite family contains overlapping local edits.                  | The family plan rejects before verification; no individual edit is selected out of the overlap.             | Unit tests in `mdwright-format` cover local-overlap rejection.                                      |
 | The rewrite-family pipeline never reaches a no-commit pass.         | The guard pass count logs `tracing::warn!` and returns the original source bytes unchanged.                 | Idempotence regressions and fuzz replay cover known sustained-fuzz failures.                        |
 | Verification misses a cross-paragraph effect.                       | Families verify the whole document and skip if the document or math signature diverges.                    | Skips are logged; high-skip-rate documents surface in production traces.                            |
-| Structural emit edge cases the 4096-case sweep doesn't reach.       | `FmtOptions::default()` regressions tracked in `docs/architecture/round-4-findings/` (empty list item at EOF; ATX trailing-hash). | Both reproduce; both are pre-existing structural-emit bugs surfaced by broader option-space fuzz coverage. |
+| Structural emit edge cases the 4096-case sweep doesn't reach.       | Two accepted `FmtOptions::default()` regressions: an empty list item at EOF, and an ATX heading with a trailing hash. | Both reproduce as pre-existing structural-emit bugs surfaced by broader option-space fuzz coverage. |
 | Pulldown behaviour drifts between releases.                         | `docs/architecture/pulldown-model.md` documents the invariants; `tests/pulldown_model.rs` fails when pulldown disagrees. | One chokepoint at `crates/mdwright-document/src/parse.rs` is the single site any drift mitigation lands. |
 
 ## Out of scope

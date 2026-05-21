@@ -5,10 +5,11 @@ NOT cover. Use this to decide which gate(s) a change to the formatter or canonic
 
 ## Per-construct golden suites
 
-**Location:** `tests/golden_inline/`, `tests/golden_block/`, `tests/golden_frontmatter/`.
+**Location:** `crates/mdwright/tests/golden_inline/`, `crates/mdwright/tests/golden_block/`, `crates/mdwright/tests/golden_frontmatter/`.
 
 Each fixture is an `*.in` / `*.out` pair. Optional `*.config.toml` overrides `FmtOptions::default()`. The driver tests
-live at `tests/golden_inline.rs`, `tests/golden_block.rs`, `tests/golden_frontmatter.rs` and assert byte equality of the
+live at `crates/mdwright/tests/golden_inline.rs`, `crates/mdwright/tests/golden_block.rs`,
+`crates/mdwright/tests/golden_frontmatter.rs` and assert byte equality of the
 formatted input against `.out`.
 
 **Invariant:** structural emit and canonicalisation produce the expected bytes for the exact shapes the project cares
@@ -19,7 +20,7 @@ about. This is where new features and bugfixes land their single load-bearing ex
 
 ## Property tests
 
-**Location:** `tests/properties.rs`, generators at `tests/common/proptest_gen.rs`.
+**Location:** `crates/mdwright/tests/properties.rs`, generators at `crates/mdwright/tests/common/proptest_gen.rs`.
 
 Four families:
 
@@ -46,7 +47,7 @@ and is not pulled in here.
 
 ## Regression suite
 
-**Location:** `tests/regressions/`, driver at `tests/regressions.rs`.
+**Location:** `crates/mdwright/tests/regressions/`, driver at `crates/mdwright/tests/regressions.rs`.
 
 Each `*.in` file is a minimal failing input committed in the same change as its fix. Two gates per fixture:
 
@@ -60,8 +61,8 @@ Each `*.in` file is a minimal failing input committed in the same change as its 
 
 ## GFM spec snapshot
 
-**Location:** `tests/gfm_spec.rs`, vendored spec at `tests/gfm-spec/spec.txt`, snapshot at
-`tests/gfm-spec/snapshot.txt`.
+**Location:** `crates/mdwright/tests/gfm_spec.rs`, vendored spec at `crates/mdwright/tests/gfm-spec/spec.txt`, snapshot
+at `crates/mdwright/tests/gfm-spec/snapshot.txt`.
 
 Two tests:
 
@@ -173,6 +174,6 @@ mdformat-parity, production-soak, fuzzing, packaging, or Criterion.
 
 ## What this matrix does NOT include
 
-Lint-rule coverage lives with each rule under `src/stdlib/*` and `tests/`; that's a parallel matrix and isn't summarised
-here. CLI-surface tests live at `tests/cli_*.rs`. The diagnostic JSON v2 schema is gated by
-`tests/diagnostic_json_v2.rs`.
+Lint-rule coverage lives with each rule under `crates/mdwright-lint/src/stdlib/*` and its `tests/`; that's a parallel
+matrix and isn't summarised here. CLI-surface tests live at `crates/mdwright/tests/cli_*.rs`. The diagnostic JSON v2
+schema is gated by `crates/mdwright/tests/diagnostic_json_v2.rs`.

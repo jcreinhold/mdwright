@@ -35,7 +35,7 @@ is consumed as a blank line, but the terminating `\n` of the *content* line stay
 `normalize_trailing_newline` consumes that trailing LF when re-emitting; without it the formatter would emit one
 trailing LF too many.
 
-Cite: regression fixture `tests/regressions/fuzz_indented_code_trailing_ws_drop.in`.
+Cite: regression fixture `crates/mdwright/tests/regressions/fuzz_indented_code_trailing_ws_drop.in`.
 
 Test: `indented_code_keeps_content_terminating_newline`.
 
