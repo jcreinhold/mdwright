@@ -16,6 +16,10 @@ mod error;
 mod layout;
 #[allow(dead_code, reason = "parser work consumes this private lexer in the next phase")]
 mod lexer;
+#[allow(
+    dead_code,
+    reason = "layout and translation consume this private parser in later phases"
+)]
 mod parser;
 mod registry;
 mod translation;

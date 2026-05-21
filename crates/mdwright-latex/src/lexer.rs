@@ -215,7 +215,7 @@ pub(crate) struct TokenCursor<'stream, 'src> {
 }
 
 impl<'stream, 'src> TokenCursor<'stream, 'src> {
-    const fn new(tokens: &'stream [Token<'src>]) -> Self {
+    pub(crate) const fn new(tokens: &'stream [Token<'src>]) -> Self {
         Self { tokens, position: 0 }
     }
 
@@ -244,6 +244,13 @@ impl<'stream, 'src> TokenCursor<'stream, 'src> {
 
     pub(crate) fn is_eof(&self) -> bool {
         matches!(self.peek().kind(), TokenKind::Eof)
+    }
+
+    pub(crate) fn previous_span(&self) -> SourceSpan {
+        let previous_index = self.position.saturating_sub(1);
+        self.tokens
+            .get(previous_index)
+            .map_or_else(|| SourceSpan::new(0, 0), |token| token.span())
     }
 
     fn eof_position(&self) -> usize {
