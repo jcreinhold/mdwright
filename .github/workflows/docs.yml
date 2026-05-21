@@ -3,7 +3,6 @@ name: docs
 on:
   push:
     branches: [main]
-    tags: ['**[0-9]+.[0-9]+.[0-9]+*']
     paths:
       - 'docs/**'
       - 'crates/**/src/**'
@@ -40,20 +39,3 @@ jobs:
           cargo xtask doc-config --check
       - name: Build site
         run: mdbook build docs/
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs/book
-
-  deploy:
-    needs: build
-    if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
