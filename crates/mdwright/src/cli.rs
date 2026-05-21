@@ -54,6 +54,7 @@ use mdwright_format::{
     CheckpointTable, FmtOptions, FormatError, FormatReport, MathRender, format_document, format_document_with_report,
     format_range_with_checkpoints, format_validated_with_report,
 };
+use mdwright_latex::Translation;
 use mdwright_lint::{Diagnostic, LintOptions, RuleSet, Severity, Snippet, apply_safe_fixes, rule_doc_url, stdlib};
 
 /// Run the mdwright CLI with the given rule set.
@@ -158,6 +159,8 @@ enum Command {
     Render(RenderArgs),
     /// Format the input and render a static terminal Markdown preview.
     Preview(PreviewArgs),
+    /// Translate math source between LaTeX commands and Unicode.
+    Math(MathArgs),
     /// Run as a Language Server Protocol server over stdio.
     Lsp,
 }
@@ -459,6 +462,59 @@ struct PreviewArgs {
     math: PreviewMathArg,
 }
 
+#[derive(Args, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+struct MathArgs {
+    /// Markdown files/directories to translate. Directories are
+    /// searched recursively. If omitted, stdin is translated. A
+    /// literal `-` reads stdin.
+    paths: Vec<PathBuf>,
+
+    /// Translate LaTeX math source to editable Unicode math source.
+    #[arg(long, conflicts_with = "to_latex")]
+    to_unicode: bool,
+
+    /// Translate Unicode math source to preferred LaTeX math source.
+    #[arg(long, conflicts_with = "to_unicode")]
+    to_latex: bool,
+
+    /// Exit 1 if any file or stdin payload would change; never write.
+    #[arg(long, conflicts_with = "write")]
+    check: bool,
+
+    /// Write a unified diff to stdout; never write files.
+    #[arg(long, conflicts_with = "write")]
+    diff: bool,
+
+    /// Rewrite Markdown files in place. This is required for file
+    /// mutation; stdin always writes translated text to stdout.
+    #[arg(long)]
+    write: bool,
+
+    /// File name to report when reading from stdin. Defaults to
+    /// `<stdin>`. Useful when integrating with editors that pipe
+    /// the buffer through.
+    #[arg(long)]
+    stdin_filename: Option<PathBuf>,
+}
+
+#[derive(Copy, Clone, Debug)]
+enum MathDirection {
+    ToUnicode,
+    ToLatex,
+}
+
+impl MathArgs {
+    fn direction(&self) -> Result<MathDirection> {
+        match (self.to_unicode, self.to_latex) {
+            (true, false) => Ok(MathDirection::ToUnicode),
+            (false, true) => Ok(MathDirection::ToLatex),
+            (false, false) => bail!("mdwright math requires exactly one of --to-unicode or --to-latex"),
+            (true, true) => bail!("mdwright math accepts only one translation direction"),
+        }
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum, Default)]
 enum PreviewMathArg {
     /// Render the conservative supported LaTeX subset as Unicode,
@@ -567,6 +623,7 @@ fn run(available: RuleSet) -> Result<ExitCode> {
         }
         Command::Render(args) => run_render(&args, config_path.as_deref(), policy),
         Command::Preview(args) => run_preview(&args, config_path.as_deref(), policy),
+        Command::Math(args) => run_math(&args, config_path.as_deref(), policy),
         Command::Lsp => run_lsp(),
     }
 }
@@ -640,6 +697,223 @@ fn run_preview(args: &PreviewArgs, config_path: Option<&std::path::Path>, policy
     let mut out = stdout.lock();
     out.write_all(output.as_bytes())?;
     Ok(ExitCode::SUCCESS)
+}
+
+fn run_math(args: &MathArgs, config_path: Option<&std::path::Path>, policy: InputPolicy) -> Result<ExitCode> {
+    let direction = args.direction()?;
+    let cfg = resolve_config(config_path)?;
+    let parse_options = cfg.parse_options();
+
+    if has_stdin_operand(&args.paths) {
+        if args.paths.len() > 1 {
+            bail!("mdwright math: `-` cannot be combined with file paths");
+        }
+        if args.write {
+            bail!("mdwright math: --write cannot be used with stdin");
+        }
+        return run_math_stdin(args, direction, parse_options, policy);
+    }
+
+    if args.paths.is_empty() {
+        if args.write {
+            bail!("mdwright math: --write requires file or directory paths");
+        }
+        return run_math_stdin(args, direction, parse_options, policy);
+    }
+
+    if !args.write && !args.check && !args.diff {
+        bail!("mdwright math over files is non-mutating by default; pass --write, --check, or --diff");
+    }
+
+    run_math_files(args, direction, parse_options, policy)
+}
+
+fn run_math_stdin(
+    args: &MathArgs,
+    direction: MathDirection,
+    parse_options: ParseOptions,
+    policy: InputPolicy,
+) -> Result<ExitCode> {
+    let name = args
+        .stdin_filename
+        .as_deref()
+        .map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
+    let mut source = String::new();
+    read_stdin_capped(&mut source, policy, &name)?;
+    let translated = translate_stdin_math_source(&source, direction, parse_options);
+    write_math_translation_notes(&mut io::stderr().lock(), &name, &translated)?;
+
+    let changed = translated.text() != source;
+    if args.diff {
+        let stdout = io::stdout();
+        let mut out = stdout.lock();
+        if changed {
+            write_unified_diff(&mut out, &name, &source, translated.text(), DiffColor::auto_stdout())?;
+        }
+        return Ok(if changed { ExitCode::from(1) } else { ExitCode::SUCCESS });
+    }
+    if args.check {
+        if changed {
+            let mut stderr = io::stderr().lock();
+            writeln!(
+                stderr,
+                "mdwright: stdin math would be translated; run `mdwright math {} --diff -` to inspect.",
+                direction.flag()
+            )?;
+            return Ok(ExitCode::from(1));
+        }
+        return Ok(ExitCode::SUCCESS);
+    }
+
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    out.write_all(translated.text().as_bytes())?;
+    Ok(ExitCode::SUCCESS)
+}
+
+fn run_math_files(
+    args: &MathArgs,
+    direction: MathDirection,
+    parse_options: ParseOptions,
+    policy: InputPolicy,
+) -> Result<ExitCode> {
+    let mut files = Vec::new();
+    for path in &args.paths {
+        if !path.exists() {
+            bail!("path does not exist: {}", path.display());
+        }
+        files.extend(discover_markdown(path));
+    }
+    files.sort();
+    files.dedup();
+
+    let mut changed = 0usize;
+    let mut parse_errors = 0usize;
+    for path in files {
+        let source = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+        enforce_input_policy(&path.display().to_string(), &source, policy)?;
+        let translated = match translate_markdown_math_source(&source, direction, parse_options) {
+            Ok(translated) => translated,
+            Err(err) => {
+                parse_errors = parse_errors.saturating_add(1);
+                let mut stderr = io::stderr().lock();
+                writeln!(stderr, "mdwright: cannot parse {}: {err}", path.display())?;
+                continue;
+            }
+        };
+        write_math_translation_notes(&mut io::stderr().lock(), &path.display().to_string(), &translated)?;
+
+        if translated.text() == source {
+            continue;
+        }
+        changed = changed.saturating_add(1);
+        if args.diff {
+            let stdout = io::stdout();
+            let mut out = stdout.lock();
+            write_unified_diff(
+                &mut out,
+                &path.display().to_string(),
+                &source,
+                translated.text(),
+                DiffColor::auto_stdout(),
+            )?;
+        } else if args.write {
+            fs::write(&path, translated.text()).with_context(|| format!("write {}", path.display()))?;
+        }
+    }
+
+    if parse_errors > 0 {
+        Ok(ExitCode::from(2))
+    } else if (args.check || args.diff) && changed > 0 {
+        if args.check && !args.diff {
+            let mut stderr = io::stderr().lock();
+            writeln!(
+                stderr,
+                "mdwright: {changed} file(s) would have math translated; run `mdwright math {} --diff ...` to inspect.",
+                direction.flag()
+            )?;
+        }
+        Ok(ExitCode::from(1))
+    } else {
+        Ok(ExitCode::SUCCESS)
+    }
+}
+
+fn translate_markdown_math_source(
+    source: &str,
+    direction: MathDirection,
+    parse_options: ParseOptions,
+) -> Result<Translation> {
+    let doc = Document::parse_with_options(source, parse_options)?;
+    let ranges: Vec<_> = doc
+        .math_regions()
+        .iter()
+        .map(|region| region.span().body().source_range())
+        .collect();
+    Ok(direction.translate_ranges(source, &ranges))
+}
+
+fn translate_stdin_math_source(source: &str, direction: MathDirection, parse_options: ParseOptions) -> Translation {
+    match Document::parse_with_options(source, parse_options) {
+        Ok(doc) => {
+            let ranges: Vec<_> = doc
+                .math_regions()
+                .iter()
+                .map(|region| region.span().body().source_range())
+                .collect();
+            if ranges.is_empty() {
+                direction.translate_body(source)
+            } else {
+                direction.translate_ranges(source, &ranges)
+            }
+        }
+        Err(_) => direction.translate_body(source),
+    }
+}
+
+fn write_math_translation_notes<W: Write>(out: &mut W, path: &str, translation: &Translation) -> Result<()> {
+    for diagnostic in translation.diagnostics() {
+        writeln!(
+            out,
+            "mdwright: math: {path}:{}..{}: {}",
+            diagnostic.span().start(),
+            diagnostic.span().end(),
+            diagnostic.message()
+        )?;
+    }
+    for loss in translation.losses() {
+        writeln!(
+            out,
+            "mdwright: math: {path}:{}..{}: lossy translation: {}",
+            loss.span().start(),
+            loss.span().end(),
+            loss.reason()
+        )?;
+    }
+    Ok(())
+}
+
+impl MathDirection {
+    fn translate_body(self, source: &str) -> Translation {
+        match self {
+            Self::ToUnicode => mdwright_latex::translate_latex_to_unicode(source),
+            Self::ToLatex => mdwright_latex::translate_unicode_to_latex(source),
+        }
+    }
+
+    fn translate_ranges(self, source: &str, ranges: &[std::ops::Range<usize>]) -> Translation {
+        match self {
+            Self::ToUnicode => mdwright_latex::translate_latex_ranges_to_unicode(source, ranges),
+            Self::ToLatex => mdwright_latex::translate_unicode_ranges_to_latex(source, ranges),
+        }
+    }
+
+    const fn flag(self) -> &'static str {
+        match self {
+            Self::ToUnicode => "--to-unicode",
+            Self::ToLatex => "--to-latex",
+        }
+    }
 }
 
 fn read_concatenated_input(paths: &[PathBuf], stdin_filename: Option<&Path>, policy: InputPolicy) -> Result<String> {

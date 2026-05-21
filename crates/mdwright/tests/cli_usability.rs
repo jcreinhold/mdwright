@@ -77,6 +77,7 @@ fn help_surfaces_familiar_verbs_and_fmt_check_is_check_oriented() {
         "explain",
         "render",
         "preview",
+        "math",
     ] {
         assert!(
             top_stdout.contains(verb),
@@ -120,6 +121,15 @@ fn help_surfaces_familiar_verbs_and_fmt_check_is_check_oriented() {
         has_option(&fmt_check_stdout, "--explain-format"),
         "fmt-check help should expose format explanations"
     );
+
+    let math = command(&["math", "--help"]).output().expect("math help");
+    let (math_stdout, _) = output_text(&math);
+    for option in ["--to-unicode", "--to-latex", "--check", "--diff", "--write"] {
+        assert!(
+            has_option(&math_stdout, option),
+            "math help missing {option}:\n{math_stdout}"
+        );
+    }
 }
 
 #[test]
@@ -353,6 +363,101 @@ fn explicit_stdin_has_clear_check_and_format_check_contracts() {
     assert!(
         diff_stdout.contains("+alpha beta"),
         "stdin diff should show formatted line"
+    );
+}
+
+#[test]
+fn math_command_translates_stdin_with_explicit_direction() {
+    let dir = tempfile::tempdir().expect("tempdir");
+
+    let unicode = command_with_stdin(dir.path(), &["math", "--to-unicode", "-"], "$\\alpha_i$\n");
+    let (unicode_stdout, unicode_stderr) = output_text(&unicode);
+    assert_eq!(
+        unicode.status.code(),
+        Some(0),
+        "stdout:\n{unicode_stdout}\nstderr:\n{unicode_stderr}"
+    );
+    assert_eq!(unicode_stdout, "$αᵢ$\n");
+
+    let latex = command_with_stdin(dir.path(), &["math", "--to-latex", "-"], "$αᵢ$\n");
+    let (latex_stdout, latex_stderr) = output_text(&latex);
+    assert_eq!(
+        latex.status.code(),
+        Some(0),
+        "stdout:\n{latex_stdout}\nstderr:\n{latex_stderr}"
+    );
+    assert_eq!(latex_stdout, "$\\alpha_{i}$\n");
+}
+
+#[test]
+fn math_command_translates_markdown_spans_and_preserves_delimiters() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let note = dir.path().join("note.md");
+    fs::write(&note, "Inline \\( \\alpha_i \\).\n").expect("write markdown");
+
+    let check = command_in(dir.path(), &["math", "--to-unicode", "--check", "note.md"]);
+    let (check_stdout, check_stderr) = output_text(&check);
+    assert_eq!(
+        check.status.code(),
+        Some(1),
+        "stdout:\n{check_stdout}\nstderr:\n{check_stderr}"
+    );
+    assert!(check_stdout.is_empty(), "check should keep stdout clean");
+    assert!(
+        check_stderr.contains("would have math translated"),
+        "check should explain drift:\n{check_stderr}"
+    );
+    assert_eq!(
+        fs::read_to_string(&note).expect("read markdown"),
+        "Inline \\( \\alpha_i \\).\n"
+    );
+
+    let diff = command_in(dir.path(), &["math", "--to-unicode", "--diff", "note.md"]);
+    let (diff_stdout, diff_stderr) = output_text(&diff);
+    assert_eq!(
+        diff.status.code(),
+        Some(1),
+        "stdout:\n{diff_stdout}\nstderr:\n{diff_stderr}"
+    );
+    assert!(
+        diff_stdout.contains("--- a/note.md"),
+        "missing diff header:\n{diff_stdout}"
+    );
+    assert!(diff_stdout.contains("@@"), "missing diff hunk:\n{diff_stdout}");
+    assert!(
+        diff_stdout.contains("+Inline \\( αᵢ \\)."),
+        "diff should show translated math body:\n{diff_stdout}"
+    );
+    assert!(diff_stderr.is_empty(), "lossless diff should keep stderr clean");
+    assert_eq!(
+        fs::read_to_string(&note).expect("read markdown"),
+        "Inline \\( \\alpha_i \\).\n"
+    );
+
+    let write = command_in(dir.path(), &["math", "--to-unicode", "--write", "note.md"]);
+    let (write_stdout, write_stderr) = output_text(&write);
+    assert_eq!(
+        write.status.code(),
+        Some(0),
+        "stdout:\n{write_stdout}\nstderr:\n{write_stderr}"
+    );
+    assert!(write_stdout.is_empty(), "write mode should keep stdout clean");
+    assert_eq!(
+        fs::read_to_string(&note).expect("read markdown"),
+        "Inline \\( αᵢ \\).\n"
+    );
+}
+
+#[test]
+fn math_command_reports_unsupported_math_without_panicking() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let out = command_with_stdin(dir.path(), &["math", "--to-unicode", "-"], "\\color{red}{x}\n");
+    let (stdout, stderr) = output_text(&out);
+    assert_eq!(out.status.code(), Some(0), "stdout:\n{stdout}\nstderr:\n{stderr}");
+    assert_eq!(stdout, "\\color{red}{x}\n");
+    assert!(
+        stderr.contains("unsupported") || stderr.contains("no editable Unicode source form"),
+        "unsupported input should produce a diagnostic:\n{stderr}"
     );
 }
 

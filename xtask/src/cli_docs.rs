@@ -26,6 +26,7 @@ const SUBCOMMANDS: &[&str] = &[
     "fmt-check",
     "render",
     "preview",
+    "math",
     "list-rules",
     "explain",
     "lsp",

@@ -8,6 +8,9 @@ For terminal inspection, `mdwright preview --math=unicode` has a conservative fi
 LaTeX math. It covers common symbols, scripts, fractions, and square roots. Unsupported math falls back to source text
 instead of guessing.
 
+For editable source translation, use `mdwright math`. It translates math bodies between LaTeX commands and Unicode
+source while preserving Markdown math delimiters. Normal `mdwright fmt` never rewrites math notation silently.
+
 For *what* mdwright treats as math, see [Math regions](math-regions.md). This page is about *how those regions are
 emitted*.
 
@@ -76,6 +79,24 @@ mdwright preview --math=source notes.md
 `preview` is for fast local inspection. It renders headings, lists, block quotes, links, code blocks, tables, and simple
 math as terminal text. It does not claim CSS layout, images, browser fonts, KaTeX, or MathJax equivalence. Use
 `render --open` when the browser view matters.
+
+## Source translation
+
+`mdwright math` is the explicit command for changing math notation:
+
+```sh,no-check
+printf '$\alpha_i$\n' | mdwright math --to-unicode -
+printf '$αᵢ$\n' | mdwright math --to-latex -
+mdwright math --to-unicode --diff notes.md
+mdwright math --to-unicode --write notes.md
+```
+
+File mode translates recognised Markdown math bodies and preserves their delimiters, so `\( \alpha_i \)` becomes
+`\( αᵢ \)`. Use `--check` for CI, `--diff` to inspect a patch-compatible diff, and `--write` to mutate files. Stdin
+without recognised Markdown math delimiters is treated as one math source body.
+
+Translation is conservative. Unsupported TeX remains visible in source and is reported on stderr rather than being
+approximated.
 
 ## The gate under `dollar` mode
 
