@@ -20,7 +20,9 @@ Dependency direction:
 
 ```text
        mdwright-latex
-             │
+          │  │
+          │  └─────────────┐
+          │                │
        mdwright-math
             │
        mdwright-document
@@ -50,7 +52,9 @@ their algorithms. Other crates consume document facts as domain records (structu
 sites, inline delimiter slots, heading attribute trailers, link destination slots, math regions, frontmatter, code/HTML
 exclusions, top-level checkpoints) and do not couple to pulldown's event vocabulary, offset iterator, panic payloads, or
 backtraces. Markdown math-region recognition and TeX math-body parsing are separate boundaries: `mdwright-math`
-recognises where math lives in Markdown, while `mdwright-latex` owns the language inside those regions.
+recognises where math lives in Markdown, while `mdwright-latex` owns the language inside those regions. Lint rules that
+need LaTeX vocabulary facts depend on `mdwright-latex` directly rather than copying command tables or asking
+`mdwright-math` to pass them through.
 `pulldown_model` tests may import pulldown directly because they deliberately probe upstream drift.
 
 ## Public API entry points
@@ -84,8 +88,9 @@ Enforced by `crates/mdwright/tests/dependency_fences.rs` via `cargo tree`:
   `ignore`, `rayon`, `serde`, `toml`, `tokio`, `tower-lsp`, `owo-colors`, or `anyhow`.
 - `mdwright-format` may depend on `mdwright-document` and `mdwright-math`; it must not depend on lint, CLI, LSP, `clap`,
   `tokio`, or `tower-lsp`. It does not import `pulldown-cmark` or `mdwright_document::parse` in production code.
-- `mdwright-lint` depends on `mdwright-document`; it must not depend on format, CLI, LSP, `clap`, `tokio`, or
-  `tower-lsp`.
+- `mdwright-lint` depends on `mdwright-document` and may depend directly on `mdwright-latex` for command vocabulary; it
+  must not depend on format, CLI, LSP, `clap`, `tokio`, or `tower-lsp`, and it must not depend directly on
+  `mdwright-math` for vocabulary.
 - `mdwright-config` may depend on document/format/lint option types; it must not depend on CLI or LSP.
 - `mdwright` and `mdwright-lsp` are delivery crates; heavy delivery dependencies belong there.
 - `mdwright-document` does not publicly export parser helpers.

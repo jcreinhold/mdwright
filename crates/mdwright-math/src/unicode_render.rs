@@ -8,7 +8,7 @@ use std::fmt;
 
 use unicode_width::UnicodeWidthStr;
 
-use crate::unicode::{latex_symbol, unicode_sub_str, unicode_super_str};
+use mdwright_latex::{latex_symbol, unicode_sub_str, unicode_super_str};
 
 /// A rendered Unicode math block.
 #[derive(Clone, Debug, PartialEq, Eq)]

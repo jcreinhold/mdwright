@@ -13,6 +13,7 @@
 
 use crate::SourceSpan;
 use crate::lexer::{LexDiagnostic, Token, TokenCursor, TokenKind, TokenStream};
+use crate::registry::{CommandCategory, CommandInfo, SupportStatus, lookup_command};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct MathBody<'src> {
@@ -365,12 +366,29 @@ impl<'stream, 'src> Parser<'stream, 'src> {
                 ));
                 None
             }
-            _ if is_known_symbol_command(name) => Some(Node::new(NodeKind::Atom(Atom::CommandSymbol(name)), span)),
+            _ => self.parse_registry_command(name, span),
+        }
+    }
+
+    fn parse_registry_command(&mut self, name: &'src str, span: SourceSpan) -> Option<Node<'src>> {
+        let Some(command) = lookup_command(name) else {
+            self.diagnostics.push(ParseDiagnostic::new(
+                ParseDiagnosticKind::UnsupportedCommand,
+                span,
+                format!("unsupported TeX command `\\{name}`"),
+            ));
+            return None;
+        };
+        match command.support() {
+            SupportStatus::DirectUnicode if command_is_renderable_atom(command) => {
+                Some(Node::new(NodeKind::Atom(Atom::CommandSymbol(name)), span))
+            }
+            SupportStatus::RecognisedNoOutput => Some(Node::new(NodeKind::Atom(Atom::CommandSymbol(name)), span)),
             _ => {
                 self.diagnostics.push(ParseDiagnostic::new(
                     ParseDiagnosticKind::UnsupportedCommand,
                     span,
-                    format!("unsupported TeX command `\\{name}`"),
+                    format!("known but unsupported TeX command `\\{name}`"),
                 ));
                 None
             }
@@ -621,7 +639,7 @@ impl<'stream, 'src> Parser<'stream, 'src> {
                     span: token.span(),
                 })
             }
-            TokenKind::CommandWord(command) if is_known_symbol_command(command_name(command)) => {
+            TokenKind::CommandWord(command) if is_direct_script_command(command_name(command)) => {
                 let token = self.cursor.advance();
                 Some(ScriptArgument::Atom {
                     atom: Atom::CommandSymbol(command_name(command)),
@@ -841,42 +859,29 @@ fn command_name_from_token(token: Token<'_>) -> Option<&str> {
     }
 }
 
-fn is_known_symbol_command(name: &str) -> bool {
+fn command_is_renderable_atom(command: CommandInfo) -> bool {
     matches!(
-        name,
-        "alpha"
-            | "beta"
-            | "gamma"
-            | "delta"
-            | "epsilon"
-            | "theta"
-            | "lambda"
-            | "mu"
-            | "pi"
-            | "rho"
-            | "sigma"
-            | "tau"
-            | "phi"
-            | "omega"
-            | "infty"
-            | "cdot"
-            | "times"
-            | "leq"
-            | "geq"
-            | "neq"
-            | "to"
-            | "mapsto"
-            | "sum"
-            | "prod"
-            | "int"
+        command.category(),
+        CommandCategory::Symbol
+            | CommandCategory::Greek
+            | CommandCategory::BinaryOperator
+            | CommandCategory::Relation
+            | CommandCategory::Arrow
+            | CommandCategory::Delimiter
+            | CommandCategory::LargeOperator
+            | CommandCategory::Function
     )
 }
 
+fn is_direct_script_command(name: &str) -> bool {
+    lookup_command(name)
+        .is_some_and(|command| command.support() == SupportStatus::DirectUnicode && command_is_renderable_atom(command))
+}
+
 fn is_supported_environment(name: &str) -> bool {
-    matches!(
-        name,
-        "array" | "matrix" | "pmatrix" | "bmatrix" | "Bmatrix" | "vmatrix" | "Vmatrix" | "cases" | "aligned" | "split"
-    )
+    lookup_command(name).is_some_and(|command| {
+        command.category() == CommandCategory::Environment && command.support() == SupportStatus::ParsedConstruct
+    })
 }
 
 fn token_text(token: Token<'_>) -> &str {

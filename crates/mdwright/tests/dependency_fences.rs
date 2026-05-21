@@ -227,6 +227,37 @@ fn math_does_not_reexport_latex_as_a_facade() {
 }
 
 #[test]
+fn latex_vocabulary_is_owned_by_latex() {
+    let lint_manifest = fs::read_to_string(repo_file("crates/mdwright-lint/Cargo.toml")).expect("read lint manifest");
+    assert!(
+        !lint_manifest.contains("mdwright-math"),
+        "mdwright-lint must not depend directly on mdwright-math for LaTeX vocabulary"
+    );
+    assert!(
+        !repo_file("crates/mdwright-math/src/unicode.rs").exists(),
+        "Unicode math vocabulary belongs in mdwright-latex, not mdwright-math"
+    );
+    assert!(
+        !repo_file("crates/mdwright-lint/src/stdlib/latex_unicode.rs").exists(),
+        "lint must consume mdwright-latex vocabulary instead of owning a duplicate table"
+    );
+    for path in [
+        "crates/mdwright-lint/src/stdlib/latex_command.rs",
+        "crates/mdwright-lint/src/stdlib/unicodeable_subscript.rs",
+    ] {
+        let source = fs::read_to_string(repo_file(path)).expect("read lint rule");
+        assert!(
+            source.contains("mdwright_latex"),
+            "{path} should ask mdwright-latex for LaTeX vocabulary facts"
+        );
+        assert!(
+            !source.contains("mdwright_math"),
+            "{path} must not get LaTeX vocabulary through mdwright-math"
+        );
+    }
+}
+
+#[test]
 fn terminal_math_rendering_is_first_party() {
     assert_tree_excludes("mdwright", &["term-maths", "tui-math"]);
     assert_tree_excludes("mdwright-latex", &["term-maths", "tui-math"]);

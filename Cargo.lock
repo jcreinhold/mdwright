@@ -1017,7 +1017,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "mdwright-document",
- "mdwright-math",
+ "mdwright-latex",
  "regex",
 ]
 
@@ -1043,6 +1043,7 @@ dependencies = [
 name = "mdwright-math"
 version = "0.1.0"
 dependencies = [
+ "mdwright-latex",
  "tracing",
  "unicode-width",
 ]

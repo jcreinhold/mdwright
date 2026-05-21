@@ -13,7 +13,7 @@ use crate::diagnostic::{Diagnostic, Fix};
 use crate::regex_util::compile_static;
 use crate::rule::LintRule;
 use mdwright_document::Document;
-use mdwright_math::{unicode_sub, unicode_super};
+use mdwright_latex::{unicode_sub, unicode_super};
 
 pub struct UnicodeableSubscript;
 

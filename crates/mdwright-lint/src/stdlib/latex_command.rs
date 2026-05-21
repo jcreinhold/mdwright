@@ -14,7 +14,7 @@ use crate::diagnostic::{Diagnostic, Fix};
 use crate::regex_util::compile_static;
 use crate::rule::LintRule;
 use mdwright_document::Document;
-use mdwright_math::latex_symbol;
+use mdwright_latex::latex_symbol;
 
 pub struct LatexCommand;
 
