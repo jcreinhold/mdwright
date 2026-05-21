@@ -75,29 +75,53 @@ pub fn page_for(rule: &dyn LintRule) -> String {
     )
 }
 
-/// Compose the expected contents of `docs/src/rules/index.md` — one row
-/// per stdlib rule with its description and a link to the page.
+/// Compose the expected contents of `docs/src/rules/index.md` — three
+/// grouped tables (default errors, default advisories, opt-in) so a
+/// reader can see at a glance which rules fire on a fresh install.
 #[must_use]
 pub fn index_page(rules: &RuleSet) -> String {
     let mut out = String::from("# Lint rules\n\n");
     out.push_str(
-        "Every rule shipped by mdwright's standard library. Each link points to the rule's long-form\n\
-         explanation; `mdwright explain <name>` prints the same text from the command line.\n\n",
+        "Every rule shipped by mdwright's standard library, grouped by how they behave on\n\
+         a fresh install. Each link points to the rule's long-form explanation;\n\
+         `mdwright explain <name>` prints the same text from the command line.\n\n",
     );
-    out.push_str("| Rule | Default | Advisory | Fix | Description |\n");
-    out.push_str("| --- | --- | --- | --- | --- |\n");
-    for rule in rules.iter() {
+
+    let default_errors: Vec<_> = rules.iter().filter(|r| r.is_default() && !r.is_advisory()).collect();
+    let default_advisory: Vec<_> = rules.iter().filter(|r| r.is_default() && r.is_advisory()).collect();
+    let opt_in: Vec<_> = rules.iter().filter(|r| !r.is_default()).collect();
+
+    out.push_str("## Default rules\n\n");
+    out.push_str("On by default. A diagnostic from one of these fails `mdwright check --check`.\n\n");
+    append_rule_table(&mut out, &default_errors);
+
+    out.push_str("\n## Default advisories\n\n");
+    out.push_str("On by default but informational: they report but do not fail `--check`.\n\n");
+    append_rule_table(&mut out, &default_advisory);
+
+    out.push_str("\n## Opt-in rules\n\n");
+    out.push_str("Off by default. Enable with `+name` in the `lint.rules` configuration knob.\n\n");
+    append_rule_table(&mut out, &opt_in);
+
+    out
+}
+
+fn append_rule_table(out: &mut String, rules: &[&dyn LintRule]) {
+    if rules.is_empty() {
+        out.push_str("_None._\n");
+        return;
+    }
+    out.push_str("| Rule | Fix | Description |\n");
+    out.push_str("| --- | --- | --- |\n");
+    for rule in rules {
         out.push_str(&format!(
-            "| [`{name}`]({path}) | {default} | {advisory} | {fix} | {desc} |\n",
+            "| [`{name}`]({path}) | {fix} | {desc} |\n",
             name = rule.name(),
             path = page_path_relative(rule.name()),
-            default = yes_no(rule.is_default()),
-            advisory = yes_no(rule.is_advisory()),
             fix = yes_no(rule.produces_fix()),
             desc = rule.description(),
         ));
     }
-    out
 }
 
 fn yes_no(b: bool) -> &'static str {
