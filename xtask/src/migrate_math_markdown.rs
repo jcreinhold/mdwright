@@ -184,9 +184,7 @@ impl EvidenceClass {
             Self::SkippedInlineDiagramLike => "skipped inline code: diagram-like",
             Self::SkippedInlineUnsupportedMathVisible => "skipped inline code: unsupported math remains visible",
             Self::SkippedInlineMixedFormulaProse => "skipped inline code: mixed formula and prose",
-            Self::SkippedInlineUnsafeTranslationDiagnostics => {
-                "skipped inline code: unsafe translation diagnostics"
-            }
+            Self::SkippedInlineUnsafeTranslationDiagnostics => "skipped inline code: unsafe translation diagnostics",
             Self::SkippedBlockDiagramLayout => "skipped block: diagram/layout",
             Self::SkippedBlockMixedProse => "skipped block: mixed prose",
             Self::SurroundingProseHit => "surrounding prose hit",
@@ -290,13 +288,18 @@ struct Edit {
 }
 
 enum MathMigrationTarget {
-    ExistingMathBody { body: Range<usize> },
+    ExistingMathBody {
+        body: Range<usize>,
+    },
     InlineCodeToMath {
         raw: Range<usize>,
         body: Range<usize>,
         candidate: InlineConversionCandidate,
     },
-    CodeBlockToDisplayMath { raw: Range<usize>, body: Range<usize> },
+    CodeBlockToDisplayMath {
+        raw: Range<usize>,
+        body: Range<usize>,
+    },
 }
 
 impl MathMigrationTarget {
@@ -568,11 +571,7 @@ fn target_to_edit_collecting_evidence(
                 Ok(None)
             }
         }
-        MathMigrationTarget::InlineCodeToMath {
-            raw,
-            body,
-            candidate,
-        } => {
+        MathMigrationTarget::InlineCodeToMath { raw, body, candidate } => {
             if source.get(body.clone()).is_none() {
                 return Ok(None);
             }
@@ -629,28 +628,35 @@ fn classify_inline_code(text: &str) -> InlineCodeEligibility {
     if trimmed.is_empty() {
         return InlineCodeEligibility::Ignore;
     }
-    if has_diagram_layout(trimmed) {
-        return inline_skip(InlineSkipReason::DiagramLikeNotation, "diagram/layout glyphs are present");
+    if has_diagonal_diagram_arrow(trimmed) || has_long_ruler_run(trimmed) {
+        return inline_skip(
+            InlineSkipReason::DiagramLikeNotation,
+            "diagram/layout glyphs are present",
+        );
     }
     if looks_like_short_label(trimmed) {
-        return inline_skip(InlineSkipReason::ShortLabel, "short all-caps label is preserved as code");
+        return inline_skip(
+            InlineSkipReason::ShortLabel,
+            "short all-caps label is preserved as code",
+        );
     }
 
     let has_tex = has_tex_command(trimmed);
     let has_signal = has_strong_math_signal(trimmed) || has_script_syntax(trimmed) || has_tex;
+    if !has_signal && looks_like_plain_word_code(trimmed) {
+        return inline_skip(InlineSkipReason::ProseLikeCode, "plain word is preserved as code");
+    }
     let translated = translate_unicode_to_latex(trimmed);
     let changed = translated.text() != trimmed;
+    let formula_signal = has_signal || changed;
 
-    if has_signal && looks_like_mixed_formula_and_prose(trimmed) {
-        return inline_skip(
-            InlineSkipReason::MixedFormulaAndProse,
-            translation_detail(&translated),
-        );
+    if formula_signal && looks_like_mixed_formula_and_prose(trimmed) {
+        return inline_skip(InlineSkipReason::MixedFormulaAndProse, translation_detail(&translated));
     }
-    if !has_signal && (looks_prose_like(trimmed) || !trimmed.is_ascii()) {
+    if !formula_signal && (looks_prose_like(trimmed) || !trimmed.is_ascii()) {
         return inline_skip(InlineSkipReason::ProseLikeCode, "no high-confidence math signal");
     }
-    if translation_usable_for_conversion(&translated) && (has_signal || changed || has_tex) {
+    if translation_usable_for_conversion(&translated) && (formula_signal || has_tex) {
         let class = if has_tex {
             InlineCodeClass::AlreadyLatexMathFragment
         } else if changed {
@@ -664,7 +670,10 @@ fn classify_inline_code(text: &str) -> InlineCodeEligibility {
             detail: translation_detail(&translated),
         });
     }
-    if has_signal {
+    if has_diagram_layout(trimmed) {
+        return inline_skip(InlineSkipReason::DiagramLikeNotation, translation_detail(&translated));
+    }
+    if formula_signal {
         let reason = if !translated.text().is_ascii() {
             InlineSkipReason::UnsupportedButVisibleMath
         } else {
@@ -786,6 +795,10 @@ fn is_convertible_math_block(block: &CodeBlock, body: &str) -> bool {
 
 fn has_diagram_layout(text: &str) -> bool {
     text.chars().any(is_diagram_layout_char) || has_long_ruler_run(text)
+}
+
+fn has_diagonal_diagram_arrow(text: &str) -> bool {
+    text.chars().any(|ch| matches!(ch, '↙' | '↘' | '↖' | '↗'))
 }
 
 fn is_diagram_layout_char(ch: char) -> bool {
@@ -913,12 +926,17 @@ fn looks_like_mixed_formula_and_prose(text: &str) -> bool {
     let prose_words = text
         .split(|ch: char| !ch.is_alphabetic())
         .filter(|word| {
-            word.len() >= 3
-                && word.chars().any(char::is_lowercase)
-                && word.chars().all(|ch| ch.is_ascii_alphabetic())
+            word.len() >= 3 && word.chars().any(char::is_lowercase) && word.chars().all(|ch| ch.is_ascii_alphabetic())
         })
         .count();
     prose_words >= 3
+}
+
+fn looks_like_plain_word_code(text: &str) -> bool {
+    !text.is_empty()
+        && text
+            .chars()
+            .all(|ch| ch.is_alphabetic() || matches!(ch, '-' | '\'' | '’'))
 }
 
 fn looks_prose_like(text: &str) -> bool {
@@ -1314,7 +1332,7 @@ mod tests {
             migrated.output,
             concat!(
                 r"Use \(B_{t}\), \(\phi : B \to C\), \(\operatorname{Spec}(A)\), ",
-                r"\(\Omega_{A/A_{0}}^{1}\), and \(E_{11} : y^{2} + y = x^{3} - x^{2}\).",
+                r"\(\Omega^{1}_{A/A_{0}}\), and \(E_{11} : y^{2} + y = x^{3} - x^{2}\).",
                 "\n"
             )
         );
