@@ -53,6 +53,7 @@ pub(crate) enum UnicodeNodeKind<'src> {
     Plain(&'src str),
     Number(&'src str),
     Punctuation(&'src str),
+    CanonicalSource(String),
     DirectSymbol(&'src str),
     ExistingLatex(&'src str),
     StyledRun(StyledRun),
@@ -188,7 +189,22 @@ pub(crate) enum UnicodeParseDiagnosticKind {
     UnknownUnicodeSourceShape,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct UnicodeParseOutput<'src> {
+    pub(crate) body: UnicodeMathBody<'src>,
+    pub(crate) diagnostics: Vec<UnicodeParseDiagnostic>,
+}
+
 pub(crate) fn parse_unicode_math_body(source: &str) -> Result<UnicodeMathBody<'_>, Vec<UnicodeParseDiagnostic>> {
+    let parsed = parse_unicode_math_body_with_diagnostics(source);
+    if parsed.diagnostics.is_empty() {
+        Ok(parsed.body)
+    } else {
+        Err(parsed.diagnostics)
+    }
+}
+
+pub(crate) fn parse_unicode_math_body_with_diagnostics(source: &str) -> UnicodeParseOutput<'_> {
     let stream = UnicodeTokenStream::new(source);
     let mut diagnostics = stream
         .diagnostics()
@@ -198,11 +214,7 @@ pub(crate) fn parse_unicode_math_body(source: &str) -> Result<UnicodeMathBody<'_
     let mut parser = UnicodeParser::new(stream.source(), stream.tokens());
     let body = parser.parse_sequence(Stop::TopLevel);
     diagnostics.extend(parser.diagnostics);
-    if diagnostics.is_empty() {
-        Ok(body)
-    } else {
-        Err(diagnostics)
-    }
+    UnicodeParseOutput { body, diagnostics }
 }
 
 fn convert_lex_diagnostic(diagnostic: &UnicodeLexDiagnostic) -> UnicodeParseDiagnostic {
@@ -280,6 +292,7 @@ impl<'stream, 'src> UnicodeParser<'stream, 'src> {
                 Some(UnicodeNode::new(UnicodeNodeKind::DirectSymbol(text), token.span()))
             }
             UnicodeTokenKind::SquareRoot => self.parse_root(None),
+            UnicodeTokenKind::PrefixOverline => self.parse_prefix_overline(),
             UnicodeTokenKind::ExistingLatex(text) => {
                 self.cursor.advance();
                 Some(UnicodeNode::new(UnicodeNodeKind::ExistingLatex(text), token.span()))
@@ -332,10 +345,9 @@ impl<'stream, 'src> UnicodeParser<'stream, 'src> {
             UnicodeTokenKind::ArrowShaft(_) => self.parse_right_arrow(),
             UnicodeTokenKind::ArrowHead(TokenArrowDirection::Left) => self.parse_left_arrow(),
             UnicodeTokenKind::ArrowHead(TokenArrowDirection::Right) => {
-                self.unproven_arrow(token.span(), "right arrow head has no shaft");
                 self.cursor.advance();
                 Some(UnicodeNode::new(
-                    UnicodeNodeKind::Unknown(&self.source[token.span().as_range()]),
+                    UnicodeNodeKind::DirectSymbol(&self.source[token.span().as_range()]),
                     token.span(),
                 ))
             }
@@ -362,7 +374,6 @@ impl<'stream, 'src> UnicodeParser<'stream, 'src> {
 
     fn parse_postfix(&mut self, mut base: UnicodeNode<'src>) -> Option<UnicodeNode<'src>> {
         loop {
-            self.skip_whitespace();
             let token = self.cursor.peek();
             match token.kind() {
                 UnicodeTokenKind::UnicodeScriptRun { position, source } => {
@@ -513,8 +524,34 @@ impl<'stream, 'src> UnicodeParser<'stream, 'src> {
         ))
     }
 
+    fn parse_prefix_overline(&mut self) -> Option<UnicodeNode<'src>> {
+        let overline = self.cursor.advance();
+        let Some(target) = self.parse_primary() else {
+            self.diagnostics.push(UnicodeParseDiagnostic::new(
+                UnicodeParseDiagnosticKind::UnexpectedToken,
+                overline.span(),
+                "overline prefix has no body",
+            ));
+            return Some(UnicodeNode::new(
+                UnicodeNodeKind::Unknown(&self.source[overline.span().as_range()]),
+                overline.span(),
+            ));
+        };
+        let target_span = target.span;
+        Some(UnicodeNode::new(
+            UnicodeNodeKind::Accent(Accent {
+                accent: CombiningAccent::Overline,
+                target: match target.kind {
+                    UnicodeNodeKind::Group(group) => AccentTarget::Group(group),
+                    _ => AccentTarget::Node(Box::new(target)),
+                },
+            }),
+            join_spans(overline.span(), target_span),
+        ))
+    }
+
     fn accent_cluster_node(&mut self, base: &str, accents: &[CombiningAccent], span: SourceSpan) -> UnicodeNode<'src> {
-        let mut node = UnicodeNode::new(base_node_kind(base, &self.source[span.as_range()]), span);
+        let mut node = UnicodeNode::new(UnicodeNodeKind::CanonicalSource(base.to_owned()), span);
         for accent in accents {
             if base == "'" {
                 self.diagnostics.push(UnicodeParseDiagnostic::new(
@@ -651,14 +688,16 @@ impl<'stream, 'src> UnicodeParser<'stream, 'src> {
     }
 
     fn parse_left_arrow(&mut self) -> Option<UnicodeNode<'src>> {
+        let checkpoint = self.cursor.checkpoint();
         let head = self.cursor.advance();
         let label_start = self.cursor.peek().span();
         let label = self.parse_sequence(Stop::ArrowLabel);
         let shaft = self.cursor.peek();
         if !matches!(shaft.kind(), UnicodeTokenKind::ArrowShaft(_)) {
-            self.unproven_arrow(head.span(), "left arrow head is not closed by a shaft");
+            self.cursor.restore(checkpoint);
+            let head = self.cursor.advance();
             return Some(UnicodeNode::new(
-                UnicodeNodeKind::Unknown(&self.source[head.span().as_range()]),
+                UnicodeNodeKind::DirectSymbol(&self.source[head.span().as_range()]),
                 head.span(),
             ));
         }

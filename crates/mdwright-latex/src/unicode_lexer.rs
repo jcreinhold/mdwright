@@ -67,6 +67,7 @@ pub(crate) enum UnicodeTokenKind<'src> {
         base: String,
         accents: Vec<CombiningAccent>,
     },
+    PrefixOverline,
     CombiningAccentMark(CombiningAccent),
     DirectSymbol(&'src str),
     SquareRoot,
@@ -99,6 +100,7 @@ pub(crate) enum CombiningAccent {
     Vec,
     Overleftarrow,
     Overleftrightarrow,
+    Overline,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -281,7 +283,7 @@ impl<'src> UnicodeLexer<'src> {
         }
         if let Some(accent) = combining_accent(ch) {
             let span = SourceSpan::new(start, end);
-            if self.previous_non_whitespace_is_not_group_close() {
+            if !self.has_previous_non_whitespace() {
                 self.diagnostics.push(UnicodeLexDiagnostic::new(
                     UnicodeLexDiagnosticKind::DetachedCombiningMark,
                     span,
@@ -296,6 +298,7 @@ impl<'src> UnicodeLexer<'src> {
         match ch {
             '^' => self.push_single(start, end, UnicodeTokenKind::SuperscriptMarker),
             '_' => self.push_single(start, end, UnicodeTokenKind::SubscriptMarker),
+            '‾' => self.push_single(start, end, UnicodeTokenKind::PrefixOverline),
             '{' => self.push_single(start, end, UnicodeTokenKind::LeftBrace),
             '}' => self.push_single(start, end, UnicodeTokenKind::RightBrace),
             '[' => self.push_single(start, end, UnicodeTokenKind::LeftBracket),
@@ -314,6 +317,9 @@ impl<'src> UnicodeLexer<'src> {
                 if self.push_combining_accent_cluster(start) {
                     return;
                 }
+                self.push_single(start, end, UnicodeTokenKind::Punctuation(&self.source[start..end]));
+            }
+            _ if is_prime_mark(ch) => {
                 self.push_single(start, end, UnicodeTokenKind::Punctuation(&self.source[start..end]));
             }
             _ if self.is_direct_symbol(start, end) => {
@@ -538,12 +544,8 @@ impl<'src> UnicodeLexer<'src> {
         unicode_symbol_latex_source(&self.source[start..end]).is_some()
     }
 
-    fn previous_non_whitespace_is_not_group_close(&self) -> bool {
-        self.source[..self.cursor]
-            .chars()
-            .rev()
-            .find(|ch| !ch.is_whitespace())
-            .is_none_or(|ch| !matches!(ch, '}'))
+    fn has_previous_non_whitespace(&self) -> bool {
+        self.source[..self.cursor].chars().rev().any(|ch| !ch.is_whitespace())
     }
 
     fn peek_char(&self) -> Option<(usize, char, usize)> {
@@ -613,6 +615,10 @@ fn is_left_arrow_head(ch: char) -> bool {
 
 fn is_ascii_punctuation(ch: char) -> bool {
     ch.is_ascii_punctuation()
+}
+
+fn is_prime_mark(ch: char) -> bool {
+    matches!(ch, '′' | '″' | '‴' | '⁗')
 }
 
 #[cfg(test)]
