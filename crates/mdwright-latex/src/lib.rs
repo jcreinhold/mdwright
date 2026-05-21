@@ -14,7 +14,7 @@
 
 mod error;
 mod layout;
-#[cfg(test)]
+#[allow(dead_code, reason = "parser work consumes this private lexer in the next phase")]
 mod lexer;
 mod parser;
 mod registry;

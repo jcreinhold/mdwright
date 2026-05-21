@@ -9,7 +9,6 @@ pub struct SourceSpan {
 }
 
 impl SourceSpan {
-    #[cfg(test)]
     pub(crate) const fn new(start: usize, end: usize) -> Self {
         Self { start, end }
     }
@@ -53,15 +52,6 @@ pub struct LatexError {
 }
 
 impl LatexError {
-    #[cfg(test)]
-    pub(crate) fn new(kind: LatexErrorKind, span: SourceSpan, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            span,
-            message: message.into(),
-        }
-    }
-
     /// Error category.
     #[must_use]
     pub const fn kind(&self) -> &LatexErrorKind {
