@@ -775,6 +775,7 @@ fn classify_inline_code(text: &str) -> InlineCodeEligibility {
             "diagram/layout glyphs are present",
         );
     }
+    let has_ascii_formula = looks_like_ascii_math_fragment(trimmed);
     if looks_like_short_label(trimmed) {
         return inline_skip(
             InlineSkipReason::ShortLabel,
@@ -783,7 +784,7 @@ fn classify_inline_code(text: &str) -> InlineCodeEligibility {
     }
 
     let has_tex = has_tex_command(trimmed);
-    let has_signal = has_strong_math_signal(trimmed) || has_script_syntax(trimmed) || has_tex;
+    let has_signal = has_strong_math_signal(trimmed) || has_script_syntax(trimmed) || has_tex || has_ascii_formula;
     if !has_signal && looks_like_plain_word_code(trimmed) {
         return inline_skip(InlineSkipReason::ProseLikeCode, "plain word is preserved as code");
     }
@@ -1163,12 +1164,134 @@ fn is_strong_math_char(ch: char) -> bool {
 }
 
 fn looks_like_short_label(text: &str) -> bool {
+    let is_bracketed = (text.starts_with('(') && text.ends_with(')')) || (text.starts_with('[') && text.ends_with(']'));
     let bare = text.trim_matches(|ch: char| matches!(ch, '(' | ')' | '[' | ']'));
-    !bare.is_empty()
-        && bare.len() <= 4
-        && bare
+    if bare.is_empty() || bare.len() > 4 {
+        return false;
+    }
+    if !bare
+        .chars()
+        .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '-' || ch == '_')
+    {
+        return false;
+    }
+    is_bracketed || !is_single_ascii_identifier(bare)
+}
+
+fn looks_like_ascii_math_fragment(text: &str) -> bool {
+    if !text.is_ascii() || text.is_empty() || looks_like_reference_citation(text) {
+        return false;
+    }
+    if is_single_ascii_identifier(text) {
+        return true;
+    }
+    if !text.chars().all(is_ascii_math_fragment_char) || !text.chars().any(|ch| ch.is_ascii_alphabetic()) {
+        return false;
+    }
+    is_ascii_function_application(text)
+        || is_ascii_singleton_group(text)
+        || is_ascii_tuple_of_identifiers(text)
+        || is_ascii_fraction_like(text)
+        || has_ascii_relation_or_operator(text)
+        || is_ascii_prime_identifier(text)
+}
+
+fn is_single_ascii_identifier(text: &str) -> bool {
+    let mut chars = text.chars();
+    chars.next().is_some_and(|ch| ch.is_ascii_alphabetic()) && chars.next().is_none()
+}
+
+fn is_ascii_math_fragment_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric()
+        || ch.is_ascii_whitespace()
+        || matches!(
+            ch,
+            '_' | '^'
+                | '{'
+                | '}'
+                | '('
+                | ')'
+                | '['
+                | ']'
+                | '='
+                | '<'
+                | '>'
+                | '+'
+                | '-'
+                | '*'
+                | '/'
+                | ','
+                | ':'
+                | '.'
+                | '\''
+                | '|'
+        )
+}
+
+fn looks_like_reference_citation(text: &str) -> bool {
+    let bare = text.trim_matches(|ch: char| matches!(ch, '(' | ')' | '[' | ']'));
+    bare.contains(',')
+        && bare.contains('.')
+        && bare.chars().any(|ch| ch.is_ascii_digit())
+        && bare.chars().any(|ch| ch.is_ascii_alphabetic())
+}
+
+fn is_ascii_function_application(text: &str) -> bool {
+    let Some(open) = text.find('(') else {
+        return false;
+    };
+    open > 0
+        && text.ends_with(')')
+        && text[..open].chars().all(|ch| ch.is_ascii_alphabetic())
+        && text[open + 1..text.len() - 1]
             .chars()
-            .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '-' || ch == '_')
+            .any(|ch| ch.is_ascii_alphabetic() || ch.is_ascii_digit())
+}
+
+fn is_ascii_singleton_group(text: &str) -> bool {
+    let Some(inner) = text.strip_prefix('{').and_then(|value| value.strip_suffix('}')) else {
+        return false;
+    };
+    is_single_ascii_identifier(inner)
+}
+
+fn is_ascii_tuple_of_identifiers(text: &str) -> bool {
+    let Some(inner) = text.strip_prefix('(').and_then(|value| value.strip_suffix(')')) else {
+        return false;
+    };
+    let mut count = 0usize;
+    for part in inner.split(',') {
+        count = count.saturating_add(1);
+        if !is_single_ascii_identifier(part.trim()) {
+            return false;
+        }
+    }
+    count >= 2
+}
+
+fn has_ascii_relation_or_operator(text: &str) -> bool {
+    text.contains(" - ")
+        || text
+            .chars()
+            .any(|ch| matches!(ch, '=' | '<' | '>' | '+' | '*' | ':' | '|'))
+}
+
+fn is_ascii_fraction_like(text: &str) -> bool {
+    let Some((left, right)) = text.split_once('/') else {
+        return false;
+    };
+    !left.trim().is_empty()
+        && !right.trim().is_empty()
+        && left.chars().any(|ch| ch.is_ascii_alphanumeric())
+        && right.chars().any(|ch| ch.is_ascii_alphanumeric())
+        && !text.contains("://")
+}
+
+fn is_ascii_prime_identifier(text: &str) -> bool {
+    let Some(base) = text.strip_suffix('\'') else {
+        return false;
+    };
+    is_single_ascii_identifier(base)
 }
 
 fn looks_like_mixed_formula_and_prose(text: &str) -> bool {
@@ -1486,6 +1609,10 @@ mod tests {
         assert_eq!(skip.reason, expected);
     }
 
+    fn assert_inline_ignore(source: &str) {
+        assert_eq!(classify_inline_code(source), InlineCodeEligibility::Ignore);
+    }
+
     fn assert_block_line_class(source: &str, expected: CodeBlockLineClass) {
         assert_eq!(classify_code_block_line(source), expected, "line {source:?}");
     }
@@ -1517,12 +1644,20 @@ mod tests {
         assert_inline_class(r"\alpha_i", InlineCodeClass::AlreadyLatexMathFragment);
         assert_inline_class("φ : B → C", InlineCodeClass::TranslatedUnicodeFormula);
         assert_inline_class("B_t", InlineCodeClass::TranslatedUnicodeFormula);
+        assert_inline_class("X", InlineCodeClass::HighConfidenceFormula);
+        assert_inline_class("x", InlineCodeClass::HighConfidenceFormula);
+        assert_inline_class("f(X)", InlineCodeClass::HighConfidenceFormula);
+        assert_inline_class("f(x) = y", InlineCodeClass::HighConfidenceFormula);
+        assert_inline_class("x < a", InlineCodeClass::HighConfidenceFormula);
+        assert_inline_class("{z}", InlineCodeClass::HighConfidenceFormula);
+        assert_inline_class("(m, s)", InlineCodeClass::HighConfidenceFormula);
     }
 
     #[test]
     fn inline_classifier_names_skip_reasons() {
         assert_inline_skip("préschéma", InlineSkipReason::ProseLikeCode);
         assert_inline_skip("(TF)", InlineSkipReason::ShortLabel);
+        assert_inline_skip("TF", InlineSkipReason::ShortLabel);
         assert_inline_skip("A ↙ B", InlineSkipReason::DiagramLikeNotation);
         assert_inline_skip("A ⧟ B", InlineSkipReason::UnsupportedButVisibleMath);
         assert_inline_skip(
@@ -1530,6 +1665,22 @@ mod tests {
             InlineSkipReason::MixedFormulaAndProse,
         );
         assert_inline_skip("((A'_i)_{𝔪'})^", InlineSkipReason::UnsafeTranslationDiagnostics);
+        assert_inline_ignore("I, 6.3.7");
+        assert_inline_ignore("i/");
+        assert_inline_ignore("iii/");
+        assert_inline_ignore("(N.M.K)");
+    }
+
+    #[test]
+    fn inline_ascii_math_fragments_convert_to_inline_math() -> Result<()> {
+        let source = "Let `X`, `f(X)`, `x < a`, `{z}`, and `(m, s)` be fixed.\n";
+        let migrated = migrate_source(source)?;
+        assert_eq!(
+            migrated.output,
+            r"Let \(X\), \(f(X)\), \(x < a\), \({z}\), and \((m, s)\) be fixed.".to_owned() + "\n"
+        );
+        assert_eq!(migrated.edit_count, 5);
+        Ok(())
     }
 
     #[test]
