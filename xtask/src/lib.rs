@@ -22,6 +22,7 @@ pub mod config_docs;
 pub mod diagnose_fuzz;
 pub mod gfm_spec;
 pub mod mdformat_parity;
+pub mod migrate_math_markdown;
 pub mod parser_audit;
 pub mod production_soak;
 pub mod release_evidence;

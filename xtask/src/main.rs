@@ -130,6 +130,22 @@ enum Command {
         #[arg(long, default_value = "target/mdwright/release")]
         output: PathBuf,
     },
+    /// Hidden one-off migration for math stored in code spans/blocks.
+    #[command(hide = true)]
+    MigrateMathMarkdown {
+        /// Markdown file or directory tree to migrate.
+        #[arg(long)]
+        root: PathBuf,
+        /// Print patch-compatible diffs; do not write.
+        #[arg(long)]
+        diff: bool,
+        /// Rewrite files in place.
+        #[arg(long)]
+        write: bool,
+        /// Exit 1 if files would change; do not write.
+        #[arg(long)]
+        check: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -317,6 +333,34 @@ fn run() -> Result<ExitCode> {
                 Ok(ExitCode::from(1))
             }
         }
+        Command::MigrateMathMarkdown {
+            root,
+            diff,
+            write,
+            check,
+        } => {
+            let mode = migrate_mode(diff, write, check)?;
+            let root = if root.is_absolute() { root } else { workspace.join(root) };
+            let summary = xtask::migrate_math_markdown::run(&root, mode)?;
+            if matches!(
+                mode,
+                xtask::migrate_math_markdown::MigrateMode::Diff | xtask::migrate_math_markdown::MigrateMode::Check
+            ) && summary.changed_files > 0
+            {
+                Ok(ExitCode::from(1))
+            } else {
+                Ok(ExitCode::SUCCESS)
+            }
+        }
+    }
+}
+
+fn migrate_mode(diff: bool, write: bool, check: bool) -> Result<xtask::migrate_math_markdown::MigrateMode> {
+    match (diff, write, check) {
+        (true, false, false) => Ok(xtask::migrate_math_markdown::MigrateMode::Diff),
+        (false, true, false) => Ok(xtask::migrate_math_markdown::MigrateMode::Write),
+        (false, false, true) => Ok(xtask::migrate_math_markdown::MigrateMode::Check),
+        _ => anyhow::bail!("choose exactly one of --diff, --write, or --check"),
     }
 }
 
