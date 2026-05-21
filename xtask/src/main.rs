@@ -145,6 +145,9 @@ enum Command {
         /// Exit 1 if files would change; do not write.
         #[arg(long)]
         check: bool,
+        /// Write a local Markdown evidence report and adjacent JSON report.
+        #[arg(long)]
+        report: Option<PathBuf>,
     },
 }
 
@@ -338,10 +341,12 @@ fn run() -> Result<ExitCode> {
             diff,
             write,
             check,
+            report,
         } => {
             let mode = migrate_mode(diff, write, check)?;
             let root = if root.is_absolute() { root } else { workspace.join(root) };
-            let summary = xtask::migrate_math_markdown::run(&root, mode)?;
+            let report = report.map(|path| if path.is_absolute() { path } else { workspace.join(path) });
+            let summary = xtask::migrate_math_markdown::run_with_report(&root, mode, report.as_deref())?;
             if matches!(
                 mode,
                 xtask::migrate_math_markdown::MigrateMode::Diff | xtask::migrate_math_markdown::MigrateMode::Check
