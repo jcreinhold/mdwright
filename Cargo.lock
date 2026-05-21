@@ -1010,6 +1010,7 @@ name = "mdwright-latex"
 version = "0.1.0"
 dependencies = [
  "logos",
+ "proptest",
  "unicode-width",
 ]
 

@@ -156,6 +156,21 @@ pub fn translate_unicode_to_latex(source: &str) -> Translation {
                 cursor.next();
                 body.push_str(piece);
             }
+            if cursor.peek().is_some_and(|(_, next)| *next == '√') {
+                cursor.next();
+                if let Some(radicand) = take_unicode_radicand(&mut cursor) {
+                    out.push_str(r"\sqrt[");
+                    out.push_str(&body);
+                    out.push_str("]{");
+                    out.push_str(translate_unicode_to_latex(&radicand).text());
+                    out.push('}');
+                } else {
+                    out.push_str("^{");
+                    out.push_str(&body);
+                    out.push_str("}√");
+                }
+                continue;
+            }
             out.push_str("^{");
             out.push_str(&body);
             out.push('}');
@@ -175,6 +190,20 @@ pub fn translate_unicode_to_latex(source: &str) -> Translation {
             out.push('}');
             continue;
         }
+        if ch == '√' {
+            if let Some(radicand) = take_unicode_radicand(&mut cursor) {
+                out.push_str(r"\sqrt{");
+                out.push_str(translate_unicode_to_latex(&radicand).text());
+                out.push('}');
+            } else {
+                out.push(ch);
+            }
+            continue;
+        }
+        if is_latex_source_syntax(ch) {
+            out.push(ch);
+            continue;
+        }
 
         let symbol = ch.to_string();
         if let Some(command) = unicode_symbol_latex(&symbol) {
@@ -188,6 +217,31 @@ pub fn translate_unicode_to_latex(source: &str) -> Translation {
         }
     }
     Translation::from_parts(source, out, Vec::new(), Vec::new())
+}
+
+fn take_unicode_radicand(cursor: &mut std::iter::Peekable<std::str::CharIndices<'_>>) -> Option<String> {
+    let (_, ch) = cursor.peek().copied()?;
+    if is_unicode_radicand_boundary(ch) {
+        return None;
+    }
+    cursor.next();
+    let mut body = ch.to_string();
+    while let Some((_, next)) = cursor.peek().copied() {
+        if unicode_super_latex(next).is_none() && unicode_sub_latex(next).is_none() {
+            break;
+        }
+        cursor.next();
+        body.push(next);
+    }
+    Some(body)
+}
+
+fn is_unicode_radicand_boundary(ch: char) -> bool {
+    ch.is_whitespace() || matches!(ch, '+' | '-' | '=' | '<' | '>' | ',' | ';' | ':' | ')' | ']' | '}')
+}
+
+fn is_latex_source_syntax(ch: char) -> bool {
+    matches!(ch, '\\' | '{' | '}' | '_' | '^')
 }
 
 /// Translate delimiter-excluded LaTeX math body ranges inside a larger source.
@@ -589,6 +643,22 @@ mod tests {
         assert_eq!(
             translated.losses()[0].reason(),
             "fraction has no unambiguous editable Unicode source form"
+        );
+    }
+
+    #[test]
+    fn unicode_roots_translate_to_preferred_latex_source() {
+        assert_eq!(translate_unicode_to_latex("√x").text(), r"\sqrt{x}");
+        assert_eq!(translate_unicode_to_latex("ⁿ√x").text(), r"\sqrt[n]{x}");
+        assert_eq!(translate_unicode_to_latex("√x²").text(), r"\sqrt{x^{2}}");
+    }
+
+    #[test]
+    fn unicode_to_latex_preserves_visible_latex_fallback_syntax() {
+        assert_eq!(translate_unicode_to_latex(r"\frac{a}{b}").text(), r"\frac{a}{b}");
+        assert_eq!(
+            translate_unicode_to_latex(r"x_{n} + \color{red}{x}").text(),
+            r"x_{n} + \color{red}{x}"
         );
     }
 
