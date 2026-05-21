@@ -148,6 +148,9 @@ enum Command {
         /// Write a local Markdown evidence report and adjacent JSON report.
         #[arg(long)]
         report: Option<PathBuf>,
+        /// Math delimiters to use for converted code spans and blocks.
+        #[arg(long, value_enum, default_value_t = MathDelimiterStyleArg::Tex, hide = true)]
+        math_delimiters: MathDelimiterStyleArg,
     },
 }
 
@@ -156,6 +159,21 @@ enum ParserAuditCaseSet {
     GfmSpec,
     Corpus,
     All,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum MathDelimiterStyleArg {
+    Tex,
+    Github,
+}
+
+impl From<MathDelimiterStyleArg> for xtask::migrate_math_markdown::MathDelimiterStyle {
+    fn from(style: MathDelimiterStyleArg) -> Self {
+        match style {
+            MathDelimiterStyleArg::Tex => Self::Tex,
+            MathDelimiterStyleArg::Github => Self::Github,
+        }
+    }
 }
 
 fn main() -> ExitCode {
@@ -342,11 +360,17 @@ fn run() -> Result<ExitCode> {
             write,
             check,
             report,
+            math_delimiters,
         } => {
             let mode = migrate_mode(diff, write, check)?;
             let root = if root.is_absolute() { root } else { workspace.join(root) };
             let report = report.map(|path| if path.is_absolute() { path } else { workspace.join(path) });
-            let summary = xtask::migrate_math_markdown::run_with_report(&root, mode, report.as_deref())?;
+            let summary = xtask::migrate_math_markdown::run_with_report_and_delimiters(
+                &root,
+                mode,
+                report.as_deref(),
+                math_delimiters.into(),
+            )?;
             if matches!(
                 mode,
                 xtask::migrate_math_markdown::MigrateMode::Diff | xtask::migrate_math_markdown::MigrateMode::Check

@@ -19,6 +19,28 @@ pub enum MigrateMode {
     Check,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MathDelimiterStyle {
+    Tex,
+    Github,
+}
+
+impl MathDelimiterStyle {
+    fn inline(self, body: &str) -> String {
+        match self {
+            Self::Tex => format!(r"\({body}\)"),
+            Self::Github => format!("${body}$"),
+        }
+    }
+
+    fn display(self, raw_had_final_newline: bool, body: &str) -> String {
+        match self {
+            Self::Tex => display_math_replacement(raw_had_final_newline, body),
+            Self::Github => display_math_dollar_replacement(raw_had_final_newline, body),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MigrationSummary {
     pub changed_files: usize,
@@ -223,7 +245,7 @@ struct MigrationEvidenceReport {
     blockers: Vec<EvidenceItem>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 struct CategoryCount {
     class: EvidenceClass,
     count: usize,
@@ -450,6 +472,15 @@ pub fn run(root: &Path, mode: MigrateMode) -> Result<MigrationSummary> {
 }
 
 pub fn run_with_report(root: &Path, mode: MigrateMode, report_path: Option<&Path>) -> Result<MigrationSummary> {
+    run_with_report_and_delimiters(root, mode, report_path, MathDelimiterStyle::Tex)
+}
+
+pub fn run_with_report_and_delimiters(
+    root: &Path,
+    mode: MigrateMode,
+    report_path: Option<&Path>,
+    delimiters: MathDelimiterStyle,
+) -> Result<MigrationSummary> {
     let files = markdown_files(root)?;
     let files_scanned = files.len();
     let mut summary = MigrationSummary {
@@ -461,7 +492,7 @@ pub fn run_with_report(root: &Path, mode: MigrateMode, report_path: Option<&Path
 
     for path in files {
         let source = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-        let migration = migrate_source_collecting_evidence(&source, &path, evidence.as_mut())
+        let migration = migrate_source_collecting_evidence(&source, &path, evidence.as_mut(), delimiters)
             .with_context(|| format!("migrate {}", path.display()))?;
         if migration.output == source {
             continue;
@@ -503,13 +534,18 @@ pub fn run_with_report(root: &Path, mode: MigrateMode, report_path: Option<&Path
 }
 
 pub fn migrate_source(source: &str) -> Result<SourceMigration> {
-    migrate_source_collecting_evidence(source, Path::new("<memory>"), None)
+    migrate_source_with_delimiters(source, MathDelimiterStyle::Tex)
+}
+
+fn migrate_source_with_delimiters(source: &str, delimiters: MathDelimiterStyle) -> Result<SourceMigration> {
+    migrate_source_collecting_evidence(source, Path::new("<memory>"), None, delimiters)
 }
 
 fn migrate_source_collecting_evidence(
     source: &str,
     path: &Path,
     mut evidence: Option<&mut EvidenceCollector>,
+    delimiters: MathDelimiterStyle,
 ) -> Result<SourceMigration> {
     let document = Document::parse(source)?;
     let mut targets = Vec::new();
@@ -585,7 +621,7 @@ fn migrate_source_collecting_evidence(
         record_surrounding_prose_hits(source, path, &source_fact_ranges, collector);
     }
 
-    migrate_targets_collecting_evidence(source, path, targets, evidence)
+    migrate_targets_collecting_evidence(source, path, targets, evidence, delimiters)
 }
 
 fn overlaps_any(range: &Range<usize>, occupied: &[Range<usize>]) -> bool {
@@ -605,7 +641,7 @@ fn inline_code_target(
 
 #[cfg(test)]
 fn migrate_targets(source: &str, targets: Vec<MathMigrationTarget>) -> Result<SourceMigration> {
-    migrate_targets_collecting_evidence(source, Path::new("<memory>"), targets, None)
+    migrate_targets_collecting_evidence(source, Path::new("<memory>"), targets, None, MathDelimiterStyle::Tex)
 }
 
 fn migrate_targets_collecting_evidence(
@@ -613,11 +649,14 @@ fn migrate_targets_collecting_evidence(
     path: &Path,
     targets: Vec<MathMigrationTarget>,
     mut evidence: Option<&mut EvidenceCollector>,
+    delimiters: MathDelimiterStyle,
 ) -> Result<SourceMigration> {
     let targets = sorted_non_overlapping_targets(targets)?;
     let mut edits = Vec::new();
     for target in targets {
-        if let Some(edit) = target_to_edit_collecting_evidence(source, path, &target, evidence.as_deref_mut())? {
+        if let Some(edit) =
+            target_to_edit_collecting_evidence(source, path, &target, evidence.as_deref_mut(), delimiters)?
+        {
             edits.push(edit);
         }
     }
@@ -632,6 +671,7 @@ fn target_to_edit_collecting_evidence(
     path: &Path,
     target: &MathMigrationTarget,
     mut evidence: Option<&mut EvidenceCollector>,
+    delimiters: MathDelimiterStyle,
 ) -> Result<Option<Edit>> {
     match target {
         MathMigrationTarget::ExistingMathBody { body } => {
@@ -700,7 +740,7 @@ fn target_to_edit_collecting_evidence(
             }
             Ok(Some(Edit {
                 range: raw.clone(),
-                replacement: format!(r"\({}\)", candidate.translated_body),
+                replacement: delimiters.inline(&candidate.translated_body),
             }))
         }
         MathMigrationTarget::CodeBlockToDisplayMath { raw, body, candidate } => {
@@ -718,7 +758,7 @@ fn target_to_edit_collecting_evidence(
             }
             Ok(Some(Edit {
                 range: raw.clone(),
-                replacement: display_math_replacement(raw_ends_with_newline(source, raw), &candidate.translated_body),
+                replacement: delimiters.display(raw_ends_with_newline(source, raw), &candidate.translated_body),
             }))
         }
     }
@@ -1184,6 +1224,17 @@ fn display_math_replacement(raw_had_final_newline: bool, body: &str) -> String {
     out
 }
 
+fn display_math_dollar_replacement(raw_had_final_newline: bool, body: &str) -> String {
+    let trimmed = body.trim_matches(|ch| matches!(ch, '\n' | '\r'));
+    let mut out = String::from("$$\n");
+    out.push_str(trimmed);
+    out.push_str("\n$$");
+    if raw_had_final_newline {
+        out.push('\n');
+    }
+    out
+}
+
 fn raw_ends_with_newline(source: &str, range: &Range<usize>) -> bool {
     source
         .get(range.clone())
@@ -1388,8 +1439,16 @@ mod tests {
     use super::*;
 
     fn evidence_report_for_source(source: &str) -> Result<MigrationEvidenceReport> {
+        evidence_report_for_source_with_delimiters(source, MathDelimiterStyle::Tex)
+    }
+
+    fn evidence_report_for_source_with_delimiters(
+        source: &str,
+        delimiters: MathDelimiterStyle,
+    ) -> Result<MigrationEvidenceReport> {
         let mut collector = EvidenceCollector::default();
-        let migration = migrate_source_collecting_evidence(source, Path::new("sample.md"), Some(&mut collector))?;
+        let migration =
+            migrate_source_collecting_evidence(source, Path::new("sample.md"), Some(&mut collector), delimiters)?;
         let summary = MigrationSummary {
             changed_files: usize::from(migration.output != source),
             edit_count: migration.edit_count,
@@ -1444,6 +1503,15 @@ mod tests {
     }
 
     #[test]
+    fn github_delimiters_convert_inline_code_with_dollar_math() -> Result<()> {
+        let source = "Let `αᵢ` hold.\n";
+        let migrated = migrate_source_with_delimiters(source, MathDelimiterStyle::Github)?;
+        assert_eq!(migrated.output, "Let $\\alpha_{i}$ hold.\n");
+        assert_eq!(migrated.edit_count, 1);
+        Ok(())
+    }
+
+    #[test]
     fn inline_classifier_names_conversion_classes() {
         assert_inline_class("αᵢ ≤ x²", InlineCodeClass::TranslatedUnicodeFormula);
         assert_inline_class(r"\alpha_i", InlineCodeClass::AlreadyLatexMathFragment);
@@ -1489,6 +1557,18 @@ mod tests {
     }
 
     #[test]
+    fn existing_math_body_translation_preserves_delimiters_under_github_style() -> Result<()> {
+        let source = r"Let \[αᵢ P^∨/S\] and \(β²\) hold.".to_owned() + "\n";
+        let migrated = migrate_source_with_delimiters(&source, MathDelimiterStyle::Github)?;
+        assert_eq!(
+            migrated.output,
+            r"Let \[\alpha_{i} P^{\vee}/S\] and \(β²\) hold.".to_owned() + "\n"
+        );
+        assert_eq!(migrated.edit_count, 1);
+        Ok(())
+    }
+
+    #[test]
     fn non_math_inline_code_remains_unchanged() -> Result<()> {
         let source = "Use `préschéma` and `(TF)` here.\n";
         let migrated = migrate_source(source)?;
@@ -1505,6 +1585,15 @@ mod tests {
             migrated.output,
             "Before\n\\[\n\\alpha_{i} \\leq x^{2}\nA \\xrightarrow{\\sim} B\n\\]\nAfter\n"
         );
+        assert_eq!(migrated.edit_count, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn github_delimiters_convert_code_blocks_with_dollar_display_math() -> Result<()> {
+        let source = "Before\n```text\nαᵢ ≤ x²\n```\nAfter\n";
+        let migrated = migrate_source_with_delimiters(source, MathDelimiterStyle::Github)?;
+        assert_eq!(migrated.output, "Before\n$$\n\\alpha_{i} \\leq x^{2}\n$$\nAfter\n");
         assert_eq!(migrated.edit_count, 1);
         Ok(())
     }
@@ -1756,6 +1845,17 @@ mod tests {
             1
         );
         assert_eq!(category_count(&report, EvidenceClass::TrueBlocker), 0);
+        Ok(())
+    }
+
+    #[test]
+    fn evidence_counts_are_unchanged_by_delimiter_style() -> Result<()> {
+        let source = "Let `αᵢ ≤ x²` hold.\n```text\nA ⥲ B\n```\n";
+        let tex = evidence_report_for_source_with_delimiters(source, MathDelimiterStyle::Tex)?;
+        let github = evidence_report_for_source_with_delimiters(source, MathDelimiterStyle::Github)?;
+        assert_eq!(tex.changed_files, github.changed_files);
+        assert_eq!(tex.edit_count, github.edit_count);
+        assert_eq!(tex.category_counts, github.category_counts);
         Ok(())
     }
 
