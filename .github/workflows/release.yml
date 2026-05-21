@@ -322,6 +322,7 @@ jobs:
       - name: Publish crates.io packages
         run: |
           set -euo pipefail
+          version="${RELEASE_TAG#v}"
           crates=(
             mdwright-latex
             mdwright-math
@@ -339,9 +340,18 @@ jobs:
           last_index=$((${#crates[@]} - 1))
           for index in "${!crates[@]}"; do
             crate="${crates[$index]}"
+            status="$(curl -sS -o /dev/null -w "%{http_code}" -A "mdwright-release-ci" "https://crates.io/api/v1/crates/${crate}/${version}")"
+            if [ "$status" = "200" ]; then
+              echo "$crate v$version is already published; skipping"
+              continue
+            fi
+            if [ "$status" != "404" ]; then
+              echo "::error::Could not determine crates.io status for $crate v$version; HTTP $status"
+              exit 1
+            fi
             cargo publish -p "$crate"
             if [ "$index" -lt "$last_index" ]; then
-              sleep 90
+              sleep 180
             fi
           done
 
