@@ -13,6 +13,7 @@
 //! and asserts the rendered HTML contains the expected math regions
 //! under each `--math-render` mode.
 
+use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -29,14 +30,27 @@ Inline: \( A \). Display:
 ";
 
 fn run_render(args: &[&str], stdin: &str) -> (bool, String, String) {
+    run_command("render", args, stdin, &[])
+}
+
+fn run_render_with_env(args: &[&str], stdin: &str, envs: &[(&str, &str)]) -> (bool, String, String) {
+    run_command("render", args, stdin, envs)
+}
+
+fn run_preview(args: &[&str], stdin: &str) -> (bool, String, String) {
+    run_command("preview", args, stdin, &[])
+}
+
+fn run_command(subcommand: &str, args: &[&str], stdin: &str, envs: &[(&str, &str)]) -> (bool, String, String) {
     let mut child = Command::new(mdwright_bin())
-        .arg("render")
+        .arg(subcommand)
         .args(args)
+        .envs(envs.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("spawn mdwright render");
+        .expect("spawn mdwright");
     child
         .stdin
         .as_mut()
@@ -49,6 +63,10 @@ fn run_render(args: &[&str], stdin: &str) -> (bool, String, String) {
         String::from_utf8_lossy(&out.stdout).into_owned(),
         String::from_utf8_lossy(&out.stderr).into_owned(),
     )
+}
+
+fn contains_ansi(text: &str) -> bool {
+    text.contains("\u{1b}[")
 }
 
 #[test]
@@ -101,4 +119,89 @@ fn render_profile_override_uses_cmark_gfm_html_spelling() {
         !stdout.contains("<table><thead>"),
         "pulldown compact table spelling leaked through:\n{stdout}"
     );
+}
+
+#[test]
+fn render_captured_stdout_is_raw_html_but_color_always_highlights() {
+    let (ok, stdout, stderr) = run_render(&[], "# Title\n");
+    assert!(ok, "render exited non-zero; stderr:\n{stderr}");
+    assert!(stdout.contains("<h1>Title</h1>"), "expected HTML:\n{stdout}");
+    assert!(!contains_ansi(&stdout), "captured default render should be raw HTML");
+
+    let (ok, stdout, stderr) = run_render(&["--color=always"], "# Title\n");
+    assert!(ok, "render exited non-zero; stderr:\n{stderr}");
+    assert!(
+        stdout.contains("Title"),
+        "highlighted HTML should preserve text:\n{stdout}"
+    );
+    assert!(contains_ansi(&stdout), "--color=always should ANSI-highlight HTML");
+}
+
+#[test]
+fn render_open_writes_html_and_keeps_stdout_empty() {
+    let (ok, stdout, stderr) = run_render_with_env(&["--open"], "# Browser\n", &[("MDWRIGHT_OPEN_DRY_RUN", "1")]);
+    assert!(ok, "render --open exited non-zero; stderr:\n{stderr}");
+    assert!(stdout.is_empty(), "render --open must not write HTML to stdout");
+    assert!(
+        stderr.contains("mdwright: opened "),
+        "render --open should report the temp path:\n{stderr}"
+    );
+    let path = stderr
+        .trim()
+        .strip_prefix("mdwright: opened ")
+        .expect("opened path prefix");
+    let html = fs::read_to_string(path).expect("read opened html");
+    assert!(
+        html.contains("<h1>Browser</h1>"),
+        "opened file should contain rendered HTML"
+    );
+    let _ignored = fs::remove_file(path);
+}
+
+#[test]
+fn preview_renders_terminal_text_not_html() {
+    let (ok, stdout, stderr) = run_preview(&[], "# Title\n\nSee [site](https://example.com).\n");
+    assert!(ok, "preview exited non-zero; stderr:\n{stderr}");
+    assert!(
+        stdout.contains("Title"),
+        "preview should contain heading text:\n{stdout}"
+    );
+    assert!(
+        !stdout.contains("<h1>") && !stdout.contains("<a "),
+        "preview should not emit HTML tags:\n{stdout}"
+    );
+}
+
+#[test]
+fn preview_math_modes_are_visible_and_fallback_is_successful() {
+    let source = "Inline \\( \\alpha_i \\) and \\( \\bar{x} \\).\n";
+    let (ok, stdout, stderr) = run_preview(&["--math=unicode"], source);
+    assert!(ok, "preview unicode exited non-zero; stderr:\n{stderr}");
+    assert!(
+        stdout.contains("αᵢ"),
+        "supported math should render to Unicode:\n{stdout}"
+    );
+    assert!(
+        stdout.contains(r"\bar{x}"),
+        "unsupported math should fall back to source:\n{stdout}"
+    );
+
+    let (ok, stdout, stderr) = run_preview(&["--math=source"], source);
+    assert!(ok, "preview source exited non-zero; stderr:\n{stderr}");
+    assert!(
+        stdout.contains(r"\( \alpha_i \)"),
+        "source mode should preserve math source:\n{stdout}"
+    );
+}
+
+#[test]
+fn preview_color_policy_is_explicit() {
+    let source = "# Title\n\n```rust\nfn main() {}\n```\n";
+    let (ok, stdout, stderr) = run_preview(&["--color=never"], source);
+    assert!(ok, "preview color=never exited non-zero; stderr:\n{stderr}");
+    assert!(!contains_ansi(&stdout), "--color=never should not emit ANSI");
+
+    let (ok, stdout, stderr) = run_preview(&["--color=always"], source);
+    assert!(ok, "preview color=always exited non-zero; stderr:\n{stderr}");
+    assert!(contains_ansi(&stdout), "--color=always should emit ANSI");
 }

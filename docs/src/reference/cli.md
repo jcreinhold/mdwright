@@ -18,6 +18,7 @@ Commands:
   list-rules  Print the rule catalogue
   explain     Print the long-form explanation of one lint rule
   render      Format the input and emit the rendered HTML to stdout
+  preview     Format the input and render a static terminal Markdown preview
   lsp         Run as a Language Server Protocol server over stdio
   help        Print this message or the help of the given subcommand(s)
 
@@ -30,7 +31,7 @@ Options:
 
       --max-input-bytes <BYTES>
           Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely
-          
+
           [default: 10000000]
 
       --reject-control-chars
@@ -75,17 +76,17 @@ Options:
           - compact: `file:line:col: rule: message` per line
           - json:    JSON Lines, v2 schema. See `docs/src/reference/diagnostic-schema.md`
           - json-v1: JSON Lines, v1 schema. Deprecated; emits a deprecation warning on stderr. Will be removed in a future release
-          
+
           [default: pretty]
 
       --max-input-bytes <BYTES>
           Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely
-          
+
           [default: 10000000]
 
       --color <COLOR>
           When to colour pretty output. `auto` (default) colours when stdout is a TTY; `always` forces colour; `never` disables it. Compact and JSON output are never coloured regardless
-          
+
           [default: auto]
           [possible values: auto, always, never]
 
@@ -94,7 +95,7 @@ Options:
 
   -j, --jobs <JOBS>
           Worker threads; 0 = rayon default (one per logical CPU)
-          
+
           [default: 0]
 
       --no-suppress
@@ -136,17 +137,17 @@ Options:
           - compact: `file:line:col: rule: message` per line
           - json:    JSON Lines, v2 schema. See `docs/src/reference/diagnostic-schema.md`
           - json-v1: JSON Lines, v1 schema. Deprecated; emits a deprecation warning on stderr. Will be removed in a future release
-          
+
           [default: pretty]
 
       --max-input-bytes <BYTES>
           Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely
-          
+
           [default: 10000000]
 
       --color <COLOR>
           When to colour pretty output. `auto` (default) colours when stdout is a TTY; `always` forces colour; `never` disables it. Compact and JSON output are never coloured regardless
-          
+
           [default: auto]
           [possible values: auto, always, never]
 
@@ -155,7 +156,7 @@ Options:
 
   -j, --jobs <JOBS>
           Worker threads; 0 = rayon default (one per logical CPU)
-          
+
           [default: 0]
 
       --no-suppress
@@ -191,7 +192,7 @@ Options:
 
       --max-input-bytes <BYTES>
           Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely
-          
+
           [default: 10000000]
 
       --stdin-filename <STDIN_FILENAME>
@@ -211,12 +212,12 @@ Options:
 
       --range <LINE:COL-LINE:COL>
           Format only the smallest set of whole top-level blocks covering `LINE:COL-LINE:COL` (both ends inclusive of start, exclusive of end; 0-based LSP convention). Reads from stdin only; writes the covering blocks to stdout. Mutually exclusive with `--check` and `--diff`.
-          
+
           Example: `--range 2:0-2:5` formats the block containing columns 0..5 of line 2.
 
       --math-render <MATH_RENDER>
           Delimiter rewrite policy for math regions at emit time. `none` (default) passes math through verbatim: today's behaviour. `commonmark-katex` is the same emission as `none` but greppable as an intent signal in build logs. `dollar` rewrites `\[…\]` to `$$ … $$` and `\(…\)` to `$ … $` for downstream renderers that prefer dollar delimiters; LaTeX environments are not rewritten. Overrides `[fmt.math] render` in the config file
-          
+
           [possible values: none, commonmark-katex, dollar]
 
   -h, --help
@@ -263,7 +264,7 @@ Options:
 ```text
 Format the input and emit the rendered HTML to stdout.
 
-Pipes the formatted output through the same HTML renderer the `format_validated` gate uses. mdwright does not typeset math itself; math regions land in the HTML as their source bytes (or as `--math-render=dollar` rewrites, if requested) so a downstream `KaTeX` / `MathJax` runner can render them.
+Pipes the formatted output through the same HTML renderer the `format_validated` gate uses. Captured stdout is raw HTML by default; terminals may request ANSI-highlighted HTML with `--color`, and `--open` writes the HTML to a temporary file before opening it in the system browser.
 
 Usage: mdwright render [OPTIONS] [PATHS]...
 
@@ -280,7 +281,7 @@ Options:
 
       --math-render <MATH_RENDER>
           Delimiter rewrite policy for math regions. See the corresponding flag on `mdwright fmt` for the modes
-          
+
           [possible values: none, commonmark-katex, dollar]
 
   -v, --verbose...
@@ -288,13 +289,71 @@ Options:
 
       --max-input-bytes <BYTES>
           Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely
-          
+
           [default: 10000000]
 
       --render-profile <RENDER_PROFILE>
           HTML spelling profile. `pulldown` preserves the default renderer; `cmark-gfm` matches cmark-gfm spelling for renderer differences that do not require changing parser semantics. Overrides `[render] profile` in the config file
-          
+
           [possible values: pulldown, cmark-gfm]
+
+      --color <COLOR>
+          When to colour HTML output. Captured stdout remains raw HTML under `auto`; `always` forces ANSI syntax highlighting and `never` disables it
+
+          [default: auto]
+          [possible values: auto, always, never]
+
+      --reject-control-chars
+          Refuse files (or stdin payloads) that contain C0 control bytes other than TAB, LF, FF, and CR. `CommonMark` accepts these verbatim (it only substitutes NUL with U+FFFD), but their presence is usually evidence the input is not Markdown, and pulldown's silent NUL rewrite makes round-trip idempotence undefined on such inputs. Off by default; opt-in for callers (CI gates, docs pipelines) that prefer hard rejection
+
+      --open
+          Write rendered HTML to a temporary `.html` file and open it in the system browser. Stdout is left empty; stderr reports the file path
+
+  -h, --help
+          Print help (see a summary with '-h')
+```
+
+## `mdwright preview`
+
+```text
+Format the input and render a static terminal Markdown preview
+
+Usage: mdwright preview [OPTIONS] [PATHS]...
+
+Arguments:
+  [PATHS]...
+          Files to preview. A literal `-` (or an empty list) reads from stdin. Multiple paths are concatenated in argument order with a single newline between, then previewed as one document
+
+Options:
+      --config <CONFIG>
+          Explicit path to a config file. When omitted, mdwright walks up from `$PWD` looking, at each ancestor, for `.mdwright.toml`, `mdwright.toml`, or `pyproject.toml` containing a `[tool.mdwright]` table (in that precedence). The walk stops at the filesystem root or the first directory containing `.git/` (the workspace boundary). If nothing matches, built-in defaults apply
+
+      --stdin-filename <STDIN_FILENAME>
+          File name to report when reading from stdin. Defaults to `<stdin>`. Cosmetic; surfaced in error messages only
+
+      --color <COLOR>
+          When to colour terminal output. `auto` colours when stdout is a TTY; `always` forces colour; `never` disables it
+
+          [default: auto]
+          [possible values: auto, always, never]
+
+  -v, --verbose...
+          Increase log verbosity. `-v` = info, `-vv` = debug, `-vvv` = trace. `RUST_LOG` overrides this when set
+
+      --math <MATH>
+          How terminal preview handles math regions
+
+          Possible values:
+          - unicode: Render the conservative supported LaTeX subset as Unicode, falling back to source when unsupported
+          - source:  Preserve math source bytes
+          - off:     Disable special terminal math rendering
+
+          [default: unicode]
+
+      --max-input-bytes <BYTES>
+          Refuse to read any single file (or stdin payload) larger than this many bytes. mdwright treats its input as untrusted; this cap bounds memory use against pathological inputs. Default 10 MB is generous enough that no real Markdown document trips it. Pass `0` to disable the cap entirely
+
+          [default: 10000000]
 
       --reject-control-chars
           Refuse files (or stdin payloads) that contain C0 control bytes other than TAB, LF, FF, and CR. `CommonMark` accepts these verbatim (it only substitutes NUL with U+FFFD), but their presence is usually evidence the input is not Markdown, and pulldown's silent NUL rewrite makes round-trip idempotence undefined on such inputs. Off by default; opt-in for callers (CI gates, docs pipelines) that prefer hard rejection

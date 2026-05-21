@@ -13,6 +13,7 @@ version.workspace = true
 
 [dependencies]
 mdwright-document = { workspace = true }
+mdwright-math = { workspace = true }
 regex = { workspace = true }
 
 [dev-dependencies]

@@ -38,7 +38,6 @@ mod heading_punctuation;
 mod inconsistent_list_marker;
 mod info_string_typo;
 mod latex_command;
-pub mod latex_unicode;
 mod list_tightness_flipped;
 mod math_unbalanced_braces;
 mod math_unbalanced_delim;

@@ -25,6 +25,7 @@ const SUBCOMMANDS: &[&str] = &[
     "fmt",
     "fmt-check",
     "render",
+    "preview",
     "list-rules",
     "explain",
     "lsp",
@@ -82,11 +83,19 @@ pub fn render(workspace: &Path, binary_override: Option<&Path>) -> Result<String
         }
         let help = String::from_utf8(output.stdout).with_context(|| format!("non-UTF8 help for `{subcmd}`"))?;
         out.push_str("```text\n");
-        out.push_str(help.trim_end_matches('\n'));
+        out.push_str(&strip_trailing_line_space(&help));
         out.push_str("\n```\n");
     }
 
     Ok(out)
+}
+
+fn strip_trailing_line_space(text: &str) -> String {
+    text.trim_end_matches('\n')
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Write the rendered page to disk.

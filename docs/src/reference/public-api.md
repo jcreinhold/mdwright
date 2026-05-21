@@ -17,6 +17,7 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 | Format editor ranges | `CheckpointTable`, `format_range`, `format_range_with_checkpoints` | `mdwright-format` |
 | Compare formatter semantics | `semantically_equivalent`, `first_divergence` | `mdwright-format` |
 | Represent TeX math-body diagnostics and output | `LatexError`, `LatexErrorKind`, `SourceSpan`, `RenderedLatex`, `Translation`, `TranslationLoss` | `mdwright-latex` |
+| Recognise and render math vocabulary | `scan_math_regions`, `render::convert_for_dollar`, `render_unicode_math`, `latex_symbol`, `unicode_symbol_latex`, `unicode_super`, `unicode_sub` | `mdwright-math` |
 | Run lint rules | `RuleSet`, `LintOptions` | `mdwright-lint` |
 | Consume lint output | `Diagnostic`, `Fix`, `Severity`, `Snippet`, `DuplicateRuleName` | `mdwright-lint` |
 | Apply safe lint fixes | `apply_safe_fixes` | `mdwright-lint` |

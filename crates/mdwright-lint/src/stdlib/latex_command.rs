@@ -13,8 +13,8 @@ use regex::Regex;
 use crate::diagnostic::{Diagnostic, Fix};
 use crate::regex_util::compile_static;
 use crate::rule::LintRule;
-use crate::stdlib::latex_unicode::latex_unicode;
 use mdwright_document::Document;
+use mdwright_math::latex_symbol;
 
 pub struct LatexCommand;
 
@@ -65,7 +65,7 @@ impl LintRule for LatexCommand {
                     continue;
                 }
                 let name = name_match.as_str();
-                let fix = latex_unicode(name).map(|u| Fix {
+                let fix = latex_symbol(name).map(|u| Fix {
                     replacement: u.to_owned(),
                     safe: true,
                 });

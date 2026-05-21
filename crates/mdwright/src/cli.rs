@@ -30,7 +30,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::io::{self, IsTerminal, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -44,6 +44,7 @@ use serde::Serialize;
 use similar::TextDiff;
 
 use crate::discover::discover_markdown;
+use crate::preview::{PreviewMath, PreviewOptions};
 use mdwright_config::Config;
 use mdwright_document::{
     Document, LineIndex, ParseOptions, RenderOptions, RenderProfile, contains_rejected_control_chars,
@@ -150,11 +151,13 @@ enum Command {
     /// Format the input and emit the rendered HTML to stdout.
     ///
     /// Pipes the formatted output through the same HTML renderer the
-    /// `format_validated` gate uses. mdwright does not typeset math
-    /// itself; math regions land in the HTML as their source bytes
-    /// (or as `--math-render=dollar` rewrites, if requested) so a
-    /// downstream `KaTeX` / `MathJax` runner can render them.
+    /// `format_validated` gate uses. Captured stdout is raw HTML by
+    /// default; terminals may request ANSI-highlighted HTML with
+    /// `--color`, and `--open` writes the HTML to a temporary file
+    /// before opening it in the system browser.
     Render(RenderArgs),
+    /// Format the input and render a static terminal Markdown preview.
+    Preview(PreviewArgs),
     /// Run as a Language Server Protocol server over stdio.
     Lsp,
 }
@@ -420,6 +423,62 @@ struct RenderArgs {
     /// Overrides `[render] profile` in the config file.
     #[arg(long, value_enum)]
     render_profile: Option<RenderProfileArg>,
+
+    /// When to colour HTML output. Captured stdout remains raw HTML
+    /// under `auto`; `always` forces ANSI syntax highlighting and
+    /// `never` disables it.
+    #[arg(long, value_enum, default_value_t = ColorChoice::Auto)]
+    color: ColorChoice,
+
+    /// Write rendered HTML to a temporary `.html` file and open it
+    /// in the system browser. Stdout is left empty; stderr reports
+    /// the file path.
+    #[arg(long)]
+    open: bool,
+}
+
+#[derive(Args, Debug)]
+struct PreviewArgs {
+    /// Files to preview. A literal `-` (or an empty list) reads from
+    /// stdin. Multiple paths are concatenated in argument order with
+    /// a single newline between, then previewed as one document.
+    paths: Vec<PathBuf>,
+
+    /// File name to report when reading from stdin. Defaults to
+    /// `<stdin>`. Cosmetic; surfaced in error messages only.
+    #[arg(long)]
+    stdin_filename: Option<PathBuf>,
+
+    /// When to colour terminal output. `auto` colours when stdout is
+    /// a TTY; `always` forces colour; `never` disables it.
+    #[arg(long, value_enum, default_value_t = ColorChoice::Auto)]
+    color: ColorChoice,
+
+    /// How terminal preview handles math regions.
+    #[arg(long, value_enum, default_value_t = PreviewMathArg::Unicode)]
+    math: PreviewMathArg,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum, Default)]
+enum PreviewMathArg {
+    /// Render the conservative supported LaTeX subset as Unicode,
+    /// falling back to source when unsupported.
+    #[default]
+    Unicode,
+    /// Preserve math source bytes.
+    Source,
+    /// Disable special terminal math rendering.
+    Off,
+}
+
+impl From<PreviewMathArg> for PreviewMath {
+    fn from(value: PreviewMathArg) -> Self {
+        match value {
+            PreviewMathArg::Unicode => Self::Unicode,
+            PreviewMathArg::Source => Self::Source,
+            PreviewMathArg::Off => Self::Off,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
@@ -507,6 +566,7 @@ fn run(available: RuleSet) -> Result<ExitCode> {
             run_fmt(&args, config_path.as_deref(), policy)
         }
         Command::Render(args) => run_render(&args, config_path.as_deref(), policy),
+        Command::Preview(args) => run_preview(&args, config_path.as_deref(), policy),
         Command::Lsp => run_lsp(),
     }
 }
@@ -531,37 +591,78 @@ fn run_render(args: &RenderArgs, config_path: Option<&std::path::Path>, policy: 
         render_options = render_options.with_profile(profile.into());
     }
 
-    let source = if args.paths.is_empty() || args.paths.iter().any(|p| p.as_os_str() == "-") {
-        let name = args
-            .stdin_filename
-            .as_deref()
-            .map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
-        let mut buf = String::new();
-        read_stdin_capped(&mut buf, policy, &name)?;
-        buf
-    } else {
-        let mut joined = String::new();
-        for path in &args.paths {
-            if !path.exists() {
-                bail!("path does not exist: {}", path.display());
-            }
-            let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
-            enforce_input_policy(&path.display().to_string(), &text, policy)?;
-            if !joined.is_empty() {
-                joined.push('\n');
-            }
-            joined.push_str(&text);
-        }
-        joined
-    };
+    let source = read_concatenated_input(&args.paths, args.stdin_filename.as_deref(), policy)?;
 
     let doc = Document::parse_with_options(&source, cfg.parse_options())?;
     let formatted = format_document(&doc, &opts);
     let html = render_html_with_render_options(&formatted, cfg.parse_options(), render_options)?;
+    if args.open {
+        let path = crate::browser_open::open_html(&html)?;
+        let mut stderr = io::stderr().lock();
+        writeln!(stderr, "mdwright: opened {}", path.display())?;
+        return Ok(ExitCode::SUCCESS);
+    }
+    let use_color = match args.color {
+        ColorChoice::Always => true,
+        ColorChoice::Never => false,
+        ColorChoice::Auto => io::stdout().is_terminal(),
+    };
+    let output = if use_color {
+        crate::html_highlight::highlight_html(&html)?
+    } else {
+        html
+    };
     let stdout = io::stdout();
     let mut out = stdout.lock();
-    out.write_all(html.as_bytes())?;
+    out.write_all(output.as_bytes())?;
     Ok(ExitCode::SUCCESS)
+}
+
+fn run_preview(args: &PreviewArgs, config_path: Option<&std::path::Path>, policy: InputPolicy) -> Result<ExitCode> {
+    let cfg = resolve_config(config_path)?;
+    let source = read_concatenated_input(&args.paths, args.stdin_filename.as_deref(), policy)?;
+    let doc = Document::parse_with_options(&source, cfg.parse_options())?;
+    let formatted = format_document(&doc, cfg.fmt_options());
+    let preview_doc = Document::parse_with_options(&formatted, cfg.parse_options())?;
+    let color = match args.color {
+        ColorChoice::Always => true,
+        ColorChoice::Never => false,
+        ColorChoice::Auto => io::stdout().is_terminal(),
+    };
+    let output = crate::preview::render_preview(
+        &preview_doc,
+        PreviewOptions {
+            color,
+            math: args.math.into(),
+        },
+    )?;
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    out.write_all(output.as_bytes())?;
+    Ok(ExitCode::SUCCESS)
+}
+
+fn read_concatenated_input(paths: &[PathBuf], stdin_filename: Option<&Path>, policy: InputPolicy) -> Result<String> {
+    if paths.is_empty() || has_stdin_operand(paths) {
+        let name = stdin_filename.map_or_else(|| "<stdin>".to_owned(), |p| p.display().to_string());
+        let mut buf = String::new();
+        read_stdin_capped(&mut buf, policy, &name)?;
+        return Ok(buf);
+    }
+
+    let mut joined = String::new();
+    for path in paths {
+        if !path.exists() {
+            bail!("path does not exist: {}", path.display());
+        }
+        let text = fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+        enforce_input_policy(&path.display().to_string(), &text, policy)?;
+        if !joined.is_empty() {
+            joined.push('\n');
+        }
+        joined.push_str(&text);
+    }
+    Ok(joined)
 }
 
 /// Hand off to the LSP server, blocking until the client sends `exit`

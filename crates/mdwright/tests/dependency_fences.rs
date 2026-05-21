@@ -227,6 +227,12 @@ fn math_does_not_reexport_latex_as_a_facade() {
 }
 
 #[test]
+fn terminal_math_rendering_is_first_party() {
+    assert_tree_excludes("mdwright", &["term-maths", "tui-math"]);
+    assert_tree_excludes("mdwright-latex", &["term-maths", "tui-math"]);
+}
+
+#[test]
 fn latex_boundary_has_no_delivery_or_markdown_dependencies() {
     assert_tree_excludes(
         "mdwright-latex",
@@ -245,10 +251,23 @@ fn latex_boundary_has_no_delivery_or_markdown_dependencies() {
             "rayon ",
             "tokio ",
             "tower-lsp",
-            "term-maths",
-            "tui-math",
         ],
     );
+}
+
+#[test]
+fn terminal_preview_delivery_dependencies_stay_in_command_package() {
+    for package in [
+        "mdwright-latex",
+        "mdwright-math",
+        "mdwright-document",
+        "mdwright-format",
+        "mdwright-lint",
+        "mdwright-config",
+        "mdwright-lsp",
+    ] {
+        assert_tree_excludes(package, &["syntect", "opener"]);
+    }
 }
 
 #[test]

@@ -68,7 +68,16 @@ fn has_option(help: &str, option: &str) -> bool {
 fn help_surfaces_familiar_verbs_and_fmt_check_is_check_oriented() {
     let top = command(&["--help"]).output().expect("top-level help");
     let (top_stdout, _) = output_text(&top);
-    for verb in ["check", "fix", "fmt", "fmt-check", "list-rules", "explain", "render"] {
+    for verb in [
+        "check",
+        "fix",
+        "fmt",
+        "fmt-check",
+        "list-rules",
+        "explain",
+        "render",
+        "preview",
+    ] {
         assert!(
             top_stdout.contains(verb),
             "top-level help missing {verb}:\n{top_stdout}"

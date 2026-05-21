@@ -34,4 +34,4 @@ Take the i-th component, xᵢ.
 ## References
 
 - Unicode subscript block: `U+2080`–`U+209F`.
-- mdwright's substitution table (`src/stdlib/latex_unicode.rs`).
+- mdwright's substitution table (`mdwright-math/src/unicode.rs`).

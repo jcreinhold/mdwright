@@ -39,6 +39,7 @@ mdwright-lsp = { version = "0.1.0", path = "crates/mdwright-lsp" }
 mdwright-math = { version = "0.1.0", path = "crates/mdwright-math" }
 logos = "0.16"
 owo-colors = "4"
+opener = "0.8"
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html", "simd"] }
 rayon = "1"
 regex = "1"
@@ -47,6 +48,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 similar = "2"
 strsim = "0.11"
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
 tempfile = "3"
 tokio = { version = "1", default-features = false, features = ["io-std", "macros", "rt-multi-thread", "sync", "time"] }
 toml = { version = "0.8", default-features = false, features = ["parse"] }

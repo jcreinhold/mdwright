@@ -1,7 +1,12 @@
 # Math rendering
 
-mdwright does not typeset math. It shapes math regions so a downstream renderer, such as KaTeX, MathJax,
-mkdocs-material's math plugin, or jupyter-book, can do the typesetting. `--math-render` chooses the shape.
+mdwright does not try to be TeX. It shapes math regions so a downstream renderer, such as KaTeX, MathJax,
+mkdocs-material's math plugin, or jupyter-book, can do browser-quality typesetting. `--math-render` chooses the source
+delimiter shape for formatter and HTML-render checks.
+
+For terminal inspection, `mdwright preview --math=unicode` has a conservative first-party Unicode renderer for simple
+LaTeX math. It covers common symbols, scripts, fractions, and square roots. Unsupported math falls back to source text
+instead of guessing.
 
 For *what* mdwright treats as math, see [Math regions](math-regions.md). This page is about *how those regions are
 emitted*.
@@ -45,14 +50,32 @@ The CLI flag overrides the config file; both fall back to `MathRender::None`.
 mdwright render notes.md > notes.html
 mdwright render --math-render=dollar notes.md
 mdwright render --render-profile=cmark-gfm notes.md
+mdwright render --open notes.md
 ```
+
+Captured stdout is raw HTML by default. `--color=always` highlights the HTML for terminal reading, and `--open` writes
+the HTML to a temporary file and opens it in the system browser.
 
 This is a diagnostic surface, not a production renderer. mdwright's HTML emitter does not enable pulldown-cmark's math
 extension: math regions land in the HTML as plain text in whatever delimiter form the formatter produced. Feed that HTML
-through KaTeX, MathJax, or your static-site generator's math plugin to see the actual typeset output.
+through KaTeX, MathJax, or your static-site generator's math plugin to see browser-quality typeset output.
 
 `--render-profile=cmark-gfm` changes HTML spelling only. It is useful when comparing diagnostic HTML with
 cmark-gfm-based tools, but it does not change parser semantics or formatter source rewrites.
+
+## Terminal preview
+
+`mdwright preview` renders static terminal text:
+
+```sh,no-check
+mdwright preview notes.md
+mdwright preview --color=always notes.md
+mdwright preview --math=source notes.md
+```
+
+`preview` is for fast local inspection. It renders headings, lists, block quotes, links, code blocks, tables, and simple
+math as terminal text. It does not claim CSS layout, images, browser fonts, KaTeX, or MathJax equivalence. Use
+`render --open` when the browser view matters.
 
 ## The gate under `dollar` mode
 
