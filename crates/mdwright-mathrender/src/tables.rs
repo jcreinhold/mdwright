@@ -107,6 +107,10 @@ const MATHJAX_V3_COMMAND_OVERLAY: &[OverlayEntry] = &[
         package: PackageMask::CANCEL,
     },
     OverlayEntry {
+        name: "binom",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
         name: "bra",
         package: PackageMask::PHYSICS,
     },
@@ -151,8 +155,16 @@ const MATHJAX_V3_COMMAND_OVERLAY: &[OverlayEntry] = &[
         package: PackageMask::PHYSICS,
     },
     OverlayEntry {
+        name: "dbinom",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
         name: "dd",
         package: PackageMask::PHYSICS,
+    },
+    OverlayEntry {
+        name: "deg",
+        package: PackageMask::BASE,
     },
     OverlayEntry {
         name: "derivative",
@@ -247,6 +259,10 @@ const MATHJAX_V3_COMMAND_OVERLAY: &[OverlayEntry] = &[
         package: PackageMask::PHYSICS,
     },
     OverlayEntry {
+        name: "not",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
         name: "order",
         package: PackageMask::PHYSICS,
     },
@@ -283,6 +299,14 @@ const MATHJAX_V3_COMMAND_OVERLAY: &[OverlayEntry] = &[
         package: PackageMask::PHYSICS,
     },
     OverlayEntry {
+        name: "tag",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "tbinom",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
         name: "textcolor",
         package: PackageMask::COLOR,
     },
@@ -307,6 +331,22 @@ const MATHJAX_V3_COMMAND_OVERLAY: &[OverlayEntry] = &[
         package: PackageMask::PHYSICS,
     },
     OverlayEntry {
+        name: "varinjlim",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "varliminf",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "varlimsup",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "varprojlim",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
         name: "vb",
         package: PackageMask::PHYSICS,
     },
@@ -321,6 +361,10 @@ const MATHJAX_V3_COMMAND_OVERLAY: &[OverlayEntry] = &[
     OverlayEntry {
         name: "vectorunit",
         package: PackageMask::PHYSICS,
+    },
+    OverlayEntry {
+        name: "vert",
+        package: PackageMask::BASE,
     },
     OverlayEntry {
         name: "vqty",
@@ -526,6 +570,10 @@ const KATEX_COMMAND_OVERLAY: &[OverlayEntry] = &[
         package: PackageMask::CANCEL,
     },
     OverlayEntry {
+        name: "binom",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
         name: "cancel",
         package: PackageMask::CANCEL,
     },
@@ -538,16 +586,56 @@ const KATEX_COMMAND_OVERLAY: &[OverlayEntry] = &[
         package: PackageMask::COLOR,
     },
     OverlayEntry {
+        name: "dbinom",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "deg",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
         name: "enclose",
         package: PackageMask::ENCLOSE,
+    },
+    OverlayEntry {
+        name: "not",
+        package: PackageMask::BASE,
     },
     OverlayEntry {
         name: "pu",
         package: PackageMask::MHCHEM,
     },
     OverlayEntry {
+        name: "tag",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "tbinom",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
         name: "textcolor",
         package: PackageMask::COLOR,
+    },
+    OverlayEntry {
+        name: "varinjlim",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "varliminf",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "varlimsup",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "varprojlim",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "vert",
+        package: PackageMask::BASE,
     },
     OverlayEntry {
         name: "xcancel",
