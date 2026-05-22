@@ -5,6 +5,8 @@ All notable changes to mdwright are listed here. The format follows
 
 ## [Unreleased]
 
+## [0.1.1] – 2026-05-22
+
 ### Changed (breaking, pre-1.0)
 
 - Split the codebase into a virtual workspace of deep crates. There is no root facade package: command users install the

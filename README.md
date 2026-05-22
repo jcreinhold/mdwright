@@ -126,7 +126,7 @@ full schema.
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/jcreinhold/mdwright
-    rev: v0.1.0
+    rev: v0.1.1
     hooks:
       - id: mdwright-check-system
       - id: mdwright-fmt-check-system
@@ -135,7 +135,7 @@ repos:
 GitHub Actions:
 
 ```yaml
-- uses: jcreinhold/mdwright@v0.1.0
+- uses: jcreinhold/mdwright@v0.1.1
   with:
     args: check --check .
 ```

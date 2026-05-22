@@ -12,7 +12,7 @@ tarball), the `-system` variants avoid any toolchain dance:
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/jcreinhold/mdwright
-    rev: v0.1.0
+    rev: v0.1.1
     hooks:
       - id: mdwright-check-system
       - id: mdwright-fmt-check-system
@@ -29,7 +29,7 @@ checked-out repository. First commit after a clean cache takes ~30 s; subsequent
 ```yaml,no-check
 repos:
   - repo: https://github.com/jcreinhold/mdwright
-    rev: v0.1.0
+    rev: v0.1.1
     hooks:
       - id: mdwright-check
       - id: mdwright-fmt-check

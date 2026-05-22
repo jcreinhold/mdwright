@@ -932,7 +932,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -966,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright-config"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "mdwright-document",
@@ -978,7 +978,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright-document"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "mdwright-math",
  "pulldown-cmark",
@@ -998,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright-format"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "mdwright-document",
  "mdwright-math",
@@ -1008,7 +1008,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright-latex"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "logos",
  "proptest",
@@ -1018,7 +1018,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright-lint"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "mdwright-document",
@@ -1028,7 +1028,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright-lsp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "futures",
  "mdwright-config",
@@ -1046,7 +1046,7 @@ dependencies = [
 
 [[package]]
 name = "mdwright-math"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "mdwright-latex",
  "tracing",
