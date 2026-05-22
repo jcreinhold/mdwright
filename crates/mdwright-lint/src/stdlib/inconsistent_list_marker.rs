@@ -5,7 +5,7 @@
 //! marker. Ordered lists are not flagged — their markers are digits
 //! and have semantic meaning.
 
-use crate::diagnostic::Diagnostic;
+use crate::diagnostic::{Diagnostic, Fix};
 use crate::rule::LintRule;
 use mdwright_document::Document;
 
@@ -22,6 +22,10 @@ impl LintRule for InconsistentListMarker {
 
     fn explain(&self) -> &str {
         include_str!("explain/inconsistent_list_marker.md")
+    }
+
+    fn produces_fix(&self) -> bool {
+        true
     }
 
     fn check(&self, doc: &Document, out: &mut Vec<Diagnostic>) {
@@ -43,7 +47,11 @@ impl LintRule for InconsistentListMarker {
                     );
                     let start = item.raw_range.start;
                     let local = 0..1;
-                    if let Some(d) = Diagnostic::at(doc, start, local, message, None) {
+                    let fix = Some(Fix {
+                        replacement: expected_c.to_string(),
+                        safe: true,
+                    });
+                    if let Some(d) = Diagnostic::at(doc, start, local, message, fix) {
                         out.push(d);
                     }
                 }

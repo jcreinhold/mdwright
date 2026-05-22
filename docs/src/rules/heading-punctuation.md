@@ -2,7 +2,7 @@
 name: heading-punctuation
 default: true
 advisory: false
-fix: false
+fix: true
 since: 0.1.0
 ---
 

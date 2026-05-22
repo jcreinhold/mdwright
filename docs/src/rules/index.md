@@ -14,13 +14,13 @@ On by default. A diagnostic from one of these fails `mdwright check --check`.
 | [`math/unbalanced-delim`](math/unbalanced-delim.md) | no | TeX-style math open delimiter (`\[`, `\(`, `$$`, `$`) with no matching close. |
 | [`math/unbalanced-env`](math/unbalanced-env.md) | no | LaTeX `\begin{env}` with no matching `\end{env}` at the same nesting depth. |
 | [`math/unbalanced-braces`](math/unbalanced-braces.md) | no | `{` / `}` inside a math body do not balance; math body normalisation is skipped for that region. |
-| [`adjacent-code-no-space`](adjacent-code-no-space.md) | no | Inline code span adjacent to a letter without whitespace. |
-| [`heading-punctuation`](heading-punctuation.md) | no | Trailing `.` or `:` on a heading. |
+| [`adjacent-code-no-space`](adjacent-code-no-space.md) | yes | Inline code span adjacent to a letter without whitespace. |
+| [`heading-punctuation`](heading-punctuation.md) | yes | Trailing `.` or `:` on a heading. |
 | [`orphan-reference-link`](orphan-reference-link.md) | no | Reference-style link with no matching `[label]:` definition. |
 | [`duplicate-link-label`](duplicate-link-label.md) | no | Two `[label]:` definitions with the same label. |
 | [`bare-url`](bare-url.md) | yes | Bare URL in prose; wrap in `<…>` for a CommonMark autolink. |
 | [`trailing-whitespace`](trailing-whitespace.md) | yes | Trailing whitespace at end of line. |
-| [`inconsistent-list-marker`](inconsistent-list-marker.md) | no | Mixed `-` / `*` / `+` markers in one bullet list. |
+| [`inconsistent-list-marker`](inconsistent-list-marker.md) | yes | Mixed `-` / `*` / `+` markers in one bullet list. |
 
 ## Default advisories
 
