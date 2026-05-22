@@ -1,0 +1,78 @@
+pub mod mdwright_mathrender
+pub use mdwright_mathrender::SourceSpan
+pub enum mdwright_mathrender::RenderIssue
+pub mdwright_mathrender::RenderIssue::MathCommandInTextMode
+pub mdwright_mathrender::RenderIssue::MathCommandInTextMode::name: alloc::string::String
+pub mdwright_mathrender::RenderIssue::MathCommandInTextMode::span: mdwright_latex::error::SourceSpan
+pub mdwright_mathrender::RenderIssue::MissingPackage
+pub mdwright_mathrender::RenderIssue::MissingPackage::name: alloc::string::String
+pub mdwright_mathrender::RenderIssue::MissingPackage::package: &'static str
+pub mdwright_mathrender::RenderIssue::MissingPackage::span: mdwright_latex::error::SourceSpan
+pub mdwright_mathrender::RenderIssue::MissingPackageEnv
+pub mdwright_mathrender::RenderIssue::MissingPackageEnv::name: alloc::string::String
+pub mdwright_mathrender::RenderIssue::MissingPackageEnv::package: &'static str
+pub mdwright_mathrender::RenderIssue::MissingPackageEnv::span: mdwright_latex::error::SourceSpan
+pub mdwright_mathrender::RenderIssue::UnsupportedCommand
+pub mdwright_mathrender::RenderIssue::UnsupportedCommand::name: alloc::string::String
+pub mdwright_mathrender::RenderIssue::UnsupportedCommand::span: mdwright_latex::error::SourceSpan
+pub mdwright_mathrender::RenderIssue::UnsupportedEnvironment
+pub mdwright_mathrender::RenderIssue::UnsupportedEnvironment::name: alloc::string::String
+pub mdwright_mathrender::RenderIssue::UnsupportedEnvironment::span: mdwright_latex::error::SourceSpan
+impl core::clone::Clone for mdwright_mathrender::RenderIssue
+pub fn mdwright_mathrender::RenderIssue::clone(&self) -> mdwright_mathrender::RenderIssue
+impl core::cmp::Eq for mdwright_mathrender::RenderIssue
+impl core::cmp::PartialEq for mdwright_mathrender::RenderIssue
+pub fn mdwright_mathrender::RenderIssue::eq(&self, other: &mdwright_mathrender::RenderIssue) -> bool
+impl core::fmt::Debug for mdwright_mathrender::RenderIssue
+pub fn mdwright_mathrender::RenderIssue::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_mathrender::RenderIssue
+impl core::marker::Freeze for mdwright_mathrender::RenderIssue
+impl core::marker::Send for mdwright_mathrender::RenderIssue
+impl core::marker::Sync for mdwright_mathrender::RenderIssue
+impl core::marker::Unpin for mdwright_mathrender::RenderIssue
+impl core::marker::UnsafeUnpin for mdwright_mathrender::RenderIssue
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_mathrender::RenderIssue
+impl core::panic::unwind_safe::UnwindSafe for mdwright_mathrender::RenderIssue
+pub enum mdwright_mathrender::Renderer
+pub mdwright_mathrender::Renderer::Katex
+pub mdwright_mathrender::Renderer::MathJaxV3
+impl mdwright_mathrender::Renderer
+pub const fn mdwright_mathrender::Renderer::name(self) -> &'static str
+pub const fn mdwright_mathrender::Renderer::package_noun(self) -> &'static str
+impl core::clone::Clone for mdwright_mathrender::Renderer
+pub fn mdwright_mathrender::Renderer::clone(&self) -> mdwright_mathrender::Renderer
+impl core::cmp::Eq for mdwright_mathrender::Renderer
+impl core::cmp::PartialEq for mdwright_mathrender::Renderer
+pub fn mdwright_mathrender::Renderer::eq(&self, other: &mdwright_mathrender::Renderer) -> bool
+impl core::fmt::Debug for mdwright_mathrender::Renderer
+pub fn mdwright_mathrender::Renderer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_mathrender::Renderer
+impl core::marker::StructuralPartialEq for mdwright_mathrender::Renderer
+impl core::marker::Freeze for mdwright_mathrender::Renderer
+impl core::marker::Send for mdwright_mathrender::Renderer
+impl core::marker::Sync for mdwright_mathrender::Renderer
+impl core::marker::Unpin for mdwright_mathrender::Renderer
+impl core::marker::UnsafeUnpin for mdwright_mathrender::Renderer
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_mathrender::Renderer
+impl core::panic::unwind_safe::UnwindSafe for mdwright_mathrender::Renderer
+pub struct mdwright_mathrender::RenderProfile
+impl mdwright_mathrender::RenderProfile
+pub fn mdwright_mathrender::RenderProfile::katex() -> Self
+pub fn mdwright_mathrender::RenderProfile::mathjax_v3() -> Self
+pub const fn mdwright_mathrender::RenderProfile::renderer(&self) -> mdwright_mathrender::Renderer
+pub fn mdwright_mathrender::RenderProfile::with_macro(self, name: impl core::convert::Into<alloc::string::String>, arity: u8) -> Self
+pub fn mdwright_mathrender::RenderProfile::with_package(self, package: &str) -> Self
+impl core::clone::Clone for mdwright_mathrender::RenderProfile
+pub fn mdwright_mathrender::RenderProfile::clone(&self) -> mdwright_mathrender::RenderProfile
+impl core::default::Default for mdwright_mathrender::RenderProfile
+pub fn mdwright_mathrender::RenderProfile::default() -> Self
+impl core::fmt::Debug for mdwright_mathrender::RenderProfile
+pub fn mdwright_mathrender::RenderProfile::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_mathrender::RenderProfile
+impl core::marker::Send for mdwright_mathrender::RenderProfile
+impl core::marker::Sync for mdwright_mathrender::RenderProfile
+impl core::marker::Unpin for mdwright_mathrender::RenderProfile
+impl core::marker::UnsafeUnpin for mdwright_mathrender::RenderProfile
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_mathrender::RenderProfile
+impl core::panic::unwind_safe::UnwindSafe for mdwright_mathrender::RenderProfile
+pub fn mdwright_mathrender::check_math_body(source: &str, profile: &mdwright_mathrender::RenderProfile) -> alloc::vec::Vec<mdwright_mathrender::RenderIssue>

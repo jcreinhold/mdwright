@@ -15,6 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 CRATES = [
     "mdwright-latex",
     "mdwright-math",
+    "mdwright-mathrender",
     "mdwright-document",
     "mdwright-format",
     "mdwright-lint",
@@ -72,6 +73,7 @@ def package_contents(version: str) -> None:
     required = {
         "mdwright-latex": ["Cargo.toml", "README.md", "src/lib.rs", "src/parser.rs"],
         "mdwright-math": ["Cargo.toml", "README.md", "src/lib.rs", "src/scan.rs"],
+        "mdwright-mathrender": ["Cargo.toml", "README.md", "src/lib.rs", "src/check.rs"],
         "mdwright-document": ["Cargo.toml", "README.md", "src/lib.rs", "src/ir.rs"],
         "mdwright-format": ["Cargo.toml", "README.md", "src/lib.rs", "src/format/mod.rs"],
         "mdwright-lint": ["Cargo.toml", "README.md", "src/lib.rs", "src/stdlib.rs"],

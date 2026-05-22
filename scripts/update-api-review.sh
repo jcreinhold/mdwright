@@ -4,6 +4,7 @@ set -euo pipefail
 crates=(
   mdwright-latex
   mdwright-math
+  mdwright-mathrender
   mdwright-document
   mdwright-format
   mdwright-lint
