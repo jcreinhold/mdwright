@@ -38,7 +38,7 @@ Off by default. Enable with `lint.extend-select = ["name"]` in configuration.
 
 | Rule | Fix | Description |
 | --- | --- | --- |
-| [`math/mathjax-compat`](math/mathjax-compat.md) | no | MathJax v3 compatibility for inline and display math. |
+| [`math/render-compat`](math/render-compat.md) | no | Math-renderer compatibility for inline and display math (MathJax v3 / KaTeX). |
 | [`list-tightness-flipped`](list-tightness-flipped.md) | no | list tightness from the tree disagrees with tightness from source bytes |
 | [`stray-dollar`](stray-dollar.md) | yes | Literal `$` in prose (opt-in for projects that don't use $…$ math). |
 | [`latex-command`](latex-command.md) | yes | LaTeX control sequence in prose (opt-in for Unicode-math projects). |

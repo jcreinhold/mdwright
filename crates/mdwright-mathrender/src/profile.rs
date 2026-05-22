@@ -1,12 +1,48 @@
-//! MathJax renderer profile.
+//! Renderer profile.
 //!
-//! A profile records which package set a particular MathJax configuration has
-//! loaded plus any user-declared macros. Compatibility tables live in
-//! `tables`; the profile is the *consumer* of those tables.
+//! A profile records *which renderer* a math body is checked against, which
+//! package set that renderer has loaded, and which user macros are in scope.
+//! Compatibility tables live in `tables`; the profile is the *consumer* of
+//! those tables.
 
 use std::collections::HashMap;
 
-/// MathJax package bitmask. One bit per package.
+/// Math renderer that consumes the TeX-shaped source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Renderer {
+    /// MathJax v3 (mjs3, the current stable line).
+    MathJaxV3,
+    /// KaTeX (any release in the 0.16+ feature window).
+    Katex,
+}
+
+impl Renderer {
+    /// User-facing name. Goes into lint diagnostic messages.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::MathJaxV3 => "MathJax v3",
+            Self::Katex => "KaTeX",
+        }
+    }
+
+    /// User-facing noun for "package" when speaking about this renderer:
+    /// MathJax says *package*, KaTeX says *extension*. Used by lint
+    /// diagnostic text so the message reads naturally for the active
+    /// renderer.
+    #[must_use]
+    pub const fn package_noun(self) -> &'static str {
+        match self {
+            Self::MathJaxV3 => "package",
+            Self::Katex => "extension",
+        }
+    }
+}
+
+/// Package bitmask, shared across renderers. Each renderer's table maps its
+/// commands to one of these bits; the same bit (e.g. `MHCHEM`) means
+/// "MathJax's mhchem extension" or "KaTeX's mhchem extension" depending on
+/// the active profile.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct PackageMask(u32);
 
@@ -26,6 +62,7 @@ impl PackageMask {
     pub(crate) const AMSCD: Self = Self(1 << 12);
     pub(crate) const BRACEMATCH: Self = Self(1 << 13);
     pub(crate) const TEXTMACROS: Self = Self(1 << 14);
+    pub(crate) const MATHTOOLS: Self = Self(1 << 15);
 
     pub(crate) const fn contains(self, other: Self) -> bool {
         (self.0 & other.0) != 0
@@ -36,8 +73,10 @@ impl PackageMask {
     }
 }
 
-/// Resolve a MathJax package name (as users would write in config) to its mask
-/// bit. Returns `None` for unknown names so callers can surface them.
+/// Resolve a package name (as users would write in config) to its mask bit.
+/// Returns `None` for unknown names so callers can surface them. Names follow
+/// the renderer's own conventions; both MathJax and KaTeX use the same names
+/// (`mhchem`, `physics`, `color`, `cancel`, …) so one resolver works for both.
 pub(crate) fn package_from_name(name: &str) -> Option<PackageMask> {
     match name {
         "base" => Some(PackageMask::BASE),
@@ -55,11 +94,12 @@ pub(crate) fn package_from_name(name: &str) -> Option<PackageMask> {
         "amscd" => Some(PackageMask::AMSCD),
         "bracematch" => Some(PackageMask::BRACEMATCH),
         "textmacros" => Some(PackageMask::TEXTMACROS),
+        "mathtools" => Some(PackageMask::MATHTOOLS),
         _ => None,
     }
 }
 
-/// Canonical user-facing name for a package mask. Used in diagnostic text.
+/// Canonical user-facing name for a single package mask. Used in diagnostic text.
 pub(crate) fn package_name(mask: PackageMask) -> &'static str {
     if mask.contains(PackageMask::BASE) {
         "base"
@@ -91,26 +131,33 @@ pub(crate) fn package_name(mask: PackageMask) -> &'static str {
         "bracematch"
     } else if mask.contains(PackageMask::TEXTMACROS) {
         "textmacros"
+    } else if mask.contains(PackageMask::MATHTOOLS) {
+        "mathtools"
     } else {
         "unknown"
     }
 }
 
-/// A configured MathJax renderer profile: which packages are loaded and which
-/// user macros are in scope.
-#[derive(Clone, Debug, Default)]
-pub struct MathJaxProfile {
+/// A configured renderer profile: which renderer, which packages it has
+/// loaded, and which user-declared macros are in scope.
+#[derive(Clone, Debug)]
+pub struct RenderProfile {
+    pub(crate) renderer: Renderer,
     pub(crate) packages: PackageMask,
     pub(crate) macros: HashMap<String, u8>,
 }
 
-impl MathJaxProfile {
-    /// MathJax v3 with the default autoload set: `base`, `ams`, `newcommand`,
-    /// `noundefined`, `require`, `configmacros`, `boldsymbol`.
-    ///
-    /// Add optional packages (e.g. `mhchem`, `physics`) with `with_package`.
+impl Default for RenderProfile {
+    fn default() -> Self {
+        Self::mathjax_v3()
+    }
+}
+
+impl RenderProfile {
+    /// MathJax v3 with the default autoload set (`base`, `ams`, `newcommand`,
+    /// `noundefined`, `require`, `configmacros`, `boldsymbol`).
     #[must_use]
-    pub fn v3_default() -> Self {
+    pub fn mathjax_v3() -> Self {
         let packages = PackageMask::BASE
             .union(PackageMask::AMS)
             .union(PackageMask::NEWCOMMAND)
@@ -119,12 +166,36 @@ impl MathJaxProfile {
             .union(PackageMask::CONFIGMACROS)
             .union(PackageMask::BOLDSYMBOL);
         Self {
+            renderer: Renderer::MathJaxV3,
             packages,
             macros: HashMap::new(),
         }
     }
 
-    /// Load a MathJax package by name (e.g. `"mhchem"`, `"physics"`).
+    /// KaTeX with its always-available core (KaTeX core covers what MathJax
+    /// splits between `base` and `ams`, so both bits are set). Extensions
+    /// (`mhchem`, `physics`, `cancel`, `color`, `mathtools`) are opt-in via
+    /// `with_package`.
+    #[must_use]
+    pub fn katex() -> Self {
+        let packages = PackageMask::BASE
+            .union(PackageMask::AMS)
+            .union(PackageMask::NEWCOMMAND)
+            .union(PackageMask::CONFIGMACROS);
+        Self {
+            renderer: Renderer::Katex,
+            packages,
+            macros: HashMap::new(),
+        }
+    }
+
+    /// Which renderer this profile targets.
+    #[must_use]
+    pub const fn renderer(&self) -> Renderer {
+        self.renderer
+    }
+
+    /// Load a package/extension by name (e.g. `"mhchem"`, `"physics"`).
     /// Unknown names are silently ignored; users learn about missing packages
     /// through check diagnostics, not the profile builder.
     #[must_use]

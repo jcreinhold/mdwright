@@ -31,7 +31,7 @@ mdwright-latex = { workspace = true }
 mdwright-lint = { workspace = true }
 mdwright-lsp = { workspace = true }
 mdwright-math = { workspace = true }
-mdwright-mathjax = { workspace = true }
+mdwright-mathrender = { workspace = true }
 opener = { workspace = true }
 owo-colors = { workspace = true }
 pulldown-cmark = { workspace = true, default-features = false }

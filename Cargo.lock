@@ -945,7 +945,7 @@ dependencies = [
  "mdwright-lint",
  "mdwright-lsp",
  "mdwright-math",
- "mdwright-mathjax",
+ "mdwright-mathrender",
  "opener",
  "owo-colors",
  "proptest",
@@ -973,6 +973,7 @@ dependencies = [
  "mdwright-document",
  "mdwright-format",
  "mdwright-lint",
+ "mdwright-mathrender",
  "serde",
  "toml",
 ]
@@ -1024,7 +1025,7 @@ dependencies = [
  "anyhow",
  "mdwright-document",
  "mdwright-latex",
- "mdwright-mathjax",
+ "mdwright-mathrender",
  "regex",
 ]
 
@@ -1056,7 +1057,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mdwright-mathjax"
+name = "mdwright-mathrender"
 version = "0.1.1"
 dependencies = [
  "mdwright-latex",

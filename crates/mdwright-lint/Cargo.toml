@@ -14,7 +14,7 @@ version.workspace = true
 [dependencies]
 mdwright-document = { workspace = true }
 mdwright-latex = { workspace = true }
-mdwright-mathjax = { workspace = true }
+mdwright-mathrender = { workspace = true }
 regex = { workspace = true }
 
 [dev-dependencies]

@@ -1,13 +1,13 @@
 ---
-name: math/mathjax-compat
+name: math/render-compat
 default: false
 advisory: false
 fix: false
 since: unreleased
 ---
 
-# math/mathjax-compat
+# math/render-compat
 
-MathJax v3 compatibility for inline and display math.
+Math-renderer compatibility for inline and display math (MathJax v3 / KaTeX).
 
 _No long-form explanation available. Run `mdwright list-rules` for a one-line summary._

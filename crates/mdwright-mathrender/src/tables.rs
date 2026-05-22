@@ -1,18 +1,17 @@
-//! MathJax v3 overlay tables.
+//! Renderer compatibility overlay tables.
 //!
 //! `mdwright-latex`'s registry is the canonical TeX vocabulary; the tables
-//! here are an *overlay* recording the things `mdwright-latex` cannot tell us:
+//! here are an *overlay* recording renderer-specific facts:
 //!
-//! - commands MathJax ships that `mdwright-latex` does not know about
+//! - commands a renderer ships that `mdwright-latex` does not know about
 //!   (`\ce`, `\pu`, the `physics` package's bra/ket family, …);
-//! - commands `mdwright-latex` records but MathJax requires a non-default
-//!   package for (`\color`, `\cancel`, `\enclose`, …);
-//! - the environment compatibility map (`mdwright-latex` only knows the
-//!   environments it can render itself, but MathJax ships a wider set).
+//! - commands `mdwright-latex` records but the renderer requires a
+//!   non-default package for (`\color`, `\cancel`, `\enclose`, …);
+//! - the environment compatibility map per renderer.
 //!
-//! Entries are sorted by `name` and binary-searched.
+//! Each table is sorted by `name` and binary-searched.
 
-use crate::profile::PackageMask;
+use crate::profile::{PackageMask, Renderer};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct OverlayEntry {
@@ -20,9 +19,37 @@ pub(crate) struct OverlayEntry {
     pub(crate) package: PackageMask,
 }
 
+/// Pick the command overlay table for a given renderer.
+pub(crate) const fn command_overlay(renderer: Renderer) -> &'static [OverlayEntry] {
+    match renderer {
+        Renderer::MathJaxV3 => MATHJAX_V3_COMMAND_OVERLAY,
+        Renderer::Katex => KATEX_COMMAND_OVERLAY,
+    }
+}
+
+/// Pick the environment overlay table for a given renderer.
+pub(crate) const fn environment_overlay(renderer: Renderer) -> &'static [OverlayEntry] {
+    match renderer {
+        Renderer::MathJaxV3 => MATHJAX_V3_ENVIRONMENT_TABLE,
+        Renderer::Katex => KATEX_ENVIRONMENT_TABLE,
+    }
+}
+
+pub(crate) fn lookup_overlay(table: &[OverlayEntry], name: &str) -> Option<OverlayEntry> {
+    table
+        .binary_search_by_key(&name, |entry| entry.name)
+        .ok()
+        .and_then(|idx| table.get(idx).copied())
+}
+
+// ============================================================================
+// MathJax v3
+// ============================================================================
+
 /// Commands MathJax v3 ships. Overrides any classification `mdwright-latex`
-/// would give. Sorted by `name`.
-pub(crate) const COMMAND_OVERLAY: &[OverlayEntry] = &[
+/// would give. Sorted by `name`. ASCII-betical: uppercase letters precede
+/// lowercase ones.
+const MATHJAX_V3_COMMAND_OVERLAY: &[OverlayEntry] = &[
     OverlayEntry {
         name: "Bra",
         package: PackageMask::PHYSICS,
@@ -307,11 +334,43 @@ pub(crate) const COMMAND_OVERLAY: &[OverlayEntry] = &[
         name: "xcancel",
         package: PackageMask::CANCEL,
     },
+    OverlayEntry {
+        name: "xhookleftarrow",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "xhookrightarrow",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "xleftarrow",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "xleftrightarrow",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "xmapsto",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "xrightarrow",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "xtwoheadleftarrow",
+        package: PackageMask::AMS,
+    },
+    OverlayEntry {
+        name: "xtwoheadrightarrow",
+        package: PackageMask::AMS,
+    },
 ];
 
 /// Environments MathJax v3 ships, with the package each requires. Sorted by
 /// `name`. Environments not listed here are reported as unsupported.
-pub(crate) const ENVIRONMENT_TABLE: &[OverlayEntry] = &[
+const MATHJAX_V3_ENVIRONMENT_TABLE: &[OverlayEntry] = &[
     OverlayEntry {
         name: "BVerbatim",
         package: PackageMask::BRACEMATCH,
@@ -446,12 +505,199 @@ pub(crate) const ENVIRONMENT_TABLE: &[OverlayEntry] = &[
     },
 ];
 
-pub(crate) fn lookup_overlay(table: &[OverlayEntry], name: &str) -> Option<OverlayEntry> {
-    table
-        .binary_search_by_key(&name, |entry| entry.name)
-        .ok()
-        .and_then(|idx| table.get(idx).copied())
-}
+// ============================================================================
+// KaTeX
+// ============================================================================
+//
+// KaTeX core ships what MathJax splits between `base` and `ams`, so the
+// vast majority of commands fall through to `mdwright-latex`'s registry and
+// resolve via the BASE or AMS bit (both default-on for the KaTeX profile).
+// The overlay only records commands that need an explicit extension or that
+// KaTeX does not ship at all.
+
+/// Commands KaTeX ships under explicit extensions. The `physics` family is
+/// *not* part of KaTeX core — there is a community extension but it is not
+/// uniformly available, so KaTeX users see `UnsupportedCommand` for `\bra`,
+/// `\ket`, etc. unless they list those names under `[lint.render.macros]`.
+/// Sorted by `name`.
+const KATEX_COMMAND_OVERLAY: &[OverlayEntry] = &[
+    OverlayEntry {
+        name: "bcancel",
+        package: PackageMask::CANCEL,
+    },
+    OverlayEntry {
+        name: "cancel",
+        package: PackageMask::CANCEL,
+    },
+    OverlayEntry {
+        name: "ce",
+        package: PackageMask::MHCHEM,
+    },
+    OverlayEntry {
+        name: "color",
+        package: PackageMask::COLOR,
+    },
+    OverlayEntry {
+        name: "enclose",
+        package: PackageMask::ENCLOSE,
+    },
+    OverlayEntry {
+        name: "pu",
+        package: PackageMask::MHCHEM,
+    },
+    OverlayEntry {
+        name: "textcolor",
+        package: PackageMask::COLOR,
+    },
+    OverlayEntry {
+        name: "xcancel",
+        package: PackageMask::CANCEL,
+    },
+    OverlayEntry {
+        name: "xhookleftarrow",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "xhookrightarrow",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "xleftarrow",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "xleftrightarrow",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "xmapsto",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "xrightarrow",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "xtwoheadleftarrow",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "xtwoheadrightarrow",
+        package: PackageMask::BASE,
+    },
+];
+
+/// Environments KaTeX ships. KaTeX core includes the `ams` environments, so
+/// `align`, `gather`, etc. resolve to BASE rather than to AMS (the AMS bit
+/// is still set in the KaTeX default profile, so either bit lets them pass —
+/// BASE is what shows up in a diagnostic if a user explicitly drops it).
+/// Sorted by `name`.
+const KATEX_ENVIRONMENT_TABLE: &[OverlayEntry] = &[
+    OverlayEntry {
+        name: "Bmatrix",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "CD",
+        package: PackageMask::AMSCD,
+    },
+    OverlayEntry {
+        name: "Vmatrix",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "align",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "align*",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "alignat",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "alignat*",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "aligned",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "alignedat",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "array",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "bmatrix",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "cases",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "darray",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "dcases",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "equation",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "equation*",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "gather",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "gather*",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "gathered",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "matrix",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "pmatrix",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "rcases",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "smallmatrix",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "split",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "subarray",
+        package: PackageMask::BASE,
+    },
+    OverlayEntry {
+        name: "vmatrix",
+        package: PackageMask::BASE,
+    },
+];
 
 #[cfg(test)]
 mod tests {
@@ -472,29 +718,37 @@ mod tests {
     }
 
     #[test]
-    fn command_overlay_is_sorted() {
-        assert_sorted(COMMAND_OVERLAY);
+    fn all_command_overlays_are_sorted() {
+        assert_sorted(MATHJAX_V3_COMMAND_OVERLAY);
+        assert_sorted(KATEX_COMMAND_OVERLAY);
     }
 
     #[test]
-    fn environment_table_is_sorted() {
-        assert_sorted(ENVIRONMENT_TABLE);
+    fn all_environment_overlays_are_sorted() {
+        assert_sorted(MATHJAX_V3_ENVIRONMENT_TABLE);
+        assert_sorted(KATEX_ENVIRONMENT_TABLE);
     }
 
     #[test]
-    fn known_chemistry_command_resolves_to_mhchem() {
-        let entry = lookup_overlay(COMMAND_OVERLAY, "ce").expect("ce in overlay");
-        assert!(entry.package.contains(PackageMask::MHCHEM));
+    fn mhchem_resolves_under_both_renderers() {
+        let mj = lookup_overlay(MATHJAX_V3_COMMAND_OVERLAY, "ce").expect("ce in mathjax");
+        let kx = lookup_overlay(KATEX_COMMAND_OVERLAY, "ce").expect("ce in katex");
+        assert!(mj.package.contains(PackageMask::MHCHEM));
+        assert!(kx.package.contains(PackageMask::MHCHEM));
     }
 
     #[test]
-    fn missing_command_returns_none() {
-        assert!(lookup_overlay(COMMAND_OVERLAY, "totallyunknownmathjaxcmd").is_none());
+    fn katex_does_not_ship_physics_by_default() {
+        assert!(lookup_overlay(KATEX_COMMAND_OVERLAY, "bra").is_none());
+        assert!(lookup_overlay(KATEX_COMMAND_OVERLAY, "ket").is_none());
+        assert!(lookup_overlay(KATEX_COMMAND_OVERLAY, "dv").is_none());
     }
 
     #[test]
-    fn align_star_environment_resolves_to_ams() {
-        let entry = lookup_overlay(ENVIRONMENT_TABLE, "align*").expect("align* in overlay");
-        assert!(entry.package.contains(PackageMask::AMS));
+    fn align_resolves_to_base_under_katex_and_ams_under_mathjax() {
+        let mj = lookup_overlay(MATHJAX_V3_ENVIRONMENT_TABLE, "align*").expect("align* in mathjax");
+        let kx = lookup_overlay(KATEX_ENVIRONMENT_TABLE, "align*").expect("align* in katex");
+        assert!(mj.package.contains(PackageMask::AMS));
+        assert!(kx.package.contains(PackageMask::BASE));
     }
 }

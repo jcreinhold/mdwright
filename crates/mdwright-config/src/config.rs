@@ -35,6 +35,7 @@ use mdwright_format::{
     Wrap, WrapStrategy,
 };
 use mdwright_lint::RuleSet;
+use mdwright_mathrender::Renderer;
 use serde::de::{Error as DeError, Visitor};
 use serde::{Deserialize, Deserializer};
 
@@ -50,7 +51,7 @@ pub struct Config {
     lint_rule_selection: LintRuleSelection,
     exclude_globs: Vec<String>,
     extra_info_strings: Vec<String>,
-    mathjax_options: LintMathJaxOptions,
+    render_lint_options: LintRenderOptions,
     fmt_options: FmtOptions,
     parse_options: ParseOptions,
     render_options: RenderOptions,
@@ -129,13 +130,13 @@ impl Config {
         &self.extra_info_strings
     }
 
-    /// Resolved `[lint.mathjax]` configuration for the
-    /// `math/mathjax-compat` lint family. The CLI translates this into
-    /// a `MathJaxProfile`; the config crate does not depend on
-    /// `mdwright-mathjax`.
+    /// Resolved `[lint.render]` configuration for the `math/render-compat`
+    /// lint family. Names the renderer (`MathJax` v3 / `KaTeX`), its loaded
+    /// packages, and known macros. The CLI translates this into a
+    /// `mdwright_mathrender::RenderProfile`.
     #[must_use]
-    pub fn mathjax_options(&self) -> &LintMathJaxOptions {
-        &self.mathjax_options
+    pub fn render_lint_options(&self) -> &LintRenderOptions {
+        &self.render_lint_options
     }
 
     /// Resolved formatter knobs from `[fmt]`. Formatter sessions are
@@ -183,7 +184,7 @@ impl Config {
             },
             exclude_globs: lint.exclude,
             extra_info_strings: lint.info_strings.extra,
-            mathjax_options: lint.mathjax.into(),
+            render_lint_options: lint.render.into(),
             fmt_options: fmt_options_from_schema(fmt),
             parse_options: parse_options_from_schema(parse),
             render_options: render_options_from_schema(render),
@@ -192,17 +193,34 @@ impl Config {
     }
 }
 
-/// Resolved `[lint.mathjax]` knobs. Carried alongside the rule selection so
-/// the CLI can configure the `math/mathjax-compat` rule's profile.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct LintMathJaxOptions {
+/// Resolved `[lint.render]` knobs. Carried alongside the rule selection so
+/// the CLI can configure the `math/render-compat` rule's profile.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LintRenderOptions {
+    renderer: Renderer,
     packages: Vec<String>,
     macros: HashMap<String, u8>,
 }
 
-impl LintMathJaxOptions {
-    /// `MathJax` packages to load on top of v3's autoload set
-    /// (e.g. `["mhchem", "physics"]`).
+impl Default for LintRenderOptions {
+    fn default() -> Self {
+        Self {
+            renderer: Renderer::MathJaxV3,
+            packages: Vec::new(),
+            macros: HashMap::new(),
+        }
+    }
+}
+
+impl LintRenderOptions {
+    /// Renderer the `math/render-compat` rule should check against.
+    #[must_use]
+    pub const fn renderer(&self) -> Renderer {
+        self.renderer
+    }
+
+    /// Renderer packages / extensions to load on top of the renderer's
+    /// default autoload set (e.g. `["mhchem", "physics"]`).
     #[must_use]
     pub fn packages(&self) -> &[String] {
         &self.packages
@@ -407,7 +425,7 @@ struct LintSchema {
     ignore: Vec<String>,
     exclude: Vec<String>,
     info_strings: InfoStringsSchema,
-    mathjax: MathJaxSchema,
+    render: RenderLintSchema,
 }
 
 impl Default for LintSchema {
@@ -419,7 +437,7 @@ impl Default for LintSchema {
             ignore: Vec::new(),
             exclude: Vec::new(),
             info_strings: InfoStringsSchema::default(),
-            mathjax: MathJaxSchema::default(),
+            render: RenderLintSchema::default(),
         }
     }
 }
@@ -447,7 +465,7 @@ impl<'de> Deserialize<'de> for LintSchema {
             #[serde(default, rename = "info-strings")]
             info_strings: InfoStringsSchema,
             #[serde(default)]
-            mathjax: MathJaxSchema,
+            render: RenderLintSchema,
         }
 
         let RawLintSchema {
@@ -458,7 +476,7 @@ impl<'de> Deserialize<'de> for LintSchema {
             ignore,
             exclude,
             info_strings,
-            mathjax,
+            render,
         } = RawLintSchema::deserialize(deserializer)?;
 
         for (key, names) in [
@@ -488,49 +506,70 @@ impl<'de> Deserialize<'de> for LintSchema {
             ignore,
             exclude,
             info_strings,
-            mathjax,
+            render,
         })
     }
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct MathJaxSchema {
+struct RenderLintSchema {
+    #[serde(default)]
+    renderer: RendererSchema,
     #[serde(default)]
     packages: Vec<String>,
     #[serde(default)]
-    macros: HashMap<String, MathJaxMacroSchema>,
+    macros: HashMap<String, RenderMacroSchema>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum MathJaxMacroSchema {
-    /// `RR = 0` form (arity only).
-    Arity(u8),
-    /// `RR = { arity = 0 }` form (room for future fields without
-    /// breaking the wire format).
-    Table(MathJaxMacroTable),
+#[derive(Copy, Clone, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+enum RendererSchema {
+    #[default]
+    #[serde(alias = "mathjax-v3")]
+    MathjaxV3,
+    Katex,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct MathJaxMacroTable {
-    #[serde(default)]
-    arity: u8,
-}
-
-impl From<MathJaxMacroSchema> for u8 {
-    fn from(schema: MathJaxMacroSchema) -> Self {
-        match schema {
-            MathJaxMacroSchema::Arity(arity) => arity,
-            MathJaxMacroSchema::Table(table) => table.arity,
+impl From<RendererSchema> for Renderer {
+    fn from(s: RendererSchema) -> Self {
+        match s {
+            RendererSchema::MathjaxV3 => Self::MathJaxV3,
+            RendererSchema::Katex => Self::Katex,
         }
     }
 }
 
-impl From<MathJaxSchema> for LintMathJaxOptions {
-    fn from(schema: MathJaxSchema) -> Self {
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum RenderMacroSchema {
+    /// `RR = 0` form (arity only).
+    Arity(u8),
+    /// `RR = { arity = 0 }` form (room for future fields without
+    /// breaking the wire format).
+    Table(RenderMacroTable),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RenderMacroTable {
+    #[serde(default)]
+    arity: u8,
+}
+
+impl From<RenderMacroSchema> for u8 {
+    fn from(schema: RenderMacroSchema) -> Self {
+        match schema {
+            RenderMacroSchema::Arity(arity) => arity,
+            RenderMacroSchema::Table(table) => table.arity,
+        }
+    }
+}
+
+impl From<RenderLintSchema> for LintRenderOptions {
+    fn from(schema: RenderLintSchema) -> Self {
         Self {
+            renderer: schema.renderer.into(),
             packages: schema.packages,
             macros: schema.macros.into_iter().map(|(name, m)| (name, m.into())).collect(),
         }
@@ -1530,17 +1569,19 @@ style = "align"
     }
 
     #[test]
-    fn parses_mathjax_packages_and_macros() -> Result<()> {
+    fn parses_render_packages_and_macros() -> Result<()> {
         let src = r#"
-[lint.mathjax]
+[lint.render]
+renderer = "mathjax-v3"
 packages = ["mhchem", "physics"]
-[lint.mathjax.macros]
+[lint.render.macros]
 RR = 0
 NN = { arity = 0 }
 proj = { arity = 1 }
 "#;
         let cfg = config_from_str(src)?;
-        let options = cfg.mathjax_options();
+        let options = cfg.render_lint_options();
+        assert_eq!(options.renderer(), mdwright_mathrender::Renderer::MathJaxV3);
         assert_eq!(options.packages(), &["mhchem".to_owned(), "physics".to_owned()]);
         assert_eq!(options.macros().get("RR"), Some(&0));
         assert_eq!(options.macros().get("NN"), Some(&0));
@@ -1549,8 +1590,19 @@ proj = { arity = 1 }
     }
 
     #[test]
-    fn rejects_unknown_mathjax_key() {
-        let err = toml::from_str::<Schema>("[lint.mathjax]\nfoo = []\n");
+    fn parses_katex_renderer_choice() -> Result<()> {
+        let src = "[lint.render]\nrenderer = \"katex\"\n";
+        let cfg = config_from_str(src)?;
+        assert_eq!(
+            cfg.render_lint_options().renderer(),
+            mdwright_mathrender::Renderer::Katex
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unknown_render_key() {
+        let err = toml::from_str::<Schema>("[lint.render]\nfoo = []\n");
         assert!(err.is_err(), "unknown key should be rejected");
     }
 

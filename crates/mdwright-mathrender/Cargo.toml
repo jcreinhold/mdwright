@@ -1,11 +1,11 @@
 [package]
 authors.workspace = true
 categories.workspace = true
-description = "MathJax compatibility profiles and math-body checking for mdwright"
+description = "Math-renderer compatibility profiles and math-body checking for mdwright"
 edition.workspace = true
 keywords.workspace = true
 license.workspace = true
-name = "mdwright-mathjax"
+name = "mdwright-mathrender"
 readme = "README.md"
 repository.workspace = true
 rust-version.workspace = true

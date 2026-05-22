@@ -1,23 +1,23 @@
-//! Single-pass MathJax compatibility check.
+//! Single-pass renderer-compatibility check.
 
 use mdwright_latex::{CommandEvent, SourceSpan, inspect_math_body};
 
-use crate::profile::{MathJaxProfile, PackageMask, package_from_name, package_name};
-use crate::tables::{COMMAND_OVERLAY, ENVIRONMENT_TABLE, lookup_overlay};
+use crate::profile::{PackageMask, RenderProfile, Renderer, package_from_name, package_name};
+use crate::tables::{command_overlay, environment_overlay, lookup_overlay};
 
 /// One compatibility issue found in a math body. Spans are byte ranges into
 /// the math-body source given to `check_math_body`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MathJaxIssue {
-    /// A command MathJax does not ship in any package the profile knows about.
+pub enum RenderIssue {
+    /// A command the renderer does not ship in any package the profile knows.
     UnsupportedCommand {
         /// Command name without the leading backslash.
         name: String,
         /// Byte range covering the command token.
         span: SourceSpan,
     },
-    /// A command MathJax can render, but only with a package that this profile
-    /// does not load. Suggest the package name in `package`.
+    /// A command the renderer can render, but only with a package that this
+    /// profile does not load. Suggest the package name in `package`.
     MissingPackage {
         /// Command name without the leading backslash.
         name: String,
@@ -26,7 +26,7 @@ pub enum MathJaxIssue {
         /// Byte range covering the command token.
         span: SourceSpan,
     },
-    /// An environment MathJax does not ship in any package the profile knows.
+    /// An environment the renderer does not ship in any package the profile knows.
     UnsupportedEnvironment {
         /// Environment name as written between the braces.
         name: String,
@@ -42,8 +42,8 @@ pub enum MathJaxIssue {
         /// Byte range covering `\begin{name}` through the closing brace.
         span: SourceSpan,
     },
-    /// A math-mode command used inside a `\text{...}` region, where MathJax
-    /// will treat it as plain text rather than rendering it.
+    /// A math-mode command used inside a `\text{...}` region, where the
+    /// renderer will treat it as plain text rather than rendering it.
     MathCommandInTextMode {
         /// Command name without the leading backslash.
         name: String,
@@ -56,11 +56,12 @@ pub enum MathJaxIssue {
 ///
 /// The check is single-pass over the lexer event stream from `mdwright-latex`:
 /// each command and environment is classified into "ok" / "needs package" /
-/// "unsupported" by consulting the profile's package mask and the overlay
-/// tables. Issues come back in source order; the result is empty when the
-/// body is fully compatible.
+/// "unsupported" by consulting the profile's renderer table, the
+/// `mdwright-latex` registry fallback, and the profile's package mask. Issues
+/// come back in source order; the result is empty when the body is fully
+/// compatible.
 #[must_use]
-pub fn check_math_body(source: &str, profile: &MathJaxProfile) -> Vec<MathJaxIssue> {
+pub fn check_math_body(source: &str, profile: &RenderProfile) -> Vec<RenderIssue> {
     let events = inspect_math_body(source);
     let mut issues = Vec::new();
     let mut text_depth: usize = 0;
@@ -76,7 +77,7 @@ pub fn check_math_body(source: &str, profile: &MathJaxProfile) -> Vec<MathJaxIss
             CommandEvent::Command { name, span } => {
                 if text_depth > 0 {
                     if is_math_only_command(name) {
-                        issues.push(MathJaxIssue::MathCommandInTextMode {
+                        issues.push(RenderIssue::MathCommandInTextMode {
                             name: name.to_owned(),
                             span,
                         });
@@ -99,36 +100,39 @@ pub fn check_math_body(source: &str, profile: &MathJaxProfile) -> Vec<MathJaxIss
     issues
 }
 
-fn classify_command(name: &str, span: SourceSpan, profile: &MathJaxProfile) -> Option<MathJaxIssue> {
+fn classify_command(name: &str, span: SourceSpan, profile: &RenderProfile) -> Option<RenderIssue> {
     if profile.has_macro(name) {
         return None;
     }
     if is_structural_macro(name) {
         return None;
     }
-    if let Some(entry) = lookup_overlay(COMMAND_OVERLAY, name) {
+    if let Some(entry) = lookup_overlay(command_overlay(profile.renderer()), name) {
         return resolve_package(name, span, entry.package, profile, false);
     }
     if let Some(info) = mdwright_latex::lookup_command(name) {
         if let Some(mask) = package_from_name(info.package()) {
+            // KaTeX has no separate `text-base`; `mdwright-latex` labels some
+            // text-mode commands that way. Treat that label as BASE for KaTeX.
+            let mask = normalise_mask_for_renderer(mask, profile.renderer());
             return resolve_package(name, span, mask, profile, false);
         }
-        return Some(MathJaxIssue::UnsupportedCommand {
+        return Some(RenderIssue::UnsupportedCommand {
             name: name.to_owned(),
             span,
         });
     }
-    Some(MathJaxIssue::UnsupportedCommand {
+    Some(RenderIssue::UnsupportedCommand {
         name: name.to_owned(),
         span,
     })
 }
 
-fn classify_environment(name: &str, span: SourceSpan, profile: &MathJaxProfile) -> Option<MathJaxIssue> {
-    if let Some(entry) = lookup_overlay(ENVIRONMENT_TABLE, name) {
+fn classify_environment(name: &str, span: SourceSpan, profile: &RenderProfile) -> Option<RenderIssue> {
+    if let Some(entry) = lookup_overlay(environment_overlay(profile.renderer()), name) {
         return resolve_package(name, span, entry.package, profile, true);
     }
-    Some(MathJaxIssue::UnsupportedEnvironment {
+    Some(RenderIssue::UnsupportedEnvironment {
         name: name.to_owned(),
         span,
     })
@@ -138,21 +142,21 @@ fn resolve_package(
     name: &str,
     span: SourceSpan,
     mask: PackageMask,
-    profile: &MathJaxProfile,
+    profile: &RenderProfile,
     is_environment: bool,
-) -> Option<MathJaxIssue> {
+) -> Option<RenderIssue> {
     if profile.has_package(mask) {
         return None;
     }
     let package = package_name(mask);
     Some(if is_environment {
-        MathJaxIssue::MissingPackageEnv {
+        RenderIssue::MissingPackageEnv {
             name: name.to_owned(),
             package,
             span,
         }
     } else {
-        MathJaxIssue::MissingPackage {
+        RenderIssue::MissingPackage {
             name: name.to_owned(),
             package,
             span,
@@ -160,8 +164,22 @@ fn resolve_package(
     })
 }
 
-/// Structural commands `inspect_math_body` reports but which MathJax always
-/// understands as part of the base grammar (not as user-visible commands).
+/// Fold renderer-specific package conventions. `mdwright-latex` records some
+/// commands with package `"text-base"` (text-mode commands like `\textbf`).
+/// KaTeX has no such split — its core covers them — so the mask is folded to
+/// BASE there. For MathJax v3 the bit set is the same (BASE) since the
+/// registry's text-base bucket is folded into BASE by `package_from_name`
+/// returning `None` for "text-base" and the upstream caller treating that as
+/// unsupported; here we keep the upstream behaviour intact for MathJax and
+/// only translate for KaTeX.
+const fn normalise_mask_for_renderer(mask: PackageMask, renderer: Renderer) -> PackageMask {
+    match renderer {
+        Renderer::Katex | Renderer::MathJaxV3 => mask,
+    }
+}
+
+/// Structural commands `inspect_math_body` reports but which every supported
+/// renderer always understands as part of the base grammar.
 fn is_structural_macro(name: &str) -> bool {
     matches!(
         name,
@@ -192,9 +210,7 @@ fn is_structural_macro(name: &str) -> bool {
 }
 
 /// Whether `name` is a math-mode-only command. Used to decide whether a
-/// command inside `\text{...}` is a likely rendering mistake. The list is
-/// deliberately small: only commands that have a clear meaning in math mode
-/// and would visibly fail in text mode.
+/// command inside `\text{...}` is a likely rendering mistake.
 fn is_math_only_command(name: &str) -> bool {
     if let Some(info) = mdwright_latex::lookup_command(name) {
         use mdwright_latex::CommandCategory;
@@ -222,48 +238,50 @@ mod tests {
 
     use super::*;
 
-    fn issues(source: &str, profile: &MathJaxProfile) -> Vec<MathJaxIssue> {
+    fn issues(source: &str, profile: &RenderProfile) -> Vec<RenderIssue> {
         check_math_body(source, profile)
     }
 
+    // ---- MathJax v3 cases (carried over from the original suite) ----
+
     #[test]
-    fn well_formed_math_produces_no_issues() {
-        let profile = MathJaxProfile::v3_default();
+    fn well_formed_math_produces_no_issues_under_mathjax() {
+        let profile = RenderProfile::mathjax_v3();
         assert!(issues(r"\alpha + \beta = \gamma", &profile).is_empty());
         assert!(issues(r"\frac{a}{b} + \sqrt{x}", &profile).is_empty());
     }
 
     #[test]
-    fn ams_commands_pass_under_default_profile() {
-        let profile = MathJaxProfile::v3_default();
+    fn ams_commands_pass_under_mathjax_default() {
+        let profile = RenderProfile::mathjax_v3();
         assert!(issues(r"\dfrac{a}{b}", &profile).is_empty());
         assert!(issues(r"\mathbb{R}", &profile).is_empty());
     }
 
     #[test]
-    fn chemistry_command_requires_mhchem() {
-        let profile = MathJaxProfile::v3_default();
+    fn chemistry_command_requires_mhchem_under_mathjax() {
+        let profile = RenderProfile::mathjax_v3();
         let found = issues(r"\ce{H2O}", &profile);
         assert!(matches!(
             found.as_slice(),
-            [MathJaxIssue::MissingPackage { name, package: "mhchem", .. }] if name == "ce"
+            [RenderIssue::MissingPackage { name, package: "mhchem", .. }] if name == "ce"
         ));
     }
 
     #[test]
-    fn loading_mhchem_clears_chemistry_diagnostic() {
-        let profile = MathJaxProfile::v3_default().with_package("mhchem");
+    fn loading_mhchem_clears_chemistry_diagnostic_under_mathjax() {
+        let profile = RenderProfile::mathjax_v3().with_package("mhchem");
         assert!(issues(r"\ce{H2O}", &profile).is_empty());
     }
 
     #[test]
-    fn physics_commands_require_physics_package() {
-        let profile = MathJaxProfile::v3_default();
+    fn physics_commands_require_physics_package_under_mathjax() {
+        let profile = RenderProfile::mathjax_v3();
         let found = issues(r"\bra{\psi}\ket{\phi}", &profile);
         let names: Vec<&str> = found
             .iter()
             .filter_map(|issue| match issue {
-                MathJaxIssue::MissingPackage {
+                RenderIssue::MissingPackage {
                     name,
                     package: "physics",
                     ..
@@ -276,37 +294,37 @@ mod tests {
 
     #[test]
     fn definitely_unknown_command_is_unsupported() {
-        let profile = MathJaxProfile::v3_default();
-        let found = issues(r"\nosuchmathjaxcommandever", &profile);
+        let profile = RenderProfile::mathjax_v3();
+        let found = issues(r"\nosuchcommandever", &profile);
         assert!(matches!(
             found.as_slice(),
-            [MathJaxIssue::UnsupportedCommand { name, .. }] if name == "nosuchmathjaxcommandever"
+            [RenderIssue::UnsupportedCommand { name, .. }] if name == "nosuchcommandever"
         ));
     }
 
     #[test]
     fn user_macro_silences_unsupported_command() {
-        let profile = MathJaxProfile::v3_default().with_macro("RR", 0);
+        let profile = RenderProfile::mathjax_v3().with_macro("RR", 0);
         assert!(issues(r"\RR", &profile).is_empty());
     }
 
     #[test]
     fn unknown_environment_is_unsupported() {
-        let profile = MathJaxProfile::v3_default();
+        let profile = RenderProfile::mathjax_v3();
         let found = issues(r"\begin{tikzpicture}x\end{tikzpicture}", &profile);
         assert!(matches!(
             found.as_slice(),
-            [MathJaxIssue::UnsupportedEnvironment { name, .. }] if name == "tikzpicture"
+            [RenderIssue::UnsupportedEnvironment { name, .. }] if name == "tikzpicture"
         ));
     }
 
     #[test]
-    fn amscd_environment_needs_package() {
-        let profile = MathJaxProfile::v3_default();
+    fn amscd_environment_needs_package_under_mathjax() {
+        let profile = RenderProfile::mathjax_v3();
         let found = issues(r"\begin{CD}A @>>> B\end{CD}", &profile);
         assert!(matches!(
             found.first(),
-            Some(MathJaxIssue::MissingPackageEnv {
+            Some(RenderIssue::MissingPackageEnv {
                 name,
                 package: "amscd",
                 ..
@@ -316,27 +334,27 @@ mod tests {
 
     #[test]
     fn math_command_inside_text_is_flagged() {
-        let profile = MathJaxProfile::v3_default();
+        let profile = RenderProfile::mathjax_v3();
         let found = issues(r"\text{the symbol \alpha here}", &profile);
         assert!(matches!(
             found.as_slice(),
-            [MathJaxIssue::MathCommandInTextMode { name, .. }] if name == "alpha"
+            [RenderIssue::MathCommandInTextMode { name, .. }] if name == "alpha"
         ));
     }
 
     #[test]
     fn math_command_outside_text_is_not_flagged() {
-        let profile = MathJaxProfile::v3_default();
+        let profile = RenderProfile::mathjax_v3();
         assert!(issues(r"\alpha + \beta", &profile).is_empty());
     }
 
     #[test]
-    fn color_needs_color_package() {
-        let profile = MathJaxProfile::v3_default();
+    fn color_needs_color_package_under_mathjax() {
+        let profile = RenderProfile::mathjax_v3();
         let found = issues(r"\color{red} x", &profile);
         assert!(matches!(
             found.first(),
-            Some(MathJaxIssue::MissingPackage {
+            Some(RenderIssue::MissingPackage {
                 name,
                 package: "color",
                 ..
@@ -346,7 +364,49 @@ mod tests {
 
     #[test]
     fn structural_left_right_are_silent() {
-        let profile = MathJaxProfile::v3_default();
+        let profile = RenderProfile::mathjax_v3();
         assert!(issues(r"\left( x \right)", &profile).is_empty());
+    }
+
+    // ---- KaTeX cases ----
+
+    #[test]
+    fn well_formed_math_produces_no_issues_under_katex() {
+        let profile = RenderProfile::katex();
+        assert!(issues(r"\alpha + \beta = \gamma", &profile).is_empty());
+        assert!(issues(r"\frac{a}{b} + \sqrt{x}", &profile).is_empty());
+        assert!(issues(r"\mathbb{R} \xrightarrow{f} \mathfrak{m}", &profile).is_empty());
+    }
+
+    #[test]
+    fn chemistry_command_requires_mhchem_under_katex() {
+        let profile = RenderProfile::katex();
+        let found = issues(r"\ce{H2O}", &profile);
+        assert!(matches!(
+            found.as_slice(),
+            [RenderIssue::MissingPackage { name, package: "mhchem", .. }] if name == "ce"
+        ));
+    }
+
+    #[test]
+    fn loading_mhchem_clears_chemistry_diagnostic_under_katex() {
+        let profile = RenderProfile::katex().with_package("mhchem");
+        assert!(issues(r"\ce{H2O}", &profile).is_empty());
+    }
+
+    #[test]
+    fn tikz_environment_is_unsupported_under_katex() {
+        let profile = RenderProfile::katex();
+        let found = issues(r"\begin{tikzpicture}x\end{tikzpicture}", &profile);
+        assert!(matches!(
+            found.as_slice(),
+            [RenderIssue::UnsupportedEnvironment { name, .. }] if name == "tikzpicture"
+        ));
+    }
+
+    #[test]
+    fn profile_records_renderer_choice() {
+        assert_eq!(RenderProfile::mathjax_v3().renderer(), Renderer::MathJaxV3);
+        assert_eq!(RenderProfile::katex().renderer(), Renderer::Katex);
     }
 }

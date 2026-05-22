@@ -56,7 +56,7 @@ use mdwright_format::{
 };
 use mdwright_latex::Translation;
 use mdwright_lint::{Diagnostic, LintOptions, RuleSet, Severity, Snippet, apply_safe_fixes, rule_doc_url, stdlib};
-use mdwright_mathjax::MathJaxProfile;
+use mdwright_mathrender::{RenderProfile as MathRenderProfile, Renderer};
 
 /// Run the mdwright CLI with the given rule set.
 ///
@@ -1735,8 +1735,8 @@ const CONFIG_DISPATCH: &[ConfigDispatch] = &[
         build: build_info_string_typo,
     },
     ConfigDispatch {
-        name: "math/mathjax-compat",
-        build: build_mathjax_compat,
+        name: "math/render-compat",
+        build: build_render_compat,
     },
 ];
 
@@ -1744,16 +1744,19 @@ fn build_info_string_typo(cfg: &Config) -> Box<dyn mdwright_lint::LintRule> {
     Box::new(stdlib::InfoStringTypo::with_extra(cfg.extra_info_strings().to_vec()))
 }
 
-fn build_mathjax_compat(cfg: &Config) -> Box<dyn mdwright_lint::LintRule> {
-    let options = cfg.mathjax_options();
-    let mut profile = MathJaxProfile::v3_default();
+fn build_render_compat(cfg: &Config) -> Box<dyn mdwright_lint::LintRule> {
+    let options = cfg.render_lint_options();
+    let mut profile = match options.renderer() {
+        Renderer::MathJaxV3 => MathRenderProfile::mathjax_v3(),
+        Renderer::Katex => MathRenderProfile::katex(),
+    };
     for package in options.packages() {
         profile = profile.with_package(package);
     }
     for (name, arity) in options.macros() {
         profile = profile.with_macro(name.clone(), *arity);
     }
-    Box::new(stdlib::MathJaxCompat::with_profile(profile))
+    Box::new(stdlib::RenderCompat::with_profile(profile))
 }
 
 /// Build a `Gitignore` matcher from the configured patterns. The
