@@ -16,12 +16,12 @@ path = "src/main.rs"
 anyhow = { workspace = true }
 clap = { workspace = true }
 comrak = { version = "0.52", default-features = false }
+ignore = { workspace = true }
 mdwright-config = { workspace = true }
 mdwright-document = { workspace = true }
 mdwright-format = { workspace = true }
 mdwright-latex = { workspace = true }
 mdwright-lint = { workspace = true }
-ignore = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

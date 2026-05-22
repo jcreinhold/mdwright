@@ -9,27 +9,21 @@ All notable changes to mdwright are listed here. The format follows
 
 ### Added
 
-- New `math/render-compat` lint family (opt-in, default off) checks every math span
-  against a configured renderer profile. Two profiles ship today — MathJax v3 and
-  KaTeX — and emit per-issue rule codes
-  (`math/render-unsupported-command`, `math/render-missing-package`,
-  `math/render-unsupported-environment`, `math/render-missing-package-env`,
-  `math/render-math-command-in-text`). Configure in `[lint.render]` with
-  `renderer = "mathjax-v3" | "katex"`, optional `packages` (e.g. `["mhchem"]`),
-  and optional `[lint.render.macros]`.
-- New `mdwright-mathrender` crate owns the renderer policy. Public surface: a
-  `Renderer` enum, a `RenderProfile` builder, a single `check_math_body` function,
-  and a `RenderIssue` enum. Compatibility tables are private.
-- `mdwright-latex::inspect_math_body` event-iterator API exposes commands,
-  environments, and text-mode regions from a math body without leaking the
-  parser AST.
-- Lint dispatcher preserves rule codes pre-stamped by the rule itself, so one
-  rule can emit diagnostics under several codes from a single document walk.
+- New `math/render-compat` lint family (opt-in, default off) checks every math span against a configured renderer
+  profile. Two profiles ship today — MathJax v3 and KaTeX — and emit per-issue rule codes
+  (`math/render-unsupported-command`, `math/render-missing-package`, `math/render-unsupported-environment`,
+  `math/render-missing-package-env`, `math/render-math-command-in-text`). Configure in `[lint.render]` with
+  `renderer = "mathjax-v3" | "katex"`, optional `packages` (e.g. `["mhchem"]`), and optional `[lint.render.macros]`.
+- New `mdwright-mathrender` crate owns the renderer policy. Public surface: a `Renderer` enum, a `RenderProfile`
+  builder, a single `check_math_body` function, and a `RenderIssue` enum. Compatibility tables are private.
+- `mdwright-latex::inspect_math_body` event-iterator API exposes commands, environments, and text-mode regions from a
+  math body without leaking the parser AST.
+- Lint dispatcher preserves rule codes pre-stamped by the rule itself, so one rule can emit diagnostics under several
+  codes from a single document walk.
 
 ### Changed
 
-- Math-body parsing in `mdwright-latex` gains a narrow `CommandEvent` inspection
-  API for downstream linters.
+- Math-body parsing in `mdwright-latex` gains a narrow `CommandEvent` inspection API for downstream linters.
 
 ## [0.1.1] – 2026-05-22
 
