@@ -436,4 +436,4 @@ jobs:
       RELEASE_TAG: ${{ needs.dist-plan.outputs.tag }}
     steps:
       - name: Trigger Pages deployment
-        run: gh workflow run pages.yml --ref main -f source_ref="$RELEASE_TAG"
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main -f source_ref="$RELEASE_TAG"
