@@ -119,7 +119,7 @@ See [Configuration](https://jcreinhold.github.io/mdwright/configuration.html) fo
 # .pre-commit-config.yaml
 repos:
   - repo: https://github.com/jcreinhold/mdwright
-    rev: v0.1.1
+    rev: v0.1.2
     hooks:
       - id: mdwright-check-system
       - id: mdwright-fmt-check-system
@@ -128,7 +128,7 @@ repos:
 GitHub Actions:
 
 ```yaml
-- uses: jcreinhold/mdwright@v0.1.1
+- uses: jcreinhold/mdwright@v0.1.2
   with:
     args: check --check .
 ```

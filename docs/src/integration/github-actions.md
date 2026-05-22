@@ -19,15 +19,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: jcreinhold/mdwright@v0.1.1
+      - uses: jcreinhold/mdwright@v0.1.2
         with:
           args: check --check .
-      - uses: jcreinhold/mdwright@v0.1.1
+      - uses: jcreinhold/mdwright@v0.1.2
         with:
           args: fmt-check .
 ```
 
-`args` defaults to `check --check .`. Pin the version to a tag (`@v0.1.1`) rather than `@main` so upstream releases
+`args` defaults to `check --check .`. Pin the version to a tag (`@v0.1.2`) rather than `@main` so upstream releases
 don't silently rebreak your CI.
 
 The action ships prebuilt binaries for `ubuntu-latest` (`x86_64-unknown-linux-gnu`) and `macos-latest`
