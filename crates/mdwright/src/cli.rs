@@ -56,6 +56,7 @@ use mdwright_format::{
 };
 use mdwright_latex::Translation;
 use mdwright_lint::{Diagnostic, LintOptions, RuleSet, Severity, Snippet, apply_safe_fixes, rule_doc_url, stdlib};
+use mdwright_mathjax::MathJaxProfile;
 
 /// Run the mdwright CLI with the given rule set.
 ///
@@ -1699,26 +1700,60 @@ fn resolve_config(explicit: Option<&std::path::Path>) -> Result<Config> {
     cfg.map_err(|e| anyhow!("{e}"))
 }
 
-/// Apply config-time rule modifications: extend `info-string-typo`'s
-/// allowlist when `[lint.info-strings] extra` is set. Only fires if
-/// the rule is in the active set; an explicit `--rules foo,bar`
-/// without `info-string-typo` leaves the set untouched.
+/// Apply config-time rule modifications: swap in stdlib rule instances that
+/// carry config-derived state.
 ///
-/// Note: this swaps in a fresh stdlib `InfoStringTypo` instance, so
-/// a downstream binary that registered its own implementation of the
-/// `info-string-typo` name would see it replaced with the stdlib
-/// version. That's an artifact of the current config-to-rule wiring.
-/// For the official binary the behaviour is unchanged.
+/// Each per-rule swap-in is registered in [`CONFIG_DISPATCH`] below. Only
+/// fires when the rule is in the active set; an explicit `--rules` selection
+/// without the affected rule leaves the set untouched.
+///
+/// Note: this swaps stdlib instances in, so a downstream binary that
+/// registered its own implementation of one of these rule names would see it
+/// replaced with the stdlib version. That's an artifact of the current
+/// config-to-rule wiring. For the official binary the behaviour is unchanged.
 fn apply_config_to_rules(rules: &mut RuleSet, cfg: &Config) -> Result<()> {
-    if !cfg.extra_info_strings().is_empty() && rules.contains("info-string-typo") {
-        let _removed = rules.remove("info-string-typo");
-        rules
-            .add(Box::new(stdlib::InfoStringTypo::with_extra(
-                cfg.extra_info_strings().to_vec(),
-            )))
-            .map_err(|e| anyhow!("{e}"))?;
+    for entry in CONFIG_DISPATCH {
+        if rules.contains(entry.name) {
+            let new_rule = (entry.build)(cfg);
+            let _removed = rules.remove(entry.name);
+            rules.add(new_rule).map_err(|e| anyhow!("{e}"))?;
+        }
     }
     Ok(())
+}
+
+/// One entry in the config-to-rule dispatch table: a rule name and the
+/// constructor that builds a config-configured instance.
+struct ConfigDispatch {
+    name: &'static str,
+    build: fn(&Config) -> Box<dyn mdwright_lint::LintRule>,
+}
+
+const CONFIG_DISPATCH: &[ConfigDispatch] = &[
+    ConfigDispatch {
+        name: "info-string-typo",
+        build: build_info_string_typo,
+    },
+    ConfigDispatch {
+        name: "math/mathjax-compat",
+        build: build_mathjax_compat,
+    },
+];
+
+fn build_info_string_typo(cfg: &Config) -> Box<dyn mdwright_lint::LintRule> {
+    Box::new(stdlib::InfoStringTypo::with_extra(cfg.extra_info_strings().to_vec()))
+}
+
+fn build_mathjax_compat(cfg: &Config) -> Box<dyn mdwright_lint::LintRule> {
+    let options = cfg.mathjax_options();
+    let mut profile = MathJaxProfile::v3_default();
+    for package in options.packages() {
+        profile = profile.with_package(package);
+    }
+    for (name, arity) in options.macros() {
+        profile = profile.with_macro(name.clone(), *arity);
+    }
+    Box::new(stdlib::MathJaxCompat::with_profile(profile))
 }
 
 /// Build a `Gitignore` matcher from the configured patterns. The

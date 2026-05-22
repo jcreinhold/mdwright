@@ -9,6 +9,7 @@ members = [
   "crates/mdwright-lint",
   "crates/mdwright-lsp",
   "crates/mdwright-math",
+  "crates/mdwright-mathjax",
   "examples/extending",
   "xtask",
 ]
@@ -37,6 +38,7 @@ mdwright-latex = { version = "0.1.1", path = "crates/mdwright-latex" }
 mdwright-lint = { version = "0.1.1", path = "crates/mdwright-lint" }
 mdwright-lsp = { version = "0.1.1", path = "crates/mdwright-lsp" }
 mdwright-math = { version = "0.1.1", path = "crates/mdwright-math" }
+mdwright-mathjax = { version = "0.1.1", path = "crates/mdwright-mathjax" }
 logos = "0.16"
 owo-colors = "4"
 opener = "0.8"
@@ -75,6 +77,7 @@ mdwright-latex = { path = "crates/mdwright-latex" }
 mdwright-lint = { path = "crates/mdwright-lint" }
 mdwright-lsp = { path = "crates/mdwright-lsp" }
 mdwright-math = { path = "crates/mdwright-math" }
+mdwright-mathjax = { path = "crates/mdwright-mathjax" }
 
 [workspace.lints.rust]
 future-incompatible = "warn"

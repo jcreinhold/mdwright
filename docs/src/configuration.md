@@ -60,6 +60,8 @@ All `[fmt]` knobs are config-file-only.
 | `lint.ignore` | array of string | `[]` | `--rules` | Lint rule names to remove after applying `lint.preset`, `lint.select`, and `lint.extend-select`. |
 | `lint.exclude` | array of string | `[]` | `none` | Gitignore-style patterns. Matching files are dropped from lint runs. Patterns are anchored to the directory containing the config file. |
 | `lint.info-strings.extra` | array of string | `[]` | `none` | Project-specific additions to the `info-string-typo` allowlist. The stdlib default allowlist still applies. |
+| `lint.mathjax.packages` | array of string | `[]` | `none` | MathJax packages to load on top of the v3 autoload set (e.g. `["mhchem", "physics"]`). Consumed by the `math/mathjax-compat` rule. |
+| `lint.mathjax.macros` | table | `{}` | `none` | User-declared macros known to be in scope, keyed by command name (no leading backslash). Each entry is either `name = arity` or `name = { arity = N }`. |
 
 ### `[fmt]` and nested tables
 

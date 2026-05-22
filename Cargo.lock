@@ -945,6 +945,7 @@ dependencies = [
  "mdwright-lint",
  "mdwright-lsp",
  "mdwright-math",
+ "mdwright-mathjax",
  "opener",
  "owo-colors",
  "proptest",
@@ -1023,6 +1024,7 @@ dependencies = [
  "anyhow",
  "mdwright-document",
  "mdwright-latex",
+ "mdwright-mathjax",
  "regex",
 ]
 
@@ -1051,6 +1053,13 @@ dependencies = [
  "mdwright-latex",
  "tracing",
  "unicode-width",
+]
+
+[[package]]
+name = "mdwright-mathjax"
+version = "0.1.1"
+dependencies = [
+ "mdwright-latex",
 ]
 
 [[package]]

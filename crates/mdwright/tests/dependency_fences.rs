@@ -251,7 +251,10 @@ fn preview_uses_latex_renderer_directly() {
 fn latex_vocabulary_is_owned_by_latex() {
     let lint_manifest = fs::read_to_string(repo_file("crates/mdwright-lint/Cargo.toml")).expect("read lint manifest");
     assert!(
-        !lint_manifest.contains("mdwright-math"),
+        !lint_manifest
+            .lines()
+            .any(|line| line.trim_start().starts_with("mdwright-math ")
+                || line.trim_start().starts_with("mdwright-math=")),
         "mdwright-lint must not depend directly on mdwright-math for LaTeX vocabulary"
     );
     assert!(

@@ -18,7 +18,7 @@
 //! and stay stable even if the on-disk format gains alternate
 //! representations (e.g. CLI overrides for individual keys later on).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::error::Error as StdError;
 use std::fmt;
 use std::fs;
@@ -50,6 +50,7 @@ pub struct Config {
     lint_rule_selection: LintRuleSelection,
     exclude_globs: Vec<String>,
     extra_info_strings: Vec<String>,
+    mathjax_options: LintMathJaxOptions,
     fmt_options: FmtOptions,
     parse_options: ParseOptions,
     render_options: RenderOptions,
@@ -128,6 +129,15 @@ impl Config {
         &self.extra_info_strings
     }
 
+    /// Resolved `[lint.mathjax]` configuration for the
+    /// `math/mathjax-compat` lint family. The CLI translates this into
+    /// a `MathJaxProfile`; the config crate does not depend on
+    /// `mdwright-mathjax`.
+    #[must_use]
+    pub fn mathjax_options(&self) -> &LintMathJaxOptions {
+        &self.mathjax_options
+    }
+
     /// Resolved formatter knobs from `[fmt]`. Formatter sessions are
     /// the first consumers; the lint side ignores these.
     #[must_use]
@@ -173,11 +183,38 @@ impl Config {
             },
             exclude_globs: lint.exclude,
             extra_info_strings: lint.info_strings.extra,
+            mathjax_options: lint.mathjax.into(),
             fmt_options: fmt_options_from_schema(fmt),
             parse_options: parse_options_from_schema(parse),
             render_options: render_options_from_schema(render),
             source,
         }
+    }
+}
+
+/// Resolved `[lint.mathjax]` knobs. Carried alongside the rule selection so
+/// the CLI can configure the `math/mathjax-compat` rule's profile.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct LintMathJaxOptions {
+    packages: Vec<String>,
+    macros: HashMap<String, u8>,
+}
+
+impl LintMathJaxOptions {
+    /// `MathJax` packages to load on top of v3's autoload set
+    /// (e.g. `["mhchem", "physics"]`).
+    #[must_use]
+    pub fn packages(&self) -> &[String] {
+        &self.packages
+    }
+
+    /// User-declared macros known to be in scope, keyed by command name
+    /// (without the leading backslash). The value is the macro's arity;
+    /// the checker treats the name as defined and ignores arity at
+    /// check time.
+    #[must_use]
+    pub fn macros(&self) -> &HashMap<String, u8> {
+        &self.macros
     }
 }
 
@@ -370,6 +407,7 @@ struct LintSchema {
     ignore: Vec<String>,
     exclude: Vec<String>,
     info_strings: InfoStringsSchema,
+    mathjax: MathJaxSchema,
 }
 
 impl Default for LintSchema {
@@ -381,6 +419,7 @@ impl Default for LintSchema {
             ignore: Vec::new(),
             exclude: Vec::new(),
             info_strings: InfoStringsSchema::default(),
+            mathjax: MathJaxSchema::default(),
         }
     }
 }
@@ -407,6 +446,8 @@ impl<'de> Deserialize<'de> for LintSchema {
             exclude: Vec<String>,
             #[serde(default, rename = "info-strings")]
             info_strings: InfoStringsSchema,
+            #[serde(default)]
+            mathjax: MathJaxSchema,
         }
 
         let RawLintSchema {
@@ -417,6 +458,7 @@ impl<'de> Deserialize<'de> for LintSchema {
             ignore,
             exclude,
             info_strings,
+            mathjax,
         } = RawLintSchema::deserialize(deserializer)?;
 
         for (key, names) in [
@@ -446,7 +488,52 @@ impl<'de> Deserialize<'de> for LintSchema {
             ignore,
             exclude,
             info_strings,
+            mathjax,
         })
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MathJaxSchema {
+    #[serde(default)]
+    packages: Vec<String>,
+    #[serde(default)]
+    macros: HashMap<String, MathJaxMacroSchema>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum MathJaxMacroSchema {
+    /// `RR = 0` form (arity only).
+    Arity(u8),
+    /// `RR = { arity = 0 }` form (room for future fields without
+    /// breaking the wire format).
+    Table(MathJaxMacroTable),
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct MathJaxMacroTable {
+    #[serde(default)]
+    arity: u8,
+}
+
+impl From<MathJaxMacroSchema> for u8 {
+    fn from(schema: MathJaxMacroSchema) -> Self {
+        match schema {
+            MathJaxMacroSchema::Arity(arity) => arity,
+            MathJaxMacroSchema::Table(table) => table.arity,
+        }
+    }
+}
+
+impl From<MathJaxSchema> for LintMathJaxOptions {
+    fn from(schema: MathJaxSchema) -> Self {
+        Self {
+            packages: schema.packages,
+            macros: schema.macros.into_iter().map(|(name, m)| (name, m.into())).collect(),
+        }
     }
 }
 
@@ -1440,6 +1527,31 @@ style = "align"
             .ok_or_else(|| anyhow!("expected error"))?;
         assert!(err.to_string().contains("no-such-rule"));
         Ok(())
+    }
+
+    #[test]
+    fn parses_mathjax_packages_and_macros() -> Result<()> {
+        let src = r#"
+[lint.mathjax]
+packages = ["mhchem", "physics"]
+[lint.mathjax.macros]
+RR = 0
+NN = { arity = 0 }
+proj = { arity = 1 }
+"#;
+        let cfg = config_from_str(src)?;
+        let options = cfg.mathjax_options();
+        assert_eq!(options.packages(), &["mhchem".to_owned(), "physics".to_owned()]);
+        assert_eq!(options.macros().get("RR"), Some(&0));
+        assert_eq!(options.macros().get("NN"), Some(&0));
+        assert_eq!(options.macros().get("proj"), Some(&1));
+        Ok(())
+    }
+
+    #[test]
+    fn rejects_unknown_mathjax_key() {
+        let err = toml::from_str::<Schema>("[lint.mathjax]\nfoo = []\n");
+        assert!(err.is_err(), "unknown key should be rejected");
     }
 
     #[test]

@@ -118,6 +118,20 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         description: "Project-specific additions to the `info-string-typo` allowlist. The stdlib default allowlist still applies.",
         cli_override: None,
     },
+    FieldDoc {
+        key: "lint.mathjax.packages",
+        ty: "array of string",
+        default: "[]",
+        description: "MathJax packages to load on top of the v3 autoload set (e.g. `[\"mhchem\", \"physics\"]`). Consumed by the `math/mathjax-compat` rule.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "lint.mathjax.macros",
+        ty: "table",
+        default: "{}",
+        description: "User-declared macros known to be in scope, keyed by command name (no leading backslash). Each entry is either `name = arity` or `name = { arity = N }`.",
+        cli_override: None,
+    },
     // ---- [fmt] -------------------------------------------------------
     FieldDoc {
         key: "fmt.profile",

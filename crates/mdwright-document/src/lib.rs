@@ -29,7 +29,7 @@ pub use ir::{
     InlineHtml, LinkDef, ListGroup, ListItem, Suppression, SuppressionKind, TextSlice,
 };
 pub use line_index::{LineIndex, LineIndexError};
-pub use mdwright_math::{MathError, MathRegion, MathSpan};
+pub use mdwright_math::{MathBody, MathError, MathRegion, MathSpan};
 pub use render::{RenderOptions, RenderProfile};
 pub use signature::{MarkdownSignature, markdown_signature};
 pub use tree::TableAlign;

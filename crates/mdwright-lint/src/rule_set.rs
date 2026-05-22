@@ -107,8 +107,14 @@ impl RuleSet {
             rule.check(doc, &mut out);
             let name_owned = rule.name().to_owned();
             let advisory = rule.is_advisory();
+            // A rule that emits diagnostics under several rule codes (e.g.
+            // the `math/mathjax-*` family) sets `d.rule` itself. The
+            // dispatcher only stamps when the rule field is still empty, so
+            // pre-stamped codes survive.
             for d in out.get_mut(before..).into_iter().flatten() {
-                d.rule = std::borrow::Cow::Owned(name_owned.clone());
+                if d.rule.is_empty() {
+                    d.rule = std::borrow::Cow::Owned(name_owned.clone());
+                }
                 d.advisory = advisory;
             }
         }
@@ -249,6 +255,47 @@ mod tests {
         rs.add(Box::new(Noop("gamma"))).map_err(|e| anyhow::anyhow!("{e}"))?;
         let collected: Vec<&str> = rs.names().collect();
         assert_eq!(collected, vec!["alpha", "beta", "gamma"]);
+        Ok(())
+    }
+
+    struct MultiCode;
+    impl LintRule for MultiCode {
+        fn name(&self) -> &str {
+            "umbrella"
+        }
+        fn description(&self) -> &str {
+            "emits diagnostics under several rule codes"
+        }
+        fn check(&self, _doc: &Document, out: &mut Vec<Diagnostic>) {
+            out.push(Diagnostic {
+                rule: std::borrow::Cow::Borrowed("umbrella/sub-a"),
+                line: 1,
+                column: 1,
+                span: 0..0,
+                message: String::new(),
+                fix: None,
+                advisory: false,
+            });
+            out.push(Diagnostic {
+                rule: std::borrow::Cow::Borrowed(""),
+                line: 1,
+                column: 2,
+                span: 0..0,
+                message: String::new(),
+                fix: None,
+                advisory: false,
+            });
+        }
+    }
+
+    #[test]
+    fn pre_stamped_rule_codes_survive_dispatch() -> anyhow::Result<()> {
+        let mut rs = RuleSet::new();
+        rs.add(Box::new(MultiCode)).map_err(|e| anyhow::anyhow!("{e}"))?;
+        let doc = Document::parse("")?;
+        let diagnostics = rs.check(&doc);
+        let codes: Vec<&str> = diagnostics.iter().map(|d| d.rule.as_ref()).collect();
+        assert_eq!(codes, vec!["umbrella/sub-a", "umbrella"]);
         Ok(())
     }
 

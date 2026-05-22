@@ -13,6 +13,7 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod inspect;
 mod layout;
 #[allow(dead_code, reason = "the private TeX lexer has fixture-tested token APIs")]
 mod lexer;
@@ -26,6 +27,7 @@ mod unicode_lexer;
 mod unicode_parser;
 
 pub use error::{LatexError, LatexErrorKind, SourceSpan};
+pub use inspect::{CommandEvent, inspect_math_body};
 pub use layout::{RenderedLatex, render_unicode_math};
 pub use registry::{
     ArgumentShape, CommandCategory, CommandInfo, SupportStatus, is_known_unsupported_command, latex_symbol,

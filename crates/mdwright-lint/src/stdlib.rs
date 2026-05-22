@@ -13,6 +13,7 @@
 //! | `math/unbalanced-delim`    | yes | no  |
 //! | `math/unbalanced-env`      | yes | no  |
 //! | `math/unbalanced-braces`   | yes | no  |
+//! | `math/mathjax-compat`      | no  | no  |
 //! | `adjacent-code-no-space`   | yes | no  |
 //! | `heading-punctuation`      | yes | no  |
 //! | `orphan-reference-link`    | yes | no  |
@@ -39,6 +40,7 @@ mod inconsistent_list_marker;
 mod info_string_typo;
 mod latex_command;
 mod list_tightness_flipped;
+mod math_mathjax;
 mod math_unbalanced_braces;
 mod math_unbalanced_delim;
 mod math_unbalanced_env;
@@ -62,6 +64,7 @@ pub use inconsistent_list_marker::InconsistentListMarker;
 pub use info_string_typo::InfoStringTypo;
 pub use latex_command::LatexCommand;
 pub use list_tightness_flipped::ListTightnessFlipped;
+pub use math_mathjax::MathJaxCompat;
 pub use math_unbalanced_braces::MathUnbalancedBraces;
 pub use math_unbalanced_delim::MathUnbalancedDelim;
 pub use math_unbalanced_env::MathUnbalancedEnv;
@@ -85,6 +88,7 @@ pub const NAMES: &[&str] = &[
     "math/unbalanced-delim",
     "math/unbalanced-env",
     "math/unbalanced-braces",
+    "math/mathjax-compat",
     "adjacent-code-no-space",
     "heading-punctuation",
     "orphan-reference-link",
@@ -117,6 +121,7 @@ fn all_boxed() -> Vec<Box<dyn LintRule>> {
         Box::new(MathUnbalancedDelim),
         Box::new(MathUnbalancedEnv),
         Box::new(MathUnbalancedBraces),
+        Box::new(MathJaxCompat::new()),
         Box::new(AdjacentCodeNoSpace),
         Box::new(HeadingPunctuation),
         Box::new(OrphanReferenceLink),
@@ -195,7 +200,8 @@ mod tests {
         assert!(rs.contains("math/unbalanced-delim"));
         assert!(rs.contains("math/unbalanced-env"));
         assert!(rs.contains("math/unbalanced-braces"));
-        assert!(rs.len() == 19);
+        assert!(rs.contains("math/mathjax-compat"));
+        assert!(rs.len() == 20);
     }
 
     #[test]

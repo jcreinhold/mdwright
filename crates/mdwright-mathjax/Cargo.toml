@@ -1,24 +1,18 @@
 [package]
 authors.workspace = true
 categories.workspace = true
-description = "Lint diagnostics, rule execution, suppressions, and standard rules for mdwright"
+description = "MathJax compatibility profiles and math-body checking for mdwright"
 edition.workspace = true
 keywords.workspace = true
 license.workspace = true
-name = "mdwright-lint"
+name = "mdwright-mathjax"
 readme = "README.md"
 repository.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
-mdwright-document = { workspace = true }
 mdwright-latex = { workspace = true }
-mdwright-mathjax = { workspace = true }
-regex = { workspace = true }
-
-[dev-dependencies]
-anyhow = { workspace = true }
 
 [lints]
 workspace = true
