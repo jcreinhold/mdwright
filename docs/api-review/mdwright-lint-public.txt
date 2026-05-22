@@ -229,6 +229,27 @@ impl core::marker::Unpin for mdwright_lint::stdlib::OrphanReferenceLink
 impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::OrphanReferenceLink
 impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::OrphanReferenceLink
 impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::OrphanReferenceLink
+pub struct mdwright_lint::stdlib::RenderCompat
+impl mdwright_lint::stdlib::RenderCompat
+pub fn mdwright_lint::stdlib::RenderCompat::new() -> Self
+pub fn mdwright_lint::stdlib::RenderCompat::with_profile(profile: mdwright_mathrender::profile::RenderProfile) -> Self
+impl core::default::Default for mdwright_lint::stdlib::RenderCompat
+pub fn mdwright_lint::stdlib::RenderCompat::default() -> Self
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::RenderCompat
+pub fn mdwright_lint::stdlib::RenderCompat::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::RenderCompat::description(&self) -> &str
+pub fn mdwright_lint::stdlib::RenderCompat::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::RenderCompat::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::RenderCompat::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::RenderCompat::name(&self) -> &str
+pub fn mdwright_lint::stdlib::RenderCompat::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::RenderCompat
+impl core::marker::Send for mdwright_lint::stdlib::RenderCompat
+impl core::marker::Sync for mdwright_lint::stdlib::RenderCompat
+impl core::marker::Unpin for mdwright_lint::stdlib::RenderCompat
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::RenderCompat
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::RenderCompat
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::RenderCompat
 pub struct mdwright_lint::stdlib::StrayDollar
 impl mdwright_lint::LintRule for mdwright_lint::stdlib::StrayDollar
 pub fn mdwright_lint::stdlib::StrayDollar::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
@@ -574,6 +595,14 @@ pub fn mdwright_lint::stdlib::OrphanReferenceLink::is_advisory(&self) -> bool
 pub fn mdwright_lint::stdlib::OrphanReferenceLink::is_default(&self) -> bool
 pub fn mdwright_lint::stdlib::OrphanReferenceLink::name(&self) -> &str
 pub fn mdwright_lint::stdlib::OrphanReferenceLink::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::RenderCompat
+pub fn mdwright_lint::stdlib::RenderCompat::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::RenderCompat::description(&self) -> &str
+pub fn mdwright_lint::stdlib::RenderCompat::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::RenderCompat::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::RenderCompat::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::RenderCompat::name(&self) -> &str
+pub fn mdwright_lint::stdlib::RenderCompat::produces_fix(&self) -> bool
 impl mdwright_lint::LintRule for mdwright_lint::stdlib::StrayDollar
 pub fn mdwright_lint::stdlib::StrayDollar::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
 pub fn mdwright_lint::stdlib::StrayDollar::description(&self) -> &str

@@ -53,6 +53,36 @@ impl core::marker::Unpin for mdwright_latex::CommandCategory
 impl core::marker::UnsafeUnpin for mdwright_latex::CommandCategory
 impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::CommandCategory
 impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::CommandCategory
+pub enum mdwright_latex::CommandEvent<'src>
+pub mdwright_latex::CommandEvent::Command
+pub mdwright_latex::CommandEvent::Command::name: &'src str
+pub mdwright_latex::CommandEvent::Command::span: mdwright_latex::SourceSpan
+pub mdwright_latex::CommandEvent::EnvironmentEnter
+pub mdwright_latex::CommandEvent::EnvironmentEnter::name: &'src str
+pub mdwright_latex::CommandEvent::EnvironmentEnter::span: mdwright_latex::SourceSpan
+pub mdwright_latex::CommandEvent::EnvironmentExit
+pub mdwright_latex::CommandEvent::EnvironmentExit::name: &'src str
+pub mdwright_latex::CommandEvent::EnvironmentExit::span: mdwright_latex::SourceSpan
+pub mdwright_latex::CommandEvent::TextModeEnter
+pub mdwright_latex::CommandEvent::TextModeEnter::span: mdwright_latex::SourceSpan
+pub mdwright_latex::CommandEvent::TextModeExit
+pub mdwright_latex::CommandEvent::TextModeExit::span: mdwright_latex::SourceSpan
+impl<'src> core::clone::Clone for mdwright_latex::CommandEvent<'src>
+pub fn mdwright_latex::CommandEvent<'src>::clone(&self) -> mdwright_latex::CommandEvent<'src>
+impl<'src> core::cmp::Eq for mdwright_latex::CommandEvent<'src>
+impl<'src> core::cmp::PartialEq for mdwright_latex::CommandEvent<'src>
+pub fn mdwright_latex::CommandEvent<'src>::eq(&self, other: &mdwright_latex::CommandEvent<'src>) -> bool
+impl<'src> core::fmt::Debug for mdwright_latex::CommandEvent<'src>
+pub fn mdwright_latex::CommandEvent<'src>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'src> core::marker::Copy for mdwright_latex::CommandEvent<'src>
+impl<'src> core::marker::StructuralPartialEq for mdwright_latex::CommandEvent<'src>
+impl<'src> core::marker::Freeze for mdwright_latex::CommandEvent<'src>
+impl<'src> core::marker::Send for mdwright_latex::CommandEvent<'src>
+impl<'src> core::marker::Sync for mdwright_latex::CommandEvent<'src>
+impl<'src> core::marker::Unpin for mdwright_latex::CommandEvent<'src>
+impl<'src> core::marker::UnsafeUnpin for mdwright_latex::CommandEvent<'src>
+impl<'src> core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::CommandEvent<'src>
+impl<'src> core::panic::unwind_safe::UnwindSafe for mdwright_latex::CommandEvent<'src>
 pub enum mdwright_latex::LatexErrorKind
 pub mdwright_latex::LatexErrorKind::Lexical
 pub mdwright_latex::LatexErrorKind::Syntax
@@ -247,6 +277,7 @@ impl core::marker::Unpin for mdwright_latex::TranslationLoss
 impl core::marker::UnsafeUnpin for mdwright_latex::TranslationLoss
 impl core::panic::unwind_safe::RefUnwindSafe for mdwright_latex::TranslationLoss
 impl core::panic::unwind_safe::UnwindSafe for mdwright_latex::TranslationLoss
+pub fn mdwright_latex::inspect_math_body(source: &str) -> alloc::vec::Vec<mdwright_latex::CommandEvent<'_>>
 pub fn mdwright_latex::is_known_unsupported_command(name: &str) -> bool
 pub fn mdwright_latex::latex_symbol(name: &str) -> core::option::Option<&'static str>
 pub fn mdwright_latex::lookup_command(name: &str) -> core::option::Option<mdwright_latex::CommandInfo>

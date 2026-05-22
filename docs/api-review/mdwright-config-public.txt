@@ -34,6 +34,7 @@ pub fn mdwright_config::Config::fmt_options(&self) -> &mdwright_format::options:
 pub fn mdwright_config::Config::lint_rule_selection(&self) -> &mdwright_config::LintRuleSelection
 pub fn mdwright_config::Config::load_explicit(path: &std::path::Path) -> core::result::Result<Self, mdwright_config::ConfigError>
 pub fn mdwright_config::Config::parse_options(&self) -> mdwright_document::ParseOptions
+pub fn mdwright_config::Config::render_lint_options(&self) -> &mdwright_config::LintRenderOptions
 pub fn mdwright_config::Config::render_options(&self) -> mdwright_document::render::RenderOptions
 pub fn mdwright_config::Config::source(&self) -> core::option::Option<&std::path::Path>
 pub fn mdwright_config::Config::source_dir(&self) -> core::option::Option<&std::path::Path>
@@ -61,6 +62,28 @@ impl core::marker::Unpin for mdwright_config::ConfigError
 impl core::marker::UnsafeUnpin for mdwright_config::ConfigError
 impl core::panic::unwind_safe::RefUnwindSafe for mdwright_config::ConfigError
 impl core::panic::unwind_safe::UnwindSafe for mdwright_config::ConfigError
+pub struct mdwright_config::LintRenderOptions
+impl mdwright_config::LintRenderOptions
+pub fn mdwright_config::LintRenderOptions::macros(&self) -> &std::collections::hash::map::HashMap<alloc::string::String, u8>
+pub fn mdwright_config::LintRenderOptions::packages(&self) -> &[alloc::string::String]
+pub const fn mdwright_config::LintRenderOptions::renderer(&self) -> mdwright_mathrender::profile::Renderer
+impl core::clone::Clone for mdwright_config::LintRenderOptions
+pub fn mdwright_config::LintRenderOptions::clone(&self) -> mdwright_config::LintRenderOptions
+impl core::cmp::Eq for mdwright_config::LintRenderOptions
+impl core::cmp::PartialEq for mdwright_config::LintRenderOptions
+pub fn mdwright_config::LintRenderOptions::eq(&self, other: &mdwright_config::LintRenderOptions) -> bool
+impl core::default::Default for mdwright_config::LintRenderOptions
+pub fn mdwright_config::LintRenderOptions::default() -> Self
+impl core::fmt::Debug for mdwright_config::LintRenderOptions
+pub fn mdwright_config::LintRenderOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for mdwright_config::LintRenderOptions
+impl core::marker::Freeze for mdwright_config::LintRenderOptions
+impl core::marker::Send for mdwright_config::LintRenderOptions
+impl core::marker::Sync for mdwright_config::LintRenderOptions
+impl core::marker::Unpin for mdwright_config::LintRenderOptions
+impl core::marker::UnsafeUnpin for mdwright_config::LintRenderOptions
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_config::LintRenderOptions
+impl core::panic::unwind_safe::UnwindSafe for mdwright_config::LintRenderOptions
 pub struct mdwright_config::LintRuleSelection
 impl mdwright_config::LintRuleSelection
 pub fn mdwright_config::LintRuleSelection::extend_select(&self) -> &[alloc::string::String]

@@ -1,4 +1,5 @@
 pub mod mdwright_document
+pub use mdwright_document::MathBody
 pub use mdwright_document::MathError
 pub use mdwright_document::MathRegion
 pub use mdwright_document::MathSpan
