@@ -2,21 +2,17 @@
 
 [![docs.rs](https://docs.rs/mdwright/badge.svg)](https://docs.rs/mdwright)
 
-A Markdown linter and round-trip formatter for any Markdown project, distributed as the
-`mdwright` command-line tool.
+A Markdown linter and round-trip formatter for any Markdown project, distributed as the `mdwright` command-line tool.
 
-`mdwright fmt` is HTML-equivalent to its input: it refuses any rewrite that would change
-the rendered DOM. On a 79-file corpus, `mdwright fmt-check` runs ≥ 50× faster than
-`mdformat --check` (see the project's
-[Performance page](https://jcreinhold.github.io/mdwright/reference/performance.html)).
-Math regions (`\( … \)`, `\[ … \]`, `\begin{…} … \end{…}`, `$ … $`) pass through
-verbatim, so the tool stays safe on technical writing too.
+`mdwright fmt` is HTML-equivalent to its input: it refuses any rewrite that would change the rendered DOM. On a 79-file
+corpus, `mdwright fmt-check` runs ≥ 50× faster than `mdformat --check` (see the project's
+[Performance page](https://jcreinhold.github.io/mdwright/reference/performance.html)). Math regions (`\( … \)`,
+`\[ … \]`, `\begin{…} … \end{…}`, `$ … $`) pass through verbatim, so the tool stays safe on technical writing too.
 
-This crate ships the binary and the thin orchestration glue (`mdwright::run_with_rules`,
-`mdwright::discover_markdown`). The reusable analysis surface lives in the sibling crates
-(`mdwright-document`, `mdwright-format`, `mdwright-lint`, `mdwright-latex`,
-`mdwright-math`, `mdwright-config`, `mdwright-lsp`); depend on those directly if you are
-embedding mdwright rather than running it.
+This crate ships the binary and the thin orchestration glue (`mdwright::run_with_rules`, `mdwright::discover_markdown`).
+The reusable analysis surface lives in the sibling crates (`mdwright-document`, `mdwright-format`, `mdwright-lint`,
+`mdwright-latex`, `mdwright-math`, `mdwright-config`, `mdwright-lsp`); depend on those directly if you are embedding
+mdwright rather than running it.
 
 ## Install
 
@@ -50,8 +46,7 @@ cat note.md | mdwright check -
 
 ## Status
 
-Pre-1.0. The CLI surface is stable enough to use in CI; breaking changes ship without
-deprecation warnings.
+Pre-1.0. The CLI surface is stable enough to use in CI; breaking changes ship without deprecation warnings.
 
 ## See also
 

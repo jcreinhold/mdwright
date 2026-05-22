@@ -13,12 +13,12 @@ semantic signatures. These behaviours close the cmark-gfm rendering gap while ke
 
 ## The four extensions
 
-| Extension                   | Source shape                            | Default |
-| --------------------------- | --------------------------------------- | ------- |
-| Definition lists            | `Term\n: definition\n`                  | on      |
-| Heading attribute lists     | `# Heading {#id .class key=val}`        | on      |
-| Abbreviation lists          | `*[HTML]: Hyper Text Markup Language\n` | on      |
-| Non-heading attribute lists | `Paragraph\n{ .note .important }\n`     | on      |
+| Extension | Source shape | Default |
+| --- | --- | --- |
+| Definition lists | `Term\n: definition\n` | on |
+| Heading attribute lists | `# Heading {#id .class key=val}` | on |
+| Abbreviation lists | `*[HTML]: Hyper Text Markup Language\n` | on |
+| Non-heading attribute lists | `Paragraph\n{ .note .important }\n` | on |
 
 Defaults are **on**: each recognises something the source is already doing, not a formatter opinion. Turn them off in
 `.mdwright.toml` when running mdwright on non-mkdocs corpora where false positives matter more than coverage:
@@ -75,10 +75,10 @@ Source:
 The trailer parses through pulldown-cmark's `ENABLE_HEADING_ATTRIBUTES` flag, lands on the typed `Heading`, and re-emits
 based on `[fmt] heading-attrs`:
 
-| Mode                 | Behaviour |
-| -------------------- | --------- |
+| Mode | Behaviour |
+| --- | --- |
 | `preserve` (default) | Emit the source trailer byte-verbatim between the inline body and the line break. |
-| `canonicalise`       | Emit `{#id .class₁ .class₂ k=v}`: id first, then classes (source order), then `key=value` pairs (source order). Values containing whitespace are double-quoted. |
+| `canonicalise` | Emit `{#id .class₁ .class₂ k=v}`: id first, then classes (source order), then `key=value` pairs (source order). Values containing whitespace are double-quoted. |
 
 ```toml,no-check
 [fmt]

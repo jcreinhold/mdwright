@@ -5,12 +5,12 @@ NOT cover. Use this to decide which gate(s) a change to the formatter or canonic
 
 ## Per-construct golden suites
 
-**Location:** `crates/mdwright/tests/golden_inline/`, `crates/mdwright/tests/golden_block/`, `crates/mdwright/tests/golden_frontmatter/`.
+**Location:** `crates/mdwright/tests/golden_inline/`, `crates/mdwright/tests/golden_block/`,
+`crates/mdwright/tests/golden_frontmatter/`.
 
 Each fixture is an `*.in` / `*.out` pair. Optional `*.config.toml` overrides `FmtOptions::default()`. The driver tests
 live at `crates/mdwright/tests/golden_inline.rs`, `crates/mdwright/tests/golden_block.rs`,
-`crates/mdwright/tests/golden_frontmatter.rs` and assert byte equality of the
-formatted input against `.out`.
+`crates/mdwright/tests/golden_frontmatter.rs` and assert byte equality of the formatted input against `.out`.
 
 **Invariant:** structural emit and canonicalisation produce the expected bytes for the exact shapes the project cares
 about. This is where new features and bugfixes land their single load-bearing example.
@@ -25,7 +25,7 @@ about. This is where new features and bugfixes land their single load-bearing ex
 Four families:
 
 | Family | Properties | Cases | Sweep gate |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | Whole-document, default opts | `idempotent`, `html_preserving`, `lint_preserving`, `reference_resolver_round_trips` | 256 | `*_sweep` at 4096, `#[ignore]` |
 | Per-construct, default opts | `<construct>_fragments_idempotent`, `<construct>_fragments_html_preserving` for emphasis, strong, link-inline, link-reference, autolink, code-span, heading, fenced-code, quote, list, table, thematic, footnote | 256 each | none |
 | Canonicalisation, 15 modes | `canonicalise_<construct>_semantic_equivalence`, `canonicalise_<construct>_idempotent`, `canonicalise_document_*`. Each iterates `canon_opts()` (preserve + per-knob × variants + 2 all-knobs-together). | 256 × 15 modes | `canonicalise_document_*_sweep` at 4096, `#[ignore]` |
@@ -97,7 +97,7 @@ fuzz, and production soak.
 **Location:** `fuzz/fuzz_targets/`.
 
 | Target | Oracle | Option byte |
-|---|---|---|
+| --- | --- | --- |
 | `fuzz_idempotence` | `format(format(s)) == format(s)` | Yes; drives wrap × mode × math × canonicalisation |
 | `fuzz_parse_format` | `semantically_equivalent(s, format(s))` | Yes; same allocation as `fuzz_idempotence` |
 | `fuzz_structured_idempotence` | Structured-document idempotence over generated Markdown | Yes |
@@ -110,12 +110,12 @@ fuzz, and production soak.
 
 **Option byte allocation** (`fuzz_idempotence` and `fuzz_parse_format`, identical):
 
-| Bits  | Field |
-|-------|-------|
-| 0–1   | `wrap` (Keep, No, At(80), At(120)) |
-| 2     | `math.normalise` |
-| 3     | reserved for corpus continuity |
-| 4–7   | Canonicalisation mode (16 enumerated: preserve, one per style knob, two combined) |
+| Bits | Field |
+| --- | --- |
+| 0–1 | `wrap` (Keep, No, At(80), At(120)) |
+| 2 | `math.normalise` |
+| 3 | reserved for corpus continuity |
+| 4–7 | Canonicalisation mode (16 enumerated: preserve, one per style knob, two combined) |
 
 **Invariant:** no input causes a panic or property violation in 10 minutes. Parser implementation panics are converted
 to `ParseError` at the `mdwright-document` boundary, so fuzz targets discard parse errors through normal `Result`
@@ -164,7 +164,7 @@ mdformat-parity, production-soak, fuzzing, packaging, or Criterion.
 ## How to choose what to add when
 
 | Symptom | Right surface |
-|---|---|
+| --- | --- |
 | One specific fixture or shape misbehaves | Golden suite (add an `*.in` / `*.out` pair) |
 | A bug class spans many inputs of one construct | Per-construct property (a new `<construct>_fragments_*` pair, or strengthen the existing one) |
 | A canonicalisation mode misbehaves | Canonicalisation property (extend `canon_opts()`) |

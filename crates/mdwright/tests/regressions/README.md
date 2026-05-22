@@ -9,5 +9,5 @@ cases (or the corpus walk). Header HTML comment on each file names the property 
 the `tests/golden_*/*.in` convention) is load-bearing: the project's `mdformat` pre-commit hook globs `*.md`, which
 would canonicalise the very inputs we want to preserve.
 
-`pending/` holds counterexamples the driver intentionally does not assert against: they are kept for documentation
-and reproduction, not as enforced regressions. Notes are kept under `.notes` for the same reason.
+`pending/` holds counterexamples the driver intentionally does not assert against: they are kept for documentation and
+reproduction, not as enforced regressions. Notes are kept under `.notes` for the same reason.

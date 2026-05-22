@@ -8,8 +8,8 @@ The API is still pre-1.0. Import paths and operation shapes may change in minor 
 
 ## Use mdwright as a library
 
-A minimal embed that parses Markdown, runs the standard lint catalogue, and formats with
-defaults. Add the three crates to `Cargo.toml`:
+A minimal embed that parses Markdown, runs the standard lint catalogue, and formats with defaults. Add the three crates
+to `Cargo.toml`:
 
 ```toml,no-check
 [dependencies]
@@ -44,9 +44,8 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
-The table below maps every capability to its owning crate. For the surface a particular
-crate exposes, follow its docs.rs link from the
-[project README](https://github.com/jcreinhold/mdwright#documentation).
+The table below maps every capability to its owning crate. For the surface a particular crate exposes, follow its
+docs.rs link from the [project README](https://github.com/jcreinhold/mdwright#documentation).
 
 ## Common User Surfaces
 
@@ -70,11 +69,11 @@ crate exposes, follow its docs.rs link from the
 `Document` is parse/query only. Linting, formatting, safe-fix application, config discovery, command delivery, and
 editor delivery stay in their owning crates.
 
-The `mdwright-latex` surface targets common MathJax-style math bodies where Unicode can represent the source or
-terminal output honestly. Unicode-to-LaTeX translation is parser-backed for the supported subset: the crate lexes and
-parses Unicode mathematical source before emitting canonical LaTeX. It is not a TeX engine API, a browser layout API, or
-a diagram recogniser. Macro expansion, unsupported package commands, layout-heavy source, and unknown Unicode return
-typed errors, losses, or visible fallback output rather than hidden approximations.
+The `mdwright-latex` surface targets common MathJax-style math bodies where Unicode can represent the source or terminal
+output honestly. Unicode-to-LaTeX translation is parser-backed for the supported subset: the crate lexes and parses
+Unicode mathematical source before emitting canonical LaTeX. It is not a TeX engine API, a browser layout API, or a
+diagram recogniser. Macro expansion, unsupported package commands, layout-heavy source, and unknown Unicode return typed
+errors, losses, or visible fallback output rather than hidden approximations.
 
 ## Extension Surfaces
 

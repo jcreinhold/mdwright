@@ -1,29 +1,30 @@
 # mdwright spec deviations
 
-The mdwright formatter targets the GFM 0.29-gfm spec (`crates/mdwright/tests/gfm-spec/spec.txt`, vendored from cmark-gfm). Every example
-is exercised by `crates/mdwright/tests/gfm_spec.rs` as a `parse → format → parse → format` round-trip and compared against the source
-HTML and the normalised event stream.
+The mdwright formatter targets the GFM 0.29-gfm spec (`crates/mdwright/tests/gfm-spec/spec.txt`, vendored from
+cmark-gfm). Every example is exercised by `crates/mdwright/tests/gfm_spec.rs` as a `parse → format → parse → format`
+round-trip and compared against the source HTML and the normalised event stream.
 
 This document is the user-facing index of where mdwright currently **does not** byte-for-byte round-trip the spec. It is
 split into two parts because the underlying mechanism does:
 
-- **Editorial deviations**: choices we have made and intend to keep. Curated in `crates/mdwright/tests/gfm-spec/allowlist.toml`. Each
-  entry has a one-line rationale and a pointer to where the decision is documented.
-- **Tracked regressions**: known divergences that we intend to fix. Recorded in `crates/mdwright/tests/gfm-spec/snapshot.txt`. The
-  snapshot is asserted byte-for-byte, so any drift, whether regression *or* improvement, fails CI and forces a
-  deliberate update.
+- **Editorial deviations**: choices we have made and intend to keep. Curated in
+  `crates/mdwright/tests/gfm-spec/allowlist.toml`. Each entry has a one-line rationale and a pointer to where the
+  decision is documented.
+- **Tracked regressions**: known divergences that we intend to fix. Recorded in
+  `crates/mdwright/tests/gfm-spec/snapshot.txt`. The snapshot is asserted byte-for-byte, so any drift, whether
+  regression *or* improvement, fails CI and forces a deliberate update.
 
 The `gfm_spec_coverage` test prints the live count for both groups; the numbers below are a snapshot of the current main
 branch.
 
 ## Coverage
 
-| Bucket               | Examples |
-| -------------------- | -------- |
-| Spec examples total  | 672      |
-| Matching             | 637      |
-| Editorial deviations | 35       |
-| Tracked regressions  | 0        |
+| Bucket | Examples |
+| --- | --- |
+| Spec examples total | 672 |
+| Matching | 637 |
+| Editorial deviations | 35 |
+| Tracked regressions | 0 |
 
 A *case* may fail more than one comparison kind (`semantic`, `idempotence`); the snapshot file is keyed by
 `(case, kind)` and currently lists no tracked regressions.
@@ -84,13 +85,13 @@ There are currently no tracked GFM-spec formatter regressions. Any future non-al
 ## mdformat-mkdocs parity deviations
 
 mdwright matches mdformat-mkdocs byte-for-byte for the four Markdown extensions covered in
-[Markdown extensions](concepts/extensions.md). The parity test at `crates/mdwright/tests/extension_parity.rs` enforces this against five
-committed reference fixtures. Known divergences below; each row exists because the upstream pulldown-cmark parser
-doesn't surface enough information for mdwright to round-trip the source faithfully.
+[Markdown extensions](concepts/extensions.md). The parity test at `crates/mdwright/tests/extension_parity.rs` enforces
+this against five committed reference fixtures. Known divergences below; each row exists because the upstream
+pulldown-cmark parser doesn't surface enough information for mdwright to round-trip the source faithfully.
 
-| Construct                       | Source pattern that diverges      | Why                                                                                                                                                              |
-| ------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Heading attribute, quoted value | `# H {title="hello world"}`       | pulldown-cmark 0.13's heading-attribute parser splits the trailer on whitespace and ignores `"…"` quoting. Pulldown surfaces two attrs (`title="hello`, `world"`) instead of one. mdformat-mkdocs (python-markdown's `attr_list`) handles the quoted form correctly. Tracked upstream; will resolve when pulldown lands the fix. |
+| Construct | Source pattern that diverges | Why |
+| --- | --- | --- |
+| Heading attribute, quoted value | `# H {title="hello world"}` | pulldown-cmark 0.13's heading-attribute parser splits the trailer on whitespace and ignores `"…"` quoting. Pulldown surfaces two attrs (`title="hello`, `world"`) instead of one. mdformat-mkdocs (python-markdown's `attr_list`) handles the quoted form correctly. Tracked upstream; will resolve when pulldown lands the fix. |
 
 The parity test refuses to silently accept new divergences: any byte-for-byte mismatch fails the test and forces a
 deliberate add to this table (with a rationale and an upstream pointer) or a fix in mdwright's emit path.
@@ -104,9 +105,9 @@ not implement these constructs at all, so there is no upstream reference to diff
 at `crates/mdwright/tests/external/jupyter_book_minimal/` plus the per-construct regressions at
 `crates/mdwright/tests/regressions/{directive_*,inline_role_*,myst_*}.in` are the safety net.
 
-| Construct                       | Source pattern that diverges                      | Why                                                                                                                                                              |
-| ------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Malformed `:::{name}` source    | Bare `:::{warning} Experimental` with no closer   | Pulldown parses the opener as part of a definition-list or paragraph; mdwright's directive overlay matches on byte-range overlap and emits the union of the tree-node range and the directive region, so the bytes survive, but the surrounding misclassified bytes flow through pulldown's normal path. Fix the source by closing the directive. |
+| Construct | Source pattern that diverges | Why |
+| --- | --- | --- |
+| Malformed `:::{name}` source | Bare `:::{warning} Experimental` with no closer | Pulldown parses the opener as part of a definition-list or paragraph; mdwright's directive overlay matches on byte-range overlap and emits the union of the tree-node range and the directive region, so the bytes survive, but the surrounding misclassified bytes flow through pulldown's normal path. Fix the source by closing the directive. |
 
 ## How to read the live numbers
 

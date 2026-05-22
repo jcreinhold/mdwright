@@ -3,9 +3,9 @@
 ## Supported Versions
 
 | Version | Supported |
-| ------- | --------- |
-| 0.1.x   | yes       |
-| < 0.1   | no        |
+| --- | --- |
+| 0.1.x | yes |
+| < 0.1 | no |
 
 Security fixes are issued against the latest 0.x minor release. Older minor versions are not back-patched while mdwright
 is pre-1.0; upgrade to the latest 0.x to receive fixes.

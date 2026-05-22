@@ -5,12 +5,12 @@ interact: a lint diagnostic never blocks a format pass, and the formatter never 
 
 ## The four subcommands
 
-| Subcommand           | Writes                  | Exit non-zero when                                          |
-| -------------------- | ----------------------- | ----------------------------------------------------------- |
-| `mdwright check`     | nothing                 | `--check` is set and a non-advisory diagnostic fires        |
-| `mdwright fix`       | files (safe fixes only) | `--check` is set and a non-advisory diagnostic still remains |
-| `mdwright fmt`       | files (every input)     | parse fails or the safety gate refuses the rewrite (exit 2) |
-| `mdwright fmt-check` | nothing                 | any input would be reformatted (exit 1)                     |
+| Subcommand | Writes | Exit non-zero when |
+| --- | --- | --- |
+| `mdwright check` | nothing | `--check` is set and a non-advisory diagnostic fires |
+| `mdwright fix` | files (safe fixes only) | `--check` is set and a non-advisory diagnostic still remains |
+| `mdwright fmt` | files (every input) | parse fails or the safety gate refuses the rewrite (exit 2) |
+| `mdwright fmt-check` | nothing | any input would be reformatted (exit 1) |
 
 `check` is the audit; `fix` is the audit that may mutate; `fmt` is the unconditional rewrite; `fmt-check` is the
 rewrite-or-fail-CI variant. By default `check` and `fix` exit 0 even with diagnostics present; pass `--check` to make

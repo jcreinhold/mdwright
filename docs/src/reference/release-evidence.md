@@ -55,8 +55,8 @@ cargo xtask production-soak \
 ```
 
 `<external-corpus-path>` is a directory of Markdown files used as the production-soak input; set it to the path of the
-external corpus you run releases against (or to `MDWRIGHT_CORPUS_ROOT` if you have one configured). Record the path
-in the release notes.
+external corpus you run releases against (or to `MDWRIGHT_CORPUS_ROOT` if you have one configured). Record the path in
+the release notes.
 
 Record the fast-check result in `target/mdwright/release/fast-checks.md`. The aggregator treats that file as the manual
 proof that the local workspace gate was refreshed.

@@ -39,14 +39,14 @@ Each contributor needs a Rust toolchain on the machine running the hook.
 
 ## Available hook IDs
 
-| ID                          | Equivalent CLI            | Language  |
-| --------------------------- | ------------------------- | --------- |
-| `mdwright-check`            | `mdwright check --check`  | `system` via Cargo |
-| `mdwright-fmt`              | `mdwright fmt`            | `system` via Cargo |
-| `mdwright-fmt-check`        | `mdwright fmt-check`      | `system` via Cargo |
-| `mdwright-check-system`     | `mdwright check --check`  | `system`  |
-| `mdwright-fmt-system`       | `mdwright fmt`            | `system`  |
-| `mdwright-fmt-check-system` | `mdwright fmt-check`      | `system`  |
+| ID | Equivalent CLI | Language |
+| --- | --- | --- |
+| `mdwright-check` | `mdwright check --check` | `system` via Cargo |
+| `mdwright-fmt` | `mdwright fmt` | `system` via Cargo |
+| `mdwright-fmt-check` | `mdwright fmt-check` | `system` via Cargo |
+| `mdwright-check-system` | `mdwright check --check` | `system` |
+| `mdwright-fmt-system` | `mdwright fmt` | `system` |
+| `mdwright-fmt-check-system` | `mdwright fmt-check` | `system` |
 
 The `mdwright-fmt` / `mdwright-fmt-system` hooks rewrite files in place; combine with `git add` in a post-formatting
 workflow, or prefer `mdwright-fmt-check` in CI gates that should never auto-commit.

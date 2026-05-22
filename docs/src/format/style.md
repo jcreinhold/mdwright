@@ -9,7 +9,7 @@ See [Formatter policy](policy.md) for the overall design (structural emit + opt-
 ## `[fmt] italic`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"preserve"` (default) | Emphasis delimiters round-trip from source. `_foo_` stays `_foo_`; `*foo*` stays `*foo*`. |
 | `"asterisk"` | Rewrite `_…_` to `*…*` when verification preserves the parse. |
 | `"underscore"` | Rewrite `*…*` to `_…_` when verification preserves the parse. |
@@ -28,7 +28,7 @@ italic = "asterisk"
 ## `[fmt] strong`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"preserve"` (default) | Strong delimiters round-trip from source. `**foo**` stays `**foo**`; `__foo__` stays `__foo__`. |
 | `"asterisk"` | Rewrite `__…__` to `**…**`. |
 | `"underscore"` | Rewrite `**…**` to `__…__`. |
@@ -45,7 +45,7 @@ strong = "underscore"
 ## `[fmt] list-marker`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"preserve"` (default) | Each unordered list keeps its source bullet character. |
 | `"dash"` | Rewrite each bullet to `-`. |
 | `"asterisk"` | Rewrite each bullet to `*`. |
@@ -63,7 +63,7 @@ list-marker = "dash"
 ## `[fmt] ordered-list`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"preserve"` (default) | Each ordered list keeps its source numbering. `3. a / 5. b / 9. c` stays. |
 | `"one"` | Rewrite markers to `1.` when verification preserves the list start. This matches mdformat's default spelling for ordinary lists that already start at `1.`. |
 | `"consistent"` | Renumber so item `k` (0-indexed) becomes `start_num + k`, where `start_num` is the source's first item's number. `3. a / 5. b / 9. c` → `3. a / 4. b / 5. c`. |
@@ -80,7 +80,7 @@ ordered-list = "consistent"
 ## `[fmt] thematic-break`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"preserve"` (default) | Thematic breaks keep their source character (`---`, `***`, `___`). |
 | `"dash"` | Rewrite to `---`. |
 | `"asterisk"` | Rewrite to `***`. |
@@ -98,7 +98,7 @@ thematic-break = "dash"
 ## `[fmt.refs] style`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"preserve"` (default) | Each link destination keeps its source form: `[ref]: url` or `[ref]: <url>` survives. |
 | `"bare"` | Strip angle brackets where the bare form would still parse. `[ref]: <url>` → `[ref]: url`. |
 | `"angle"` | Wrap destinations in angle brackets. `[ref]: url` → `[ref]: <url>`. |
@@ -115,7 +115,7 @@ style = "angle"
 ## `[fmt.tables] style`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"compact"` (default) | Trim cell padding and emit one conventional space on each side of every cell. |
 | `"align"` | Pad cells and delimiter rows to display-width-aligned columns when verification preserves the parse. |
 | `"preserve"` | Keep source table spacing. |
@@ -132,7 +132,7 @@ style = "align"
 ## `[fmt] wrap`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"keep"` (default) | Preserve existing paragraph line breaks. |
 | `"no"` | Collapse soft line breaks inside paragraphs where verification preserves the parse. |
 | integer | Wrap breakable prose lines at that display-column width. |
@@ -159,7 +159,7 @@ wrap-strategy = "balanced"
 ## `[fmt.lists] continuation-indent`
 
 | Value | Effect |
-|---|---|
+| --- | --- |
 | `"marker-width"` (default) | Continuation lines align under the source list marker width. |
 | `"four-space"` | Continuation lines use four spaces after the containing block prefix. |
 

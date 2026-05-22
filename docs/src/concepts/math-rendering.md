@@ -19,10 +19,10 @@ emitted*.
 
 ## The two modes
 
-| Mode      | Behaviour                                                                    |
-| --------- | ---------------------------------------------------------------------------- |
-| `none`    | Pass math regions through verbatim. Default.                                 |
-| `dollar`  | Rewrite `\[ … \]` to `$$ … $$` and `\( … \)` to `$ … $`. Environments stay.  |
+| Mode | Behaviour |
+| --- | --- |
+| `none` | Pass math regions through verbatim. Default. |
+| `dollar` | Rewrite `\[ … \]` to `$$ … $$` and `\( … \)` to `$ … $`. Environments stay. |
 
 A third value, `commonmark-katex`, is a documentation alias: the behaviour matches `none` exactly, but the name leaves a
 greppable signal in CI logs that the build expects KaTeX downstream.

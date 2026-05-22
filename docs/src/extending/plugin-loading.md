@@ -7,11 +7,11 @@ it would cost, and what would have to change for the decision to flip.
 
 ## The decision
 
-| Architecture                                          | Verdict   | Available in |
-| ----------------------------------------------------- | --------- | ------------ |
-| **A.** Component crates + custom binary               | Supported | today        |
-| **B.** Dynamic `cdylib` loading via `libloading`      | Rejected  | never        |
-| **C.** WASM plugins via `wasmtime`                    | Not planned | —          |
+| Architecture | Verdict | Available in |
+| --- | --- | --- |
+| **A.** Component crates + custom binary | Supported | today |
+| **B.** Dynamic `cdylib` loading via `libloading` | Rejected | never |
+| **C.** WASM plugins via `wasmtime` | Not planned | — |
 
 The same trio shipped in `ruff`, which is mdwright's closest analogue in spirit. ruff thrives without a plugin runtime;
 the trait surface plus a documented "ship your own binary" path covers every adopter who hits the limits of the stdlib.
@@ -37,12 +37,12 @@ fn main() -> std::process::ExitCode {
 }
 ```
 
-|                         |                                              |
-| ----------------------- | -------------------------------------------- |
-| **Capability**          | Full library access. Any rule the stdlib could write, an external rule can write. |
-| **Complexity**          | One CLI-crate function (`run_with_rules`). The rest is the trait that already shipped. |
-| **Cost to user**        | They ship a Rust binary. CI needs `cargo`. They pin a major version of `mdwright`. |
-| **Cost to maintainer**  | None new. The `LintRule` trait and the `mdwright::run_with_rules` signature are the surface; semver protects them. |
+|  |  |
+| --- | --- |
+| **Capability** | Full library access. Any rule the stdlib could write, an external rule can write. |
+| **Complexity** | One CLI-crate function (`run_with_rules`). The rest is the trait that already shipped. |
+| **Cost to user** | They ship a Rust binary. CI needs `cargo`. They pin a major version of `mdwright`. |
+| **Cost to maintainer** | None new. The `LintRule` trait and the `mdwright::run_with_rules` signature are the surface; semver protects them. |
 | **Semver implications** | `LintRule` is `1.0`-grade. `cli::run_with_rules` is a `fn(RuleSet) -> ExitCode`; that signature is stable. |
 
 This is what mdwright ships, in the `mdwright` crate and the `examples/extending/` workspace member.
@@ -58,12 +58,12 @@ my_rules = "./target/release/libmy_rules.dylib"
 
 mdwright would load each `cdylib` at startup and look up a `extern "Rust" fn mdwright_register(&mut Registry)` symbol.
 
-|                         |                                              |
-| ----------------------- | -------------------------------------------- |
-| **Capability**          | Anything Rust can express.                   |
-| **Complexity**          | A `libloading` integration, a `Registry` shim, a plugin ABI versioning story. |
-| **Cost to user**        | They build a `cdylib` and put it in a path. First-run UX is opaque when the path is wrong. |
-| **Cost to maintainer**  | Substantial. The ABI surface is every type a plugin touches, including `Diagnostic`, `Document`, and every accessor. Rust has no stable ABI. Every Rust release risks breaking every plugin. |
+|  |  |
+| --- | --- |
+| **Capability** | Anything Rust can express. |
+| **Complexity** | A `libloading` integration, a `Registry` shim, a plugin ABI versioning story. |
+| **Cost to user** | They build a `cdylib` and put it in a path. First-run UX is opaque when the path is wrong. |
+| **Cost to maintainer** | Substantial. The ABI surface is every type a plugin touches, including `Diagnostic`, `Document`, and every accessor. Rust has no stable ABI. Every Rust release risks breaking every plugin. |
 | **Semver implications** | `repr(Rust)` types cross the boundary; layout is unspecified. Every release becomes an ABI compatibility check. |
 
 **Verdict:** rejected. The maintenance burden is high, the gain over Architecture A is small (a `cargo build` versus an
@@ -82,12 +82,12 @@ my_rules = "./my-rules.wasm"
 The plugin compiles to WebAssembly; mdwright runs it in a `wasmtime` sandbox, serialising documents and diagnostics
 across the boundary.
 
-|                         |                                              |
-| ----------------------- | -------------------------------------------- |
-| **Capability**          | Restricted to whatever API mdwright exposes through the host bindings. |
-| **Complexity**          | Define and document a sandbox API; write host bindings; serialise `Document` and `Diagnostic` (no zero-copy across the boundary); manage WASM startup cost per file. |
-| **Cost to user**        | Plugin authors learn `wasm-bindgen`-style discipline; the trait is harder to use than the native one. |
-| **Cost to maintainer**  | Maintain the WASM API forever, plus a reference implementation, plus a performance story (parsing each file twice, once natively and once through the boundary, is not free). |
+|  |  |
+| --- | --- |
+| **Capability** | Restricted to whatever API mdwright exposes through the host bindings. |
+| **Complexity** | Define and document a sandbox API; write host bindings; serialise `Document` and `Diagnostic` (no zero-copy across the boundary); manage WASM startup cost per file. |
+| **Cost to user** | Plugin authors learn `wasm-bindgen`-style discipline; the trait is harder to use than the native one. |
+| **Cost to maintainer** | Maintain the WASM API forever, plus a reference implementation, plus a performance story (parsing each file twice, once natively and once through the boundary, is not free). |
 | **Semver implications** | The WASM API is its own semver surface, parallel to the native `LintRule` trait. |
 
 **Verdict:** not planned. The cost is real and the demand is hypothetical. Revisit only when a concrete adopter has

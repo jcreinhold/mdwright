@@ -2,26 +2,21 @@
 
 [![docs.rs](https://docs.rs/mdwright-math/badge.svg)](https://docs.rs/mdwright-math)
 
-Markdown math-region recognition for [mdwright](https://github.com/jcreinhold/mdwright):
-delimiter policy, region scanning, and balance diagnostics for TeX-style math embedded in
-Markdown.
+Markdown math-region recognition for [mdwright](https://github.com/jcreinhold/mdwright): delimiter policy, region
+scanning, and balance diagnostics for TeX-style math embedded in Markdown.
 
-CommonMark does not understand math. Inside `\[ … \]`, `\( … \)`, `$$ … $$`, `$ … $`, or
-`\begin{env} … \end{env}`, pulldown tokenises bytes as plain prose, so `_` becomes
-emphasis, `[` becomes a link candidate, and `*` becomes an emphasis-delimiter candidate. Without an overlay
-the formatter's round-trip drifts. This crate is that overlay: `scan::scan_math_regions`
-consumes Markdown source plus the IR's inline and block atoms and produces typed
-`MathRegion` values plus the `math/unbalanced-delim`, `math/unbalanced-env`, and
-`math/unbalanced-braces` diagnostics.
+CommonMark does not understand math. Inside `\[ … \]`, `\( … \)`, `$$ … $$`, `$ … $`, or `\begin{env} … \end{env}`,
+pulldown tokenises bytes as plain prose, so `_` becomes emphasis, `[` becomes a link candidate, and `*` becomes an
+emphasis-delimiter candidate. Without an overlay the formatter's round-trip drifts. This crate is that overlay:
+`scan::scan_math_regions` consumes Markdown source plus the IR's inline and block atoms and produces typed `MathRegion`
+values plus the `math/unbalanced-delim`, `math/unbalanced-env`, and `math/unbalanced-braces` diagnostics.
 
-Math-body grammar (TeX commands, Unicode layout, source translation) is delegated to the
-`mdwright-latex` crate. Pulldown invocation and document facts are owned by
-`mdwright-document`.
+Math-body grammar (TeX commands, Unicode layout, source translation) is delegated to the `mdwright-latex` crate.
+Pulldown invocation and document facts are owned by `mdwright-document`.
 
 ## Status
 
-Pre-1.0. Public items are whatever `lib.rs` re-exports; breaking changes ship without
-deprecation warnings.
+Pre-1.0. Public items are whatever `lib.rs` re-exports; breaking changes ship without deprecation warnings.
 
 ## Use it
 

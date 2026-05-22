@@ -54,9 +54,9 @@ auto-generated documentation pages are up to date.
 
 ## Platform support
 
-| Tier | Targets                                              | Coverage                                                  |
-| ---- | ---------------------------------------------------- | --------------------------------------------------------- |
-| 1    | `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`   | CI on every push; prebuilt binary attached to each release |
-| 2    | `x86_64-pc-windows-msvc`, `x86_64-apple-darwin`, `aarch64-unknown-linux-gnu` | CI on every push; source build via `cargo install`        |
+| Tier | Targets | Coverage |
+| --- | --- | --- |
+| 1 | `x86_64-unknown-linux-gnu`, `aarch64-apple-darwin` | CI on every push; prebuilt binary attached to each release |
+| 2 | `x86_64-pc-windows-msvc`, `x86_64-apple-darwin`, `aarch64-unknown-linux-gnu` | CI on every push; source build via `cargo install` |
 
 Other targets work in principle but are not tested.

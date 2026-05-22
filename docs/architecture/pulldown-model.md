@@ -153,13 +153,13 @@ Test: `heading_attributes_populate_tag_fields`.
 pulldown-cmark v0.13.3 emits **no** events for any of the following constructs; mdwright treats them as source-owned
 extension regions under document parse policy:
 
-| Construct                          | Owning policy                                  |
-| ---------------------------------- | ---------------------------------------------- |
+| Construct | Owning policy |
+| --- | --- |
 | MyST / Pandoc directive containers | `ParseOptions::extensions.myst.directive_containers` |
-| MyST `%` line comments             | `ParseOptions::extensions.myst.comments`       |
-| MyST inline roles                  | `ParseOptions::extensions.myst.inline_roles`   |
-| MyST substitution references       | `ParseOptions::extensions.myst.substitution_references` |
-| Pandoc inline attribute spans      | `ParseOptions::extensions.pandoc.inline_attribute_spans` |
+| MyST `%` line comments | `ParseOptions::extensions.myst.comments` |
+| MyST inline roles | `ParseOptions::extensions.myst.inline_roles` |
+| MyST substitution references | `ParseOptions::extensions.myst.substitution_references` |
+| Pandoc inline attribute spans | `ParseOptions::extensions.pandoc.inline_attribute_spans` |
 
 Pulldown sees these as plain paragraph / text events. mdwright therefore treats their source bytes as opaque unless a
 document-owned fact proves a narrower rewrite slot nearby.

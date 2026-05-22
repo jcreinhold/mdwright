@@ -10,15 +10,15 @@ interpretation. Defaults are **on**: these recognise what the source already say
 
 ## What mdwright recognises
 
-| Construct                     | Source shape                       | Default |
-| ----------------------------- | ---------------------------------- | ------- |
-| MyST directive container      | ``:::{name}\n…\n:::``              | on      |
-| Pandoc fenced div (attr form) | ``::: {.warning}\n…\n:::``         | on      |
-| Pandoc fenced div (short)     | ``:::note\n…\n:::``                | on      |
-| MyST inline role              | `` {term}`Vector Space` ``         | on      |
-| MyST substitution reference   | `{{name}}`                         | on      |
-| Pandoc inline attribute span  | `[content]{.cls}`                  | on      |
-| MyST line comment             | `% comment text`                   | on      |
+| Construct | Source shape | Default |
+| --- | --- | --- |
+| MyST directive container | ``:::{name}\n…\n:::`` | on |
+| Pandoc fenced div (attr form) | ``::: {.warning}\n…\n:::`` | on |
+| Pandoc fenced div (short) | ``:::note\n…\n:::`` | on |
+| MyST inline role | `` {term}`Vector Space` `` | on |
+| MyST substitution reference | `{{name}}` | on |
+| Pandoc inline attribute span | `[content]{.cls}` | on |
+| MyST line comment | `% comment text` | on |
 
 Turn individual recognisers off in `.mdwright.toml` when running mdwright on non-MyST corpora:
 

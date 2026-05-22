@@ -52,12 +52,12 @@ buffer as success.
 
 ## Public API
 
-| Symbol                                                | Behaviour                                                     |
-| ----------------------------------------------------- | ------------------------------------------------------------- |
-| `Document::parse(&str) -> Result<Document, ParseError>` | Fallible at the parser trust boundary.                      |
-| `format_document(&doc, opts) -> String`               | Infallible over an already-parsed document.                   |
-| `format_validated(&doc, opts) -> Result<String, FormatError>` | Carries parse failures and semantic divergence.       |
-| `semantically_equivalent(a, b) -> Result<bool, ParseError>`   | Reparses both inputs to build semantic signatures.    |
+| Symbol | Behaviour |
+| --- | --- |
+| `Document::parse(&str) -> Result<Document, ParseError>` | Fallible at the parser trust boundary. |
+| `format_document(&doc, opts) -> String` | Infallible over an already-parsed document. |
+| `format_validated(&doc, opts) -> Result<String, FormatError>` | Carries parse failures and semantic divergence. |
+| `semantically_equivalent(a, b) -> Result<bool, ParseError>` | Reparses both inputs to build semantic signatures. |
 
 `FmtOptions` style knobs default to `Preserve` except GFM tables, which default to compact normal form. Fluent setters
 (`with_italic`, `with_strong`, `with_list_marker`, `with_ordered_list`, `with_thematic_break`, `with_table`,
@@ -67,13 +67,13 @@ existing per-knob spellings. User-facing surfaces are documented in
 
 ## Risk register
 
-| Risk                                                                | Bound                                                                                  | Evidence                                                                                          |
-| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| A rewrite family contains overlapping local edits.                  | The family plan rejects before verification; no individual edit is selected out of the overlap.             | Unit tests in `mdwright-format` cover local-overlap rejection.                                      |
-| The rewrite-family pipeline never reaches a no-commit pass.         | The guard pass count logs `tracing::warn!` and returns the original source bytes unchanged.                 | Idempotence regressions and fuzz replay cover known sustained-fuzz failures.                        |
-| Verification misses a cross-paragraph effect.                       | Families verify the whole document and skip if the document or math signature diverges.                    | Skips are logged; high-skip-rate documents surface in production traces.                            |
-| Structural emit edge cases the 4096-case sweep doesn't reach.       | Two accepted `FmtOptions::default()` regressions: an empty list item at EOF, and an ATX heading with a trailing hash. | Both reproduce as pre-existing structural-emit bugs surfaced by broader option-space fuzz coverage. |
-| Pulldown behaviour drifts between releases.                         | `docs/architecture/pulldown-model.md` documents the invariants; `tests/pulldown_model.rs` fails when pulldown disagrees. | One chokepoint at `crates/mdwright-document/src/parse.rs` is the single site any drift mitigation lands. |
+| Risk | Bound | Evidence |
+| --- | --- | --- |
+| A rewrite family contains overlapping local edits. | The family plan rejects before verification; no individual edit is selected out of the overlap. | Unit tests in `mdwright-format` cover local-overlap rejection. |
+| The rewrite-family pipeline never reaches a no-commit pass. | The guard pass count logs `tracing::warn!` and returns the original source bytes unchanged. | Idempotence regressions and fuzz replay cover known sustained-fuzz failures. |
+| Verification misses a cross-paragraph effect. | Families verify the whole document and skip if the document or math signature diverges. | Skips are logged; high-skip-rate documents surface in production traces. |
+| Structural emit edge cases the 4096-case sweep doesn't reach. | Two accepted `FmtOptions::default()` regressions: an empty list item at EOF, and an ATX heading with a trailing hash. | Both reproduce as pre-existing structural-emit bugs surfaced by broader option-space fuzz coverage. |
+| Pulldown behaviour drifts between releases. | `docs/architecture/pulldown-model.md` documents the invariants; `tests/pulldown_model.rs` fails when pulldown disagrees. | One chokepoint at `crates/mdwright-document/src/parse.rs` is the single site any drift mitigation lands. |
 
 ## Out of scope
 

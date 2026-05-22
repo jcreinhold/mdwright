@@ -2,21 +2,18 @@
 
 [![docs.rs](https://docs.rs/mdwright-lsp/badge.svg)](https://docs.rs/mdwright-lsp)
 
-Language Server Protocol delivery for
-[mdwright](https://github.com/jcreinhold/mdwright).
+Language Server Protocol delivery for [mdwright](https://github.com/jcreinhold/mdwright).
 
-A tower-lsp server over stdio that exposes mdwright's lint diagnostics and formatter to
-any LSP-aware editor. Diagnostics are debounced (~300 ms); formatting requires UTF-8
-position encoding. The server is normally launched through the `mdwright lsp` subcommand,
-which is what editor recipes invoke.
+A tower-lsp server over stdio that exposes mdwright's lint diagnostics and formatter to any LSP-aware editor.
+Diagnostics are debounced (~300 ms); formatting requires UTF-8 position encoding. The server is normally launched
+through the `mdwright lsp` subcommand, which is what editor recipes invoke.
 
-The diagnostic and formatting logic itself lives in `mdwright-lint` and `mdwright-format`;
-this crate is the protocol shell.
+The diagnostic and formatting logic itself lives in `mdwright-lint` and `mdwright-format`; this crate is the protocol
+shell.
 
 ## Status
 
-Pre-1.0. Public items are whatever `lib.rs` re-exports; breaking changes ship without
-deprecation warnings.
+Pre-1.0. Public items are whatever `lib.rs` re-exports; breaking changes ship without deprecation warnings.
 
 ## Use it
 
@@ -41,8 +38,7 @@ use mdwright_lsp::serve;
 
 - Project: <https://github.com/jcreinhold/mdwright>
 - Library walkthrough: <https://jcreinhold.github.io/mdwright/reference/public-api.html#use-mdwright-as-a-library>
-- Editor integrations:
-  <https://jcreinhold.github.io/mdwright/integration/editor-integrations.html>
+- Editor integrations: <https://jcreinhold.github.io/mdwright/integration/editor-integrations.html>
 
 ## License
 

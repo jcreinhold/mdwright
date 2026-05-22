@@ -2,22 +2,18 @@
 
 [![docs.rs](https://docs.rs/mdwright-config/badge.svg)](https://docs.rs/mdwright-config)
 
-Configuration discovery and TOML resolution for
-[mdwright](https://github.com/jcreinhold/mdwright).
+Configuration discovery and TOML resolution for [mdwright](https://github.com/jcreinhold/mdwright).
 
-`Config::load_explicit` reads a named file; `Config::discover` walks parents from a working
-directory, honouring (in order) `.mdwright.toml`, `mdwright.toml`, and
-`pyproject.toml [tool.mdwright]`, and stopping at a `.git/` boundary. The resolved config
-hands typed parse, format, and lint policy to the other crates.
+`Config::load_explicit` reads a named file; `Config::discover` walks parents from a working directory, honouring (in
+order) `.mdwright.toml`, `mdwright.toml`, and `pyproject.toml [tool.mdwright]`, and stopping at a `.git/` boundary. The
+resolved config hands typed parse, format, and lint policy to the other crates.
 
-This crate is policy resolution only — it does not run rules, format files, or parse
-Markdown. The TOML schema is documented in `docs/configuration.md`, generated from this
-crate at build time.
+This crate is policy resolution only — it does not run rules, format files, or parse Markdown. The TOML schema is
+documented in `docs/configuration.md`, generated from this crate at build time.
 
 ## Status
 
-Pre-1.0. Public items are whatever `lib.rs` re-exports; breaking changes ship without
-deprecation warnings.
+Pre-1.0. Public items are whatever `lib.rs` re-exports; breaking changes ship without deprecation warnings.
 
 ## Use it
 
