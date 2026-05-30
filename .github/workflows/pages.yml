@@ -15,7 +15,7 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  MDBOOK_VERSION: "0.4.40"
+  MDBOOK_VERSION: "0.5.3"
 
 jobs:
   deploy:
@@ -38,7 +38,7 @@ jobs:
 
       - uses: taiki-e/install-action@v2
         with:
-          tool: mdbook@0.4.40
+          tool: mdbook@0.5.3
 
       - name: Verify drift gates
         run: |

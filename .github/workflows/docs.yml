@@ -17,7 +17,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  MDBOOK_VERSION: "0.4.40"
+  MDBOOK_VERSION: "0.5.3"
 
 permissions:
   contents: read
@@ -31,7 +31,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
-          tool: mdbook@0.4.40
+          tool: mdbook@0.5.3
       - name: Verify drift gates
         run: |
           cargo xtask doc-rules --check
