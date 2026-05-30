@@ -16,7 +16,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-authors = ["Jacob Reinhold <jcreinhold@gmail.com>"]
+authors = ["Jacob Reinhold"]
 categories = ["command-line-utilities", "text-processing"]
 edition = "2024"
 keywords = ["documentation", "linter", "markdown", "math"]
