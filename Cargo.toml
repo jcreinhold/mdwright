@@ -24,22 +24,22 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/jcreinhold/mdwright"
 rust-version = "1.91"
-version = "0.1.2"
+version = "0.1.3"
 
 [workspace.dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["color", "derive"] }
 ignore = "0.4"
 logos = "0.16"
-mdwright = { version = "0.1.2", path = "crates/mdwright" }
-mdwright-config = { version = "0.1.2", path = "crates/mdwright-config" }
-mdwright-document = { version = "0.1.2", path = "crates/mdwright-document" }
-mdwright-format = { version = "0.1.2", path = "crates/mdwright-format" }
-mdwright-latex = { version = "0.1.2", path = "crates/mdwright-latex" }
-mdwright-lint = { version = "0.1.2", path = "crates/mdwright-lint" }
-mdwright-lsp = { version = "0.1.2", path = "crates/mdwright-lsp" }
-mdwright-math = { version = "0.1.2", path = "crates/mdwright-math" }
-mdwright-mathrender = { version = "0.1.2", path = "crates/mdwright-mathrender" }
+mdwright = { version = "0.1.3", path = "crates/mdwright" }
+mdwright-config = { version = "0.1.3", path = "crates/mdwright-config" }
+mdwright-document = { version = "0.1.3", path = "crates/mdwright-document" }
+mdwright-format = { version = "0.1.3", path = "crates/mdwright-format" }
+mdwright-latex = { version = "0.1.3", path = "crates/mdwright-latex" }
+mdwright-lint = { version = "0.1.3", path = "crates/mdwright-lint" }
+mdwright-lsp = { version = "0.1.3", path = "crates/mdwright-lsp" }
+mdwright-math = { version = "0.1.3", path = "crates/mdwright-math" }
+mdwright-mathrender = { version = "0.1.3", path = "crates/mdwright-mathrender" }
 opener = "0.8"
 owo-colors = "4"
 proptest = "1.11.0"

@@ -282,6 +282,22 @@ impl core::marker::Unpin for mdwright_lint::stdlib::SubscriptDamage
 impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::SubscriptDamage
 impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::SubscriptDamage
 impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::SubscriptDamage
+pub struct mdwright_lint::stdlib::TablePipeSpacing
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::TablePipeSpacing
+pub fn mdwright_lint::stdlib::TablePipeSpacing::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::TablePipeSpacing::description(&self) -> &str
+pub fn mdwright_lint::stdlib::TablePipeSpacing::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::TablePipeSpacing::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::TablePipeSpacing::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::TablePipeSpacing::name(&self) -> &str
+pub fn mdwright_lint::stdlib::TablePipeSpacing::produces_fix(&self) -> bool
+impl core::marker::Freeze for mdwright_lint::stdlib::TablePipeSpacing
+impl core::marker::Send for mdwright_lint::stdlib::TablePipeSpacing
+impl core::marker::Sync for mdwright_lint::stdlib::TablePipeSpacing
+impl core::marker::Unpin for mdwright_lint::stdlib::TablePipeSpacing
+impl core::marker::UnsafeUnpin for mdwright_lint::stdlib::TablePipeSpacing
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_lint::stdlib::TablePipeSpacing
+impl core::panic::unwind_safe::UnwindSafe for mdwright_lint::stdlib::TablePipeSpacing
 pub struct mdwright_lint::stdlib::TrailingWhitespace
 impl mdwright_lint::LintRule for mdwright_lint::stdlib::TrailingWhitespace
 pub fn mdwright_lint::stdlib::TrailingWhitespace::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
@@ -619,6 +635,14 @@ pub fn mdwright_lint::stdlib::SubscriptDamage::is_advisory(&self) -> bool
 pub fn mdwright_lint::stdlib::SubscriptDamage::is_default(&self) -> bool
 pub fn mdwright_lint::stdlib::SubscriptDamage::name(&self) -> &str
 pub fn mdwright_lint::stdlib::SubscriptDamage::produces_fix(&self) -> bool
+impl mdwright_lint::LintRule for mdwright_lint::stdlib::TablePipeSpacing
+pub fn mdwright_lint::stdlib::TablePipeSpacing::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
+pub fn mdwright_lint::stdlib::TablePipeSpacing::description(&self) -> &str
+pub fn mdwright_lint::stdlib::TablePipeSpacing::explain(&self) -> &str
+pub fn mdwright_lint::stdlib::TablePipeSpacing::is_advisory(&self) -> bool
+pub fn mdwright_lint::stdlib::TablePipeSpacing::is_default(&self) -> bool
+pub fn mdwright_lint::stdlib::TablePipeSpacing::name(&self) -> &str
+pub fn mdwright_lint::stdlib::TablePipeSpacing::produces_fix(&self) -> bool
 impl mdwright_lint::LintRule for mdwright_lint::stdlib::TrailingWhitespace
 pub fn mdwright_lint::stdlib::TrailingWhitespace::check(&self, doc: &mdwright_document::document::Document, out: &mut alloc::vec::Vec<mdwright_lint::Diagnostic>)
 pub fn mdwright_lint::stdlib::TrailingWhitespace::description(&self) -> &str
