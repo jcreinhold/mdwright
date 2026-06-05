@@ -45,6 +45,7 @@ step "Build mdBook"
 mdbook build docs/
 
 step "Public API diff vs committed baselines"
+scripts/ensure-cargo-public-api.sh
 for crate in "${crates[@]}"; do
   baseline="docs/api-review/${crate}-public.txt"
   if [ ! -f "$baseline" ]; then
