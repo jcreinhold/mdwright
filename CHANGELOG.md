@@ -12,6 +12,13 @@ All notable changes to mdwright are listed here. The format follows
   and blocks `[fmt.tables] style = "align"` from aligning the table. The fix inserts the missing space. A pipe that
   follows a closed inline construct (code span, emphasis, link) parses cleanly and is not flagged.
 
+### Changed
+
+- The release workflow now publishes with a single `cargo publish --workspace` instead of a hand-rolled per-crate loop
+  with `sleep` between crates. The binary GitHub Release and docs deploy are decoupled from the crates.io publish, so a
+  transient crates.io failure no longer blocks them. A partial publish is completed by the new `release-recover.yml`
+  workflow. Added `scripts/prerelease.sh` as the single local pre-release gate mirroring CI's `verify` job.
+
 ### Fixed
 
 - `[fmt.tables] style = "align"` now aligns every table it can rather than skipping all tables when one cannot be

@@ -320,50 +320,30 @@ jobs:
       - name: Package tarball docs.rs simulation
         run: python3 scripts/check_package_docsrs.py
 
-      - name: Publish crates.io packages
+      - name: Publish workspace to crates.io
         run: |
           set -euo pipefail
-          version="${RELEASE_TAG#v}"
-          crates=(
-            mdwright-latex
-            mdwright-math
-            mdwright-mathrender
-            mdwright-document
-            mdwright-format
-            mdwright-lint
-            mdwright-config
-            mdwright-lsp
-            mdwright
-          )
+          # cargo publish --workspace uploads the publishable members (xtask and
+          # examples/extending are publish=false) in dependency order and waits
+          # for each crate to land in the index before the next verify build, so
+          # no manual ordering or inter-crate sleep is needed. It is all-or-
+          # nothing on re-run; a partial publish is finished by release-recover.yml.
           if [ "$PUBLISHING" != "true" ]; then
-            echo "dry run: skipping crates.io publish"
-            exit 0
+            cargo publish --workspace --locked --dry-run
+          else
+            cargo publish --workspace --locked
           fi
-          last_index=$((${#crates[@]} - 1))
-          for index in "${!crates[@]}"; do
-            crate="${crates[$index]}"
-            status="$(curl -sS -o /dev/null -w "%{http_code}" -A "mdwright-release-ci" "https://crates.io/api/v1/crates/${crate}/${version}")"
-            if [ "$status" = "200" ]; then
-              echo "$crate v$version is already published; skipping"
-              continue
-            fi
-            if [ "$status" != "404" ]; then
-              echo "::error::Could not determine crates.io status for $crate v$version; HTTP $status"
-              exit 1
-            fi
-            cargo publish -p "$crate"
-            if [ "$index" -lt "$last_index" ]; then
-              sleep 180
-            fi
-          done
 
   host:
+    # Decoupled from publish-crates: the binary GitHub Release is the cargo-dist
+    # host job's own concern, so a transient crates.io failure never blocks the
+    # binary release or the docs deploy. crates.io is repaired by
+    # release-recover.yml without rebuilding anything here.
     needs:
       - dist-plan
       - build-local-artifacts
       - build-global-artifacts
-      - publish-crates
-    if: ${{ always() && needs.dist-plan.result == 'success' && needs.dist-plan.outputs.publishing == 'true' && needs.publish-crates.result == 'success' && (needs.build-local-artifacts.result == 'success' || needs.build-local-artifacts.result == 'skipped') && (needs.build-global-artifacts.result == 'success' || needs.build-global-artifacts.result == 'skipped') }}
+    if: ${{ always() && needs.dist-plan.result == 'success' && needs.dist-plan.outputs.publishing == 'true' && (needs.build-local-artifacts.result == 'success' || needs.build-local-artifacts.result == 'skipped') && (needs.build-global-artifacts.result == 'success' || needs.build-global-artifacts.result == 'skipped') }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     runs-on: ubuntu-22.04
