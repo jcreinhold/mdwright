@@ -78,18 +78,87 @@ fn commit_first_canonical_family(
     for family in CANONICAL_FAMILY_ORDER {
         let mut candidates = collect_family(snapshot, opts, family);
         candidates.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));
-        if let Some(committed) = verify_plan(
-            snapshot.source(),
-            opts,
-            parse_options,
-            PlanKind::Family(family),
-            candidates,
-            report,
-        ) {
+        if candidates.is_empty() {
+            continue;
+        }
+        if let Some(committed) =
+            commit_canonical_family(snapshot.source(), opts, parse_options, family, candidates, report)
+        {
             return Some(committed);
         }
     }
     None
+}
+
+/// Commit one canonical family, preferring a single atomic batch and
+/// falling back to per-candidate verification when the batch fails.
+///
+/// The atomic batch is the fast path and the only viable path for
+/// families whose candidates are interdependent: emphasis emits
+/// separate open and close delimiter candidates, and list-marker
+/// rewrites must land together or the list splits, so each such
+/// candidate fails verification on its own. Per-candidate salvage is
+/// therefore a fallback after a batch failure, never a pre-filter — for
+/// those families the survivor set is empty and behaviour is unchanged,
+/// while a family of independent candidates (one self-contained table
+/// per candidate) keeps the candidates that verify on their own rather
+/// than letting one unpreservable candidate veto the rest.
+fn commit_canonical_family(
+    before: &str,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+    family: RewriteFamily,
+    candidates: Vec<Candidate>,
+    report: &mut FormatReport,
+) -> Option<String> {
+    let kind = PlanKind::Family(family);
+    report.rewrite_candidates = report.rewrite_candidates.saturating_add(candidates.len());
+    let multi = candidates.len() > 1;
+
+    match attempt_plan(before, opts, parse_options, kind, candidates.clone()) {
+        PlanAttempt::Committed { result, edits } => {
+            record_commit(report, kind, edits);
+            return Some(result);
+        }
+        PlanAttempt::RejectedOverlap { rejected } => {
+            report.rewrite_rejected_overlap = report.rewrite_rejected_overlap.saturating_add(rejected);
+            return None;
+        }
+        PlanAttempt::Noop => return None,
+        PlanAttempt::RejectedVerification { edits } => {
+            if !multi {
+                report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(edits);
+                return None;
+            }
+        }
+    }
+
+    let survivors = verify_candidates_individually(before, opts, parse_options, candidates, report);
+    if survivors.is_empty() {
+        return None;
+    }
+    let salvaged = survivors.len();
+    match attempt_plan(before, opts, parse_options, kind, survivors) {
+        PlanAttempt::Committed { result, edits } => {
+            tracing::debug!(
+                target: "mdwright::rewrite",
+                family = ?kind,
+                salvaged,
+                "committed independent candidates after batch verification failed",
+            );
+            record_commit(report, kind, edits);
+            Some(result)
+        }
+        PlanAttempt::RejectedOverlap { rejected } => {
+            report.rewrite_rejected_overlap = report.rewrite_rejected_overlap.saturating_add(rejected);
+            None
+        }
+        PlanAttempt::RejectedVerification { edits } => {
+            report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(edits);
+            None
+        }
+        PlanAttempt::Noop => None,
+    }
 }
 
 fn commit_terminal_wrap(
@@ -102,7 +171,7 @@ fn commit_terminal_wrap(
     report.rewrite_skipped_wrap = report.rewrite_skipped_wrap.saturating_add(outcome.skipped_unsupported);
     let mut edits = outcome.edits;
     edits.retain(|c| snapshot.source().get(c.range().clone()) != Some(c.replacement()));
-    let edits = verified_terminal_wrap_edits(snapshot.source(), opts, parse_options, edits, report);
+    let edits = verify_candidates_individually(snapshot.source(), opts, parse_options, edits, report);
     verify_plan(
         snapshot.source(),
         opts,
@@ -113,7 +182,13 @@ fn commit_terminal_wrap(
     )
 }
 
-fn verified_terminal_wrap_edits(
+/// Keep only the candidates that preserve the document signature when
+/// applied on their own, recording the rest as verification rejections.
+///
+/// Callers use this to salvage independent edits when an atomic batch
+/// fails; a single candidate is returned unverified because the caller
+/// re-checks it as a plan of one.
+fn verify_candidates_individually(
     before: &str,
     opts: &FmtOptions,
     parse_options: ParseOptions,
@@ -147,42 +222,81 @@ fn verify_plan(
     report: &mut FormatReport,
 ) -> Option<String> {
     report.rewrite_candidates = report.rewrite_candidates.saturating_add(candidates.len());
-    let outcome = FamilyPlan::build(kind, candidates);
-    let FamilyPlanBuild::Ready(plan) = outcome else {
-        if let FamilyPlanBuild::RejectedOverlap { rejected } = outcome {
-            report.rewrite_rejected_overlap = report.rewrite_rejected_overlap.saturating_add(rejected);
+    match attempt_plan(before, opts, parse_options, kind, candidates) {
+        PlanAttempt::Committed { result, edits } => {
+            record_commit(report, kind, edits);
+            Some(result)
         }
-        return None;
+        PlanAttempt::RejectedOverlap { rejected } => {
+            report.rewrite_rejected_overlap = report.rewrite_rejected_overlap.saturating_add(rejected);
+            None
+        }
+        PlanAttempt::RejectedVerification { edits } => {
+            report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(edits);
+            None
+        }
+        PlanAttempt::Noop => None,
+    }
+}
+
+/// Outcome of building and verifying one plan, free of report
+/// bookkeeping so callers can combine attempts (batch then salvage)
+/// and account for the result exactly once.
+enum PlanAttempt {
+    Committed { result: String, edits: usize },
+    Noop,
+    RejectedOverlap { rejected: usize },
+    RejectedVerification { edits: usize },
+}
+
+/// Build the plan, apply it, and run batch verification. Pure with
+/// respect to the report; the caller decides how to record the result.
+fn attempt_plan(
+    before: &str,
+    opts: &FmtOptions,
+    parse_options: ParseOptions,
+    kind: PlanKind,
+    candidates: Vec<Candidate>,
+) -> PlanAttempt {
+    let plan = match FamilyPlan::build(kind, candidates) {
+        FamilyPlanBuild::Ready(plan) => plan,
+        FamilyPlanBuild::RejectedOverlap { rejected } => return PlanAttempt::RejectedOverlap { rejected },
+        FamilyPlanBuild::Noop => return PlanAttempt::Noop,
     };
 
     let candidate = apply_plan(before, &plan);
     if candidate == before {
-        return None;
+        return PlanAttempt::Noop;
     }
     if verify_batch(before, &candidate, plan.edits(), opts, parse_options) {
-        report.rewrite_committed = report.rewrite_committed.saturating_add(plan.len());
-        match plan.kind() {
-            PlanKind::TerminalWrap => {
-                report.rewrite_committed_wrap = report.rewrite_committed_wrap.saturating_add(plan.len());
-            }
-            PlanKind::Family(_) => {
-                report.rewrite_committed_style = report.rewrite_committed_style.saturating_add(plan.len());
-            }
-        }
-        return Some(candidate);
+        return PlanAttempt::Committed {
+            result: candidate,
+            edits: plan.len(),
+        };
     }
 
     let first = plan.edits().first();
-    report.rewrite_rejected_verification = report.rewrite_rejected_verification.saturating_add(plan.len());
     tracing::debug!(
         target: "mdwright::rewrite",
         family = ?plan.kind(),
         edits = plan.len(),
         first_label = first.map_or("", Candidate::label),
         first_owner = ?first.map(Candidate::owner),
-        "skipped rewrite family: verification failed",
+        "rewrite plan failed batch verification",
     );
-    None
+    PlanAttempt::RejectedVerification { edits: plan.len() }
+}
+
+fn record_commit(report: &mut FormatReport, kind: PlanKind, edits: usize) {
+    report.rewrite_committed = report.rewrite_committed.saturating_add(edits);
+    match kind {
+        PlanKind::TerminalWrap => {
+            report.rewrite_committed_wrap = report.rewrite_committed_wrap.saturating_add(edits);
+        }
+        PlanKind::Family(_) => {
+            report.rewrite_committed_style = report.rewrite_committed_style.saturating_add(edits);
+        }
+    }
 }
 
 fn collect_family(snapshot: &Snapshot<'_>, opts: &FmtOptions, family: RewriteFamily) -> Vec<Candidate> {
@@ -409,7 +523,7 @@ mod tests {
             .expect("candidate");
         let mut report = FormatReport::default();
 
-        let verified = verified_terminal_wrap_edits(
+        let verified = verify_candidates_individually(
             snapshot.source(),
             &FmtOptions::default(),
             ParseOptions::default(),
@@ -420,5 +534,87 @@ mod tests {
         assert_eq!(verified.len(), 1);
         assert_eq!(verified.first().map(Candidate::label), Some("wrap-good"));
         assert_eq!(report.rewrite_rejected_verification, 1);
+    }
+
+    #[test]
+    fn family_salvages_independent_candidate_when_batch_fails() {
+        // `***` -> `---` keeps the thematic-break event, so it verifies
+        // alone; rewriting the paragraph text changes the signature and
+        // must not veto the preservable sibling.
+        let source = "***\n\nhello\n";
+        let snapshot = Snapshot::parse_owned(source, ParseOptions::default()).expect("snapshot parses");
+        let preserving = snapshot
+            .candidate(
+                OwnerKind::Document,
+                0..3,
+                "---".to_owned(),
+                Verification::PreserveMarkdownAndMath,
+                "good",
+            )
+            .expect("candidate");
+        let breaking = snapshot
+            .candidate(
+                OwnerKind::Document,
+                5..10,
+                "world".to_owned(),
+                Verification::PreserveMarkdownAndMath,
+                "bad",
+            )
+            .expect("candidate");
+        let mut report = FormatReport::default();
+
+        let committed = commit_canonical_family(
+            source,
+            &FmtOptions::default(),
+            ParseOptions::default(),
+            RewriteFamily::Table,
+            vec![preserving, breaking],
+            &mut report,
+        );
+
+        assert_eq!(committed.as_deref(), Some("---\n\nhello\n"));
+        assert_eq!(report.rewrite_candidates, 2);
+        assert_eq!(report.rewrite_committed, 1);
+        assert_eq!(report.rewrite_committed_style, 1);
+        assert_eq!(report.rewrite_rejected_verification, 1);
+    }
+
+    #[test]
+    fn family_salvage_commits_nothing_when_no_candidate_verifies() {
+        let source = "hello world\n";
+        let snapshot = Snapshot::parse_owned(source, ParseOptions::default()).expect("snapshot parses");
+        let first = snapshot
+            .candidate(
+                OwnerKind::Document,
+                0..5,
+                "HELLO".to_owned(),
+                Verification::PreserveMarkdownAndMath,
+                "a",
+            )
+            .expect("candidate");
+        let second = snapshot
+            .candidate(
+                OwnerKind::Document,
+                6..11,
+                "WORLD".to_owned(),
+                Verification::PreserveMarkdownAndMath,
+                "b",
+            )
+            .expect("candidate");
+        let mut report = FormatReport::default();
+
+        let committed = commit_canonical_family(
+            source,
+            &FmtOptions::default(),
+            ParseOptions::default(),
+            RewriteFamily::Table,
+            vec![first, second],
+            &mut report,
+        );
+
+        assert_eq!(committed, None);
+        assert_eq!(report.rewrite_candidates, 2);
+        assert_eq!(report.rewrite_committed, 0);
+        assert_eq!(report.rewrite_rejected_verification, 2);
     }
 }

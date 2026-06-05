@@ -39,6 +39,7 @@
   - [orphan-reference-link](rules/orphan-reference-link.md)
   - [stray-dollar](rules/stray-dollar.md)
   - [subscript-damage](rules/subscript-damage.md)
+  - [table-pipe-spacing](rules/table-pipe-spacing.md)
   - [trailing-whitespace](rules/trailing-whitespace.md)
   - [unbalanced-backtick](rules/unbalanced-backtick.md)
   - [unicodeable-subscript](rules/unicodeable-subscript.md)

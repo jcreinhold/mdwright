@@ -21,6 +21,7 @@
 //! | `bare-url`                 | yes | no  |
 //! | `trailing-whitespace`      | yes | no  |
 //! | `inconsistent-list-marker` | yes | no  |
+//! | `table-pipe-spacing`       | yes | no  |
 //! | `list-tightness-flipped`   | no  | yes |
 //! | `duplicate-heading`        | yes | no  |
 //! | `unicodeable-subscript`    | yes | yes |
@@ -47,6 +48,7 @@ mod math_unbalanced_env;
 mod orphan_reference_link;
 mod stray_dollar;
 mod subscript_damage;
+mod table_pipe_spacing;
 mod trailing_whitespace;
 mod unbalanced_backtick;
 mod unicodeable_subscript;
@@ -71,6 +73,7 @@ pub use math_unbalanced_env::MathUnbalancedEnv;
 pub use orphan_reference_link::OrphanReferenceLink;
 pub use stray_dollar::StrayDollar;
 pub use subscript_damage::SubscriptDamage;
+pub use table_pipe_spacing::TablePipeSpacing;
 pub use trailing_whitespace::TrailingWhitespace;
 pub use unbalanced_backtick::UnbalancedBacktick;
 pub use unicodeable_subscript::UnicodeableSubscript;
@@ -96,6 +99,7 @@ pub const NAMES: &[&str] = &[
     "bare-url",
     "trailing-whitespace",
     "inconsistent-list-marker",
+    "table-pipe-spacing",
     "list-tightness-flipped",
     "duplicate-heading",
     "unicodeable-subscript",
@@ -129,6 +133,7 @@ fn all_boxed() -> Vec<Box<dyn LintRule>> {
         Box::new(BareUrl),
         Box::new(TrailingWhitespace),
         Box::new(InconsistentListMarker),
+        Box::new(TablePipeSpacing),
         Box::new(ListTightnessFlipped),
         Box::new(DuplicateHeading),
         Box::new(UnicodeableSubscript),
@@ -201,7 +206,8 @@ mod tests {
         assert!(rs.contains("math/unbalanced-env"));
         assert!(rs.contains("math/unbalanced-braces"));
         assert!(rs.contains("math/render-compat"));
-        assert!(rs.len() == 20);
+        assert!(rs.contains("table-pipe-spacing"));
+        assert!(rs.len() == 21);
     }
 
     #[test]

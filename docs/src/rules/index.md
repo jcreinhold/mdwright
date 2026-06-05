@@ -21,6 +21,7 @@ On by default. A diagnostic from one of these fails `mdwright check --check`.
 | [`bare-url`](bare-url.md) | yes | Bare URL in prose; wrap in `<…>` for a CommonMark autolink. |
 | [`trailing-whitespace`](trailing-whitespace.md) | yes | Trailing whitespace at end of line. |
 | [`inconsistent-list-marker`](inconsistent-list-marker.md) | yes | Mixed `-` / `*` / `+` markers in one bullet list. |
+| [`table-pipe-spacing`](table-pipe-spacing.md) | yes | Table cell separator with no space before it, dropping the row's column alignment. |
 
 ## Default advisories
 

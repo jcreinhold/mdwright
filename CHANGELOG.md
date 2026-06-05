@@ -5,6 +5,19 @@ All notable changes to mdwright are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- New `table-pipe-spacing` lint (default on, safe fix) flags GFM table cell separators that abut running text with no
+  preceding space — e.g. `| value| next |`. Such a separator makes the renderer drop the whole row's column alignment
+  and blocks `[fmt.tables] style = "align"` from aligning the table. The fix inserts the missing space. A pipe that
+  follows a closed inline construct (code span, emphasis, link) parses cleanly and is not flagged.
+
+### Fixed
+
+- `[fmt.tables] style = "align"` now aligns every table it can rather than skipping all tables when one cannot be
+  aligned. Canonical rewrite families verify as a single batch but, on failure, now salvage the candidates that verify
+  on their own, so one unalignable table no longer vetoes the rest of the document.
+
 ## [0.1.2] – 2026-05-23
 
 ### Added
