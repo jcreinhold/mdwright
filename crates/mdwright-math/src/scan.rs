@@ -139,19 +139,26 @@ pub fn scan_math_regions(
         let content_start = i.saturating_add(open_len);
         match find_close(bytes, content_start, delim, exclusions, transparent_runs) {
             Some(close_start) => {
-                // Reject bodies with no alphanumeric content. Real
-                // math always carries a variable, constant, or
-                // command name. A `\(...\)` or `\[...\]` whose body
-                // is only backslashes, brackets, or whitespace is
-                // almost certainly a sequence of CM backslash escapes
-                // — GFM §6.1 ex. 308's `\!\"...\(\)...\[\\\]...` is
-                // the canonical case. Without this guard, the
-                // recogniser would treat `\(\)` (empty) and `\[\\\]`
-                // (body `\\`) as math, the formatter would normalise
-                // them, and the round-trip HTML would diverge from
-                // the source's escape-sequence rendering.
+                // Reject backslash-delimited bodies with no alphanumeric
+                // content. A `\(...\)` or `\[...\]` whose body is only
+                // backslashes, brackets, or whitespace is almost certainly
+                // a sequence of CM backslash escapes, not math — GFM §6.1
+                // ex. 308's `\!\"...\(\)...\[\\\]...` is the canonical case.
+                // Without this guard the recogniser would treat `\(\)`
+                // (empty) and `\[\\\]` (body `\\`) as math, the formatter
+                // would normalise them, and the round-trip HTML would
+                // diverge from the source's escape-sequence rendering.
+                //
+                // This guard is scoped to `\[`/`\(` deliberately: `$` and
+                // `$$` cannot arise from CommonMark escape sequences, so a
+                // symbol-only body like `$+$`, `$<$`, or `$[-,-]$` is real
+                // math. Applying the guard to dollars used to skip the
+                // opener but leave the closing `$` to be re-scanned as a
+                // fresh opener, yielding a spurious `UnbalancedDelim`.
                 let body_slice = bytes.get(content_start..close_start).unwrap_or(&[]);
-                if !body_slice.iter().any(u8::is_ascii_alphanumeric) {
+                if matches!(delim, AnyDelim::Bracket | AnyDelim::Paren)
+                    && !body_slice.iter().any(u8::is_ascii_alphanumeric)
+                {
                     i = i.saturating_add(1);
                     continue;
                 }
@@ -392,6 +399,10 @@ fn match_open(bytes: &[u8], i: usize, cfg: MathConfig) -> Option<(AnyDelim, usiz
             }
         }
         b'$' => {
+            // `\$` is a CommonMark-escaped literal dollar, not a delimiter.
+            if !preceding_backslashes_even(bytes, i) {
+                return None;
+            }
             let two = bytes.get(i.saturating_add(1)).copied();
             if cfg.double_dollar && two == Some(b'$') {
                 Some((AnyDelim::Dollar2, 2))
@@ -454,12 +465,15 @@ fn find_close(
                 }
             }
             AnyDelim::Dollar2 => {
-                if bytes.get(j).copied() == Some(b'$') && bytes.get(j.saturating_add(1)).copied() == Some(b'$') {
+                if bytes.get(j).copied() == Some(b'$')
+                    && bytes.get(j.saturating_add(1)).copied() == Some(b'$')
+                    && preceding_backslashes_even(bytes, j)
+                {
                     return Some(j);
                 }
             }
             AnyDelim::Dollar => {
-                if bytes.get(j).copied() == Some(b'$') {
+                if bytes.get(j).copied() == Some(b'$') && preceding_backslashes_even(bytes, j) {
                     return Some(j);
                 }
             }
@@ -938,6 +952,67 @@ mod tests {
         assert!(
             errs.iter().any(|e| matches!(e, MathError::UnbalancedDelim { .. })),
             "expected an UnbalancedDelim for the unclosed `$`: {errs:?}",
+        );
+    }
+
+    fn dollar_cfg() -> MathConfig {
+        MathConfig {
+            single_dollar: true,
+            double_dollar: true,
+            ..MathConfig::default()
+        }
+    }
+
+    #[test]
+    fn symbol_only_dollar_body_is_recognised() {
+        // `$+$`, `$<$`, `$[-,-]$` are balanced inline math whose body has
+        // no alphanumeric. They must be recognised (one region, no error):
+        // the old guard skipped the opener and re-scanned the closing `$`
+        // as a fresh opener, producing a spurious UnbalancedDelim.
+        for s in ["a $+$ b", "a $<$ b", "a $[-,-]$ b"] {
+            let (regs, errs) = scan_with_runs(s, &[], dollar_cfg());
+            assert_eq!(regs.len(), 1, "expected one region in {s:?}");
+            assert!(errs.is_empty(), "unexpected errors in {s:?}: {errs:?}");
+            assert!(matches!(
+                regs[0].span(),
+                MathSpan::Inline {
+                    delim: InlineDelim::Dollar,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[test]
+    fn escaped_dollar_is_not_a_delimiter() {
+        // `\$` is a CommonMark literal dollar; a lone one is not math.
+        let s = r"a lone \$ sign";
+        let (regs, errs) = scan_with_runs(s, &[], dollar_cfg());
+        assert!(regs.is_empty(), "no region in {s:?}: {regs:?}");
+        assert!(errs.is_empty(), "no errors in {s:?}: {errs:?}");
+    }
+
+    #[test]
+    fn escaped_dollar_inside_body_does_not_close() {
+        // The mid-body `\$` is literal, so the region runs to the final
+        // unescaped `$`.
+        let s = r"x $a \$ b$ y";
+        let (regs, errs) = scan_with_runs(s, &[], dollar_cfg());
+        assert_eq!(regs.len(), 1, "expected one region in {s:?}");
+        assert!(errs.is_empty(), "no errors in {s:?}: {errs:?}");
+        assert_eq!(&s[regs[0].range.clone()], r"$a \$ b$");
+    }
+
+    #[test]
+    fn backslash_escape_noise_still_rejected() {
+        // GFM §6.1 ex. 308: `\[\\\]` is escape noise, not math. The bracket
+        // guard must still reject it without a spurious delim error.
+        let s = r"x \[\\\] y";
+        let (regs, errs) = scan(s);
+        assert!(regs.is_empty(), "no region in {s:?}: {regs:?}");
+        assert!(
+            !errs.iter().any(|e| matches!(e, MathError::UnbalancedDelim { .. })),
+            "no spurious delim error in {s:?}: {errs:?}",
         );
     }
 }
