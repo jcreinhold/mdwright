@@ -156,6 +156,37 @@ wrap = 120
 wrap-strategy = "balanced"
 ```
 
+## `[fmt] blank-line-before-heading` and `[fmt] blank-line-after-heading`
+
+| Value | Effect |
+| --- | --- |
+| `"preserve"` (default) | Blank lines around the heading keep their source spelling. |
+| `"one"` | Emit exactly one blank line on that side of the heading, inserting one where there was none and collapsing several down to one. |
+
+`blank-line-after-heading` governs the gap between a heading and whatever follows it — a paragraph, image, table, code
+block, list, or another heading. `blank-line-before-heading` governs the gap between a heading and whatever precedes it.
+
+```toml
+[fmt]
+blank-line-before-heading = "one"
+blank-line-after-heading = "one"
+```
+
+A heading that opens the document is left alone: it has nothing before it, so there is no gap to normalise. This is why
+there is no separate "except the first heading" setting. Frontmatter does not change that — the first heading after a
+frontmatter block is still the document's first block.
+
+The gap between two adjacent headings belongs to both keys at once. Because the only values are `"preserve"` and
+`"one"`, they cannot disagree: if either key asks for a blank line, one blank line is what you get.
+
+Only headings at the top level of the document are affected. A heading inside a block quote or a list item keeps its
+source spacing, because a blank line means something different there: an empty line ends a block quote rather than
+separating its blocks, and a blank line between list items turns a tight list into a loose one.
+
+The gap must contain nothing but whitespace. A link reference definition sitting between a heading and the next block —
+which the parser reports as neither block nor blank line — leaves the surrounding blank lines untouched rather than
+risking the definition itself.
+
 ## `[fmt.lists] continuation-indent`
 
 | Value | Effect |

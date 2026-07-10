@@ -273,6 +273,22 @@ impl core::marker::Unpin for mdwright_document::BlockCheckpointFact
 impl core::marker::UnsafeUnpin for mdwright_document::BlockCheckpointFact
 impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::BlockCheckpointFact
 impl core::panic::unwind_safe::UnwindSafe for mdwright_document::BlockCheckpointFact
+pub struct mdwright_document::BlockGapSite
+impl mdwright_document::BlockGapSite
+pub fn mdwright_document::BlockGapSite::next_is_heading(&self) -> bool
+pub fn mdwright_document::BlockGapSite::prev_is_heading(&self) -> bool
+pub fn mdwright_document::BlockGapSite::range(&self) -> core::ops::range::Range<usize>
+impl core::clone::Clone for mdwright_document::BlockGapSite
+pub fn mdwright_document::BlockGapSite::clone(&self) -> mdwright_document::BlockGapSite
+impl core::fmt::Debug for mdwright_document::BlockGapSite
+pub fn mdwright_document::BlockGapSite::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Freeze for mdwright_document::BlockGapSite
+impl core::marker::Send for mdwright_document::BlockGapSite
+impl core::marker::Sync for mdwright_document::BlockGapSite
+impl core::marker::Unpin for mdwright_document::BlockGapSite
+impl core::marker::UnsafeUnpin for mdwright_document::BlockGapSite
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_document::BlockGapSite
+impl core::panic::unwind_safe::UnwindSafe for mdwright_document::BlockGapSite
 pub struct mdwright_document::CodeBlock
 pub mdwright_document::CodeBlock::byte_offset: usize
 pub mdwright_document::CodeBlock::fenced: bool
@@ -316,6 +332,7 @@ pub fn mdwright_document::Document::prose_chunks(&self) -> &[mdwright_document::
 pub fn mdwright_document::Document::source(&self) -> &str
 pub fn mdwright_document::Document::suppressions(&self) -> &[mdwright_document::Suppression]
 impl mdwright_document::Document
+pub fn mdwright_document::Document::block_gap_sites(&self) -> &[mdwright_document::BlockGapSite]
 pub fn mdwright_document::Document::heading_attr_sites(&self) -> &[mdwright_document::HeadingAttrSite]
 pub fn mdwright_document::Document::inline_delimiter_slots(&self, kind: mdwright_document::InlineDelimiterKind) -> &[mdwright_document::InlineDelimiterSlot]
 pub fn mdwright_document::Document::inline_link_destination_slots(&self) -> &[mdwright_document::InlineLinkDestinationSlot]

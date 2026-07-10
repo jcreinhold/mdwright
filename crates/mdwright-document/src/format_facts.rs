@@ -242,6 +242,50 @@ impl TableCellSite {
     }
 }
 
+/// The whitespace between two adjacent top-level blocks.
+///
+/// The range starts at the first line after the preceding block's last
+/// content line and ends at the start of the following block's first
+/// line, so the following block's 0–3 space indent is never inside it.
+/// Replacing the range with `"\n"` leaves exactly one blank line;
+/// replacing an empty range inserts one.
+///
+/// A site exists only when the gap bytes are whitespace. pulldown emits
+/// no events for link reference definitions, so a bare `[a]: /x` line
+/// between two siblings lands inside the computed gap and suppresses the
+/// site rather than being silently deleted. The same guard covers every
+/// other construct the tree does not model.
+///
+/// Only gaps between direct children of the document root are recorded.
+/// Inside a block quote a blank line must carry a `>` prefix, and inside
+/// a tight list a blank line loosens the list; both are semantic changes,
+/// so nested gaps are excluded rather than special-cased.
+#[derive(Clone, Debug)]
+pub struct BlockGapSite {
+    range: Range<usize>,
+    prev_is_heading: bool,
+    next_is_heading: bool,
+}
+
+impl BlockGapSite {
+    #[must_use]
+    pub fn range(&self) -> Range<usize> {
+        self.range.clone()
+    }
+
+    /// Whether the block before the gap is a heading (ATX or setext).
+    #[must_use]
+    pub fn prev_is_heading(&self) -> bool {
+        self.prev_is_heading
+    }
+
+    /// Whether the block after the gap is a heading (ATX or setext).
+    #[must_use]
+    pub fn next_is_heading(&self) -> bool {
+        self.next_is_heading
+    }
+}
+
 /// A paragraph range with the inline facts needed by the wrap pass.
 #[derive(Clone, Debug)]
 pub struct WrappableParagraph {
@@ -337,6 +381,7 @@ pub(crate) struct FormatFacts {
     reference_definition_sites: Vec<ReferenceDefinitionSite>,
     table_sites: Vec<TableSite>,
     wrappable_paragraphs: Vec<WrappableParagraph>,
+    block_gap_sites: Vec<BlockGapSite>,
 }
 
 impl FormatFacts {
@@ -361,6 +406,7 @@ impl FormatFacts {
             reference_definition_sites: reference_definition_sites(source, code_blocks, html_blocks),
             table_sites: table_sites(source, tree),
             wrappable_paragraphs: wrappable_paragraphs(source, events, autolinks, math_regions),
+            block_gap_sites: block_gap_sites(source, tree),
         }
     }
 }
@@ -427,6 +473,12 @@ impl Document {
     #[must_use]
     pub fn wrappable_paragraphs(&self) -> &[WrappableParagraph] {
         &self.format_facts().wrappable_paragraphs
+    }
+
+    /// Whitespace gaps between adjacent top-level blocks, in source order.
+    #[must_use]
+    pub fn block_gap_sites(&self) -> &[BlockGapSite] {
+        &self.format_facts().block_gap_sites
     }
 }
 
@@ -713,6 +765,87 @@ fn table_sites(source: &str, tree: &Tree) -> Vec<TableSite> {
         }
     }
     sites
+}
+
+fn block_gap_sites(source: &str, tree: &Tree) -> Vec<BlockGapSite> {
+    let bytes = source.as_bytes();
+    let children: Vec<_> = tree.children(tree.root()).collect();
+    let mut sites = Vec::new();
+    for (prev_id, next_id) in children.iter().zip(children.iter().skip(1)) {
+        let (Some(prev), Some(next)) = (tree.node(*prev_id), tree.node(*next_id)) else {
+            continue;
+        };
+        let Some(end) = gap_end(bytes, next.raw_range.start) else {
+            continue;
+        };
+        let start = blank_run_start(bytes, end);
+        // `prev` must reach the gap. A construct the tree does not model
+        // — a link reference definition, say — occupies a non-blank line
+        // that stops the backward walk while `prev` ends far above it,
+        // and normalising around it would be normalising around the
+        // wrong block.
+        if prev.raw_range.end > end || start.saturating_sub(1) > prev.raw_range.end {
+            continue;
+        }
+        let Some(gap) = source.get(start..end) else {
+            continue;
+        };
+        if !gap.bytes().all(|byte| matches!(byte, b' ' | b'\t' | b'\n')) {
+            continue;
+        }
+        sites.push(BlockGapSite {
+            range: start..end,
+            prev_is_heading: matches!(prev.kind, NodeKind::Heading { .. }),
+            next_is_heading: matches!(next.kind, NodeKind::Heading { .. }),
+        });
+    }
+    sites
+}
+
+/// Start of the run of blank lines ending at the line start `line_start`.
+///
+/// The gap's left edge is found by walking back over blank lines rather
+/// than read off the preceding block's `raw_range.end`. A block's end
+/// offset may sit before its own terminating newline, after it, or —
+/// for a list — past a following blank line entirely, and a gap measured
+/// from the overshooting end is empty, so normalising it would insert a
+/// blank line on every pass and never converge. A block's last line is
+/// never blank, so the backward walk stops exactly at its content.
+fn blank_run_start(bytes: &[u8], line_start: usize) -> usize {
+    let mut start = line_start;
+    while start > 0 {
+        if bytes.get(start.wrapping_sub(1)).copied() != Some(b'\n') {
+            break;
+        }
+        let line_end = start.wrapping_sub(1);
+        let mut above = line_end;
+        while above > 0 && bytes.get(above.wrapping_sub(1)).copied() != Some(b'\n') {
+            above = above.wrapping_sub(1);
+        }
+        let blank = (above..line_end).all(|idx| matches!(bytes.get(idx).copied(), Some(b' ' | b'\t')));
+        if !blank {
+            break;
+        }
+        start = above;
+    }
+    start
+}
+
+/// Start of the line the block at `next_start` begins on.
+///
+/// Returns `None` when anything other than indentation separates the
+/// line start from `next_start`, which would mean the two blocks share a
+/// line and the span between them is not a gap.
+fn gap_end(bytes: &[u8], next_start: usize) -> Option<usize> {
+    let mut idx = next_start;
+    while idx > 0 {
+        match bytes.get(idx.wrapping_sub(1)).copied() {
+            Some(b'\n') => return Some(idx),
+            Some(b' ' | b'\t') => idx = idx.wrapping_sub(1),
+            _ => return None,
+        }
+    }
+    Some(0)
 }
 
 fn wrappable_paragraphs(
@@ -1541,5 +1674,81 @@ mod tests {
         let second = cells.get(1).expect("second cell");
         assert_eq!(doc.source().get(first.clone()), Some(" `a\\|b` "));
         assert_eq!(doc.source().get(second.clone()), Some(" left\\|right "));
+    }
+
+    fn gaps(source: &str) -> Vec<(Range<usize>, bool, bool)> {
+        let doc = Document::parse(source).expect("fixture parses");
+        doc.block_gap_sites()
+            .iter()
+            .map(|site| (site.range(), site.prev_is_heading(), site.next_is_heading()))
+            .collect()
+    }
+
+    #[test]
+    fn block_gap_between_heading_and_paragraph_is_empty_when_adjacent() {
+        assert_eq!(gaps("# A\nB\n"), vec![(4..4, true, false)]);
+    }
+
+    #[test]
+    fn block_gap_spans_every_blank_line_between_blocks() {
+        assert_eq!(gaps("# A\n\n\nB\n"), vec![(4..6, true, false)]);
+    }
+
+    #[test]
+    fn block_gap_covers_blank_lines_carrying_trailing_whitespace() {
+        assert_eq!(gaps("# A\n  \n\t\nB\n"), vec![(4..9, true, false)]);
+    }
+
+    #[test]
+    fn block_gap_between_adjacent_headings_is_recorded_once() {
+        assert_eq!(gaps("# A\n## B\n"), vec![(4..4, true, true)]);
+    }
+
+    #[test]
+    fn block_gap_excludes_the_following_block_indent() {
+        // The paragraph's two-space indent stays outside the gap, so
+        // replacing the gap cannot delete it.
+        assert_eq!(gaps("# A\n\n  B\n"), vec![(4..5, true, false)]);
+    }
+
+    #[test]
+    fn no_block_gap_when_a_reference_definition_sits_between_blocks() {
+        // pulldown emits no node for the definition, so it falls inside
+        // the computed gap and the whitespace guard suppresses the site.
+        assert_eq!(gaps("# A\n\n[a]: /x\n\nB\n"), Vec::new());
+    }
+
+    #[test]
+    fn block_gaps_are_root_only() {
+        // The heading nested in the block quote produces no site; the
+        // only gap is between the two root-level blocks.
+        assert_eq!(gaps("> # A\n> B\n\nC\n"), vec![(10..11, false, false)]);
+    }
+
+    #[test]
+    fn no_block_gap_before_the_first_root_child() {
+        assert_eq!(gaps("# A\n"), Vec::new());
+        assert_eq!(gaps("---\ntitle: t\n---\n# A\n"), Vec::new());
+    }
+
+    #[test]
+    fn block_gap_after_a_list_stops_at_the_blank_line() {
+        // A list's `raw_range.end` runs past the blank line that follows
+        // it. Anchoring the gap on that end would report an empty gap
+        // just above the heading, and normalising it would insert one
+        // more blank line on every pass.
+        assert_eq!(gaps("1. a\n   b\n\n## H\n"), vec![(10..11, false, true)]);
+    }
+
+    #[test]
+    fn block_gap_neighbours_include_setext_headings() {
+        assert_eq!(gaps("A\n---\nB\n"), vec![(6..6, true, false)]);
+    }
+
+    #[test]
+    fn block_gap_recognises_code_and_html_block_neighbours() {
+        assert_eq!(gaps("# A\n```\nx\n```\n"), vec![(4..4, true, false)]);
+        assert_eq!(gaps("# A\n\n<div>\n</div>\n"), vec![(4..5, true, false)]);
+        assert_eq!(gaps("# A\n\n    code\n"), vec![(4..5, true, false)]);
     }
 }

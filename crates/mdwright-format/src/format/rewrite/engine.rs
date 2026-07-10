@@ -11,7 +11,11 @@ use mdwright_document::{Document, ParseError, ParseOptions};
 
 const MAX_REWRITE_STEPS: u32 = 64;
 
-const CANONICAL_FAMILY_ORDER: [RewriteFamily; 10] = [
+// Heading blank lines run last: every other family edits bytes *inside*
+// a block, so gap edits never overlap them, and running last means the
+// gaps are measured against the final block layout (which frontmatter
+// stripping can shift).
+const CANONICAL_FAMILY_ORDER: [RewriteFamily; 11] = [
     RewriteFamily::Italic,
     RewriteFamily::Strong,
     RewriteFamily::UnorderedList,
@@ -22,6 +26,7 @@ const CANONICAL_FAMILY_ORDER: [RewriteFamily; 10] = [
     RewriteFamily::Table,
     RewriteFamily::Math,
     RewriteFamily::Frontmatter,
+    RewriteFamily::HeadingBlankLines,
 ];
 
 pub(crate) fn apply_rewrites(doc: &Document, opts: &FmtOptions) -> Result<(String, FormatReport), ParseError> {

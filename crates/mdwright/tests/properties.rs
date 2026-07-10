@@ -18,7 +18,7 @@ use std::io::Write;
 
 use mdwright_document::Document;
 use mdwright_format::{
-    FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
+    BlankLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, MathRender,
     OrderedListStyle, StrongStyle, TableStyle, ThematicStyle, Wrap, format_range, semantically_equivalent,
 };
 use mdwright_lint::RuleSet;
@@ -286,6 +286,8 @@ fn all_family_law_options() -> FmtOptions {
         })
         .with_heading_attrs(HeadingAttrsStyle::Canonicalise)
         .with_preserve_frontmatter(false)
+        .with_blank_line_before_heading(BlankLine::One)
+        .with_blank_line_after_heading(BlankLine::One)
 }
 
 fn rewrite_law_opts() -> Vec<(&'static str, FmtOptions)> {

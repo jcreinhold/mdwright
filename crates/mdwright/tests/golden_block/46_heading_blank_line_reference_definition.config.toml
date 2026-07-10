@@ -1,0 +1,3 @@
+[fmt]
+blank-line-before-heading = "one"
+blank-line-after-heading = "one"

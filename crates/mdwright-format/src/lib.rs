@@ -10,9 +10,9 @@ use std::ops::Range;
 pub use format::semantic::{first_divergence, semantically_equivalent};
 pub use incremental::CheckpointTable;
 pub use options::{
-    EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent, ListMarkerStyle,
-    MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline,
-    Wrap, WrapStrategy,
+    BlankLine, EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent,
+    ListMarkerStyle, MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle,
+    TrailingNewline, Wrap, WrapStrategy,
 };
 
 use mdwright_document::{Document, ParseError};

@@ -224,6 +224,20 @@ const SCHEMA_FIELDS: &[FieldDoc] = &[
         description: "ATX heading `{#id .class key=val}` trailer emission. `preserve` emits the source trailer byte-verbatim. `canonicalise` emits id first, then classes, then key-value pairs.",
         cli_override: None,
     },
+    FieldDoc {
+        key: "fmt.blank-line-before-heading",
+        ty: "\"preserve\" | \"one\"",
+        default: "\"preserve\"",
+        description: "Blank lines before a top-level heading. `preserve` echoes the source. `one` emits exactly one blank line, inserting or collapsing as needed. A heading that opens the document has nothing before it and is left alone.",
+        cli_override: None,
+    },
+    FieldDoc {
+        key: "fmt.blank-line-after-heading",
+        ty: "\"preserve\" | \"one\"",
+        default: "\"preserve\"",
+        description: "Blank lines between a top-level heading and the block that follows it. `preserve` echoes the source. `one` emits exactly one blank line, inserting or collapsing as needed.",
+        cli_override: None,
+    },
     // ---- [fmt.refs] --------------------------------------------------
     FieldDoc {
         key: "fmt.refs.placement",

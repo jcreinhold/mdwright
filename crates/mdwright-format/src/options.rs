@@ -25,6 +25,24 @@ pub struct FmtOptions {
     thematic_break_style: ThematicStyle,
     math: MathOptions,
     heading_attrs: HeadingAttrsStyle,
+    blank_line_before_heading: BlankLine,
+    blank_line_after_heading: BlankLine,
+}
+
+/// Blank-line policy for one side of a top-level heading.
+///
+/// The value set is deliberately just these two. The gap between `# A`
+/// and `## B` is at once the *after* gap of one heading and the *before*
+/// gap of the next, so the two knobs can address the same bytes; with
+/// only `Preserve` and `One`, [`Self::One`] simply wins and no conflict
+/// exists. A "remove the blank line" value would reintroduce one.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum BlankLine {
+    /// Echo the source's blank lines byte-verbatim.
+    #[default]
+    Preserve,
+    /// Emit exactly one blank line, inserting or collapsing as needed.
+    One,
 }
 
 /// Heading-attribute trailer emission policy.
@@ -415,6 +433,7 @@ impl FmtOptions {
             || matches!(self.math.render, MathRender::Dollar)
             || self.math.normalise
             || !self.preserve_frontmatter
+            || self.normalises_heading_blank_lines()
     }
 
     /// Link-destination angle-bracket rewrite target. `None` keeps
@@ -433,6 +452,39 @@ impl FmtOptions {
     #[must_use]
     pub(crate) fn has_any_canonicalisation(&self) -> bool {
         self.should_normalise_tables() || self.has_non_table_canonicalisation()
+    }
+
+    /// Override the blank-line policy before a top-level heading.
+    #[must_use]
+    pub fn with_blank_line_before_heading(mut self, blank_line: BlankLine) -> Self {
+        self.blank_line_before_heading = blank_line;
+        self
+    }
+
+    /// Override the blank-line policy after a top-level heading.
+    #[must_use]
+    pub fn with_blank_line_after_heading(mut self, blank_line: BlankLine) -> Self {
+        self.blank_line_after_heading = blank_line;
+        self
+    }
+
+    /// Blank-line policy before a top-level heading.
+    #[must_use]
+    pub fn blank_line_before_heading(&self) -> BlankLine {
+        self.blank_line_before_heading
+    }
+
+    /// Blank-line policy after a top-level heading.
+    #[must_use]
+    pub fn blank_line_after_heading(&self) -> BlankLine {
+        self.blank_line_after_heading
+    }
+
+    /// True iff either heading blank-line knob is active.
+    #[must_use]
+    pub(crate) fn normalises_heading_blank_lines(&self) -> bool {
+        matches!(self.blank_line_before_heading, BlankLine::One)
+            || matches!(self.blank_line_after_heading, BlankLine::One)
     }
 
     /// Override the trailing-newline policy.
@@ -508,6 +560,8 @@ impl Default for FmtOptions {
             thematic_break_style: ThematicStyle::Preserve,
             math: MathOptions::default(),
             heading_attrs: HeadingAttrsStyle::default(),
+            blank_line_before_heading: BlankLine::Preserve,
+            blank_line_after_heading: BlankLine::Preserve,
         }
     }
 }
@@ -518,6 +572,12 @@ impl FmtOptions {
     ///
     /// mdformat 1.0 defaults to `wrap = keep`; callers that want a
     /// column limit should still set [`Self::with_wrap`] explicitly.
+    ///
+    /// The heading blank-line knobs stay at `Preserve` here. mdformat
+    /// normalises *every* block gap to one blank line, not just the
+    /// heading-adjacent ones, so enabling them would move this profile
+    /// closer to mdformat while still diverging on every other gap —
+    /// implying a parity that does not hold.
     #[must_use]
     pub fn mdformat() -> Self {
         Self::default()

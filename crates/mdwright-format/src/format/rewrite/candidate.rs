@@ -12,6 +12,7 @@ pub(crate) enum RewriteFamily {
     HeadingAttrs,
     Math,
     Frontmatter,
+    HeadingBlankLines,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1,4 +1,25 @@
 pub mod mdwright_format
+pub enum mdwright_format::BlankLine
+pub mdwright_format::BlankLine::One
+pub mdwright_format::BlankLine::Preserve
+impl core::clone::Clone for mdwright_format::BlankLine
+pub fn mdwright_format::BlankLine::clone(&self) -> mdwright_format::BlankLine
+impl core::cmp::Eq for mdwright_format::BlankLine
+impl core::cmp::PartialEq for mdwright_format::BlankLine
+pub fn mdwright_format::BlankLine::eq(&self, other: &mdwright_format::BlankLine) -> bool
+impl core::default::Default for mdwright_format::BlankLine
+pub fn mdwright_format::BlankLine::default() -> mdwright_format::BlankLine
+impl core::fmt::Debug for mdwright_format::BlankLine
+pub fn mdwright_format::BlankLine::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for mdwright_format::BlankLine
+impl core::marker::StructuralPartialEq for mdwright_format::BlankLine
+impl core::marker::Freeze for mdwright_format::BlankLine
+impl core::marker::Send for mdwright_format::BlankLine
+impl core::marker::Sync for mdwright_format::BlankLine
+impl core::marker::Unpin for mdwright_format::BlankLine
+impl core::marker::UnsafeUnpin for mdwright_format::BlankLine
+impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::BlankLine
+impl core::panic::unwind_safe::UnwindSafe for mdwright_format::BlankLine
 pub enum mdwright_format::EndOfLine
 pub mdwright_format::EndOfLine::Crlf
 pub mdwright_format::EndOfLine::Keep
@@ -352,6 +373,8 @@ impl core::panic::unwind_safe::RefUnwindSafe for mdwright_format::CheckpointTabl
 impl core::panic::unwind_safe::UnwindSafe for mdwright_format::CheckpointTable
 pub struct mdwright_format::FmtOptions
 impl mdwright_format::FmtOptions
+pub fn mdwright_format::FmtOptions::blank_line_after_heading(&self) -> mdwright_format::BlankLine
+pub fn mdwright_format::FmtOptions::blank_line_before_heading(&self) -> mdwright_format::BlankLine
 pub fn mdwright_format::FmtOptions::end_of_line(&self) -> mdwright_format::EndOfLine
 pub fn mdwright_format::FmtOptions::exclude_globs(&self) -> &[alloc::string::String]
 pub fn mdwright_format::FmtOptions::footnote_placement(&self) -> mdwright_format::Placement
@@ -370,6 +393,8 @@ pub fn mdwright_format::FmtOptions::strong(&self) -> mdwright_format::StrongStyl
 pub fn mdwright_format::FmtOptions::table(&self) -> mdwright_format::TableStyle
 pub fn mdwright_format::FmtOptions::thematic_break_style(&self) -> mdwright_format::ThematicStyle
 pub fn mdwright_format::FmtOptions::trailing_newline(&self) -> mdwright_format::TrailingNewline
+pub fn mdwright_format::FmtOptions::with_blank_line_after_heading(self, blank_line: mdwright_format::BlankLine) -> Self
+pub fn mdwright_format::FmtOptions::with_blank_line_before_heading(self, blank_line: mdwright_format::BlankLine) -> Self
 pub fn mdwright_format::FmtOptions::with_end_of_line(self, end_of_line: mdwright_format::EndOfLine) -> Self
 pub fn mdwright_format::FmtOptions::with_exclude_globs(self, exclude_globs: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn mdwright_format::FmtOptions::with_footnote_placement(self, placement: mdwright_format::Placement) -> Self

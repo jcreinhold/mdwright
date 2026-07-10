@@ -5,6 +5,14 @@ All notable changes to mdwright are listed here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- New `[fmt] blank-line-before-heading` and `[fmt] blank-line-after-heading` keys, each `"preserve"` (default) or
+  `"one"`. Under `"one"` the formatter emits exactly one blank line on that side of a top-level heading, inserting one
+  where there was none and collapsing several down to one. A heading that opens the document has nothing before it and
+  is left alone. Headings nested in block quotes or list items keep their source spacing, where a blank line would
+  instead end the quote or loosen the list.
+
 ## [0.1.3] – 2026-06-05
 
 ### Added

@@ -30,7 +30,9 @@
 //! only the style-specific policy for constructing a family's edits.
 
 use crate::format::rewrite::{Candidate, OwnerKind, RewriteFamily, Snapshot, Verification};
-use crate::{FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender, OrderedListStyle, TableStyle, ThematicStyle};
+use crate::{
+    BlankLine, FmtOptions, HeadingAttrsStyle, LinkDefStyle, MathRender, OrderedListStyle, TableStyle, ThematicStyle,
+};
 use mdwright_document::{InlineDelimiterKind, TableAlign, TableSite};
 use mdwright_math::MathRegion;
 use mdwright_math::MathSpan;
@@ -93,6 +95,41 @@ pub(crate) fn collect_family_candidates(
             if !opts.preserve_frontmatter() {
                 collect_strip_frontmatter(snapshot, candidates);
             }
+        }
+        RewriteFamily::HeadingBlankLines => {
+            if opts.normalises_heading_blank_lines() {
+                collect_heading_blank_lines(snapshot, opts, candidates);
+            }
+        }
+    }
+}
+
+/// One blank line on the requested sides of each top-level heading.
+///
+/// Each gap yields at most one candidate. The gap between two adjacent
+/// headings is addressed by both knobs, and emitting a candidate per
+/// knob would push two edits at the same offset; empty ranges do not
+/// count as overlapping, so both would apply and insert two blank lines.
+fn collect_heading_blank_lines(snapshot: &Snapshot<'_>, opts: &FmtOptions, candidates: &mut Vec<Candidate>) {
+    let after_heading = matches!(opts.blank_line_after_heading(), BlankLine::One);
+    let before_heading = matches!(opts.blank_line_before_heading(), BlankLine::One);
+    for site in snapshot.document().block_gap_sites() {
+        let wanted = (after_heading && site.prev_is_heading()) || (before_heading && site.next_is_heading());
+        if !wanted {
+            continue;
+        }
+        let range = site.range();
+        if snapshot.source().get(range.clone()) == Some("\n") {
+            continue;
+        }
+        if let Some(candidate) = snapshot.candidate(
+            OwnerKind::Document,
+            range,
+            "\n".to_owned(),
+            Verification::PreserveMarkdownAndMath,
+            "heading-blank-line",
+        ) {
+            candidates.push(candidate);
         }
     }
 }

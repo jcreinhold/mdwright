@@ -30,9 +30,9 @@ use mdwright_document::{
     ParseOptions, RenderOptions, RenderProfile,
 };
 use mdwright_format::{
-    EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent, ListMarkerStyle,
-    MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle, TrailingNewline,
-    Wrap, WrapStrategy,
+    BlankLine, EndOfLine, FmtOptions, HeadingAttrsStyle, ItalicStyle, LinkDefStyle, ListContinuationIndent,
+    ListMarkerStyle, MathOptions, MathRender, OrderedListStyle, Placement, StrongStyle, TableStyle, ThematicStyle,
+    TrailingNewline, Wrap, WrapStrategy,
 };
 use mdwright_lint::RuleSet;
 use mdwright_mathrender::Renderer;
@@ -651,6 +651,10 @@ struct FmtSchema {
     math: Option<MathSchema>,
     #[serde(default, rename = "heading-attrs")]
     heading_attrs: Option<HeadingAttrsSchema>,
+    #[serde(default, rename = "blank-line-before-heading")]
+    blank_line_before_heading: Option<BlankLineSchema>,
+    #[serde(default, rename = "blank-line-after-heading")]
+    blank_line_after_heading: Option<BlankLineSchema>,
 }
 
 fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
@@ -715,6 +719,12 @@ fn fmt_options_from_schema(schema: FmtSchema) -> FmtOptions {
     }
     if let Some(heading_attrs) = schema.heading_attrs {
         opts = opts.with_heading_attrs(HeadingAttrsStyle::from(heading_attrs));
+    }
+    if let Some(blank_line) = schema.blank_line_before_heading {
+        opts = opts.with_blank_line_before_heading(BlankLine::from(blank_line));
+    }
+    if let Some(blank_line) = schema.blank_line_after_heading {
+        opts = opts.with_blank_line_after_heading(BlankLine::from(blank_line));
     }
     opts
 }
@@ -1190,6 +1200,13 @@ enum TableStyleSchema {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum BlankLineSchema {
+    Preserve,
+    One,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum TrailingNewlineSchema {
     Named(TrailingNewlineNamed),
@@ -1253,6 +1270,15 @@ impl From<StrongSchema> for StrongStyle {
             StrongSchema::Asterisk => Self::Asterisk,
             StrongSchema::Underscore => Self::Underscore,
             StrongSchema::Preserve => Self::Preserve,
+        }
+    }
+}
+
+impl From<BlankLineSchema> for BlankLine {
+    fn from(s: BlankLineSchema) -> Self {
+        match s {
+            BlankLineSchema::Preserve => Self::Preserve,
+            BlankLineSchema::One => Self::One,
         }
     }
 }

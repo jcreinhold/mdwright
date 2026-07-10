@@ -1,0 +1,5 @@
+[fmt]
+blank-line-after-heading = "one"
+
+[fmt.tables]
+style = "preserve"
