@@ -10,16 +10,24 @@
 //! |------|----------------------------------------|
 //! | 0-1  | wrap (Keep / No / At(80) / At(120))    |
 //! | 2    | math.normalise                         |
-//! | 3    | format mode (Normalise / Verbatim)     |
+//! | 3    | both heading blank-line knobs          |
 //! | 4-7  | canonicalisation mode (16 enumerated)  |
 //!
 //! The canonicalisation enumeration covers Preserve, each style knob
 //! pinned individually, and two "all knobs combined" variants, so
 //! every public formatting mode is exercised.
+//!
+//! Bit 3 turns on both heading blank-line knobs at once, which is the
+//! configuration where a single gap is claimed by both. Modes 14 and 15
+//! each turn on one side alone, so bit 3 crossed with the mode nibble
+//! reaches every combination of the two knobs.
 
 use libfuzzer_sys::fuzz_target;
 use mdwright_document::{Document, contains_rejected_control_chars};
-use mdwright_format::{FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle, Wrap};
+use mdwright_format::{
+    BlankLine, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
+    ThematicStyle, Wrap,
+};
 
 const MAX_INPUT: usize = 65_536;
 
@@ -34,9 +42,12 @@ fn opts_from_byte(byte: u8) -> FmtOptions {
         normalise: byte & 0b100 != 0,
         ..MathOptions::default()
     };
-    // Bit 3 is reserved; preserves the option-byte width so existing
-    // corpus seeds remain meaningful.
-    let base = FmtOptions::default().with_wrap(wrap).with_math(math);
+    let mut base = FmtOptions::default().with_wrap(wrap).with_math(math);
+    if byte & 0b1000 != 0 {
+        base = base
+            .with_blank_line_before_heading(BlankLine::One)
+            .with_blank_line_after_heading(BlankLine::One);
+    }
     apply_canon_mode(base, (byte >> 4) & 0b1111)
 }
 
@@ -63,14 +74,16 @@ fn apply_canon_mode(opts: FmtOptions, mode: u8) -> FmtOptions {
             .with_list_marker(ListMarkerStyle::Asterisk)
             .with_thematic_break(ThematicStyle::Asterisk)
             .with_ordered_list(OrderedListStyle::Consistent)
-            .with_link_def_style(LinkDefStyle::Bare),
+            .with_link_def_style(LinkDefStyle::Bare)
+            .with_blank_line_before_heading(BlankLine::One),
         15 => opts
             .with_italic(ItalicStyle::Underscore)
             .with_strong(StrongStyle::Underscore)
             .with_list_marker(ListMarkerStyle::Dash)
             .with_thematic_break(ThematicStyle::Dash)
             .with_ordered_list(OrderedListStyle::Consistent)
-            .with_link_def_style(LinkDefStyle::Angle),
+            .with_link_def_style(LinkDefStyle::Angle)
+            .with_blank_line_after_heading(BlankLine::One),
         _ => opts,
     }
 }
@@ -96,7 +109,6 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     let once = mdwright_format::format_document(&doc, &opts);
-    let twice =
-        mdwright_format::format_document(&Document::parse(&once).expect("formatter output parses"), &opts);
+    let twice = mdwright_format::format_document(&Document::parse(&once).expect("formatter output parses"), &opts);
     assert_eq!(once, twice, "format is not idempotent (opt byte {option_byte:#04x})");
 });

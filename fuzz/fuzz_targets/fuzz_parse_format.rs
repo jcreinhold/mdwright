@@ -17,8 +17,8 @@
 use libfuzzer_sys::fuzz_target;
 use mdwright_document::{Document, contains_rejected_control_chars, markdown_signature};
 use mdwright_format::{
-    FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle, ThematicStyle,
-    Wrap,
+    BlankLine, FmtOptions, ItalicStyle, LinkDefStyle, ListMarkerStyle, MathOptions, OrderedListStyle, StrongStyle,
+    ThematicStyle, Wrap,
 };
 
 /// Per-iter input cap: 64 KiB. Larger inputs eat fuzz budget without
@@ -37,9 +37,12 @@ fn opts_from_byte(byte: u8) -> FmtOptions {
         normalise: byte & 0b100 != 0,
         ..MathOptions::default()
     };
-    // Bit 3 is reserved; preserves the option-byte width so existing
-    // corpus seeds remain meaningful.
-    let base = FmtOptions::default().with_wrap(wrap).with_math(math);
+    let mut base = FmtOptions::default().with_wrap(wrap).with_math(math);
+    if byte & 0b1000 != 0 {
+        base = base
+            .with_blank_line_before_heading(BlankLine::One)
+            .with_blank_line_after_heading(BlankLine::One);
+    }
     apply_canon_mode(base, (byte >> 4) & 0b1111)
 }
 
@@ -64,14 +67,16 @@ fn apply_canon_mode(opts: FmtOptions, mode: u8) -> FmtOptions {
             .with_list_marker(ListMarkerStyle::Asterisk)
             .with_thematic_break(ThematicStyle::Asterisk)
             .with_ordered_list(OrderedListStyle::Consistent)
-            .with_link_def_style(LinkDefStyle::Bare),
+            .with_link_def_style(LinkDefStyle::Bare)
+            .with_blank_line_before_heading(BlankLine::One),
         15 => opts
             .with_italic(ItalicStyle::Underscore)
             .with_strong(StrongStyle::Underscore)
             .with_list_marker(ListMarkerStyle::Dash)
             .with_thematic_break(ThematicStyle::Dash)
             .with_ordered_list(OrderedListStyle::Consistent)
-            .with_link_def_style(LinkDefStyle::Angle),
+            .with_link_def_style(LinkDefStyle::Angle)
+            .with_blank_line_after_heading(BlankLine::One),
         _ => opts,
     }
 }

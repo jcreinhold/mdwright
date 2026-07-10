@@ -8,7 +8,7 @@
 //! `arbitrary::Unstructured` stream and assembles a Markdown source
 //! from block-shaped templates, then asserts the same oracle as
 //! `fuzz_idempotence` *with* `FmtOptions` also driven by the byte
-//! stream (wrap × mode × math.normalise).
+//! stream (wrap × mode × math.normalise × heading blank lines).
 //!
 //! Generator is local rather than re-using `tests/common/proptest_gen.rs`
 //! because proptest strategies are sampling-based and incompatible with
@@ -18,7 +18,7 @@
 use arbitrary::{Arbitrary, Unstructured};
 use libfuzzer_sys::fuzz_target;
 use mdwright_document::Document;
-use mdwright_format::{FmtOptions, MathOptions, Wrap};
+use mdwright_format::{BlankLine, FmtOptions, MathOptions, Wrap};
 
 const MAX_OUTPUT: usize = 16_384;
 const MAX_BLOCKS: usize = 16;
@@ -133,13 +133,28 @@ fn opts_from_byte(byte: u8) -> FmtOptions {
         3 => Wrap::At(80),
         _ => Wrap::At(120),
     };
-    // Bit 2 is reserved; preserves the option-byte width so existing
-    // corpus seeds remain meaningful.
     let math = MathOptions {
         normalise: byte & 0b1000 != 0,
         ..MathOptions::default()
     };
-    FmtOptions::default().with_wrap(wrap).with_math(math)
+    // Bits 4 and 5 drive the two heading blank-line knobs independently,
+    // so the shared gap between adjacent headings is reached both when a
+    // single knob claims it and when both do.
+    let before = if byte & 0b1_0000 != 0 {
+        BlankLine::One
+    } else {
+        BlankLine::Preserve
+    };
+    let after = if byte & 0b10_0000 != 0 {
+        BlankLine::One
+    } else {
+        BlankLine::Preserve
+    };
+    FmtOptions::default()
+        .with_wrap(wrap)
+        .with_math(math)
+        .with_blank_line_before_heading(before)
+        .with_blank_line_after_heading(after)
 }
 
 fuzz_target!(|data: &[u8]| {
@@ -155,7 +170,6 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     let once = mdwright_format::format_document(&doc, &opts);
-    let twice =
-        mdwright_format::format_document(&Document::parse(&once).expect("formatter output parses"), &opts);
+    let twice = mdwright_format::format_document(&Document::parse(&once).expect("formatter output parses"), &opts);
     assert_eq!(once, twice, "format is not idempotent (opt byte {option_byte:#04x})");
 });

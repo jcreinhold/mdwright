@@ -41,8 +41,7 @@ fuzz_target!(|data: &[u8]| {
         return;
     };
     let (once, report) = mdwright_format::format_document_with_report(&doc, &opts);
-    let twice =
-        mdwright_format::format_document(&Document::parse(&once).expect("formatter output parses"), &opts);
+    let twice = mdwright_format::format_document(&Document::parse(&once).expect("formatter output parses"), &opts);
     assert_eq!(once, twice, "default opts not idempotent");
 
     // Identity holds only when no rewrite fired: default options compact
