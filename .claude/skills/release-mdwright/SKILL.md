@@ -108,13 +108,12 @@ gh workflow run release.yml -f dry_run=true
 gh run watch
 ```
 
-### 7. PR, merge, then tag — invariants gate
+### 7. Tag — invariants gate
 
-Open a PR with the version + CHANGELOG + (if any) baseline/doc changes; merge after `ci.yml` is green. The workflow
-publishes from the **tagged commit**, so `release.yml`, the version, and the `## [X.Y.Z]` CHANGELOG section must already
-be in it. Before tagging, re-verify the match-exactly invariants on the merge commit:
+The workflow publishes from the **tagged commit**, so `release.yml`, the version, and the `## [X.Y.Z]` CHANGELOG
+section must already be in it. Before tagging, re-verify the match-exactly invariants on that commit:
 
-- `git rev-parse --abbrev-ref HEAD` is `main` and up to date with origin.
+- `ci.yml` is green on it.
 - `[workspace.package].version` and all nine `[workspace.dependencies]` `mdwright*` versions equal the intended `X.Y.Z`.
 - `CHANGELOG.md` has a `## [X.Y.Z]` heading.
 - `git status` is clean and the public-API baselines / generated docs are committed.
@@ -155,4 +154,4 @@ idempotent and completes the release without burning a version. The binary GitHu
 recovery only fills the crates.io gap. Rehearse with `dry_run: true` first if unsure.
 
 **Contents must change** — a genuine build break, not a propagation race. Bump the patch version, repeat steps 2–7, and
-re-tag at the new merge commit; the already-published crates keep their old version.
+re-tag; the already-published crates keep their old version.

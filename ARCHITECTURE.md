@@ -44,7 +44,7 @@ section:
 
 ## See also
 
-- [`CLAUDE.md`](CLAUDE.md) — repo-wide working agreements.
+- [`AGENTS.md`](AGENTS.md) — repo-wide working agreements.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — PR conventions and MSRV-bump policy.
 - [`docs/src/reference/public-api.md`](docs/src/reference/public-api.md) — every public Rust item, mapped to the crate
   that owns it.
